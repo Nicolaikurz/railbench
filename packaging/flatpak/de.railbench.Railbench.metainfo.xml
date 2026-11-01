@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>de.railbench.Railbench</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <name>Railbench</name>
+  <summary>Model railway track planning and simulation tool</summary>
+  <description>
+    <p>
+      Railbench is an intuitive, accurate track planning and layout simulation application
+      supporting major scale models (H0, TT, N, etc.) with exact geometries, snapping,
+      and electrical voltage drop analysis.
+    </p>
+  </description>
+  <url type="homepage">https://github.com/railbench/railbench</url>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="0.4.0" date="2026-11-01">
+      <description>
+        <p>Release 0.4.0: Märklin C-Track Turntable 74862 (23m DB standard type) &amp; Trix 66862 with 30 exits, 3D Engine Shed environment &amp; scenery model, 3D wood plate sub-structures, H0/N street systems, and point-to-point distance measurement tool.</p>
+      </description>
+    </release>
+    <release version="0.3.0" date="2026-11-01">
+      <description>
+        <p>Release 0.3.0: Continuous ramp generation (Dreisatz &amp; S-curve easement), 2D/3D slope visualizer, left-click marquee box selection, right-click canvas pan, and Trix C-Track catalog.</p>
+      </description>
+    </release>
+    <release version="0.2.0" date="2026-10-31">
+      <description>
+        <p>Release 0.2.0: Multi-platform builds (macOS, Windows, Linux x64/arm64), layer management, voltage simulation, and improved UI.</p>
+      </description>
+    </release>
+    <release version="0.1.0" date="2026-10-31"/>
+  </releases>
+</component>
+

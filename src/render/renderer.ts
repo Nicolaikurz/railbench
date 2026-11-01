@@ -1,0 +1,397 @@
+import { Application, Container, Graphics, Text, TextStyle } from "pixi.js";
+import type { Layout, ColorMode } from "@/core/types";
+import { catalogRegistry, type Catalog, type CatalogEntry } from "@/catalog/catalog";
+import type { SimulationSummary } from "@/core/simulation";
+import { createTrackGraphics } from "./track-sprite";
+import { createBaseboardGraphics } from "./baseboard-sprite";
+import { createModel2DGraphics } from "./model-sprite";
+import { getBaseboards } from "@/core/layout";
+import type { BaseboardSnapGuide } from "@/core/baseboard-snapping";
+
+export interface MeasureState {
+  start: { x: number; y: number } | null;
+  current: { x: number; y: number } | null;
+  locked?: boolean;
+  snapPoint?: { x: number; y: number } | null;
+  scaleRatio?: number;
+  scaleName?: string;
+  showDeltas?: boolean;
+}
+
+function drawDashedLine(g: Graphics, x1: number, y1: number, x2: number, y2: number, dash = 4, gap = 4) {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const len = Math.hypot(dx, dy);
+  if (len === 0) return;
+  const cos = dx / len;
+  const sin = dy / len;
+  let dist = 0;
+  while (dist < len) {
+    const curDash = Math.min(dash, len - dist);
+    g.moveTo(x1 + cos * dist, y1 + sin * dist);
+    g.lineTo(x1 + cos * (dist + curDash), y1 + sin * (dist + curDash));
+    dist += dash + gap;
+  }
+}
+
+export interface RenderStateOptions {
+  selectedIds?: Set<string>;
+  showConnectors?: boolean;
+  powerSimulation?: SimulationSummary;
+  showPowerDrop?: boolean;
+  showTrackLabels?: boolean;
+  showColorCode?: boolean;
+  colorMode?: ColorMode;
+  snapPreviewTarget?: { x: number; y: number } | null;
+  selectionBox?: { start: { x: number; y: number }; end: { x: number; y: number } } | null;
+  activeBaseboardId?: string;
+  isDraggingBaseboard?: boolean;
+  baseboardSnapGuides?: BaseboardSnapGuide[];
+  measureTool?: MeasureState | null;
+}
+
+export class Renderer {
+  app = new Application();
+  world = new Container(); // wird für Pan/Zoom skaliert und verschoben
+  private grid = new Graphics();
+  private baseboardLayer = new Container();
+  private modelsLayer = new Container();
+  private tracksLayer = new Container();
+  private overlayLayer = new Container();
+  private currentTheme: "light" | "dark" = "light";
+
+  async init(host: HTMLElement) {
+    const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+    this.currentTheme = isDark ? "dark" : "light";
+    await this.app.init({
+      resizeTo: host,
+      background: isDark ? "#131b2e" : "#e4dfd5",
+      antialias: true,
+      autoDensity: true,
+    });
+    host.appendChild(this.app.canvas);
+
+    this.world.addChild(this.grid);
+    this.world.addChild(this.baseboardLayer);
+    this.world.addChild(this.modelsLayer);
+    this.world.addChild(this.tracksLayer);
+    this.world.addChild(this.overlayLayer);
+    this.app.stage.addChild(this.world);
+
+    this.drawGrid();
+  }
+
+  setTheme(theme: "light" | "dark") {
+    this.currentTheme = theme;
+    const bgColor = theme === "dark" ? 0x131b2e : 0xe4dfd5;
+    this.app.renderer.background.color = bgColor;
+    this.drawGrid();
+  }
+
+  drawGrid(size = 50, extent = 6000) {
+    this.grid.clear();
+    const isDark = this.currentTheme === "dark";
+
+    const fineColor = isDark ? 0x334155 : 0xffffff;
+    const fineAlpha = isDark ? 0.45 : 0.35;
+    const coarseColor = isDark ? 0x475569 : 0x94a3b8;
+    const coarseAlpha = isDark ? 0.6 : 0.3;
+    const axisColor = isDark ? 0x38bdf8 : 0x64748b;
+
+    // Feines Hilfsraster (50 mm)
+    for (let i = -extent; i <= extent; i += size) {
+      this.grid.moveTo(i, -extent).lineTo(i, extent);
+      this.grid.moveTo(-extent, i).lineTo(extent, i);
+    }
+    this.grid.stroke({ width: 0.8, color: fineColor, alpha: fineAlpha });
+
+    // Grobes Hauptraster (200 mm)
+    for (let i = -extent; i <= extent; i += size * 4) {
+      this.grid.moveTo(i, -extent).lineTo(i, extent);
+      this.grid.moveTo(-extent, i).lineTo(extent, i);
+    }
+    this.grid.stroke({ width: 1.5, color: coarseColor, alpha: coarseAlpha });
+
+    // Nullpunkt-Kreuz
+    this.grid.moveTo(-30, 0).lineTo(30, 0);
+    this.grid.moveTo(0, -30).lineTo(0, 30);
+    this.grid.stroke({ width: 2, color: axisColor, alpha: 0.7 });
+  }
+
+  render(layout: Layout, catalog?: Catalog, options: RenderStateOptions = {}) {
+    // 0. Baseboard / Tischplatte rendern
+    this.baseboardLayer.removeChildren();
+    const baseboards = getBaseboards(layout);
+    for (const bb of baseboards) {
+      if (bb.enabled) {
+        const isSelected = options.activeBaseboardId === bb.id;
+        const isDragging = isSelected && (options.isDraggingBaseboard ?? false);
+        const bbSprite = createBaseboardGraphics(bb, {
+          isSelected,
+          isDragging,
+          snapGuides: isDragging ? options.baseboardSnapGuides : undefined,
+        });
+        this.baseboardLayer.addChild(bbSprite);
+      }
+    }
+
+    // 0B. 3D-Modelle / Scenery im 2D-Grundriss rendern
+    this.modelsLayer.removeChildren();
+    const selectedIds = options.selectedIds ?? new Set<string>();
+
+    const layerMap = new Map<string, any>();
+    if (layout.layers) {
+      for (const l of layout.layers) layerMap.set(l.id, l);
+    }
+
+    if (layout.models && layout.models.length > 0) {
+      for (const model of layout.models) {
+        const layer = model.layerId ? layerMap.get(model.layerId) : undefined;
+        if (layer && !layer.visible) continue;
+
+        const isSelected = selectedIds.has(model.id);
+        const modelSprite = createModel2DGraphics(model, isSelected);
+        this.modelsLayer.addChild(modelSprite);
+      }
+    }
+
+    // 1. Tracks rendern
+    this.tracksLayer.removeChildren();
+
+    const entryMap = new Map<string, CatalogEntry>();
+    if (catalog) {
+      for (const e of catalog.entries) {
+        entryMap.set(e.id, e);
+      }
+    }
+
+    const showPowerDrop = options.showPowerDrop ?? false;
+    const powerSim = options.powerSimulation;
+
+    for (const piece of layout.pieces) {
+      const layer = piece.layerId ? layerMap.get(piece.layerId) : undefined;
+      // Ebene ausgeblendet?
+      if (layer && !layer.visible) {
+        continue;
+      }
+
+      const entry: CatalogEntry = entryMap.get(piece.catalogId) ?? catalogRegistry.findEntry(piece.catalogId) ?? {
+        id: piece.catalogId,
+        name: `Gleis ${piece.catalogId}`,
+        kind: "straight",
+        category: "Geraden",
+        description: "",
+        length: 188.3,
+      };
+
+      const isSelected = selectedIds.has(piece.id);
+      const powerResult = powerSim?.results.get(piece.id);
+
+      const sprite = createTrackGraphics(piece, entry, {
+        isSelected,
+        showConnectors: options.showConnectors,
+        showPowerDrop,
+        powerResult,
+        showTrackLabels: options.showTrackLabels,
+        showColorCode: options.showColorCode,
+        colorMode: options.colorMode,
+        layerColor: layer?.color,
+        layerHeightMm: layer?.heightMm ?? 0,
+      });
+
+      this.tracksLayer.addChild(sprite);
+    }
+
+    // 2. Overlays rendern (Connectors, Snap-Ziele)
+    this.overlayLayer.removeChildren();
+    const ov = new Graphics();
+    this.overlayLayer.addChild(ov);
+
+    if (options.showConnectors) {
+      for (const piece of layout.pieces) {
+        for (const conn of piece.connectors) {
+          if (!conn.connectedTo) {
+            // Freier Andockpunkt: leuchtend grün
+            ov.circle(conn.x, conn.y, 4.5);
+            ov.fill({ color: 0x16a34a, alpha: 0.9 });
+            ov.circle(conn.x, conn.y, 2);
+            ov.fill({ color: 0xffffff });
+            ov.circle(conn.x, conn.y, 7);
+            ov.stroke({ width: 1.2, color: 0x22c55e, alpha: 0.5 });
+          }
+        }
+      }
+    }
+
+    // Falls gerade ein Snap-Ziel aktiv ist:
+    if (options.snapPreviewTarget) {
+      const pt = options.snapPreviewTarget;
+      ov.circle(pt.x, pt.y, 10);
+      ov.stroke({ width: 2.5, color: 0xf59e0b, alpha: 0.9 });
+      ov.circle(pt.x, pt.y, 4);
+      ov.fill({ color: 0xf59e0b });
+    }
+
+    // Auswahlrahmen (Marquee Box bei Rechtsklick-Drag)
+    if (options.selectionBox) {
+      const box = options.selectionBox;
+      const minX = Math.min(box.start.x, box.end.x);
+      const maxX = Math.max(box.start.x, box.end.x);
+      const minY = Math.min(box.start.y, box.end.y);
+      const maxY = Math.max(box.start.y, box.end.y);
+      const w = maxX - minX;
+      const h = maxY - minY;
+
+      if (w > 2 || h > 2) {
+        ov.rect(minX, minY, w, h);
+        ov.fill({ color: 0x0284c7, alpha: 0.15 });
+        ov.stroke({ width: 1.5, color: 0x38bdf8, alpha: 0.95 });
+
+        const cornerSize = Math.min(8, w / 4, h / 4);
+        if (cornerSize > 1) {
+          ov.moveTo(minX, minY + cornerSize).lineTo(minX, minY).lineTo(minX + cornerSize, minY);
+          ov.moveTo(maxX - cornerSize, minY).lineTo(maxX, minY).lineTo(maxX, minY + cornerSize);
+          ov.moveTo(minX, maxY - cornerSize).lineTo(minX, maxY).lineTo(minX + cornerSize, maxY);
+          ov.moveTo(maxX - cornerSize, maxY).lineTo(maxX, maxY).lineTo(maxX, maxY - cornerSize);
+          ov.stroke({ width: 2.5, color: 0x0284c7, alpha: 1 });
+        }
+      }
+    }
+
+    // 3. Messwerkzeug (Measure Tool: Manuelle Distanzmessung zwischen zwei Punkten)
+    if (options.measureTool) {
+      const { start: p1, current: p2, locked, scaleRatio } = options.measureTool;
+
+      // Punkt A Badge zeichnen (falls gesetzt)
+      if (p1) {
+        ov.circle(p1.x, p1.y, 8).fill({ color: 0x0284c7, alpha: 0.25 });
+        ov.circle(p1.x, p1.y, 5).fill({ color: 0x0284c7 }).stroke({ width: 1.5, color: 0xffffff });
+
+        const txtA = new Text({
+          text: "A",
+          style: new TextStyle({
+            fontSize: 9,
+            fill: 0xffffff,
+            fontWeight: "bold",
+            stroke: { color: 0x0f172a, width: 2 },
+          }),
+        });
+        txtA.anchor.set(0.5, 1);
+        txtA.position.set(p1.x, p1.y - 7);
+        this.overlayLayer.addChild(txtA);
+      }
+
+      // Falls Punkt A und Punkt B vorhanden sind
+      if (p1 && p2) {
+        const dx = p2.x - p1.x;
+        const dy = p2.y - p1.y;
+        const dist = Math.hypot(dx, dy);
+
+        // Orthogonale Hilfsdreiecke / Delta-Linien (ΔX und ΔY)
+        if (dist > 15 && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) {
+          // ΔX: (p1.x, p1.y) -> (p2.x, p1.y)
+          drawDashedLine(ov, p1.x, p1.y, p2.x, p1.y, 4, 3);
+          ov.stroke({ width: 1, color: 0x94a3b8, alpha: 0.5 });
+
+          // ΔY: (p2.x, p1.y) -> (p2.x, p2.y)
+          drawDashedLine(ov, p2.x, p1.y, p2.x, p2.y, 4, 3);
+          ov.stroke({ width: 1, color: 0x94a3b8, alpha: 0.5 });
+        }
+
+        if (dist > 0.5) {
+          const nx = -dy / dist;
+          const ny = dx / dist;
+          const tickLen = 7;
+
+          // Kontrast-Schatten
+          ov.moveTo(p1.x, p1.y).lineTo(p2.x, p2.y);
+          ov.stroke({ width: 3.5, color: 0x0f172a, alpha: 0.7 });
+
+          // Haupt-Messlinie
+          const lineColor = locked ? 0x10b981 : 0x0284c7;
+          ov.moveTo(p1.x, p1.y).lineTo(p2.x, p2.y);
+          ov.stroke({ width: 2, color: lineColor, alpha: 0.95 });
+
+          // End-Ticks (Begrenzungslinien an A und B)
+          ov.moveTo(p1.x + nx * tickLen, p1.y + ny * tickLen).lineTo(p1.x - nx * tickLen, p1.y - ny * tickLen);
+          ov.moveTo(p2.x + nx * tickLen, p2.y + ny * tickLen).lineTo(p2.x - nx * tickLen, p2.y - ny * tickLen);
+          ov.stroke({ width: 2, color: lineColor, alpha: 0.95 });
+
+          // Punkt B Badge
+          ov.circle(p2.x, p2.y, 8).fill({ color: lineColor, alpha: 0.25 });
+          ov.circle(p2.x, p2.y, 5).fill({ color: lineColor }).stroke({ width: 1.5, color: 0xffffff });
+
+          const txtB = new Text({
+            text: "B",
+            style: new TextStyle({
+              fontSize: 9,
+              fill: 0xffffff,
+              fontWeight: "bold",
+              stroke: { color: 0x0f172a, width: 2 },
+            }),
+          });
+          txtB.anchor.set(0.5, 1);
+          txtB.position.set(p2.x, p2.y - 7);
+          this.overlayLayer.addChild(txtB);
+
+          // Maßbeschriftung in der Mitte
+          const midX = (p1.x + p2.x) / 2;
+          const midY = (p1.y + p2.y) / 2;
+
+          let distStr = dist >= 1000
+            ? `${dist.toFixed(1)} mm (${(dist / 1000).toFixed(2)} m)`
+            : `${dist.toFixed(1)} mm`;
+
+          if (scaleRatio && scaleRatio > 1) {
+            const protoM = (dist * scaleRatio) / 1000;
+            distStr += `\nVorbild: ${protoM.toFixed(2)} m`;
+          }
+
+          const txt = new Text({
+            text: distStr,
+            style: new TextStyle({
+              fontSize: 11,
+              fill: 0xffffff,
+              fontWeight: "bold",
+              align: "center",
+              stroke: { color: 0x0f172a, width: 3 },
+            }),
+          });
+          txt.anchor.set(0.5, 0.5);
+          txt.position.set(midX + nx * 16, midY + ny * 16);
+          this.overlayLayer.addChild(txt);
+        }
+      }
+
+      if (options.measureTool.snapPoint) {
+        const sp = options.measureTool.snapPoint;
+        ov.circle(sp.x, sp.y, 7).stroke({ width: 2, color: 0x10b981, alpha: 0.9 });
+        ov.circle(sp.x, sp.y, 3).fill({ color: 0x10b981 });
+      }
+    }
+  }
+
+  /** Wandelt Bildschirmkoordinaten (Canvas) in Weltkoordinaten um. */
+  screenToWorld(clientX: number, clientY: number): { x: number; y: number } {
+    const rect = this.app.canvas.getBoundingClientRect();
+    const mx = clientX - rect.left;
+    const my = clientY - rect.top;
+    const wx = (mx - this.world.x) / this.world.scale.x;
+    const wy = (my - this.world.y) / this.world.scale.y;
+    return { x: wx, y: wy };
+  }
+
+  /** Wandelt Weltkoordinaten (mm) in Bildschirmkoordinaten (Pixel relativ zum Canvas-Host) um. */
+  worldToScreen(worldX: number, worldY: number): { x: number; y: number } {
+    const sx = worldX * this.world.scale.x + this.world.x;
+    const sy = worldY * this.world.scale.y + this.world.y;
+    return { x: sx, y: sy };
+  }
+
+  /** Zentriert die Ansicht auf den Ursprung oder Layout-Mittelpunkt. */
+  resetView() {
+    this.world.scale.set(1);
+    this.world.x = this.app.screen.width / 2;
+    this.world.y = this.app.screen.height / 2;
+  }
+}
