@@ -5,8 +5,8 @@ An intuitive, fast, and precise model railway track planning and layout simulati
 ---
 
 > [!IMPORTANT]
-> **Release 0.4 Testing Notice**:
-> For **Release 0.4**, the application includes multi-platform executables for **Linux (x86_64, arm64 AppImage)**, **Windows (x64, arm64 portable .exe)**, and **macOS (Apple Silicon M1/M2/M3/M4 arm64, Intel x64)**.
+> **Release 0.5 Testing Notice**:
+> For **Release 0.5**, the application includes multi-platform executables for **Linux (x86_64, arm64 AppImage)**, **Windows (x64, arm64 portable .exe)**, and **macOS (Apple Silicon M1/M2/M3/M4 arm64, Intel x64)**.
 
 ---
 
