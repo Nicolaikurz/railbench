@@ -1,4 +1,4 @@
-# Railbench – Model Railway Track Planner (v0.4.0)
+# Railbench – Model Railway Track Planner (v0.5.0)
 
 An intuitive, fast, and precise model railway track planning and layout simulation application (TypeScript + PixiJS + Vite + Electron).
 
@@ -6,7 +6,7 @@ An intuitive, fast, and precise model railway track planning and layout simulati
 
 > [!IMPORTANT]
 > **Release 0.4 Testing Notice**:
-> For **Release 0.4**, the application includes multi-platform executables for **Linux (x86_64, arm64 AppImage)**, **Windows (x64, arm64 portable .exe)**, and **macOS (Apple Silicon M1/M2/M3/M4 arm64)**.
+> For **Release 0.4**, the application includes multi-platform executables for **Linux (x86_64, arm64 AppImage)**, **Windows (x64, arm64 portable .exe)**, and **macOS (Apple Silicon M1/M2/M3/M4 arm64, Intel x64)**.
 
 ---
 
@@ -35,7 +35,7 @@ An intuitive, fast, and precise model railway track planning and layout simulati
 * **3D Perspective (<kbd>3</kbd> or <kbd>V</kbd>)**: One-key toggle between 2D precision CAD drafting and realistic 3D perspective.
 * **3D Models & Scenery Support (`.glb` / `.gltf`)**:
   * **Import custom 3D models**: Import binary `.glb` or `.gltf` 3D files directly from disk or via drag-and-drop onto the canvas. Auto-scales models from real-world meters to prototypical H0/N/TT scale.
-  * **Built-in Open-Source Models Library**: Place standard prototypical railway scenery items:
+  * **Built-in Open-Source Models Library (100% Procedural & Royalty-Free)**: Place standard prototypical railway scenery items generated natively via Three.js parametric code (no external copyrighted binaries or textures; licensed under the project's open-source GPLv3 license):
     * 🏢 **Bahnhof Neustadt**: Passenger station with gabled roof, clock tower, and platform canopy.
     * 🏭 **Stellwerk W1**: Two-storey brick signal tower with panoramic glass windows and steel staircase.
     * 🚂 **Lokschuppen**: Single-stall red brick locomotive engine shed with arched doorway.
@@ -46,6 +46,7 @@ An intuitive, fast, and precise model railway track planning and layout simulati
     * 🌲 **Tanne / Fichte**: Tiered evergreen coniferous pine trees.
     * 🌳 **Laubbaum**: Deciduous leafy oak tree.
     * 💡 **Bahnsteigleuchte**: Curved swan-neck platform lamppost.
+  * **3D Models Licensing Notice**: All built-in 3D scenery models are 100% procedurally coded in TypeScript (`src/render/builtin-models-3d.ts`), completely free of third-party copyright encumbrances, and free for personal, hobby, and commercial layout design. External models imported by users (`.glb`/`.gltf`) retain their original creator licenses.
   * **2D CAD Footprint & 3D Lighting**: In 2D drafting mode, models show architectural footprints with labels, dimension badges, and rotation handles. In 3D, models cast and receive realistic sunlight shadows.
 * **Elevation Decks & Bridge Pillars**: Elevated track segments and ramps are placed at their true vertical heights in millimeters. Track sections elevated above ground level ($>15\text{ mm}$) automatically generate sturdy bridge support pillars connecting to the baseboard.
 * **Modular Benchwork in 3D**: Extruded wooden baseboard geometry matching your chosen shape (Rectangular, L-shape, U-shape, T-shape) with realistic table legs and authentic surface materials.

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { simulatePowerDrop, isTurnoutEntry } from "@/core/simulation";
-import { maerklinCCatalog } from "@/catalog/catalog";
+import { simulatePowerDrop, isTurnoutEntry, detectShortCircuit, isTwoWireCatalog } from "@/core/simulation";
+import { maerklinCCatalog, trixCCatalog, pikoACatalog } from "@/catalog/catalog";
 import type { Layout, TrackPiece } from "@/core/types";
 
 describe("Power Drop Simulation", () => {
@@ -525,6 +525,221 @@ describe("Power Drop Simulation", () => {
       const sim = simulatePowerDrop(layout, maerklinCCatalog);
       expect(sim.turnoutAccessoryCurrentAmps).toBeCloseTo(0.08, 3);
       expect(sim.results.get("p2")?.accessoryCurrentMa).toBe(80);
+    });
+  });
+
+  describe("2-Wire Short Circuit Detection (Kurzschluss-Erkennung)", () => {
+    it("erkennt 2-Leiter-Systeme korrekt", () => {
+      expect(isTwoWireCatalog(trixCCatalog)).toBe(true);
+      expect(isTwoWireCatalog(pikoACatalog)).toBe(true);
+      expect(isTwoWireCatalog(maerklinCCatalog)).toBe(false);
+    });
+
+    it("meldet keinen Kurzschluss bei einer normalen 2-Leiter-Ovalstrecke", () => {
+      const layout: Layout = {
+        name: "Normal 2-Rail Oval",
+        scale: "H0",
+        pieces: [
+          {
+            id: "p1",
+            catalogId: "62188",
+            transform: { x: 0, y: 0, rotation: 0 },
+            connectors: [
+              { x: 0, y: 0, angle: 180 },
+              { x: 188.3, y: 0, angle: 0, connectedTo: { pieceId: "p2", connectorIndex: 0 } },
+            ],
+          },
+          {
+            id: "p2",
+            catalogId: "62188",
+            transform: { x: 188.3, y: 0, rotation: 0 },
+            connectors: [
+              { x: 188.3, y: 0, angle: 180, connectedTo: { pieceId: "p1", connectorIndex: 1 } },
+              { x: 376.6, y: 0, angle: 0 },
+            ],
+          },
+        ],
+      };
+
+      const res = detectShortCircuit(layout, trixCCatalog);
+      expect(res.isTwoWireSystem).toBe(true);
+      expect(res.hasShortCircuit).toBe(false);
+      expect(res.shortCircuitPieces.size).toBe(0);
+      expect(res.shortCircuitPoints.length).toBe(0);
+    });
+
+    it("erkennt Kurzschluss bei einer Kehrschleife im 2-Leiter-System (Verbindung von linker und rechter Schiene)", () => {
+      const layout: Layout = {
+        name: "Reverse Loop Shortcut",
+        scale: "H0",
+        pieces: [
+          {
+            id: "t1",
+            catalogId: "62611",
+            transform: { x: 0, y: 0, rotation: 0 },
+            connectors: [
+              { x: 0, y: 0, angle: 180 },
+              { x: 188.3, y: 0, angle: 0, connectedTo: { pieceId: "c1", connectorIndex: 0 } },
+              { x: 188.3, y: 40, angle: 24.3, connectedTo: { pieceId: "c2", connectorIndex: 1 } },
+            ],
+          },
+          {
+            id: "c1",
+            catalogId: "62188",
+            transform: { x: 188.3, y: 0, rotation: 0 },
+            connectors: [
+              { x: 188.3, y: 0, angle: 180, connectedTo: { pieceId: "t1", connectorIndex: 1 } },
+              { x: 376.6, y: 0, angle: 0, connectedTo: { pieceId: "c2", connectorIndex: 0 } },
+            ],
+          },
+          {
+            id: "c2",
+            catalogId: "62188",
+            transform: { x: 376.6, y: 0, rotation: 0 },
+            connectors: [
+              { x: 376.6, y: 0, angle: 180, connectedTo: { pieceId: "c1", connectorIndex: 1 } },
+              { x: 188.3, y: 40, angle: 204.3, connectedTo: { pieceId: "t1", connectorIndex: 2 } },
+            ],
+          },
+        ],
+      };
+
+      const res = detectShortCircuit(layout, trixCCatalog);
+      expect(res.isTwoWireSystem).toBe(true);
+      expect(res.hasShortCircuit).toBe(true);
+      expect(res.shortCircuitPieces.has("t1")).toBe(true);
+      expect(res.shortCircuitPieces.has("c1")).toBe(true);
+      expect(res.shortCircuitPieces.has("c2")).toBe(true);
+      expect(res.shortCircuitPoints.length).toBeGreaterThan(0);
+    });
+
+    it("bricht Kurzschluss ab, wenn eine Trennstelle (isIsolator) eingebaut wird", () => {
+      const layout: Layout = {
+        name: "Reverse Loop with Isolator",
+        scale: "H0",
+        pieces: [
+          {
+            id: "t1",
+            catalogId: "62611",
+            transform: { x: 0, y: 0, rotation: 0 },
+            connectors: [
+              { x: 0, y: 0, angle: 180 },
+              { x: 188.3, y: 0, angle: 0, connectedTo: { pieceId: "c1", connectorIndex: 0 } },
+              { x: 188.3, y: 40, angle: 24.3, connectedTo: { pieceId: "c2", connectorIndex: 1 } },
+            ],
+          },
+          {
+            id: "c1",
+            catalogId: "62188",
+            transform: { x: 188.3, y: 0, rotation: 0 },
+            connectors: [
+              { x: 188.3, y: 0, angle: 180, connectedTo: { pieceId: "t1", connectorIndex: 1 } },
+              { x: 376.6, y: 0, angle: 0, connectedTo: { pieceId: "c2", connectorIndex: 0 } },
+            ],
+          },
+          {
+            id: "c2",
+            catalogId: "62188",
+            transform: { x: 376.6, y: 0, rotation: 0 },
+            connectors: [
+              { x: 376.6, y: 0, angle: 180, connectedTo: { pieceId: "c1", connectorIndex: 1 } },
+              { x: 188.3, y: 40, angle: 204.3, connectedTo: { pieceId: "t1", connectorIndex: 2 } },
+            ],
+            isIsolator: true,
+            isolatedConnectorIndex: 1,
+          },
+        ],
+      };
+
+      const res = detectShortCircuit(layout, trixCCatalog);
+      expect(res.isTwoWireSystem).toBe(true);
+      expect(res.hasShortCircuit).toBe(false);
+    });
+
+    it("meldet keinen Kurzschluss in einem 3-Leiter-System (Märklin C, conductors=3)", () => {
+      const layout: Layout = {
+        name: "3-Rail Reverse Loop",
+        scale: "H0",
+        pieces: [
+          {
+            id: "t1",
+            catalogId: "24611",
+            transform: { x: 0, y: 0, rotation: 0 },
+            connectors: [
+              { x: 0, y: 0, angle: 180 },
+              { x: 188.3, y: 0, angle: 0, connectedTo: { pieceId: "c1", connectorIndex: 0 } },
+              { x: 188.3, y: 40, angle: 24.3, connectedTo: { pieceId: "c2", connectorIndex: 1 } },
+            ],
+          },
+          {
+            id: "c1",
+            catalogId: "24188",
+            transform: { x: 188.3, y: 0, rotation: 0 },
+            connectors: [
+              { x: 188.3, y: 0, angle: 180, connectedTo: { pieceId: "t1", connectorIndex: 1 } },
+              { x: 376.6, y: 0, angle: 0, connectedTo: { pieceId: "c2", connectorIndex: 0 } },
+            ],
+          },
+          {
+            id: "c2",
+            catalogId: "24188",
+            transform: { x: 376.6, y: 0, rotation: 0 },
+            connectors: [
+              { x: 376.6, y: 0, angle: 180, connectedTo: { pieceId: "c1", connectorIndex: 1 } },
+              { x: 188.3, y: 40, angle: 204.3, connectedTo: { pieceId: "t1", connectorIndex: 2 } },
+            ],
+          },
+        ],
+      };
+
+      const res = detectShortCircuit(layout, maerklinCCatalog);
+      expect(res.isTwoWireSystem).toBe(false);
+      expect(res.hasShortCircuit).toBe(false);
+    });
+
+    it("integriert Kurzschluss in simulatePowerDrop und warnt in der Empfehlung", () => {
+      const layout: Layout = {
+        name: "Simulation Reverse Loop",
+        scale: "H0",
+        feedVoltage: 14.0,
+        pieces: [
+          {
+            id: "t1",
+            catalogId: "62611",
+            transform: { x: 0, y: 0, rotation: 0 },
+            connectors: [
+              { x: 0, y: 0, angle: 180 },
+              { x: 188.3, y: 0, angle: 0, connectedTo: { pieceId: "c1", connectorIndex: 0 } },
+              { x: 188.3, y: 40, angle: 24.3, connectedTo: { pieceId: "c2", connectorIndex: 1 } },
+            ],
+            powerFeed: true,
+          },
+          {
+            id: "c1",
+            catalogId: "62188",
+            transform: { x: 188.3, y: 0, rotation: 0 },
+            connectors: [
+              { x: 188.3, y: 0, angle: 180, connectedTo: { pieceId: "t1", connectorIndex: 1 } },
+              { x: 376.6, y: 0, angle: 0, connectedTo: { pieceId: "c2", connectorIndex: 0 } },
+            ],
+          },
+          {
+            id: "c2",
+            catalogId: "62188",
+            transform: { x: 376.6, y: 0, rotation: 0 },
+            connectors: [
+              { x: 376.6, y: 0, angle: 180, connectedTo: { pieceId: "c1", connectorIndex: 1 } },
+              { x: 188.3, y: 40, angle: 204.3, connectedTo: { pieceId: "t1", connectorIndex: 2 } },
+            ],
+          },
+        ],
+      };
+
+      const sim = simulatePowerDrop(layout, trixCCatalog);
+      expect(sim.hasShortCircuit).toBe(true);
+      expect(sim.shortCircuitPieces?.length).toBe(3);
+      expect(sim.recommendation).toContain("Kurzschluss");
+      expect(sim.results.get("t1")?.isShortCircuit).toBe(true);
     });
   });
 });

@@ -26,8 +26,24 @@ else
 fi
 
 echo ""
-echo "==========================================="
-echo "✅ Windows Portable build complete!"
-echo "Executables located in: release/"
-echo "==========================================="
+echo "=== Zipping Windows Executables ==="
+if command -v zip &> /dev/null; then
+    cd release
+    # Find all newly generated portable .exe files and zip each one individually
+    for EXE_FILE in *-portable-*.exe; do
+        if [ -f "$EXE_FILE" ]; then
+            ZIP_NAME="${EXE_FILE%.exe}.zip"
+            zip -j "$ZIP_NAME" "$EXE_FILE"
+            echo "Created archive: release/$ZIP_NAME"
+        fi
+    done
+    cd ..
+else
+    echo "[WARNING] 'zip' command not found. Skipping compression."
+fi
 
+echo ""
+echo "==========================================="
+echo " Windows Portable build and zip complete!"
+echo "Archives located in: release/"
+echo "==========================================="

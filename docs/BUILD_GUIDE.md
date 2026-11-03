@@ -1,4 +1,4 @@
-# Build-Anleitung: Windows, Linux & macOS (Release 0.4.0)
+# Build-Anleitung: Windows, Linux & macOS (Release 0.5.0)
 
 Diese Anleitung beschreibt Schritt für Schritt, wie eigenständige ausführbare Pakete für **Windows (Portable EXE)**, **Linux (AppImage & Flatpak)** und **macOS (ZIP & DMG)** für **x86_64** und **ARM64** gebaut und verteilt werden.
 
