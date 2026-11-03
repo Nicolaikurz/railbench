@@ -3005,13 +3005,17 @@ async function main() {
 /** Erzeugt eine kleine Start-Gleiskonfiguration (Oval / Gerade mit Weiche), damit die App sofort lebendig ist. */
 function initDemoTracks(layout: Layout, catalog: Catalog) {
   ensureDefaultLayers(layout);
-  const g188 = catalog.entries.find((e) => e.id === "24188")!;
-  const wLeft = catalog.entries.find((e) => e.id === "24611")!;
-  const r2_30 = catalog.entries.find((e) => e.id === "24230")!;
+  if (!catalog?.entries || catalog.entries.length === 0) return;
+
+  const g188 = catalog.entries.find((e) => e.id === "24188") || catalog.entries[0];
+  const wLeft = catalog.entries.find((e) => e.id === "24611") || catalog.entries[1] || catalog.entries[0];
+  const r2_30 = catalog.entries.find((e) => e.id === "24230") || catalog.entries[2] || catalog.entries[0];
+
+  if (!g188) return;
 
   const p1: TrackPiece = {
     id: "demo-1",
-    catalogId: "24188",
+    catalogId: g188.id,
     transform: { x: -200, y: 0, rotation: 0 },
     connectors: computeWorldConnectors(g188, { x: -200, y: 0, rotation: 0 }),
     powerFeed: true,
@@ -3019,37 +3023,16 @@ function initDemoTracks(layout: Layout, catalog: Catalog) {
   };
   layout.pieces.push(p1);
 
-  const p2Pos = { x: -200 + 188.3, y: 0, rotation: 0 };
-  const p2: TrackPiece = {
-    id: "demo-2",
-    catalogId: "24611",
-    transform: p2Pos,
-    connectors: computeWorldConnectors(wLeft, p2Pos),
-    layerId: "layer-1",
-  };
-  layout.pieces.push(p2);
-
-  const p3Pos = { x: p2Pos.x + 188.3, y: 0, rotation: 0 };
-  const p3: TrackPiece = {
-    id: "demo-3",
-    catalogId: "24188",
-    transform: p3Pos,
-    connectors: computeWorldConnectors(g188, p3Pos),
-    layerId: "layer-1",
-  };
-  layout.pieces.push(p3);
-
-  const snap = findBestSnapForPiece(r2_30, { x: p2Pos.x + 100, y: 50, rotation: 24.3 }, layout.pieces);
-  if (snap) {
-    const p4: TrackPiece = {
-      id: "demo-4",
-      catalogId: "24230",
-      transform: snap.snappedTransform,
-      connectors: computeWorldConnectors(r2_30, snap.snappedTransform),
+  if (wLeft) {
+    const p2Pos = { x: -200 + (g188.length ?? 188.3), y: 0, rotation: 0 };
+    const p2: TrackPiece = {
+      id: "demo-2",
+      catalogId: wLeft.id,
+      transform: p2Pos,
+      connectors: computeWorldConnectors(wLeft, p2Pos),
       layerId: "layer-1",
     };
-    layout.pieces.push(p4);
+    layout.pieces.push(p2);
   }
 }
-
 main();
