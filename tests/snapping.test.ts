@@ -1,7 +1,15 @@
 import { describe, it, expect } from "vitest";
-import { findSnap } from "@/core/snapping";
+import { findSnap, findBestSnapForPiece } from "@/core/snapping";
 import type { TrackPiece } from "@/core/types";
-import { distanceToTrackPiece, isPieceInSelectionBox } from "@/core/geometry";
+import {
+  distanceToTrackPiece,
+  isPieceInSelectionBox,
+  getPieceCenterWorld,
+  rotatePieceAroundCenter,
+  rotateGroupAroundCentroid,
+  computeGroupCentroid,
+  dist,
+} from "@/core/geometry";
 import { Selection } from "@/editor/selection";
 import { getTrackBlueprintColor } from "@/render/blueprint-colors";
 import { createTrackGraphics } from "@/render/track-sprite";
@@ -421,5 +429,294 @@ describe("isPieceInSelectionBox & multi-selection", () => {
       layerColor: "#ec4899",
     });
     expect(spriteLayers).toBeDefined();
+  });
+});
+
+describe("snap in place & center rotation", () => {
+  const g188: CatalogEntry = {
+    id: "24188",
+    name: "Gerades Gleis 188.3 mm",
+    kind: "straight",
+    length: 188.3,
+    category: "Gerade",
+    description: "Gerade",
+  };
+
+  const r1_30: CatalogEntry = {
+    id: "24130",
+    name: "Bogen R1 30°",
+    kind: "curve",
+    radius: 360,
+    angle: 30,
+    category: "Kurven",
+    description: "Kurve",
+  };
+
+  it("rotatePieceAroundCenter dreht ein Einzelgleis exakt um seinen geometrischen Mittelpunkt", () => {
+    const origTransform = { x: 100, y: 200, rotation: 0 };
+    const centerBefore = getPieceCenterWorld(g188, origTransform);
+
+    // Drehung um 90 Grad
+    const newTransform90 = rotatePieceAroundCenter(g188, origTransform, 90);
+    expect(newTransform90.rotation).toBe(90);
+
+    const centerAfter90 = getPieceCenterWorld(g188, newTransform90);
+    expect(centerAfter90.x).toBeCloseTo(centerBefore.x, 2);
+    expect(centerAfter90.y).toBeCloseTo(centerBefore.y, 2);
+
+    // Drehung um weitere 45 Grad (135 Grad insgesamt)
+    const newTransform135 = rotatePieceAroundCenter(g188, newTransform90, 45);
+    expect(newTransform135.rotation).toBe(135);
+
+    const centerAfter135 = getPieceCenterWorld(g188, newTransform135);
+    expect(centerAfter135.x).toBeCloseTo(centerBefore.x, 2);
+    expect(centerAfter135.y).toBeCloseTo(centerBefore.y, 2);
+  });
+
+  it("rotatePieceAroundCenter funktioniert auch für Bogengleise präzise um das Bogen-Centrum", () => {
+    const origTransform = { x: 50, y: 50, rotation: 15 };
+    const centerBefore = getPieceCenterWorld(r1_30, origTransform);
+
+    const newTransform = rotatePieceAroundCenter(r1_30, origTransform, 60);
+    expect(newTransform.rotation).toBe(75);
+
+    const centerAfter = getPieceCenterWorld(r1_30, newTransform);
+    expect(centerAfter.x).toBeCloseTo(centerBefore.x, 2);
+    expect(centerAfter.y).toBeCloseTo(centerBefore.y, 2);
+  });
+
+  it("rotateGroupAroundCentroid dreht mehrere Gleise starr als eine Einheit um ihren gemeinsamen Schwerpunkt", () => {
+    // 2 Geraden hintereinander:
+    // Gleis 1: (0, 0, 0) -> Zentrum bei (94.15, 0)
+    // Gleis 2: (188.3, 0, 0) -> Zentrum bei (282.45, 0)
+    // Gemeinsamer Schwerpunkt: (188.3, 0)
+    const t1 = { x: 0, y: 0, rotation: 0 };
+    const t2 = { x: 188.3, y: 0, rotation: 0 };
+
+    const items = [
+      { id: "g1", type: "piece" as const, transform: t1, entry: g188 },
+      { id: "g2", type: "piece" as const, transform: t2, entry: g188 },
+    ];
+
+    const centroid = computeGroupCentroid(items);
+    expect(centroid.x).toBeCloseTo(188.3, 2);
+    expect(centroid.y).toBeCloseTo(0, 2);
+
+    // 90° Drehung um den Schwerpunkt
+    const newTransforms = rotateGroupAroundCentroid(items, 90, centroid);
+    const newT1 = newTransforms.get("g1")!;
+    const newT2 = newTransforms.get("g2")!;
+
+    expect(newT1.rotation).toBe(90);
+    expect(newT2.rotation).toBe(90);
+
+    const c1 = getPieceCenterWorld(g188, newT1);
+    const c2 = getPieceCenterWorld(g188, newT2);
+
+    // Abstand zwischen den Zentren beider Gleise bleibt exakt 188.3 mm (starre Verbindung!)
+    expect(dist(c1, c2)).toBeCloseTo(188.3, 2);
+
+    // Neuer Schwerpunkt der gedrehten Gruppe bleibt identisch
+    expect((c1.x + c2.x) / 2).toBeCloseTo(centroid.x, 2);
+    expect((c1.y + c2.y) / 2).toBeCloseTo(centroid.y, 2);
+  });
+
+  it("findBestSnapForPiece rastet mit Position UND Rotation nahtlos ein ('snap in place')", () => {
+    const fixedPiece: TrackPiece = {
+      id: "fixed",
+      catalogId: "24188",
+      transform: { x: 0, y: 0, rotation: 0 },
+      connectors: [
+        { x: 0, y: 0, angle: 180 },
+        { x: 188.3, y: 0, angle: 0 },
+      ],
+    };
+
+    // Kandidat wird herangeführt, liegt bei (195, 8) und ist 35° verdreht
+    const candidateT = { x: 195, y: 8, rotation: 35 };
+    const snap = findBestSnapForPiece(g188, candidateT, [fixedPiece], undefined, 45, 60);
+
+    expect(snap).not.toBeNull();
+    // Position dockt exakt an (188.3, 0) an
+    expect(snap!.snappedTransform.x).toBeCloseTo(188.3, 2);
+    expect(snap!.snappedTransform.y).toBeCloseTo(0, 2);
+    // Drehwinkel dockt exakt an 0° an
+    expect(snap!.snappedTransform.rotation).toBeCloseTo(0, 2);
+  });
+
+  it("findBestSnapForPiece unterstützt ignorePieceIds als Set bei Gruppenbewegungen", () => {
+    const fixedPiece: TrackPiece = {
+      id: "p-fixed",
+      catalogId: "24188",
+      transform: { x: 0, y: 0, rotation: 0 },
+      connectors: [
+        { x: 0, y: 0, angle: 180 },
+        { x: 188.3, y: 0, angle: 0 },
+      ],
+    };
+    const movingPiece1: TrackPiece = {
+      id: "p-dragged-1",
+      catalogId: "24188",
+      transform: { x: 188.3, y: 0, rotation: 0 },
+      connectors: [
+        { x: 188.3, y: 0, angle: 180 },
+        { x: 376.6, y: 0, angle: 0 },
+      ],
+    };
+
+    const draggedSet = new Set(["p-dragged-1", "p-dragged-2"]);
+    const snap = findBestSnapForPiece(
+      g188,
+      { x: 190, y: 3, rotation: 0 },
+      [fixedPiece, movingPiece1],
+      draggedSet,
+    );
+
+    // Rastet an fixedPiece an, ignoriert movingPiece1
+    expect(snap?.targetPieceId).toBe("p-fixed");
+  });
+
+  it("dreht Straßenstücke (Geraden, Kurven, Kreuzungen) exakt im geometrischen Straßen-Centrum", () => {
+    const roadStraight: CatalogEntry = {
+      id: "ST-S200",
+      name: "Gerade Straße 200 mm",
+      kind: "straight",
+      length: 200,
+      isRoad: true,
+      roadWidth: 60,
+      category: "Geraden",
+      description: "Straße",
+    };
+
+    const roadCross: CatalogEntry = {
+      id: "ST-X-90",
+      name: "Straßenkreuzung 90°",
+      kind: "crossing",
+      length: 200,
+      isRoad: true,
+      roadWidth: 60,
+      category: "Kreuzungen",
+      description: "Kreuzung",
+    };
+
+    // Gerade Straße: Länge 200 mm, Zentrum bei lokal (100, 0)
+    const tStraight = { x: 50, y: 50, rotation: 0 };
+    const centerBeforeS = getPieceCenterWorld(roadStraight, tStraight);
+    expect(centerBeforeS.x).toBeCloseTo(150, 2);
+    expect(centerBeforeS.y).toBeCloseTo(50, 2);
+
+    const rotatedStraight = rotatePieceAroundCenter(roadStraight, tStraight, 45);
+    expect(rotatedStraight.rotation).toBe(45);
+    const centerAfterS = getPieceCenterWorld(roadStraight, rotatedStraight);
+    expect(centerAfterS.x).toBeCloseTo(centerBeforeS.x, 2);
+    expect(centerAfterS.y).toBeCloseTo(centerBeforeS.y, 2);
+
+    // Straßenkreuzung: Zentrum bei lokal (100, 0)
+    const tCross = { x: 200, y: 200, rotation: 0 };
+    const centerBeforeX = getPieceCenterWorld(roadCross, tCross);
+    expect(centerBeforeX.x).toBeCloseTo(300, 2);
+    expect(centerBeforeX.y).toBeCloseTo(200, 2);
+
+    const rotatedCross = rotatePieceAroundCenter(roadCross, tCross, 90);
+    expect(rotatedCross.rotation).toBe(90);
+    const centerAfterX = getPieceCenterWorld(roadCross, rotatedCross);
+    expect(centerAfterX.x).toBeCloseTo(centerBeforeX.x, 2);
+    expect(centerAfterX.y).toBeCloseTo(centerBeforeX.y, 2);
+  });
+
+  it("rastet Straßenstücke nahtlos aneinander ein ('snap in place')", () => {
+    const roadPieceA: TrackPiece = {
+      id: "road-1",
+      catalogId: "ST-S200",
+      transform: { x: 0, y: 0, rotation: 0 },
+      connectors: [
+        { x: 0, y: 0, angle: 180 },
+        { x: 200, y: 0, angle: 0 },
+      ],
+    };
+
+    const roadEntry: CatalogEntry = {
+      id: "ST-S200",
+      name: "Gerade Straße 200 mm",
+      kind: "straight",
+      length: 200,
+      isRoad: true,
+      roadWidth: 60,
+      category: "Geraden",
+      description: "Straße",
+      localConnectors: [
+        { x: 0, y: 0, angle: 180 },
+        { x: 200, y: 0, angle: 0 },
+      ],
+    };
+
+    // Straßenkandidat wird herangeführt mit 40° Fehlausrichtung bei (208, 12)
+    const snap = findBestSnapForPiece(roadEntry, { x: 208, y: 12, rotation: 40 }, [roadPieceA]);
+    expect(snap).not.toBeNull();
+    expect(snap!.snappedTransform.x).toBeCloseTo(200, 2);
+    expect(snap!.snappedTransform.y).toBeCloseTo(0, 2);
+    expect(snap!.snappedTransform.rotation).toBeCloseTo(0, 2);
+  });
+
+  it("trennt Gleise und Straßen strikt voneinander beim Snapping", () => {
+    const trackPiece: TrackPiece = {
+      id: "track-1",
+      catalogId: "24188",
+      transform: { x: 0, y: 0, rotation: 0 },
+      connectors: [
+        { x: 0, y: 0, angle: 180 },
+        { x: 188.3, y: 0, angle: 0 },
+      ],
+    };
+
+    const roadEntry: CatalogEntry = {
+      id: "ST-S200",
+      name: "Gerade Straße 200 mm",
+      kind: "straight",
+      length: 200,
+      isRoad: true,
+      roadWidth: 60,
+      category: "Geraden",
+      description: "Straße",
+      localConnectors: [
+        { x: 0, y: 0, angle: 180 },
+        { x: 200, y: 0, angle: 0 },
+      ],
+    };
+
+    // Straße darf NICHT an Schienengleis einrasten
+    const snapRoadToTrack = findBestSnapForPiece(roadEntry, { x: 188.3, y: 0, rotation: 0 }, [trackPiece]);
+    expect(snapRoadToTrack).toBeNull();
+  });
+
+  it("unterstützt ignoreTargetConnectors für flüssiges Wegziehen ohne Magnet-Blockade", () => {
+    const fixedPiece: TrackPiece = {
+      id: "p-fixed",
+      catalogId: "24188",
+      transform: { x: 0, y: 0, rotation: 0 },
+      connectors: [
+        { x: 0, y: 0, angle: 180 },
+        { x: 188.3, y: 0, angle: 0 },
+      ],
+    };
+
+    // Kandidat zieht gerade leicht weg (5mm Verschiebung)
+    const candT = { x: 188.3 + 5, y: 3, rotation: 0 };
+
+    // Mit ignoreTargetConnectors: snap ignoriert den Ausgangs-Connector und blockiert die Bewegung nicht
+    const snapIgnored = findBestSnapForPiece(
+      g188,
+      candT,
+      [fixedPiece],
+      undefined,
+      45,
+      60,
+      [{ pieceId: "p-fixed", connectorIndex: 1 }],
+    );
+    expect(snapIgnored).toBeNull();
+
+    // Ohne ignoreTargetConnectors: snap würde sofort wieder einrasten
+    const snapNormal = findBestSnapForPiece(g188, candT, [fixedPiece], undefined, 45, 60);
+    expect(snapNormal).not.toBeNull();
   });
 });

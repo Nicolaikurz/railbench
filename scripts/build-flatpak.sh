@@ -26,7 +26,7 @@ fi
 
 echo "=== 3. Ensuring Freedesktop Flatpak runtime is present ==="
 flatpak --user remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.repo || true
-flatpak --user install -y flathub org.freedesktop.Platform//24.08 org.freedesktop.Sdk//24.08 org.electronjs.Electron2.BaseApp//24.08 || true
+flatpak --user install -y flathub org.freedesktop.Platform//25.08 org.freedesktop.Sdk//25.08 org.electronjs.Electron2.BaseApp//25.08 || true
 
 echo "=== 4. Building Flatpak package ==="
 mkdir -p "$BUILD_DIR"
@@ -45,7 +45,7 @@ flatpak build-bundle "$REPO_DIR" "$OUTPUT_BUNDLE" de.railbench.Railbench
 
 echo ""
 echo "==========================================="
-echo "✅ Flatpak build complete!"
+echo " Flatpak build complete!"
 echo "Bundle file: $OUTPUT_BUNDLE"
 echo "To install: flatpak install --user $OUTPUT_BUNDLE"
 echo "To run:     flatpak run de.railbench.Railbench"

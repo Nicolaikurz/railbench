@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme } from "electron";
 import * as path from "node:path";
 import * as fs from "node:fs/promises";
 import { EmbeddedCollabServer } from "./collab-server";
@@ -6,10 +6,51 @@ import { EmbeddedCollabServer } from "./collab-server";
 let mainWindow: BrowserWindow | null = null;
 const collabServer = new EmbeddedCollabServer();
 
-function createWindow() {
+interface WindowState {
+  x?: number;
+  y?: number;
+  width: number;
+  height: number;
+  isMaximized?: boolean;
+}
+
+function getWindowStatePath(): string {
+  return path.join(app.getPath("userData"), "window-state.json");
+}
+
+async function loadSavedWindowState(): Promise<WindowState | null> {
+  try {
+    const raw = await fs.readFile(getWindowStatePath(), "utf-8");
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function saveWindowState() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  try {
+    const isMaximized = mainWindow.isMaximized();
+    const bounds = mainWindow.getNormalBounds ? mainWindow.getNormalBounds() : mainWindow.getBounds();
+    const state: WindowState = {
+      x: bounds.x,
+      y: bounds.y,
+      width: bounds.width,
+      height: bounds.height,
+      isMaximized,
+    };
+    fs.writeFile(getWindowStatePath(), JSON.stringify(state), "utf-8").catch(() => {});
+  } catch {}
+}
+
+async function createWindow() {
+  const savedState = await loadSavedWindowState();
+
   mainWindow = new BrowserWindow({
-    width: 1440,
-    height: 900,
+    width: savedState?.width || 1440,
+    height: savedState?.height || 900,
+    x: savedState?.x,
+    y: savedState?.y,
     minWidth: 960,
     minHeight: 640,
     title: "Gleisplan – Modellbahn Planer",
@@ -21,6 +62,22 @@ function createWindow() {
       nodeIntegration: false,
       sandbox: false,
     },
+  });
+
+  if (savedState?.isMaximized) {
+    mainWindow.maximize();
+  }
+
+  mainWindow.on("close", () => {
+    saveWindowState();
+  });
+
+  mainWindow.on("resize", () => {
+    saveWindowState();
+  });
+
+  mainWindow.on("move", () => {
+    saveWindowState();
   });
 
   const isDev = process.env.NODE_ENV === "development" || !app.isPackaged;
@@ -347,6 +404,14 @@ ipcMain.on("window:setTitle", (_event, title: string) => {
   }
 });
 
+ipcMain.on("theme:setSource", (_event, source: "system" | "dark" | "light") => {
+  try {
+    nativeTheme.themeSource = source;
+  } catch (err) {
+    console.warn("Could not set nativeTheme.themeSource", err);
+  }
+});
+
 ipcMain.on("window:close", (event) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   win?.close();
@@ -468,6 +533,7 @@ app.whenReady().then(async () => {
 });
 
 app.on("before-quit", async () => {
+  saveWindowState();
   await collabServer.stop();
 });
 

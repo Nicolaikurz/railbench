@@ -27,7 +27,7 @@ fi
 
 echo ""
 echo "==========================================="
-echo "✅ Linux AppImage build complete!"
+echo " Linux AppImage build complete!"
 echo "AppImages located in: release/"
 echo "==========================================="
 

@@ -44,7 +44,7 @@ fi
 
 echo ""
 echo "==========================================="
-echo "✅ macOS package build finished!"
+echo "macOS package build finished!"
 echo "Files located in: release/"
 echo "==========================================="
 

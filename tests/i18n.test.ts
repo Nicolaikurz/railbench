@@ -17,7 +17,7 @@ describe("i18n Module", () => {
 
   it("should initialize with English by default when set", () => {
     expect(getLanguage()).toBe("en");
-    expect(getTranslations().toolbar.fileMenu.newPlan).toBe("New Plan");
+    expect(getTranslations().toolbar.fileMenu.newPlan).toBe("New Layout");
   });
 
   it("should switch to German and update translations", () => {
@@ -33,7 +33,7 @@ describe("i18n Module", () => {
       expect(getLanguage()).toBe("de");
       expect(triggered).toBe(true);
       expect(receivedLang).toBe("de");
-      expect(getTranslations().toolbar.fileMenu.newPlan).toBe("Neuer Plan");
+      expect(getTranslations().toolbar.fileMenu.newPlan).toBe("Neuer Gleisplan");
       expect(localStorage.getItem("railbench_language")).toBe("de");
     } finally {
       unsub();

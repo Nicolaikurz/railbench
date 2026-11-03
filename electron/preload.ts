@@ -58,11 +58,13 @@ export interface ElectronAPI {
     defaultRoom: string;
     autoConnect: boolean;
   }>;
+  setThemeSource?: (source: "system" | "dark" | "light") => void;
 }
 
 const api: ElectronAPI = {
   isElectron: true,
   platform: process.platform,
+  setThemeSource: (source) => ipcRenderer.send("theme:setSource", source),
   openPlan: () => ipcRenderer.invoke("dialog:openPlan"),
   savePlanAs: (defaultName, content, format) =>
     ipcRenderer.invoke("dialog:savePlanAs", defaultName, content, format),

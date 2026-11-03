@@ -22,8 +22,15 @@ import {
   type Catalog,
   type CatalogEntry,
 } from "@/catalog/catalog";
-import { findBestSnapForPiece } from "@/core/snapping";
-import { simulatePowerDrop, type SimulationSummary, getDefaultLocoCurrentMa, isTurnoutEntry } from "@/core/simulation";
+import { findBestSnapForPiece, type BestPieceSnap } from "@/core/snapping";
+import {
+  simulatePowerDrop,
+  type SimulationSummary,
+  getDefaultLocoCurrentMa,
+  isTurnoutEntry,
+  detectShortCircuit,
+  type ShortCircuitDetectionResult,
+} from "@/core/simulation";
 import { Selection } from "@/editor/selection";
 import {
   History,
@@ -63,30 +70,46 @@ import { openCollabDialog } from "@/ui/collab-dialog";
 import { CollabClient } from "@/collab/collab-client";
 import { CollabOverlay } from "@/collab/collab-overlay";
 import { PerfMonitor } from "@/ui/perf-monitor";
+import { themeManager } from "@/theme/theme-manager";
 import {
   dist,
   normAngle,
   rad2deg,
+  rotate,
   distanceToTrackPiece,
   getPieceCenterWorld,
   getPieceRotationHandleWorld,
   isPieceInSelectionBox,
+  computeGroupCentroid,
+  rotateGroupAroundCentroid,
+  type RotatableItem,
 } from "@/core/geometry";
+import { loadAppSettings, saveAppSettings } from "@/settings/settings-manager";
 
 async function main() {
+  const savedSettings = loadAppSettings();
+
   let layout: Layout = createLayout("Model Railway Layout H0");
-  let catalog: Catalog = catalogRegistry.getDefault();
+  let catalog: Catalog =
+    (savedSettings.selectedCatalogId && catalogRegistry.get(savedSettings.selectedCatalogId)) ||
+    catalogRegistry.getDefault();
   const selection = new Selection();
   let history = new History(layout);
 
-  let snappingEnabled = true;
-  let colorMode: ColorMode = "types";
-  let trackLabelsEnabled = true;
-  let powerSimEnabled = false;
-  let rightSidebarCollapsed = false;
+  let snappingEnabled = savedSettings.snappingEnabled ?? true;
+  let colorMode: ColorMode = savedSettings.colorMode ?? "types";
+  let trackLabelsEnabled = savedSettings.trackLabelsEnabled ?? true;
+  let powerSimEnabled = savedSettings.powerSimEnabled ?? false;
+  let rightSidebarCollapsed = savedSettings.rightSidebarCollapsed ?? false;
   let rightSidebar: RightSidebar | null = null;
   let currentSimulation: SimulationSummary | undefined = undefined;
+  let currentShortCircuit: ShortCircuitDetectionResult | undefined = undefined;
   let currentSelectionBox: { start: { x: number; y: number }; end: { x: number; y: number } } | null = null;
+
+  if (rightSidebarCollapsed) {
+    const app = document.getElementById("app");
+    app?.classList.add("right-collapsed");
+  }
 
   function toggleRightSidebar() {
     rightSidebarCollapsed = !rightSidebarCollapsed;
@@ -100,6 +123,46 @@ async function main() {
     }
     updateToolbarState({ rightSidebarCollapsed });
     window.dispatchEvent(new Event("resize"));
+    saveSettingsState();
+  }
+
+  function saveSettingsState() {
+    saveAppSettings({
+      snappingEnabled,
+      colorMode,
+      trackLabelsEnabled,
+      powerSimEnabled,
+      rulerVisible: ruler?.isVisible() ?? true,
+      rightSidebarCollapsed,
+      selectedCatalogId: catalog?.id,
+      activeSidebarTab: (sidebar?.getActiveTab() as any) ?? "catalog",
+      camera: renderer?.world ? {
+        x: Math.round(renderer.world.x * 10) / 10,
+        y: Math.round(renderer.world.y * 10) / 10,
+        zoom: Math.round(renderer.world.scale.x * 1000) / 1000,
+      } : undefined,
+    });
+  }
+
+  let saveSettingsTimeout: any = null;
+  function debouncedSaveSettings() {
+    if (saveSettingsTimeout) clearTimeout(saveSettingsTimeout);
+    saveSettingsTimeout = setTimeout(saveSettingsState, 350);
+  }
+
+  const handleBeforeUnload = () => {
+    saveSettingsState();
+    planManager.saveToLocalStorage(layout);
+  };
+  window.addEventListener("beforeunload", handleBeforeUnload);
+  window.addEventListener("pagehide", handleBeforeUnload);
+
+  function getActiveLayerId(): string {
+    return layout.activeLayerId || layout.layers?.[0]?.id || "layer-1";
+  }
+
+  function getCatalogEntryForPiece(piece: TrackPiece): CatalogEntry | undefined {
+    return catalog.entries.find((e) => e.id === piece.catalogId) ?? catalogRegistry.findEntry(piece.catalogId);
   }
 
   function isPieceLockedOrHidden(piece: TrackPiece): boolean {
@@ -107,6 +170,24 @@ async function main() {
     const layer = layout.layers.find((l) => l.id === (piece.layerId || "layer-1"));
     if (!layer) return false;
     return !layer.visible || layer.locked;
+  }
+
+  /** Prüft, ob ein Gleis/eine Straße auf der aktiven Ebene liegt und interaktiv (selektierbar & verschiebbar) ist. */
+  function isPieceInteractive(piece: TrackPiece): boolean {
+    const activeId = getActiveLayerId();
+    const pieceLayerId = piece.layerId || "layer-1";
+    if (pieceLayerId !== activeId) return false;
+    return !isPieceLockedOrHidden(piece);
+  }
+
+  /** Prüft, ob ein 3D-Modell auf der aktiven Ebene liegt und interaktiv ist. */
+  function isModelInteractive(model: Model3D): boolean {
+    const activeId = getActiveLayerId();
+    const modelLayerId = model.layerId || layout.layers?.[0]?.id || "layer-1";
+    if (modelLayerId !== activeId) return false;
+    if (!layout.layers) return true;
+    const layer = layout.layers.find((l) => l.id === modelLayerId);
+    return !layer || (layer.visible && !layer.locked);
   }
 
   // Plan-Manager für natives/Web-Speichern und Öffnen
@@ -139,8 +220,9 @@ async function main() {
       renderer.resetView();
       ruler.update();
       sync();
+      saveSettingsState();
     },
-    visible: true,
+    visible: savedSettings.rulerVisible ?? true,
   });
 
   // Kollaboration (Multi-User Server) initialisieren
@@ -303,9 +385,17 @@ async function main() {
   attachCamera(renderer.app.canvas, renderer.world, () => {
     ruler.update();
     collabOverlay.update();
+    debouncedSaveSettings();
   });
-  renderer.resetView();
-  ruler.update();
+  if (savedSettings.camera && typeof savedSettings.camera.zoom === "number") {
+    renderer.world.x = savedSettings.camera.x;
+    renderer.world.y = savedSettings.camera.y;
+    renderer.world.scale.set(savedSettings.camera.zoom);
+    ruler.update();
+  } else {
+    renderer.resetView();
+    ruler.update();
+  }
 
   // 3D Viewer initialisieren
   const viewer3D = new Viewer3D(canvasHost);
@@ -602,6 +692,8 @@ async function main() {
       currentSimulation = undefined;
     }
 
+    currentShortCircuit = detectShortCircuit(layout, catalog);
+
     const selectedIds = new Set(selection.all());
     const selectedPiece = layout.pieces.find((p) => selectedIds.has(p.id));
 
@@ -609,6 +701,7 @@ async function main() {
       selectedIds,
       showConnectors: snappingEnabled,
       powerSimulation: currentSimulation,
+      shortCircuit: currentShortCircuit,
       showPowerDrop: powerSimEnabled,
       showTrackLabels: trackLabelsEnabled,
       showColorCode: colorMode !== "off",
@@ -635,7 +728,11 @@ async function main() {
     updateSelectionFloatingBar();
 
     if (is3DMode) {
-      viewer3D.updateLayout(layout, catalog, { colorMode, showColorCode: colorMode !== "off" });
+      viewer3D.updateLayout(layout, catalog, {
+        colorMode,
+        showColorCode: colorMode !== "off",
+        shortCircuit: currentShortCircuit,
+      });
     }
 
     const planState = planManager.getState();
@@ -649,6 +746,8 @@ async function main() {
       colorMode,
       trackLabelsEnabled,
       powerSimEnabled,
+      hasShortCircuit: currentShortCircuit.hasShortCircuit,
+      shortCircuitCount: currentShortCircuit.shortCircuitPoints.length,
       rulersEnabled: ruler.isVisible(),
       baseboardEnabled: getBaseboards(layout).some((b) => b.enabled),
       is3DActive: is3DMode,
@@ -657,6 +756,8 @@ async function main() {
       totalPieces: layout.pieces.length,
       activeFileName: planState.fileName ?? layout.name,
       isDirty: planState.isDirty,
+      themePref: themeManager.getPreference(),
+      resolvedTheme: themeManager.getResolvedTheme(),
       rightSidebarCollapsed,
       collabStatus: collabClient.getStatus(),
       collabUsersCount: collabClient.getUsers().length,
@@ -690,9 +791,22 @@ async function main() {
           layout.scale = newCat.scale;
         }
         sync(false);
+        saveSettingsState();
       }
     },
+    onTabChange: () => {
+      saveSettingsState();
+    },
     onLayerChange: () => {
+      const activeId = getActiveLayerId();
+      const toKeep = selection.all().filter((id) => {
+        const p = layout.pieces.find((x) => x.id === id);
+        if (p) return (p.layerId || "layer-1") === activeId && !isPieceLockedOrHidden(p);
+        const m = layout.models?.find((x) => x.id === id);
+        if (m) return (m.layerId || "layer-1") === activeId;
+        return false;
+      });
+      selection.setMany(toKeep);
       sync(true);
     },
     onBaseboardChange: () => {
@@ -703,6 +817,10 @@ async function main() {
     },
     selectedPieceIds: () => selection.all(),
   });
+
+  if (savedSettings.activeSidebarTab) {
+    sidebar.setActiveTab(savedSettings.activeSidebarTab as any);
+  }
 
   // Funktion zum Hinzufügen eines Gleises
   function addPieceToLayout(entry: CatalogEntry, initialPos?: { x: number; y: number }) {
@@ -792,24 +910,46 @@ async function main() {
 
   function rotateSelected(deltaDegrees = 7.5) {
     const selectedIds = selection.all();
+    if (selectedIds.length === 0) return;
+
+    const rotatableItems: RotatableItem[] = [];
     for (const id of selectedIds) {
       const piece = layout.pieces.find((p) => p.id === id);
-      if (piece && !isPieceLockedOrHidden(piece)) {
-        const oldT = { ...piece.transform };
-        const newT = { ...piece.transform, rotation: normAngle(piece.transform.rotation + deltaDegrees) };
-        const entry = catalog.entries.find((e) => e.id === piece.catalogId);
-        if (entry) {
-          piece.transform = newT;
-          piece.connectors = computeWorldConnectors(entry, newT);
-          history.run(new MovePieceCommand(piece.id, oldT, newT));
-        }
+      if (piece && isPieceInteractive(piece)) {
+        const entry = getCatalogEntryForPiece(piece);
+        rotatableItems.push({ id: piece.id, type: "piece", transform: { ...piece.transform }, entry });
       }
       const model = layout.models?.find((m) => m.id === id);
-      if (model) {
-        const oldT = { ...model.transform };
-        const newT = { ...oldT, rotation: normAngle(oldT.rotation + deltaDegrees) };
-        model.transform = newT;
-        history.run(new MoveModelCommand(model.id, oldT, newT));
+      if (model && isModelInteractive(model)) {
+        rotatableItems.push({ id: model.id, type: "model", transform: { ...model.transform } });
+      }
+    }
+
+    if (rotatableItems.length === 0) return;
+
+    // Dreht ein Einzelstück um sein eigenes Centrum bzw. mehrere Teile starr als eine Einheit um ihren Schwerpunkt
+    const newTransforms = rotateGroupAroundCentroid(rotatableItems, deltaDegrees);
+
+    for (const item of rotatableItems) {
+      const newT = newTransforms.get(item.id);
+      if (!newT) continue;
+      const oldT = item.transform;
+
+      if (item.type === "piece") {
+        const piece = layout.pieces.find((p) => p.id === item.id);
+        if (piece) {
+          piece.transform = { ...newT };
+          if (item.entry) {
+            piece.connectors = computeWorldConnectors(item.entry, newT);
+          }
+          history.run(new MovePieceCommand(piece.id, oldT, newT));
+        }
+      } else {
+        const model = layout.models?.find((m) => m.id === item.id);
+        if (model) {
+          model.transform = { ...newT };
+          history.run(new MoveModelCommand(model.id, oldT, newT));
+        }
       }
     }
     sync(true);
@@ -819,11 +959,11 @@ async function main() {
     const selectedIds = selection.all();
     for (const id of selectedIds) {
       const piece = layout.pieces.find((x) => x.id === id);
-      if (piece && !isPieceLockedOrHidden(piece)) {
+      if (piece && isPieceInteractive(piece)) {
         history.run(new RemovePieceCommand(id));
       }
       const model = layout.models?.find((m) => m.id === id);
-      if (model) {
+      if (model && isModelInteractive(model)) {
         history.run(new RemoveModelCommand(id));
       }
     }
@@ -917,7 +1057,7 @@ async function main() {
       const orig = trackClipboard.pieces[i];
       if (!orig) continue;
       const newId = `p-${now}-${i}-${Math.random().toString(36).substring(2, 7)}`;
-      const entry = catalog.entries.find((e) => e.id === orig.catalogId);
+      const entry = getCatalogEntryForPiece(orig);
       const newTransform = {
         x: orig.transform.x + offset.x,
         y: orig.transform.y + offset.y,
@@ -984,13 +1124,15 @@ async function main() {
   function selectAll() {
     selection.clear();
     for (const p of layout.pieces) {
-      if (!isPieceLockedOrHidden(p)) {
+      if (isPieceInteractive(p)) {
         selection.add(p.id);
       }
     }
     if (layout.models) {
       for (const m of layout.models) {
-        selection.add(m.id);
+        if (isModelInteractive(m)) {
+          selection.add(m.id);
+        }
       }
     }
     sync();
@@ -1118,7 +1260,7 @@ async function main() {
     <button id="sel-bar-btn-decoder" class="sel-bar-btn" title="${initialSelT.decoderInactiveTitle}">${initialSelT.decoderBtn}</button>
     <button id="sel-bar-btn-isolator" class="sel-bar-btn" title="${initialSelT.isolatorInactiveTitle}">${initialSelT.isolatorInactive}</button>
     <button id="sel-bar-btn-height" class="sel-bar-btn" title="${initialSelT.heightRampBtn}">${initialSelT.heightRampBtn}</button>
-    <button id="sel-bar-btn-delete" class="sel-bar-btn sel-bar-btn-danger" title="Delete selected (Del)">🗑</button>
+    <button id="sel-bar-btn-delete" class="sel-bar-btn sel-bar-btn-danger" title="${initialSelT.deleteBtn} (Del)">${initialSelT.deleteBtn}</button>
   `;
   canvasHost.appendChild(selectionFloatingBar);
 
@@ -1148,7 +1290,7 @@ async function main() {
       selBarBtnRotate.title = `${t.rotateBtn} (R)`;
     }
     if (selBarBtnDuplicate) {
-      selBarBtnDuplicate.textContent = `📑 ${t.duplicateBtn}`;
+      selBarBtnDuplicate.textContent = t.duplicateBtn;
       selBarBtnDuplicate.title = `${t.duplicateBtn} (Ctrl+D)`;
     }
     if (selBarBtnCatenary) {
@@ -1175,6 +1317,10 @@ async function main() {
       selBarBtnHeight.textContent = t.heightRampBtn;
       selBarBtnHeight.title = t.heightRampBtn;
     }
+    if (selBarBtnDelete) {
+      selBarBtnDelete.textContent = t.deleteBtn;
+      selBarBtnDelete.title = `${t.deleteBtn} (Del)`;
+    }
     updateSelectionFloatingBar();
   }
 
@@ -1192,11 +1338,11 @@ async function main() {
 
     for (const id of selectedIds) {
       const piece = layout.pieces.find((p) => p.id === id);
-      if (piece && !isPieceLockedOrHidden(piece)) {
+      if (piece && isPieceInteractive(piece)) {
         const oldT = { ...piece.transform };
         const newRot = selectedIds.length === 1 ? targetAngle : normAngle(piece.transform.rotation + delta);
         const newT = { ...piece.transform, rotation: newRot };
-        const entry = catalog.entries.find((e) => e.id === piece.catalogId);
+        const entry = getCatalogEntryForPiece(piece);
         if (entry) {
           piece.transform = newT;
           piece.connectors = computeWorldConnectors(entry, newT);
@@ -1371,7 +1517,7 @@ async function main() {
     }
 
     const turnoutPieces = selectedPieces.filter((p) => {
-      const entry = catalog.entries.find((e) => e.id === p.catalogId);
+      const entry = getCatalogEntryForPiece(p);
       return isTurnoutEntry(entry);
     });
 
@@ -1456,6 +1602,15 @@ async function main() {
   const rightSidebarHost = document.getElementById("right-sidebar")!;
   rightSidebar = new RightSidebar(rightSidebarHost, layout, {
     onLayerChange: () => {
+      const activeId = getActiveLayerId();
+      const toKeep = selection.all().filter((id) => {
+        const p = layout.pieces.find((x) => x.id === id);
+        if (p) return (p.layerId || "layer-1") === activeId && !isPieceLockedOrHidden(p);
+        const m = layout.models?.find((x) => x.id === id);
+        if (m) return (m.layerId || "layer-1") === activeId;
+        return false;
+      });
+      selection.setMany(toKeep);
       sync(true);
     },
     onMoveSelectedToLayer: (layerId, elevation) => {
@@ -1466,6 +1621,15 @@ async function main() {
     },
     onSelectActiveLayer: (layerId) => {
       layout.activeLayerId = layerId;
+      // Auswahl filtern: Nur Teile behalten, die zur neuen aktiven Ebene gehören
+      const toKeep = selection.all().filter((id) => {
+        const p = layout.pieces.find((x) => x.id === id);
+        if (p) return (p.layerId || "layer-1") === layerId;
+        const m = layout.models?.find((x) => x.id === id);
+        if (m) return (m.layerId || "layer-1") === layerId;
+        return false;
+      });
+      selection.setMany(toKeep);
       sync(true);
     },
     onToggleWoodPlate: () => {
@@ -1512,25 +1676,34 @@ async function main() {
     onPaste: () => pasteClipboard(),
     onDuplicate: () => duplicateSelected(),
     onSelectAll: () => selectAll(),
+    onDeselectAll: () => {
+      selection.clear();
+      sync();
+    },
     onDeleteSelected: () => deleteSelected(),
     onRotateSelected: (step = 7.5) => rotateSelected(step),
     onToggleSnapping: () => {
       snappingEnabled = !snappingEnabled;
       sync();
+      saveSettingsState();
     },
     onToggleColorCode: () => {
       cycleColorMode();
+      saveSettingsState();
     },
     onSetColorMode: (mode: ColorMode) => {
       cycleColorMode(mode);
+      saveSettingsState();
     },
     onToggleTrackLabels: () => {
       trackLabelsEnabled = !trackLabelsEnabled;
       sync();
+      saveSettingsState();
     },
     onTogglePowerSim: () => {
       powerSimEnabled = !powerSimEnabled;
       sync();
+      saveSettingsState();
     },
     onToggleFeeder: () => toggleSelectedFeeder(),
     onToggleIsolator: () => toggleSelectedIsolator(),
@@ -1574,7 +1747,7 @@ async function main() {
 
           if (bulkTurnoutAction === "equipAll") {
             for (const p of layout.pieces) {
-              const entry = catalog.entries.find((e) => e.id === p.catalogId);
+              const entry = getCatalogEntryForPiece(p);
               if (isTurnoutEntry(entry)) {
                 p.hasLantern = true;
                 p.hasDecoder = true;
@@ -1582,7 +1755,7 @@ async function main() {
             }
           } else if (bulkTurnoutAction === "clearAll") {
             for (const p of layout.pieces) {
-              const entry = catalog.entries.find((e) => e.id === p.catalogId);
+              const entry = getCatalogEntryForPiece(p);
               if (isTurnoutEntry(entry)) {
                 p.hasLantern = false;
                 p.hasDecoder = false;
@@ -1598,6 +1771,7 @@ async function main() {
     onToggleRulers: () => {
       ruler.toggle();
       sync();
+      saveSettingsState();
     },
     onToggleMeasureTool: () => toggleMeasureTool(),
     onToggleWoodPlate: () => {
@@ -1631,14 +1805,10 @@ async function main() {
       sidebar.setActiveTab("models");
     },
     onToggleTheme: () => {
-      const cur = document.documentElement.getAttribute("data-theme");
-      const next = cur === "dark" ? "light" : "dark";
-      document.documentElement.setAttribute("data-theme", next);
-      renderer.setTheme(next);
-      ruler.setTheme(next);
-      viewer3D.setTheme(next);
-      localStorage.setItem("theme-pref", next);
-      updateToolbarState({ themePref: next });
+      themeManager.cycle();
+    },
+    onSetTheme: (theme) => {
+      themeManager.setPreference(theme);
     },
     onOpenPlan: () => triggerOpenPlan(),
     onSavePlan: () => triggerSavePlan(),
@@ -1655,9 +1825,30 @@ async function main() {
     },
     onOpenCollab: () => triggerCollabDialog(),
     onTogglePerfMonitor: () => perfMonitor.toggle(),
+    onFocusShortCircuit: () => {
+      if (currentShortCircuit?.shortCircuitPoints.length) {
+        const pt = currentShortCircuit.shortCircuitPoints[0]!;
+        renderer.centerOn(pt.x, pt.y);
+        ruler.update();
+        if (is3DMode) {
+          viewer3D.focusOnPoint(pt.x, pt.y);
+        }
+        if (currentShortCircuit.shortCircuitPieces.size > 0) {
+          selection.setMany(Array.from(currentShortCircuit.shortCircuitPieces));
+        }
+        sync();
+      }
+    },
   };
 
   createToolbar(toolbarHost, toolbarEvents);
+
+  themeManager.onChange((resolved, pref) => {
+    renderer.setTheme(resolved);
+    ruler.setTheme(resolved);
+    viewer3D.setTheme(resolved);
+    updateToolbarState({ themePref: pref, resolvedTheme: resolved });
+  });
 
   // Auto-Connect bei URL-Parametern (?room=... oder ?collab=1)
   const urlParams = new URLSearchParams(window.location.search);
@@ -1698,6 +1889,10 @@ async function main() {
 
   onLanguageChange(() => {
     createToolbar(toolbarHost, toolbarEvents);
+    updateToolbarState({
+      themePref: themeManager.getPreference(),
+      resolvedTheme: themeManager.getResolvedTheme(),
+    });
     updateSelectionFloatingBarStatic();
     updateMeasureHud();
     sync(false);
@@ -1804,6 +1999,7 @@ async function main() {
   let dragStartWorld = { x: 0, y: 0 };
   let originalTransform: Transform = { x: 0, y: 0, rotation: 0 };
   let draggedPiecesMap = new Map<string, Transform>();
+  let draggedInitialConnections: Array<{ pieceId: string; connectorIndex: number }> = [];
   let pieceCenterWorld = { x: 0, y: 0 };
   let pendingSingleSelect: string | null = null;
   let hasDragMoved = false;
@@ -1866,45 +2062,70 @@ async function main() {
     hasDragMoved = false;
     pendingSingleSelect = null;
 
-    // 1. Zuerst prüfen: Klick auf den Drehgriff (Rotation Handle) des bereits selektierten Gleises oder Modells?
-    const currentlySelectedId = selection.all()[0];
-    if (currentlySelectedId && !isMultiSelect) {
-      const selPiece = layout.pieces.find((p) => p.id === currentlySelectedId);
-      if (selPiece) {
-        const entry = catalog.entries.find((it) => it.id === selPiece.catalogId);
-        if (entry) {
-          const handlePos = getPieceRotationHandleWorld(entry, selPiece.transform);
-          // 16 mm Klickradius um den Drehknopf
-          if (dist(wPos, handlePos) <= 16) {
-            isRotatingPiece = true;
-            activePiece = selPiece;
-            activeModel = null;
-            pieceCenterWorld = getPieceCenterWorld(entry, selPiece.transform);
-            originalTransform = { ...selPiece.transform };
-            canvas.style.cursor = "grabbing";
-            return;
+    // 1. Zuerst prüfen: Klick auf den Drehgriff (Rotation Handle) eines selektierten Gleises oder Modells?
+    const selectedIds = selection.all();
+    const scale = renderer.world.scale.x || 1;
+    const handleHitRadius = Math.max(24, 20 / scale);
+
+    if (selectedIds.length > 0 && !isMultiSelect) {
+      let clickedHandle = false;
+      for (const selId of selectedIds) {
+        const selPiece = layout.pieces.find((p) => p.id === selId);
+        if (selPiece && isPieceInteractive(selPiece)) {
+          const entry = getCatalogEntryForPiece(selPiece);
+          if (entry) {
+            const handlePos = getPieceRotationHandleWorld(entry, selPiece.transform);
+            if (dist(wPos, handlePos) <= handleHitRadius) {
+              clickedHandle = true;
+              break;
+            }
+          }
+        }
+        const selModel = layout.models?.find((m) => m.id === selId);
+        if (selModel && isModelInteractive(selModel)) {
+          const handlePos = getModelRotationHandleWorld(selModel);
+          if (dist(wPos, handlePos) <= handleHitRadius) {
+            clickedHandle = true;
+            break;
           }
         }
       }
 
-      const selModel = layout.models?.find((m) => m.id === currentlySelectedId);
-      if (selModel) {
-        const handlePos = getModelRotationHandleWorld(selModel);
-        if (dist(wPos, handlePos) <= 16) {
-          isRotatingModel = true;
-          activeModel = selModel;
-          activePiece = null;
-          originalTransform = { ...selModel.transform };
-          canvas.style.cursor = "grabbing";
-          return;
+      if (clickedHandle) {
+        isRotatingPiece = true;
+        isRotatingModel = false;
+        activePiece = null;
+        activeModel = null;
+        dragStartWorld = { ...wPos };
+
+        // Original-Transforms aller selektierten Teile der aktiven Ebene erfassen
+        draggedPiecesMap.clear();
+        const rotatableItems: RotatableItem[] = [];
+        for (const id of selectedIds) {
+          const p = layout.pieces.find((x) => x.id === id);
+          if (p && isPieceInteractive(p)) {
+            draggedPiecesMap.set(p.id, { ...p.transform });
+            const pEntry = getCatalogEntryForPiece(p);
+            rotatableItems.push({ id: p.id, type: "piece", transform: { ...p.transform }, entry: pEntry });
+          }
+          const m = layout.models?.find((x) => x.id === id);
+          if (m && isModelInteractive(m)) {
+            draggedPiecesMap.set(m.id, { ...m.transform });
+            rotatableItems.push({ id: m.id, type: "model", transform: { ...m.transform } });
+          }
         }
+
+        pieceCenterWorld = computeGroupCentroid(rotatableItems);
+        canvas.style.cursor = "grabbing";
+        return;
       }
     }
 
-    // 2. Prüfen, ob ein 3D-Modell / Scenery angeklickt wurde
+    // 2. Prüfen, ob ein 3D-Modell / Scenery auf der aktiven Ebene angeklickt wurde
     let hitModel: Model3D | null = null;
     if (layout.models) {
       for (const m of layout.models) {
+        if (!isModelInteractive(m)) continue;
         if (isPointInsideModel(wPos, m)) {
           hitModel = m;
           break;
@@ -1935,9 +2156,21 @@ async function main() {
       draggedPiecesMap.clear();
       for (const id of selection.all()) {
         const p = layout.pieces.find((x) => x.id === id);
-        if (p) draggedPiecesMap.set(p.id, { ...p.transform });
+        if (p && isPieceInteractive(p)) draggedPiecesMap.set(p.id, { ...p.transform });
         const m = layout.models?.find((x) => x.id === id);
-        if (m) draggedPiecesMap.set(m.id, { ...m.transform });
+        if (m && isModelInteractive(m)) draggedPiecesMap.set(m.id, { ...m.transform });
+      }
+
+      draggedInitialConnections = [];
+      for (const [id] of draggedPiecesMap.entries()) {
+        const p = layout.pieces.find((x) => x.id === id);
+        if (p) {
+          for (const c of p.connectors) {
+            if (c.connectedTo && !draggedPiecesMap.has(c.connectedTo.pieceId)) {
+              draggedInitialConnections.push({ pieceId: c.connectedTo.pieceId, connectorIndex: c.connectedTo.connectorIndex });
+            }
+          }
+        }
       }
 
       canvas.style.cursor = "move";
@@ -1945,19 +2178,20 @@ async function main() {
       return;
     }
 
-    // 3. Präzises Anklicken eines Gleises oder einer Straße entlang der gesamten Form
+    // 3. Präzises Anklicken eines Gleises oder einer Straße entlang der gesamten Form (nur aktive Ebene)
     let hit: TrackPiece | null = null;
     const hitGauge = catalog.gauge ?? 16.5;
     let minD = Infinity;
 
     for (const piece of layout.pieces) {
-      if (isPieceLockedOrHidden(piece)) continue;
-      const entry = catalog.entries.find((it) => it.id === piece.catalogId);
+      if (!isPieceInteractive(piece)) continue;
+      const entry = getCatalogEntryForPiece(piece);
       if (!entry) continue;
 
+      const screenGrabBuffer = 20 / scale;
       const maxAllowedDist = entry.isRoad
-        ? (entry.roadWidth ?? 60) * 0.55
-        : Math.max(12, Math.min(22, hitGauge * 1.15));
+        ? Math.max(35, (entry.roadWidth ?? 60) * 0.65, screenGrabBuffer)
+        : Math.max(32, hitGauge * 1.8, screenGrabBuffer);
 
       const d = distanceToTrackPiece(wPos, piece.transform, entry);
       if (d < maxAllowedDist && d < minD) {
@@ -1990,13 +2224,25 @@ async function main() {
       dragStartWorld = { ...wPos };
       originalTransform = { ...hit.transform };
 
-      // Alle selektierten Teile für gleichzeitiges Verschieben erfassen
+      // Alle selektierten Teile der aktiven Ebene für gleichzeitiges Verschieben erfassen
       draggedPiecesMap.clear();
       for (const id of selection.all()) {
         const p = layout.pieces.find((x) => x.id === id);
-        if (p) draggedPiecesMap.set(p.id, { ...p.transform });
+        if (p && isPieceInteractive(p)) draggedPiecesMap.set(p.id, { ...p.transform });
         const m = layout.models?.find((x) => x.id === id);
-        if (m) draggedPiecesMap.set(m.id, { ...m.transform });
+        if (m && isModelInteractive(m)) draggedPiecesMap.set(m.id, { ...m.transform });
+      }
+
+      draggedInitialConnections = [];
+      for (const [id] of draggedPiecesMap.entries()) {
+        const p = layout.pieces.find((x) => x.id === id);
+        if (p) {
+          for (const c of p.connectors) {
+            if (c.connectedTo && !draggedPiecesMap.has(c.connectedTo.pieceId)) {
+              draggedInitialConnections.push({ pieceId: c.connectedTo.pieceId, connectorIndex: c.connectedTo.connectorIndex });
+            }
+          }
+        }
       }
 
       canvas.style.cursor = "move";
@@ -2036,7 +2282,7 @@ async function main() {
           // Bei Shift-Hold: Alle Gleise auf dieser Platte für gleichzeitiges Mitbewegen erfassen
           baseboardInitialTrackTransforms.clear();
           for (const piece of layout.pieces) {
-            const entry = catalog.entries.find((it) => it.id === piece.catalogId) ?? catalogRegistry.findEntry(piece.catalogId);
+            const entry = getCatalogEntryForPiece(piece);
             if (entry) {
               const center = getPieceCenterWorld(entry, piece.transform);
               if (isPointInsideBaseboard(center, hitBoard)) {
@@ -2103,8 +2349,8 @@ async function main() {
       if (distBox > 3) {
         const newlyFound = new Set<string>(initialBoxSelection);
         for (const piece of layout.pieces) {
-          if (isPieceLockedOrHidden(piece)) continue;
-          const entry = catalog.entries.find((it) => it.id === piece.catalogId) ?? catalogRegistry.findEntry(piece.catalogId);
+          if (!isPieceInteractive(piece)) continue;
+          const entry = getCatalogEntryForPiece(piece);
           if (entry && isPieceInSelectionBox(piece, entry, boxStartWorld, currentWPos)) {
             newlyFound.add(piece.id);
           }
@@ -2115,6 +2361,7 @@ async function main() {
           const minY = Math.min(boxStartWorld.y, currentWPos.y);
           const maxY = Math.max(boxStartWorld.y, currentWPos.y);
           for (const model of layout.models) {
+            if (!isModelInteractive(model)) continue;
             if (model.transform.x >= minX && model.transform.x <= maxX && model.transform.y >= minY && model.transform.y <= maxY) {
               newlyFound.add(model.id);
             }
@@ -2140,48 +2387,88 @@ async function main() {
       return;
     }
 
-    if (isRotatingPiece && activePiece) {
-      const dx = currentWPos.x - pieceCenterWorld.x;
-      const dy = currentWPos.y - pieceCenterWorld.y;
-      const pointerAngleDeg = rad2deg(Math.atan2(dy, dx));
-
-      // Der Griff befindet sich bei lokal -90° (oben), also normalisieren:
-      let newRot = normAngle(pointerAngleDeg + 90);
+    if (isRotatingPiece && draggedPiecesMap.size > 0) {
+      const startAngle = Math.atan2(dragStartWorld.y - pieceCenterWorld.y, dragStartWorld.x - pieceCenterWorld.x);
+      const currentAngle = Math.atan2(currentWPos.y - pieceCenterWorld.y, currentWPos.x - pieceCenterWorld.x);
+      let deltaDeg = rad2deg(currentAngle - startAngle);
 
       // Sanfter Snap auf 7.5°-Schritte (Alt-Taste gedrückt = stufenlose Drehung)
       if (!e.altKey) {
-        newRot = Math.round(newRot / 7.5) * 7.5;
+        deltaDeg = Math.round(deltaDeg / 7.5) * 7.5;
       }
 
-      const entry = catalog.entries.find((it) => it.id === activePiece!.catalogId) ?? catalogRegistry.findEntry(activePiece!.catalogId);
-      if (entry) {
-        const candidateTransform: Transform = {
-          x: activePiece.transform.x,
-          y: activePiece.transform.y,
-          rotation: newRot,
-        };
+      const rotItems: RotatableItem[] = [];
+      for (const [id, origT] of draggedPiecesMap.entries()) {
+        const p = layout.pieces.find((x) => x.id === id);
+        if (p) {
+          const pEntry = getCatalogEntryForPiece(p);
+          rotItems.push({ id, type: "piece", transform: origT, entry: pEntry });
+        }
+        const m = layout.models?.find((x) => x.id === id);
+        if (m) {
+          rotItems.push({ id, type: "model", transform: origT });
+        }
+      }
 
-        if (snappingEnabled) {
-          const snap = findBestSnapForPiece(
-            entry,
-            candidateTransform,
-            layout.pieces,
-            activePiece.id,
-            25,
-            15,
-          );
-          if (snap) {
-            activePiece.transform = snap.snappedTransform;
-            activePiece.connectors = computeWorldConnectors(entry, snap.snappedTransform);
-            sync();
-            return;
+      const newTransforms = rotateGroupAroundCentroid(rotItems, deltaDeg, pieceCenterWorld);
+
+      if (snappingEnabled && !e.altKey) {
+        const otherPieces = layout.pieces.filter((p) => !draggedPiecesMap.has(p.id));
+        let bestSnap: { itemSnap: BestPieceSnap; origT: Transform } | null = null;
+        let bestDist = Infinity;
+
+        for (const [id] of draggedPiecesMap.entries()) {
+          const p = layout.pieces.find((x) => x.id === id);
+          if (!p) continue;
+          const pEntry = getCatalogEntryForPiece(p);
+          if (!pEntry) continue;
+          const candT = newTransforms.get(id);
+          if (!candT) continue;
+
+          const snap = findBestSnapForPiece(pEntry, candT, otherPieces, undefined, 35, 30);
+          if (snap && snap.dist < bestDist) {
+            bestDist = snap.dist;
+            bestSnap = { itemSnap: snap, origT: draggedPiecesMap.get(id)! };
           }
         }
 
-        activePiece.transform = candidateTransform;
-        activePiece.connectors = computeWorldConnectors(entry, candidateTransform);
-        sync();
+        if (bestSnap) {
+          const { itemSnap, origT } = bestSnap;
+          const snapDeltaRot = normAngle(itemSnap.snappedTransform.rotation - origT.rotation);
+          for (const [id, oT] of draggedPiecesMap.entries()) {
+            const relOffset = { x: oT.x - origT.x, y: oT.y - origT.y };
+            const rotOffset = rotate(relOffset, snapDeltaRot);
+            const snappedPos: Transform = {
+              x: itemSnap.snappedTransform.x + rotOffset.x,
+              y: itemSnap.snappedTransform.y + rotOffset.y,
+              rotation: normAngle(oT.rotation + snapDeltaRot),
+            };
+            const p = layout.pieces.find((x) => x.id === id);
+            if (p) {
+              p.transform = snappedPos;
+              const pEntry = getCatalogEntryForPiece(p);
+              if (pEntry) p.connectors = computeWorldConnectors(pEntry, p.transform);
+            }
+            const m = layout.models?.find((x) => x.id === id);
+            if (m) m.transform = snappedPos;
+          }
+          sync();
+          return;
+        }
       }
+
+      for (const [id, newT] of newTransforms.entries()) {
+        const p = layout.pieces.find((x) => x.id === id);
+        if (p) {
+          p.transform = { ...newT };
+          const pEntry = getCatalogEntryForPiece(p);
+          if (pEntry) p.connectors = computeWorldConnectors(pEntry, p.transform);
+        }
+        const m = layout.models?.find((x) => x.id === id);
+        if (m) m.transform = { ...newT };
+      }
+
+      sync();
       return;
     }
 
@@ -2223,7 +2510,7 @@ async function main() {
           if (piece) {
             piece.transform.x = initT.x + deltaX;
             piece.transform.y = initT.y + deltaY;
-            const entry = catalog.entries.find((it) => it.id === piece.catalogId) ?? catalogRegistry.findEntry(piece.catalogId);
+            const entry = getCatalogEntryForPiece(piece);
             if (entry) {
               piece.connectors = computeWorldConnectors(entry, piece.transform);
             }
@@ -2248,76 +2535,130 @@ async function main() {
         pendingSingleSelect = null;
       }
 
-      if (activePiece) {
-        const candidateTransform: Transform = {
-          x: originalTransform.x + dx,
-          y: originalTransform.y + dy,
-          rotation: originalTransform.rotation,
-        };
+      let groupSnap: {
+        snappedTransform: Transform;
+        sourceId: string;
+        origTransform: Transform;
+      } | null = null;
 
-        const entry = catalog.entries.find((it) => it.id === activePiece!.catalogId) ?? catalogRegistry.findEntry(activePiece!.catalogId);
+      if (snappingEnabled) {
+        const otherPieces = layout.pieces.filter((p) => !draggedPiecesMap.has(p.id));
+        let bestDist = Infinity;
+        // Beim anfänglichen Wegziehen (< 28 mm) nicht sofort magnetisch an die bestehende Ausgangsverbindung zurücksnappen
+        const ignoreConn = dragDist < 28 ? draggedInitialConnections : undefined;
 
-        if (snappingEnabled && entry) {
-          // Nicht an Teilen einrasten, die gerade mitbewegt werden
-          const otherPieces = layout.pieces.filter((p) => !draggedPiecesMap.has(p.id));
-          const snap = findBestSnapForPiece(
-            entry,
-            candidateTransform,
-            otherPieces,
-            activePiece.id,
-            35,
-            25,
-          );
+        // Prüfe Snapping für ALLE gezogenen Gleise/Straßen gegen die restliche Anlage
+        for (const [id, origT] of draggedPiecesMap.entries()) {
+          const piece = layout.pieces.find((p) => p.id === id);
+          if (!piece) continue;
+          const entry = getCatalogEntryForPiece(piece);
+          if (!entry) continue;
 
-          if (snap) {
-            dx = snap.snappedTransform.x - originalTransform.x;
-            dy = snap.snappedTransform.y - originalTransform.y;
+          const candT: Transform = {
+            x: origT.x + dx,
+            y: origT.y + dy,
+            rotation: origT.rotation,
+          };
+
+          const snap = findBestSnapForPiece(entry, candT, otherPieces, undefined, 45, 60, ignoreConn);
+          if (snap && snap.dist < bestDist) {
+            bestDist = snap.dist;
+            groupSnap = {
+              snappedTransform: snap.snappedTransform,
+              sourceId: id,
+              origTransform: origT,
+            };
           }
         }
       }
 
-      for (const [id, origT] of draggedPiecesMap.entries()) {
-        const p = layout.pieces.find((x) => x.id === id);
-        if (p) {
-          p.transform = { x: origT.x + dx, y: origT.y + dy, rotation: origT.rotation };
-          const pEntry = catalog.entries.find((it) => it.id === p.catalogId) ?? catalogRegistry.findEntry(p.catalogId);
-          if (pEntry) {
-            p.connectors = computeWorldConnectors(pEntry, p.transform);
+      if (groupSnap) {
+        // Exaktes Einrasten mit Position UND Drehwinkel ("snap in place")!
+        const { snappedTransform, origTransform } = groupSnap;
+        const deltaRot = normAngle(snappedTransform.rotation - origTransform.rotation);
+
+        for (const [id, origT] of draggedPiecesMap.entries()) {
+          const relOffset = { x: origT.x - origTransform.x, y: origT.y - origTransform.y };
+          const rotOffset = rotate(relOffset, deltaRot);
+          const newPos: Transform = {
+            x: snappedTransform.x + rotOffset.x,
+            y: snappedTransform.y + rotOffset.y,
+            rotation: normAngle(origT.rotation + deltaRot),
+          };
+
+          const p = layout.pieces.find((x) => x.id === id);
+          if (p) {
+            p.transform = newPos;
+            const pEntry = getCatalogEntryForPiece(p);
+            if (pEntry) p.connectors = computeWorldConnectors(pEntry, p.transform);
+          }
+          const m = layout.models?.find((x) => x.id === id);
+          if (m) m.transform = newPos;
+        }
+      } else {
+        // Freies Verschieben ohne Snap (oder Alt gedrückt)
+        for (const [id, origT] of draggedPiecesMap.entries()) {
+          const p = layout.pieces.find((x) => x.id === id);
+          if (p) {
+            p.transform = { x: origT.x + dx, y: origT.y + dy, rotation: origT.rotation };
+            const pEntry = getCatalogEntryForPiece(p);
+            if (pEntry) {
+              p.connectors = computeWorldConnectors(pEntry, p.transform);
+            }
+          }
+          const m = layout.models?.find((x) => x.id === id);
+          if (m) {
+            m.transform = { x: origT.x + dx, y: origT.y + dy, rotation: origT.rotation };
           }
         }
-        const m = layout.models?.find((x) => x.id === id);
-        if (m) {
-          m.transform = { x: origT.x + dx, y: origT.y + dy, rotation: origT.rotation };
-        }
       }
+
       sync();
       return;
     }
 
     // Hover-Feedback: Cursor anpassen, wenn über Drehgriff, Gleis oder Tischkante/Header
     if (!isDraggingPiece && !isRotatingPiece && !isRotatingModel && !isBoxSelecting && !isDraggingBaseboard) {
-      const currentlySelectedId = selection.all()[0];
-      if (currentlySelectedId) {
-        const selPiece = layout.pieces.find((p) => p.id === currentlySelectedId);
-        if (selPiece) {
-          const entry = catalog.entries.find((it) => it.id === selPiece.catalogId) ?? catalogRegistry.findEntry(selPiece.catalogId);
+      const selectedIds = selection.all();
+      const scale = renderer.world.scale.x || 1;
+      const handleHitRadius = Math.max(24, 20 / scale);
+
+      for (const selId of selectedIds) {
+        const selPiece = layout.pieces.find((p) => p.id === selId);
+        if (selPiece && isPieceInteractive(selPiece)) {
+          const entry = getCatalogEntryForPiece(selPiece);
           if (entry) {
             const handlePos = getPieceRotationHandleWorld(entry, selPiece.transform);
-            if (dist(currentWPos, handlePos) <= 16) {
+            if (dist(currentWPos, handlePos) <= handleHitRadius) {
               canvas.style.cursor = "grab";
               return;
             }
           }
         }
+        const selModel = layout.models?.find((m) => m.id === selId);
+        if (selModel && isModelInteractive(selModel)) {
+          const handlePos = getModelRotationHandleWorld(selModel);
+          if (dist(currentWPos, handlePos) <= handleHitRadius) {
+            canvas.style.cursor = "grab";
+            return;
+          }
+        }
       }
 
-      // Prüfen, ob über einem Gleis
+      // Prüfen, ob über einem Gleis oder einer Straße der aktiven Ebene
       let isOverTrack = false;
+      const screenGrabBuffer = 20 / scale;
       for (const piece of layout.pieces) {
-        const entry = catalog.entries.find((it) => it.id === piece.catalogId) ?? catalogRegistry.findEntry(piece.catalogId);
-        if (entry && distanceToTrackPiece(currentWPos, piece.transform, entry) <= 22) {
-          isOverTrack = true;
-          break;
+        if (!isPieceInteractive(piece)) continue;
+        const entry = getCatalogEntryForPiece(piece);
+        if (entry) {
+          const maxAllowed = entry.isRoad
+            ? Math.max(35, (entry.roadWidth ?? 60) * 0.65, screenGrabBuffer)
+            : Math.max(32, (catalog.gauge ?? 16.5) * 1.8, screenGrabBuffer);
+          if (distanceToTrackPiece(currentWPos, piece.transform, entry) <= maxAllowed) {
+            isOverTrack = true;
+            break;
+          }
         }
       }
 
@@ -2399,14 +2740,24 @@ async function main() {
       activeModel = null;
       canvas.style.cursor = "default";
       sync();
-    } else if (isRotatingPiece && activePiece) {
-      const finalT = { ...activePiece.transform };
-      if (finalT.rotation !== originalTransform.rotation) {
-        history.run(new MovePieceCommand(activePiece.id, originalTransform, finalT));
-        sync(true);
+    } else if (isRotatingPiece) {
+      let movedAny = false;
+      for (const [id, origT] of draggedPiecesMap.entries()) {
+        const p = layout.pieces.find((x) => x.id === id);
+        if (p && (p.transform.x !== origT.x || p.transform.y !== origT.y || p.transform.rotation !== origT.rotation)) {
+          history.run(new MovePieceCommand(p.id, origT, { ...p.transform }));
+          movedAny = true;
+        }
+        const m = layout.models?.find((x) => x.id === id);
+        if (m && (m.transform.x !== origT.x || m.transform.y !== origT.y || m.transform.rotation !== origT.rotation)) {
+          history.run(new MoveModelCommand(m.id, origT, { ...m.transform }));
+          movedAny = true;
+        }
       }
+      if (movedAny) sync(true);
       isRotatingPiece = false;
       activePiece = null;
+      draggedPiecesMap.clear();
       canvas.style.cursor = "default";
       sync();
     } else if (isDraggingPiece) {
@@ -2418,12 +2769,12 @@ async function main() {
         let movedAny = false;
         for (const [id, origT] of draggedPiecesMap.entries()) {
           const p = layout.pieces.find((x) => x.id === id);
-          if (p && (p.transform.x !== origT.x || p.transform.y !== origT.y)) {
+          if (p && (p.transform.x !== origT.x || p.transform.y !== origT.y || p.transform.rotation !== origT.rotation)) {
             history.run(new MovePieceCommand(p.id, origT, { ...p.transform }));
             movedAny = true;
           }
           const m = layout.models?.find((x) => x.id === id);
-          if (m && (m.transform.x !== origT.x || m.transform.y !== origT.y)) {
+          if (m && (m.transform.x !== origT.x || m.transform.y !== origT.y || m.transform.rotation !== origT.rotation)) {
             history.run(new MoveModelCommand(m.id, origT, { ...m.transform }));
             movedAny = true;
           }
@@ -2556,7 +2907,7 @@ async function main() {
       e.preventDefault();
       const selPieces = selection.all().map((id) => layout.pieces.find((p) => p.id === id)).filter(Boolean) as TrackPiece[];
       const turnoutPieces = selPieces.filter((p) => {
-        const entry = catalog.entries.find((it) => it.id === p.catalogId);
+        const entry = getCatalogEntryForPiece(p);
         return isTurnoutEntry(entry);
       });
       if (turnoutPieces.length > 0) {
