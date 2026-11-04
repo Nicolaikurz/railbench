@@ -1780,7 +1780,8 @@ async function main() {
       showToast(
         active
           ? (isDe ? "Woodplatte (Trassenbrett) platziert" : "Wood plate placed under tracks & roads")
-          : (isDe ? "Woodplatte entfernt" : "Wood plate removed")
+          : (isDe ? "Woodplatte entfernt" : "Wood plate removed"),
+        "🪵"
       );
       sync();
     },
@@ -1810,10 +1811,7 @@ async function main() {
     },
     onOpenPlan: () => triggerOpenPlan(),
     onSavePlan: () => triggerSavePlan(),
-    // Default "Save As" uses .railbench
     onSavePlanAs: (format?: PlanFormat) => triggerSavePlanAs(format ?? "railbench"),
-    // Explicit format actions
-    //onSaveRailbench: () => triggerSavePlanAs("railbench"),
     //onSaveJSON: () => triggerSavePlanAs("json"),
     onSaveXML: () => triggerSavePlanAs("xml"),
     onExportCSV: () => triggerExportCSV(),
@@ -1823,9 +1821,7 @@ async function main() {
     onResetView: () => {
       renderer.resetView();
       ruler.update();
-      sync(); // Necessary update the selection bar
-    },
-
+      sync();
     },
     onOpenCollab: () => triggerCollabDialog(),
     onTogglePerfMonitor: () => perfMonitor.toggle(),

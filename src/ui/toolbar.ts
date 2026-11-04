@@ -284,7 +284,7 @@ export function createToolbar(host: HTMLElement, events: ToolbarEvents) {
   fileLabel.id = "tb-file-name";
   fileLabel.className = "brand-file";
   fileLabel.title = "Current layout plan";
-  fileLabel.textContent = "Model Railway.gleisplan";
+  fileLabel.textContent = "Model Railway.railbench";
 
   const countBadge = document.createElement("span");
   countBadge.id = "tb-piece-count";

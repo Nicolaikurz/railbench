@@ -292,10 +292,10 @@ ipcMain.handle("dialog:openPlan", async () => {
     title: "Gleisplan öffnen",
     filters: [
       {
-        name: "Gleispläne (*.gleisplan, *.json, *.xml)",
-        extensions: ["gleisplan", "json", "xml"],
+        name: "Gleispläne (*.railbench, *.json, *.xml)",
+        extensions: ["railbench", "json", "xml"],
       },
-      { name: "Gleisplan JSON (*.gleisplan, *.json)", extensions: ["gleisplan", "json"] },
+      { name: "Gleisplan JSON (*.railbench, *.json)", extensions: ["railbench", "json"] },
       { name: "Gleisplan XML (*.xml)", extensions: ["xml"] },
       { name: "Alle Dateien (*.*)", extensions: ["*"] },
     ],
@@ -318,7 +318,7 @@ ipcMain.handle(
   async (_event, defaultName: string, content: string, format: "json" | "xml") => {
     if (!mainWindow) return null;
 
-    const ext = format === "xml" ? "xml" : "gleisplan";
+    const ext = format === "xml" ? "xml" : "railbench";
     const defaultPath = defaultName.endsWith(`.${ext}`)
       ? defaultName
       : `${defaultName}.${ext}`;
@@ -330,7 +330,7 @@ ipcMain.handle(
         format === "xml"
           ? [{ name: "XML Gleisplan (*.xml)", extensions: ["xml"] }]
           : [
-              { name: "Gleisplan Datei (*.gleisplan)", extensions: ["gleisplan"] },
+              { name: "Gleisplan Datei (*.railbench)", extensions: ["railbench"] },
               { name: "JSON Datei (*.json)", extensions: ["json"] },
             ],
     });
