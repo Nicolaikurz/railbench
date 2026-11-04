@@ -13,13 +13,13 @@ npm run build:all
 
 if [ "$ARCH" = "x64" ]; then
     echo "• Packaging Windows Portable for x64..."
-    npx electron-builder --win portable --x64
+    npx electron-builder --win dir --x64
 elif [ "$ARCH" = "arm64" ]; then
     echo "• Packaging Windows Portable for arm64..."
-    npx electron-builder --win portable --arm64
+    npx electron-builder --win dir --arm64
 elif [ "$ARCH" = "all" ]; then
     echo "• Packaging Windows Portable for x64 and arm64..."
-    npx electron-builder --win portable --x64 --arm64
+    npx electron-builder --win dir --x64 --arm64
 else
     echo "Unknown architecture: $ARCH (choose x64, arm64, or all)"
     exit 1
