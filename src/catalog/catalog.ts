@@ -36,7 +36,14 @@ export const cGleisCatalog: C_Gleise[] = maerklinCEntries.map((e) => ({
  * Berechnet die relativen Connector-Positionen und -Winkel (im lokalen Koordinatensystem des Gleisstücks).
  * Funktioniert universell für alle Gleissysteme und Spurweiten.
  */
-export function getLocalConnectors(entry: CatalogEntry): LocalConnector[] {
+export function getLocalConnectors(entry?: CatalogEntry | null): LocalConnector[] {
+  if (!entry) {
+    return [
+      { x: 0, y: 0, angle: 180 },
+      { x: 100, y: 0, angle: 0 },
+    ];
+  }
+
   if (entry.localConnectors && entry.localConnectors.length > 0) {
     return entry.localConnectors;
   }
@@ -203,14 +210,15 @@ export function getLocalConnectors(entry: CatalogEntry): LocalConnector[] {
 }
 
 /** Transformiert die lokalen Connectors in Weltkoordinaten basierend auf der Position und Rotation des Gleisstücks. */
-export function computeWorldConnectors(entry: CatalogEntry, transform: Transform): Connector[] {
+export function computeWorldConnectors(entry: CatalogEntry | undefined | null, transform: Transform): Connector[] {
   const locals = getLocalConnectors(entry);
+  if (!transform) return [];
   return locals.map((lc) => {
     const wp = transformPoint(lc, transform);
     return {
       x: wp.x,
       y: wp.y,
-      angle: normAngle(transform.rotation + lc.angle),
+      angle: normAngle((transform.rotation ?? 0) + lc.angle),
     };
   });
 }

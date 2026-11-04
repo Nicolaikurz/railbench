@@ -186,5 +186,19 @@ function collabDevPlugin(): Plugin {
 export default defineConfig({
   base: "./",
   resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
+  server: {
+    watch: {
+      ignored: [
+        "**/packaging/**",
+        "**/.flatpak-builder/**",
+        "**/release/**",
+        "**/dist/**",
+        "**/dist-electron/**",
+      ],
+    },
+  },
+  build: {
+    chunkSizeWarningLimit: 2000,
+  },
   plugins: [collabDevPlugin()],
 });

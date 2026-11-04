@@ -1,6 +1,6 @@
 import type { Connector, TrackPiece, Transform } from "./types";
 import type { CatalogEntry } from "@/catalog/catalog";
-import { getLocalConnectors } from "@/catalog/catalog";
+import { getLocalConnectors, catalogRegistry } from "@/catalog/catalog";
 import { dist, normAngle, rotate, transformPoint } from "./geometry";
 
 export interface SnapResult {
@@ -42,19 +42,29 @@ export interface BestPieceSnap {
 
 /**
  * Sucht für ein bewegtes/zu platzierendes Gleisstück den optimalen Andockpunkt an bereits existierende Gleise.
- * Berechnet direkt die exakte Position und Rotation für nahtloses Einrasten.
+ * Berechnet direkt die exakte Position und Rotation für nahtloses Einrasten ("snap in place").
  */
 export function findBestSnapForPiece(
   entry: CatalogEntry,
   candidateTransform: Transform,
   pieces: TrackPiece[],
-  ignorePieceId?: string,
-  radius = 35,
-  angleTolerance = 25,
+  ignorePieceIds?: string | Set<string> | string[],
+  radius = 45,
+  angleTolerance = 60,
+  ignoreTargetConnectors?: Array<{ pieceId: string; connectorIndex: number }>,
 ): BestPieceSnap | null {
+  const ignoreSet =
+    ignorePieceIds instanceof Set
+      ? ignorePieceIds
+      : Array.isArray(ignorePieceIds)
+        ? new Set(ignorePieceIds)
+        : ignorePieceIds
+          ? new Set([ignorePieceIds])
+          : new Set<string>();
+
   const locals = getLocalConnectors(entry);
   let best: BestPieceSnap | null = null;
-  let bestDist = radius;
+  let bestScore = Infinity;
 
   for (let mi = 0; mi < locals.length; mi++) {
     const local = locals[mi]!;
@@ -63,18 +73,39 @@ export function findBestSnapForPiece(
     const movingWorldAngle = normAngle(candidateTransform.rotation + local.angle);
 
     for (const piece of pieces) {
-      if (piece.id === ignorePieceId) continue;
+      if (ignoreSet.has(piece.id)) continue;
+
+      // Straßen nur an Straßen, Gleise nur an Gleise snappen
+      const targetEntry = catalogRegistry.findEntry(piece.catalogId);
+      if (Boolean(targetEntry?.isRoad) !== Boolean(entry.isRoad)) continue;
 
       for (let ti = 0; ti < piece.connectors.length; ti++) {
+        // Falls dieser Zielanschluss ignoriert werden soll (z. B. beim Wegziehen von der bestehenden Verbindung)
+        if (ignoreTargetConnectors && ignoreTargetConnectors.some((ic) => ic.pieceId === piece.id && ic.connectorIndex === ti)) {
+          continue;
+        }
+
         const target = piece.connectors[ti]!;
-        // Falls Connector schon mit einem anderen Teil (außer eventuell dem gerade bewegten) belegt ist
-        if (target.connectedTo && target.connectedTo.pieceId !== ignorePieceId) continue;
+        // Falls Connector schon mit einem anderen Teil belegt ist
+        if (target.connectedTo && !ignoreSet.has(target.connectedTo.pieceId)) continue;
 
         const d = dist(movingWorldPos, target);
-        // Winkel-Differenz zur Gegenrichtung (180°)
-        const diff = Math.abs(normAngle(movingWorldAngle - target.angle) - 180);
+        if (d > radius) continue;
 
-        if (d < bestDist && diff <= angleTolerance) {
+        // Winkel-Differenz zur Gegenrichtung (180°)
+        let diff = Math.abs(normAngle(movingWorldAngle - target.angle) - 180);
+        if (diff > 180) diff = 360 - diff;
+
+        // Snap-in-place Toleranz:
+        // Bei nahem Heranführen (<= 28mm) rastet das Gleis direkt passgenau ein,
+        // auch wenn der Anstellwinkel noch grob abweicht.
+        const effectiveAngleTolerance = d <= 28 ? 180 : angleTolerance;
+        if (diff > effectiveAngleTolerance) continue;
+
+        // Bewertungsgewichtung: Nähere Anschlüsse und besser ausgerichtete Anschlüsse bevorzugen
+        const score = d + (diff / 180) * 20;
+
+        if (score < bestScore) {
           // Exakte Ausrichtung berechnen:
           // target.angle + 180° = snappedRotation + local.angle
           const snappedRotation = normAngle(target.angle + 180 - local.angle);
@@ -84,7 +115,7 @@ export function findBestSnapForPiece(
             y: target.y - rotatedOffset.y,
           };
 
-          bestDist = d;
+          bestScore = score;
           best = {
             movingConnectorIndex: mi,
             targetPieceId: piece.id,

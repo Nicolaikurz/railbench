@@ -27,6 +27,7 @@ export interface Translations {
       paste: string;
       duplicate: string;
       selectAll: string;
+      deselectAll: string;
       rotateCw: string;
       rotateCcw: string;
       deleteSelected: string;
@@ -49,7 +50,15 @@ export interface Translations {
       toggleBaseboard: string;
       configureBaseboard: string;
       measureDistance: string;
+      woodPlate: string;
       toggleTheme: string;
+      themeSystem: string;
+      themeDark: string;
+      themeLight: string;
+      themeStatusSystem: string;
+      themeStatusDark: string;
+      themeStatusLight: string;
+      themeTooltip: string;
       togglePerfMonitor: string;
     };
     helpMenu: {
@@ -130,10 +139,16 @@ export interface Translations {
       collabOffline: string;
       collabConnecting: string;
       collabTooltip: string;
+      shortCircuitButton: string;
+      shortCircuitTooltip: string;
+      shortCircuitBadge3D: string;
+      shortCircuitOverlayLabel: string;
     };
   };
   powerDialog: {
     title: string;
+    shortCircuitHeader: string;
+    shortCircuitSub: string;
     feederHeader: string;
     feederSub: string;
     preset16VDesc: string;
@@ -145,8 +160,10 @@ export interface Translations {
     locoHeader: string;
     locoSub: string;
     preset100Desc: string;
+    preset150Desc: string;
     preset300Desc: string;
     preset450Desc: string;
+    preset750Desc: string;
     preset1000Desc: string;
     locoCurrentLabel: string;
     locoHint: string;
@@ -161,6 +178,8 @@ export interface Translations {
     catenaryModeLabel: string;
     catenaryModeSeparate: string;
     catenaryModeParallel: string;
+    catenaryModeSeparateDesc: string;
+    catenaryModeParallelDesc: string;
     catenaryStats: string;
     catenaryNoTracks: string;
     turnoutHeader: string;
@@ -323,6 +342,7 @@ export interface Translations {
     decoderActive: string;
     decoderActiveTitle: string;
     decoderInactiveTitle: string;
+    deleteBtn: string;
     turnoutCurrentTitle: string;
     multipleLayers: string;
     rampPrefix: string;
