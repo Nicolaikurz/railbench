@@ -423,7 +423,15 @@ function renderGermanTab(tab: HelpTab, contentArea: HTMLElement) {
             <div class="help-card">
               <h3>3D-Modelle & Ausschmückung (.glb / .gltf)</h3>
               <p>
-                Platzieren Sie Gebäude (Bahnhof, Stellwerk, Lokschuppen, Wasserturm, Signale, Prellböcke, Bäume, Lampen) aus dem Katalog oder importieren Sie eigene GLB/GLTF-Dateien.
+                Platzieren Sie Gebäude (Bahnhof, Stellwerk, Lokschuppen, Wasserturm, Fachwerkhaus, Signale, Prellböcke, Bäume, Lampen) aus dem Katalog oder importieren Sie eigene GLB/GLTF-Dateien.
+              </p>
+            </div>
+
+            <div class="help-card">
+              <h3>3D-Modell-Lizenzen & Herkunft</h3>
+              <p>
+                • <strong>Integrierte 3D-Objekte:</strong> Alle 10 mitgelieferten 3D-Modelle sind zu <strong>100 % prozeduraler Open-Source-Code</strong> (Three.js Geometrien in <code>src/render/builtin-models-3d.ts</code>). Sie enthalten keine externen Binärmodelle oder proprietären Texturen, sind frei von Urheberrechtsansprüchen Dritter und unterliegen der freien Open-Source-Lizenz (GPLv3 / Royalty-Free).<br>
+                • <strong>Eigene Modelle (.glb / .gltf):</strong> Selbst importierte 3D-Modelle unterliegen den jeweiligen Original-Lizenzen ihrer Autoren (z. B. Creative Commons CC0, CC-BY).
               </p>
             </div>
 
@@ -595,7 +603,7 @@ function renderGermanTab(tab: HelpTab, contentArea: HTMLElement) {
         <div class="help-topic-section">
           <h2>Über Railbench & Gleissysteme</h2>
           <p>
-            <strong>Railbench v0.4.0</strong> ist eine Open-Source-Modellbahn-CAD-Anwendung für die Planung und elektrische Netzanalyse von Modellbahnanlagen.
+            <strong>Railbench v0.5.0</strong> ist eine Open-Source-Modellbahn-CAD-Anwendung für die Planung und elektrische Netzanalyse von Modellbahnanlagen.
             Sie basiert auf moderner Web-Technologie (TypeScript, PixiJS WebGL-Rendering, Vite und Electron).
           </p>
 
@@ -618,7 +626,7 @@ function renderGermanTab(tab: HelpTab, contentArea: HTMLElement) {
           </div>
 
           <p style="font-size: 11px; color: var(--text-muted); margin-top: 20px;">
-            Lizenziert unter der MIT-Lizenz. Alle Gleisproduktnamen, Artikelnummern und Herstellermarken (Märklin, Trix, Piko, Roco, Fleischmann, Tillig) sind Warenzeichen der jeweiligen Eigentümer.
+            Lizenziert unter der GNU General Public License v3 (GPLv3). Alle integrierten prozeduralen 3D-Modelle sind quelloffen und frei nutzbar. Alle Gleisproduktnamen, Artikelnummern und Herstellermarken (Märklin, Trix, Piko, Roco, Fleischmann, Tillig) sind Warenzeichen der jeweiligen Eigentümer.
           </p>
         </div>
       `;
@@ -931,7 +939,15 @@ function renderEnglishTab(tab: HelpTab, contentArea: HTMLElement) {
             <div class="help-card">
               <h3>3D Models & Scenery (.glb / .gltf)</h3>
               <p>
-                Place built-in open-source models (Passenger Station, Signal Box, Engine Shed, Water Tower, Light Signal, Buffer Stop, Trees, Lamps) or import custom <code>.glb</code> / <code>.gltf</code> files via the <strong>3D Models</strong> sidebar tab or by dragging files onto the canvas!
+                Place built-in open-source models (Passenger Station, Signal Box, Engine Shed, Water Tower, Half-Timbered House, Light Signal, Buffer Stop, Trees, Platform Lamps) or import custom <code>.glb</code> / <code>.gltf</code> files via the <strong>3D Models</strong> sidebar tab or by dragging files onto the canvas!
+              </p>
+            </div>
+
+            <div class="help-card">
+              <h3>3D Models Licensing & Origin</h3>
+              <p>
+                • <strong>Built-in 3D Scenery:</strong> All 10 included models are <strong>100% procedurally generated pure code</strong> (Three.js procedural geometry in <code>src/render/builtin-models-3d.ts</code>). They contain no third-party binary assets or proprietary textures and are fully covered by the project's open-source license (GPLv3 / royalty-free for personal, hobby, and commercial layout design).<br>
+                • <strong>Imported Models (.glb / .gltf):</strong> Custom models imported from external sources remain governed by their respective authors' licenses (e.g. Creative Commons CC0, CC-BY).
               </p>
             </div>
 
@@ -1103,7 +1119,7 @@ function renderEnglishTab(tab: HelpTab, contentArea: HTMLElement) {
         <div class="help-topic-section">
           <h2>About Railbench & Track Libraries</h2>
           <p>
-            <strong>Railbench v0.4.0</strong> is an open-source model railway track design and layout planning CAD tool.
+            <strong>Railbench v0.5.0</strong> is an open-source model railway track design and layout planning CAD tool.
             It is built using modern TypeScript, PixiJS WebGL rendering, Vite, and Electron.
           </p>
 
@@ -1126,7 +1142,7 @@ function renderEnglishTab(tab: HelpTab, contentArea: HTMLElement) {
           </div>
 
           <p style="font-size: 11px; color: var(--text-muted); margin-top: 20px;">
-            Licensed under MIT. All track product names, numbers, and brands (Märklin, Trix, Piko, Roco, Fleischmann, Tillig) are trademarks of their respective manufacturers.
+            Licensed under the GNU General Public License v3 (GPLv3). All built-in procedural 3D models are open source and royalty-free. All track product names, numbers, and brands (Märklin, Trix, Piko, Roco, Fleischmann, Tillig) are trademarks of their respective manufacturers.
           </p>
         </div>
       `;

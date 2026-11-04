@@ -18,6 +18,7 @@ export interface ToolbarEvents {
   onPaste?: () => void;
   onDuplicate?: () => void;
   onSelectAll?: () => void;
+  onDeselectAll?: () => void;
   onRotateSelected: (step?: number) => void;
   onDeleteSelected: () => void;
   onToggleFeeder: () => void;
@@ -34,6 +35,7 @@ export interface ToolbarEvents {
   onToggle3D?: () => void;
   onImportModel?: () => void;
   onToggleTheme: () => void;
+  onSetTheme?: (theme: "system" | "light" | "dark") => void;
   onToggleMeasureTool?: () => void;
   onToggleWoodPlate?: () => void;
   onToggleSnapping: () => void;
@@ -44,6 +46,7 @@ export interface ToolbarEvents {
   onSetFeedVoltage?: (v: number) => void;
   onSetLocoCurrent?: (ma: number) => void;
   onOpenPowerSettings?: (initialFocus?: "voltage" | "current") => void;
+  onFocusShortCircuit?: () => void;
   onClearLayout?: () => void;
   onOpenCollab?: () => void;
   onTogglePerfMonitor?: () => void;
@@ -59,6 +62,8 @@ export interface ToolbarState {
   colorMode?: ColorMode;
   trackLabelsEnabled?: boolean;
   powerSimEnabled?: boolean;
+  hasShortCircuit?: boolean;
+  shortCircuitCount?: number;
   rulersEnabled?: boolean;
   baseboardEnabled?: boolean;
   is3DActive?: boolean;
@@ -68,6 +73,7 @@ export interface ToolbarState {
   activeFileName?: string;
   isDirty?: boolean;
   themePref?: "system" | "light" | "dark";
+  resolvedTheme?: "light" | "dark";
   rightSidebarCollapsed?: boolean;
   collabStatus?: "disconnected" | "connecting" | "connected";
   collabUsersCount?: number;
@@ -95,65 +101,67 @@ export function createToolbar(host: HTMLElement, events: ToolbarEvents) {
   const menusGroup = document.createElement("div");
   menusGroup.className = "toolbar-group";
 
-  // 2A. File Menu Dropdown
+  // 2A. Layout / Gleisplan Menu Dropdown (Option B)
   const fileMenu = createDropdownMenu(t.menus.plan, [
-    { label: t.fileMenu.newPlan, shortcut: "Ctrl+N", icon: "📄", onClick: events.onNewPlan },
-    { label: t.fileMenu.openPlan, shortcut: "Ctrl+O", icon: "📂", onClick: events.onOpenPlan },
-    { label: t.fileMenu.savePlan, shortcut: "Ctrl+S", icon: "💾", onClick: events.onSavePlan },
-    { label: t.fileMenu.saveAs, shortcut: "Ctrl+Shift+S", icon: "💾", onClick: events.onSavePlanAs },
+    { label: t.fileMenu.newPlan, shortcut: "Ctrl+N", onClick: events.onNewPlan },
+    { label: t.fileMenu.openPlan, shortcut: "Ctrl+O", onClick: events.onOpenPlan },
+    { label: t.fileMenu.savePlan, shortcut: "Ctrl+S", onClick: events.onSavePlan },
+    { label: t.fileMenu.saveAs, shortcut: "Ctrl+Shift+S", onClick: events.onSavePlanAs },
     { isDivider: true },
-    { label: t.fileMenu.import3d, icon: "📦", onClick: events.onImportModel },
+    { label: t.fileMenu.import3d, onClick: events.onImportModel },
     { isDivider: true },
-    { label: t.fileMenu.exportXml, icon: "📄", onClick: events.onSaveXML },
-    { label: t.fileMenu.exportCsv, shortcut: "Ctrl+E", icon: "📋", onClick: events.onExportCSV },
+    { label: t.fileMenu.exportXml, onClick: events.onSaveXML },
+    { label: t.fileMenu.exportCsv, shortcut: "Ctrl+E", onClick: events.onExportCSV },
     { isDivider: true },
-    { label: t.fileMenu.printPlan, shortcut: "Ctrl+P", icon: "🖨️", onClick: () => events.onPrintPlan?.() },
+    { label: t.fileMenu.printPlan, shortcut: "Ctrl+P", onClick: () => events.onPrintPlan?.() },
     { isDivider: true },
-    { label: t.fileMenu.collaborate, icon: "👥", onClick: () => events.onOpenCollab?.() },
+    { label: t.fileMenu.collaborate, onClick: () => events.onOpenCollab?.() },
   ]);
   menusGroup.appendChild(fileMenu);
 
-  // 2B. Edit Menu Dropdown
+  // 2B. Edit / Bearbeiten Menu Dropdown
   const editMenu = createDropdownMenu(t.menus.edit, [
-    { label: t.editMenu.undo, shortcut: "Ctrl+Z", icon: "↶", onClick: events.onUndo, id: "item-undo" },
-    { label: t.editMenu.redo, shortcut: "Ctrl+Y", icon: "↷", onClick: events.onRedo, id: "item-redo" },
+    { label: t.editMenu.undo, shortcut: "Ctrl+Z", onClick: events.onUndo, id: "item-undo" },
+    { label: t.editMenu.redo, shortcut: "Ctrl+Y", onClick: events.onRedo, id: "item-redo" },
     { isDivider: true },
-    { label: t.editMenu.copy, shortcut: "Ctrl+C", icon: "📋", onClick: () => events.onCopy?.(), id: "item-copy" },
-    { label: t.editMenu.paste, shortcut: "Ctrl+V", icon: "📥", onClick: () => events.onPaste?.(), id: "item-paste" },
-    { label: t.editMenu.duplicate, shortcut: "Ctrl+D", icon: "📑", onClick: () => events.onDuplicate?.(), id: "item-duplicate" },
-    { label: t.editMenu.selectAll, shortcut: "Ctrl+A", icon: "⬚", onClick: () => events.onSelectAll?.(), id: "item-select-all" },
+    { label: t.editMenu.copy, shortcut: "Ctrl+C", onClick: () => events.onCopy?.(), id: "item-copy" },
+    { label: t.editMenu.paste, shortcut: "Ctrl+V", onClick: () => events.onPaste?.(), id: "item-paste" },
+    { label: t.editMenu.duplicate, shortcut: "Ctrl+D", onClick: () => events.onDuplicate?.(), id: "item-duplicate" },
+    { label: t.editMenu.selectAll, shortcut: "Ctrl+A", onClick: () => events.onSelectAll?.(), id: "item-select-all" },
+    { label: t.editMenu.deselectAll, shortcut: "Esc", onClick: () => events.onDeselectAll?.(), id: "item-deselect-all" },
     { isDivider: true },
-    { label: t.editMenu.rotateCw, shortcut: "R", icon: "↻", onClick: () => events.onRotateSelected(7.5) },
-    { label: t.editMenu.rotateCcw, shortcut: "Shift+R", icon: "↺", onClick: () => events.onRotateSelected(-7.5) },
-    { label: t.editMenu.deleteSelected, shortcut: "Del", icon: "🗑", onClick: events.onDeleteSelected, isDanger: true },
+    { label: t.editMenu.rotateCw, shortcut: "R", onClick: () => events.onRotateSelected(7.5) },
+    { label: t.editMenu.rotateCcw, shortcut: "Shift+R", onClick: () => events.onRotateSelected(-7.5) },
+    { label: t.editMenu.deleteSelected, shortcut: "Del", onClick: events.onDeleteSelected, isDanger: true },
     { isDivider: true },
-    { label: t.editMenu.changeHeight, shortcut: "M", icon: "📐", onClick: () => events.onMoveSelectedToLayerPrompt?.() },
-      ]);
+    { label: t.editMenu.changeHeight, shortcut: "M", onClick: () => events.onMoveSelectedToLayerPrompt?.() },
+  ]);
   menusGroup.appendChild(editMenu);
 
-  // 2C. View Menu Dropdown
+  // 2C. View / Ansicht Menu Dropdown
   const viewMenu = createDropdownMenu(t.menus.view, [
-    { label: t.viewMenu.resetView, shortcut: "Ctrl+0", icon: "⌖", onClick: events.onResetView },
+    { label: t.viewMenu.resetView, shortcut: "Ctrl+0", onClick: events.onResetView },
     { isDivider: true },
+    { label: t.viewMenu.toggleRulers, shortcut: "Shift+L", onClick: events.onToggleRulers, id: "item-rulers" },
+    { label: t.viewMenu.measureDistance, shortcut: "M", onClick: () => events.onToggleMeasureTool?.(), id: "item-measure" },
+    { label: t.viewMenu.woodPlate, onClick: () => events.onToggleWoodPlate?.(), id: "item-woodplate" },
     { isDivider: true },
-    { label: t.viewMenu.toggleRulers, shortcut: "Shift+L", icon: "📏", onClick: events.onToggleRulers, id: "item-rulers" },
-    { label: t.viewMenu.measureDistance, shortcut: "M", icon: "📏", onClick: () => events.onToggleMeasureTool?.(), id: "item-measure" },
-    { label: getLanguage() === "de" ? "Woodplatte unter Gleisen/Straßen" : "Wood Plate under Tracks/Roads", icon: "🪵", onClick: () => events.onToggleWoodPlate?.(), id: "item-woodplate" },
+    { label: t.viewMenu.themeSystem, onClick: () => events.onSetTheme?.("system"), id: "item-theme-system" },
+    { label: t.viewMenu.themeDark, onClick: () => events.onSetTheme?.("dark"), id: "item-theme-dark" },
+    { label: t.viewMenu.themeLight, onClick: () => events.onSetTheme?.("light"), id: "item-theme-light" },
     { isDivider: true },
-    { label: t.viewMenu.toggleTheme, icon: "🌓", onClick: events.onToggleTheme, id: "item-theme" },
-    { isDivider: true },
-    { label: t.viewMenu.togglePerfMonitor, shortcut: "F3", icon: "⚡", onClick: events.onTogglePerfMonitor, id: "item-perf-monitor" },
+    { label: t.viewMenu.togglePerfMonitor, shortcut: "F3", onClick: events.onTogglePerfMonitor, id: "item-perf-monitor" },
   ]);
   menusGroup.appendChild(viewMenu);
 
-  // 2D. Help Menu Dropdown
+  // 2D. Help / Hilfe Menu Dropdown
   const helpMenu = createDropdownMenu(t.menus.help, [
     { label: t.helpMenu.helpGuide, shortcut: "F1", onClick: () => events.onOpenHelp?.("overview") },
-    { label: t.helpMenu.shortcuts, shortcut: "?",onClick: () => events.onOpenHelp?.("shortcuts") },
+    { label: t.helpMenu.shortcuts, shortcut: "?", onClick: () => events.onOpenHelp?.("shortcuts") },
     { isDivider: true },
-    { label: t.helpMenu.layersGuide,onClick: () => events.onOpenHelp?.("layers") },
-    { label: t.helpMenu.printGuide, onClick: () => events.onOpenHelp?.("print") },
+    { label: t.helpMenu.layersGuide, onClick: () => events.onOpenHelp?.("layers") },
     { label: t.helpMenu.voltageGuide, onClick: () => events.onOpenHelp?.("power") },
+    { label: t.helpMenu.printGuide, onClick: () => events.onOpenHelp?.("print") },
     { isDivider: true },
     { label: t.helpMenu.about, onClick: () => events.onOpenHelp?.("about") },
   ]);
@@ -194,14 +202,14 @@ export function createToolbar(host: HTMLElement, events: ToolbarEvents) {
   const colorsWrapper = document.createElement("div");
   colorsWrapper.className = "toolbar-split-group";
 
-  const btnColors = createToggleBtn("🎨", t.toggles.colorsLabel, t.toggles.colorsLabel, true, events.onToggleColorCode, "tb-colors");
+  const btnColors = createToggleBtn("", t.toggles.colorsLabel, t.toggles.colorsLabel, true, events.onToggleColorCode, "tb-colors");
   btnColors.title = t.toggles.colorsTitle;
   colorsWrapper.appendChild(btnColors);
 
   const colorsMenu = createDropdownMenu("", [
-    { label: t.colorsMenu.types, icon: "🎨", onClick: () => events.onSetColorMode?.("types"), id: "split-color-types" },
-    { label: t.colorsMenu.layers, icon: "🏗️", onClick: () => events.onSetColorMode?.("layers"), id: "split-color-layers" },
-    { label: t.colorsMenu.off, icon: "⚪", onClick: () => events.onSetColorMode?.("off"), id: "split-color-off" },
+    { label: t.colorsMenu.types, onClick: () => events.onSetColorMode?.("types"), id: "split-color-types" },
+    { label: t.colorsMenu.layers, onClick: () => events.onSetColorMode?.("layers"), id: "split-color-layers" },
+    { label: t.colorsMenu.off, onClick: () => events.onSetColorMode?.("off"), id: "split-color-off" },
   ]);
   colorsMenu.classList.add("colors-split-dropdown");
   colorsWrapper.appendChild(colorsMenu);
@@ -218,24 +226,24 @@ export function createToolbar(host: HTMLElement, events: ToolbarEvents) {
   powerWrapper.appendChild(btnPower);
 
   const powerMenu = createDropdownMenu("", [
-    { label: t.powerMenu.h0Standard, icon: "", onClick: () => events.onSetFeedVoltage?.(16) },
-    { label: t.powerMenu.nScale, icon: "", onClick: () => events.onSetFeedVoltage?.(12) },
-    { label: t.powerMenu.gauge1, icon: "", onClick: () => events.onSetFeedVoltage?.(18) },
+    { label: t.powerMenu.h0Standard, onClick: () => events.onSetFeedVoltage?.(16) },
+    { label: t.powerMenu.nScale, onClick: () => events.onSetFeedVoltage?.(12) },
+    { label: t.powerMenu.gauge1, onClick: () => events.onSetFeedVoltage?.(18) },
     { isDivider: true },
     { label: t.powerMenu.h0Current, onClick: () => events.onSetLocoCurrent?.(450) },
     { label: t.powerMenu.nzCurrent, onClick: () => events.onSetLocoCurrent?.(100) },
     { isDivider: true },
-    { label: t.powerMenu.configPower, icon: "⚙️", onClick: () => events.onOpenPowerSettings?.("voltage") },
+    { label: t.powerMenu.configPower, onClick: () => events.onOpenPowerSettings?.("voltage") },
     { isDivider: true },
-    { label: t.powerMenu.toggleFeeder, shortcut: "F", icon: "⚡", onClick: events.onToggleFeeder },
-    { label: t.powerMenu.toggleIsolator, shortcut: "I", icon: "⛔", onClick: events.onToggleIsolator },
+    { label: t.powerMenu.toggleFeeder, shortcut: "F", onClick: events.onToggleFeeder },
+    { label: t.powerMenu.toggleIsolator, shortcut: "I", onClick: events.onToggleIsolator },
     { isDivider: true },
-    { label: t.powerMenu.toggleCatenary, shortcut: "O", icon: "⚡", onClick: events.onToggleCatenary },
-    { label: t.powerMenu.toggleCatenaryFeeder, shortcut: "Shift+F", icon: "⚡🔌", onClick: events.onToggleCatenaryFeeder },
-    { label: t.powerMenu.toggleCatenaryIsolator, shortcut: "Shift+I", icon: "⚡⛔", onClick: events.onToggleCatenaryIsolator },
+    { label: t.powerMenu.toggleCatenary, shortcut: "O", onClick: events.onToggleCatenary },
+    { label: t.powerMenu.toggleCatenaryFeeder, shortcut: "Shift+F", onClick: events.onToggleCatenaryFeeder },
+    { label: t.powerMenu.toggleCatenaryIsolator, shortcut: "Shift+I", onClick: events.onToggleCatenaryIsolator },
     { isDivider: true },
-    { label: t.powerMenu.toggleTurnoutLantern, shortcut: "Shift+L", icon: "💡", onClick: events.onToggleTurnoutLantern },
-    { label: t.powerMenu.toggleTurnoutDecoder, shortcut: "Shift+D", icon: "📟", onClick: events.onToggleTurnoutDecoder },
+    { label: t.powerMenu.toggleTurnoutLantern, shortcut: "Shift+L", onClick: events.onToggleTurnoutLantern },
+    { label: t.powerMenu.toggleTurnoutDecoder, shortcut: "Shift+D", onClick: events.onToggleTurnoutDecoder },
   ]);
   powerMenu.classList.add("power-split-dropdown");
   powerWrapper.appendChild(powerMenu);
@@ -248,6 +256,21 @@ export function createToolbar(host: HTMLElement, events: ToolbarEvents) {
   featureGroup.appendChild(colorsWrapper);
   featureGroup.appendChild(btnLabels);
   featureGroup.appendChild(powerWrapper);
+
+  const btnShortCircuit = document.createElement("button");
+  btnShortCircuit.id = "tb-short-circuit";
+  btnShortCircuit.className = "toolbar-btn tb-short-circuit-btn";
+  btnShortCircuit.style.display = "none";
+  btnShortCircuit.title = t.status.shortCircuitTooltip;
+  btnShortCircuit.innerHTML = `
+    <span class="tb-short-circuit-icon">⚠️⚡</span>
+    <span class="tb-short-circuit-label">${t.status.shortCircuitButton}</span>
+  `;
+  btnShortCircuit.addEventListener("click", () => {
+    events.onFocusShortCircuit?.();
+  });
+  featureGroup.appendChild(btnShortCircuit);
+
   featureGroup.appendChild(btn3D);
   container.appendChild(featureGroup);
 
@@ -277,6 +300,16 @@ export function createToolbar(host: HTMLElement, events: ToolbarEvents) {
     toggleLanguage();
   });
 
+  // 1-Click Theme Switcher Button (Auto / Dark / Light)
+  const btnTheme = document.createElement("button");
+  btnTheme.id = "tb-theme-toggle";
+  btnTheme.className = "toolbar-btn tb-theme-btn";
+  btnTheme.title = t.viewMenu.themeTooltip;
+  btnTheme.innerHTML = `<span class="tb-theme-label" style="font-size: 11px; font-weight: 600;"></span>`;
+  btnTheme.addEventListener("click", () => {
+    events.onToggleTheme();
+  });
+
   // Collaboration Button
   const btnCollab = document.createElement("button");
   btnCollab.id = "tb-collab-btn";
@@ -292,6 +325,7 @@ export function createToolbar(host: HTMLElement, events: ToolbarEvents) {
   rightGroup.appendChild(fileLabel);
   rightGroup.appendChild(countBadge);
   rightGroup.appendChild(btnCollab);
+  rightGroup.appendChild(btnTheme);
   rightGroup.appendChild(btnLang);
   rightGroup.appendChild(btnRightSidebar);
   container.appendChild(rightGroup);
@@ -307,7 +341,7 @@ export function updateToolbarState(state: ToolbarState) {
 
   const btnSnap = document.getElementById("tb-snap");
   if (btnSnap) {
-    setBtnLabel(btnSnap, "🧲", t.toggles.snapLabel, t.toggles.snapLabel);
+    setBtnLabel(btnSnap, "", t.toggles.snapLabel, t.toggles.snapLabel);
     if (state.snappingEnabled) {
       btnSnap.classList.add("active");
     } else {
@@ -328,13 +362,16 @@ export function updateToolbarState(state: ToolbarState) {
   const btnColors = document.getElementById("tb-colors");
   if (btnColors) {
     const mode = state.colorMode ?? (state.colorCodeEnabled ? "types" : "off");
-    setBtnLabel(btnColors, mode === "layers" ? "🏗️" : "🎨", t.toggles.colorsLabel, t.toggles.colorsLabel);
+    setBtnLabel(btnColors, "", t.toggles.colorsLabel, t.toggles.colorsLabel);
     if (mode !== "off") {
       btnColors.classList.add("active");
     } else {
       btnColors.classList.remove("active");
     }
-    btnColors.title = t.toggles.colorsTitle;
+    btnColors.classList.toggle("mode-layers", mode === "layers");
+    btnColors.title = mode === "layers"
+      ? `${t.toggles.colorsTitle} (${t.colorsMenu.layers})`
+      : (mode === "types" ? `${t.toggles.colorsTitle} (${t.colorsMenu.types})` : t.toggles.colorsTitle);
 
     const updateCheck = (id: string, isSelected: boolean, text: string) => {
       const el = document.getElementById(id);
@@ -372,6 +409,23 @@ export function updateToolbarState(state: ToolbarState) {
     }
   }
 
+  const btnShortCircuit = document.getElementById("tb-short-circuit");
+  if (btnShortCircuit) {
+    if (state.hasShortCircuit) {
+      btnShortCircuit.style.display = "inline-flex";
+      btnShortCircuit.title = t.status.shortCircuitTooltip;
+      const lbl = btnShortCircuit.querySelector(".tb-short-circuit-label");
+      if (lbl) {
+        lbl.textContent =
+          state.shortCircuitCount && state.shortCircuitCount > 1
+            ? `${t.status.shortCircuitButton} (${state.shortCircuitCount})`
+            : t.status.shortCircuitButton;
+      }
+    } else {
+      btnShortCircuit.style.display = "none";
+    }
+  }
+
   const btnRotate = document.getElementById("tb-rotate") as HTMLButtonElement | null;
   if (btnRotate) btnRotate.disabled = !state.hasSelection;
 
@@ -388,6 +442,48 @@ export function updateToolbarState(state: ToolbarState) {
   if (btnLang) {
     btnLang.innerHTML = `<span style="font-weight: 700; font-size: 11px;">${getLanguage().toUpperCase()}</span>`;
     btnLang.title = t.status.langSwitchTitle;
+  }
+
+  const btnTheme = document.getElementById("tb-theme-toggle");
+  if (btnTheme) {
+    const pref = state.themePref || "system";
+    let label = t.viewMenu.themeStatusSystem;
+    if (pref === "dark") {
+      label = t.viewMenu.themeStatusDark;
+    } else if (pref === "light") {
+      label = t.viewMenu.themeStatusLight;
+    } else {
+      label = t.viewMenu.themeStatusSystem;
+    }
+    btnTheme.innerHTML = `<span class="tb-theme-label" style="font-size: 11px; font-weight: 600;">${label}</span>`;
+    const resolvedLabel = state.resolvedTheme === "dark" ? t.viewMenu.themeStatusDark : t.viewMenu.themeStatusLight;
+    btnTheme.title = pref === "system"
+      ? `${t.viewMenu.themeTooltip} (${t.viewMenu.themeStatusSystem}: ${resolvedLabel})`
+      : `${t.viewMenu.themeTooltip} (${label})`;
+  }
+
+  const itemThemeSys = document.getElementById("item-theme-system");
+  if (itemThemeSys && state.themePref !== undefined) {
+    const isSys = state.themePref === "system";
+    const check = isSys ? "✓ " : "";
+    const leftSpan = itemThemeSys.querySelector(".dropdown-item-left span:last-child");
+    if (leftSpan) leftSpan.textContent = `${check}${t.viewMenu.themeSystem}`;
+  }
+
+  const itemThemeDark = document.getElementById("item-theme-dark");
+  if (itemThemeDark && state.themePref !== undefined) {
+    const isDark = state.themePref === "dark";
+    const check = isDark ? "✓ " : "";
+    const leftSpan = itemThemeDark.querySelector(".dropdown-item-left span:last-child");
+    if (leftSpan) leftSpan.textContent = `${check}${t.viewMenu.themeDark}`;
+  }
+
+  const itemThemeLight = document.getElementById("item-theme-light");
+  if (itemThemeLight && state.themePref !== undefined) {
+    const isLight = state.themePref === "light";
+    const check = isLight ? "✓ " : "";
+    const leftSpan = itemThemeLight.querySelector(".dropdown-item-left span:last-child");
+    if (leftSpan) leftSpan.textContent = `${check}${t.viewMenu.themeLight}`;
   }
 
   const btnCollab = document.getElementById("tb-collab-btn");

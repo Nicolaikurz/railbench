@@ -1,7 +1,8 @@
 import { Application, Container, Graphics, Text, TextStyle } from "pixi.js";
 import type { Layout, ColorMode } from "@/core/types";
 import { catalogRegistry, type Catalog, type CatalogEntry } from "@/catalog/catalog";
-import type { SimulationSummary } from "@/core/simulation";
+import type { SimulationSummary, ShortCircuitDetectionResult } from "@/core/simulation";
+import { getTranslations } from "@/i18n";
 import { createTrackGraphics } from "./track-sprite";
 import { createBaseboardGraphics } from "./baseboard-sprite";
 import { createModel2DGraphics } from "./model-sprite";
@@ -38,6 +39,7 @@ export interface RenderStateOptions {
   selectedIds?: Set<string>;
   showConnectors?: boolean;
   powerSimulation?: SimulationSummary;
+  shortCircuit?: ShortCircuitDetectionResult;
   showPowerDrop?: boolean;
   showTrackLabels?: boolean;
   showColorCode?: boolean;
@@ -186,12 +188,14 @@ export class Renderer {
 
       const isSelected = selectedIds.has(piece.id);
       const powerResult = powerSim?.results.get(piece.id);
+      const isShortCircuit = Boolean(options.shortCircuit?.shortCircuitPieces.has(piece.id));
 
       const sprite = createTrackGraphics(piece, entry, {
         isSelected,
         showConnectors: options.showConnectors,
         showPowerDrop,
         powerResult,
+        isShortCircuit,
         showTrackLabels: options.showTrackLabels,
         showColorCode: options.showColorCode,
         colorMode: options.colorMode,
@@ -369,6 +373,48 @@ export class Renderer {
         ov.circle(sp.x, sp.y, 3).fill({ color: 0x10b981 });
       }
     }
+
+    // 4. Kurzschluss-Indikator (2-Leiter-System)
+    if (options.shortCircuit?.hasShortCircuit) {
+      const t = getTranslations().toolbar.status;
+      const overlayText = t.shortCircuitOverlayLabel || "KURZSCHLUSS";
+
+      for (const pt of options.shortCircuit.shortCircuitPoints) {
+        // Äußeres pulsierendes Glühen
+        ov.circle(pt.x, pt.y, 18);
+        ov.fill({ color: 0xef4444, alpha: 0.28 });
+        ov.circle(pt.x, pt.y, 12);
+        ov.stroke({ width: 2.5, color: 0xdc2626, alpha: 0.95 });
+
+        // Roter Blitz-Zentrumspunkt
+        ov.circle(pt.x, pt.y, 4.5);
+        ov.fill({ color: 0xffffff });
+        ov.stroke({ width: 2, color: 0xb91c1c });
+
+        // Warn-Plakette
+        const badgeCont = new Container();
+        badgeCont.position.set(pt.x, pt.y - 20);
+
+        const pillBg = new Graphics();
+        pillBg.roundRect(-48, -10, 96, 20, 5);
+        pillBg.fill({ color: 0x7f1d1d, alpha: 0.95 });
+        pillBg.stroke({ width: 1.5, color: 0xef4444 });
+        badgeCont.addChild(pillBg);
+
+        const lbl = new Text({
+          text: `⚡ ${overlayText}`,
+          style: new TextStyle({
+            fontSize: 9,
+            fill: 0xffffff,
+            fontWeight: "bold",
+          }),
+        });
+        lbl.anchor.set(0.5, 0.5);
+        badgeCont.addChild(lbl);
+
+        this.overlayLayer.addChild(badgeCont);
+      }
+    }
   }
 
   /** Wandelt Bildschirmkoordinaten (Canvas) in Weltkoordinaten um. */
@@ -386,6 +432,12 @@ export class Renderer {
     const sx = worldX * this.world.scale.x + this.world.x;
     const sy = worldY * this.world.scale.y + this.world.y;
     return { x: sx, y: sy };
+  }
+
+  /** Zentriert die Ansicht auf bestimmte Weltkoordinaten. */
+  centerOn(worldX: number, worldY: number) {
+    this.world.x = this.app.screen.width / 2 - worldX * this.world.scale.x;
+    this.world.y = this.app.screen.height / 2 - worldY * this.world.scale.y;
   }
 
   /** Zentriert die Ansicht auf den Ursprung oder Layout-Mittelpunkt. */

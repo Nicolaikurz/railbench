@@ -29,6 +29,7 @@ export interface SidebarCallbacks {
   onMoveSelectedToLayer?: (layerId: string) => void;
   selectedPieceIds?: () => string[];
   onBaseboardChange?: () => void;
+  onTabChange?: (tab: SidebarTab) => void;
 }
 
 export type SidebarTab = "catalog" | "roads" | "models" | "board" | "bom" | "layers";
@@ -227,7 +228,16 @@ export class Sidebar {
 
   setActiveTab(tab: SidebarTab) {
     this.activeTab = tab;
+    this.callbacks.onTabChange?.(tab);
     this.render();
+  }
+
+  getActiveTab(): SidebarTab {
+    return this.activeTab;
+  }
+
+  getCatalog(): Catalog {
+    return this.catalog;
   }
 
   getActiveBoardId(): string | undefined {
@@ -254,6 +264,7 @@ export class Sidebar {
     btn.innerHTML = `<span class="tab-label">${label}</span>`;
     btn.addEventListener("click", () => {
       this.activeTab = tab;
+      this.callbacks.onTabChange?.(tab);
       this.render();
     });
     return btn;
@@ -701,6 +712,9 @@ export class Sidebar {
 
   // --- TAB 1B: 3D MODELS & SCENERY ---
   private renderModelsTab(container: HTMLElement) {
+    const t = getTranslations().sidebar;
+    const isDe = getLanguage() === "de";
+
     // 1. Header
  
     // 2. Import Action & Drag-Drop Zone
@@ -722,8 +736,8 @@ export class Sidebar {
 
     const importBtn = document.createElement("button");
     importBtn.className = "rb-btn rb-btn-primary models-import-btn";
-    importBtn.innerHTML = "<strong>Import 3D Model (.glb / .gltf)...</strong>";
-    importBtn.title = "Import a 3D model file (.glb binary or .gltf JSON)";
+    importBtn.innerHTML = `<strong>${isDe ? "3D-Modell importieren (.glb / .gltf)..." : "Import 3D Model (.glb / .gltf)..."}</strong>`;
+    importBtn.title = isDe ? "3D-Modelldatei (.glb oder .gltf) importieren" : "Import a 3D model file (.glb binary or .gltf JSON)";
     importBtn.addEventListener("click", () => fileInput.click());
     importArea.appendChild(importBtn);
 
@@ -811,6 +825,8 @@ export class Sidebar {
 
   private renderModelsList(container: HTMLElement) {
     container.innerHTML = "";
+    const t = getTranslations().sidebar;
+    const isDe = getLanguage() === "de";
 
     const query = this.modelsSearchQuery.toLowerCase().trim();
     const selCat = this.selectedModelCategory.toLowerCase();
@@ -876,8 +892,8 @@ export class Sidebar {
 
       const addBtn = document.createElement("button");
       addBtn.className = "card-add-btn";
-      addBtn.innerHTML = "+ Add to Plan";
-      addBtn.title = `Place ${def.name} in center of layout`;
+      addBtn.innerHTML = `+ ${t.catalog.addToPlan}`;
+      addBtn.title = isDe ? `${def.name} in den Plan einfügen` : `Place ${def.name} in center of layout`;
       addBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         this.callbacks.onAddModel?.(createBuiltinModel(def.id));
@@ -925,7 +941,8 @@ export class Sidebar {
       const addBtn = document.createElement("button");
       addBtn.className = "card-add-btn";
       addBtn.style.flex = "1";
-      addBtn.innerHTML = "+ Add to Plan";
+      addBtn.innerHTML = `+ ${t.catalog.addToPlan}`;
+      addBtn.title = isDe ? `${m.name} in den Plan einfügen` : `Place ${m.name} in center of layout`;
       addBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         const fresh = { ...m, id: `model-${Date.now()}-${Math.random().toString(36).slice(2, 6)}` };
@@ -1193,10 +1210,7 @@ export class Sidebar {
 
     // 1. Header
     const header = document.createElement("div");
-    header.className = "layers-header";
-    header.innerHTML = `
-      <div class="layers-title">${tBoard.title}</div>
-    `;
+
     container.appendChild(header);
 
     // 2. Global Enable Toggle & Add Table Button
@@ -1212,7 +1226,7 @@ export class Sidebar {
         <input type="checkbox" id="bb-enabled" ${anyEnabled ? "checked" : ""}>
         <span>${tBoard.enableToggle}</span>
       </label>
-      <button class="rb-btn rb-btn-secondary" id="bb-add-btn" style="padding: 3px 8px; font-size: 11px;">
+      <button class="rb-btn rb-btn-secondary board-add-table-btn" id="bb-add-btn">
         + ${isDe ? "Tisch hinzufügen" : "Add Table"}
       </button>
     `;
@@ -1260,9 +1274,9 @@ export class Sidebar {
               )
               .join("")}
           </select>
-          <button class="rb-btn rb-btn-secondary" id="bb-vis-btn" title="${isDe ? "Sichtbarkeit umschalten" : "Toggle visibility"}" style="padding: 2px 7px; font-size: 12px;">${bb.enabled ? "👁️" : "🚫"}</button>
-          <button class="rb-btn rb-btn-secondary" id="bb-dup-btn" title="${tBoard.duplicateTable}" style="padding: 2px 7px; font-size: 12px;">📑</button>
-          <button class="rb-btn rb-btn-secondary" id="bb-del-btn" title="${tBoard.deleteTable}" style="padding: 2px 7px; font-size: 12px; color: #ef4444;">🗑️</button>
+          <button class="rb-btn rb-btn-secondary board-action-btn" id="bb-vis-btn" title="${isDe ? "Sichtbarkeit umschalten" : "Toggle visibility"}">${bb.enabled ? "👁️" : "🚫"}</button>
+          <button class="rb-btn rb-btn-secondary board-action-btn" id="bb-dup-btn" title="${tBoard.duplicateTable}">📑</button>
+          <button class="rb-btn rb-btn-secondary board-action-btn" id="bb-del-btn" title="${tBoard.deleteTable}" style="color: #ef4444;">🗑️</button>
         </div>
         <div class="board-field" style="margin-top: 6px;">
           <label>${tBoard.tableName}</label>

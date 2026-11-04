@@ -277,9 +277,26 @@ export function distanceToTrackPiece(
   return dist(local, { x: 0, y: 0 });
 }
 
-/** Ermittelt den geometrischen Mittelpunkt eines Gleisstücks im lokalen Koordinatensystem. */
+/** Ermittelt den geometrischen Mittelpunkt eines Gleis- oder Straßenstücks im lokalen Koordinatensystem. */
 export function getPieceLocalCenter(entry: CatalogEntry): Vec2 {
   const kind = entry.kind;
+
+  if (entry.isRoad) {
+    if (kind === "straight" || kind === "accessory" || kind === "turnout-left" || kind === "turnout-right" || kind === "crossing") {
+      const l = entry.length ?? 200;
+      return { x: l / 2, y: 0 };
+    }
+    if (kind === "curve") {
+      const r = entry.radius ?? 200;
+      const a = entry.angle ?? 90;
+      const halfRad = deg2rad(a / 2);
+      return {
+        x: r * Math.sin(halfRad),
+        y: r * (1 - Math.cos(halfRad)),
+      };
+    }
+  }
+
   if (kind === "curved-turnout-left" || (kind === "turnout-left" && entry.radius && !entry.length)) {
     const r = ((entry.radius ?? 360) + (entry.branchRadius ?? 437.5)) / 2;
     const a = ((entry.angle ?? 30) + (entry.branchAngle ?? 30)) / 2;
@@ -317,11 +334,11 @@ export function getPieceLocalCenter(entry: CatalogEntry): Vec2 {
   return { x: 50, y: 0 };
 }
 
-/** Ermittelt die Weltkoordinate des Dreh-Griffs (Rotation Handle) oberhalb des Gleisstücks. */
+/** Ermittelt die Weltkoordinate des Dreh-Griffs (Rotation Handle) oberhalb des Gleis- oder Straßenstücks. */
 export function getPieceRotationHandleWorld(
   entry: CatalogEntry,
   transform: Transform,
-  stemOffset = entry.kind === "turntable" ? 220 : entry.kind === "dkw" ? 58 : 42,
+  stemOffset = entry.kind === "turntable" ? 220 : entry.kind === "dkw" ? 62 : entry.isRoad ? 50 : 48,
 ): Vec2 {
   const center = getPieceLocalCenter(entry);
   // Senkrecht zur Fahrtrichtung nach oben (negatives y im lokalen System)
@@ -333,6 +350,89 @@ export function getPieceRotationHandleWorld(
 export function getPieceCenterWorld(entry: CatalogEntry, transform: Transform): Vec2 {
   const localCenter = getPieceLocalCenter(entry);
   return transformPoint(localCenter, transform);
+}
+
+/** Dreht ein Gleisstück um seinen eigenen geometrischen Mittelpunkt (Centrum). */
+export function rotatePieceAroundCenter(
+  entry: CatalogEntry,
+  currentTransform: Transform,
+  deltaDeg: number,
+): Transform {
+  const center = getPieceCenterWorld(entry, currentTransform);
+  const newRotation = normAngle(currentTransform.rotation + deltaDeg);
+  const localCenter = getPieceLocalCenter(entry);
+  const rotatedOffset = rotate(localCenter, newRotation);
+  return {
+    x: center.x - rotatedOffset.x,
+    y: center.y - rotatedOffset.y,
+    rotation: newRotation,
+  };
+}
+
+export interface RotatableItem {
+  id: string;
+  type: "piece" | "model";
+  transform: Transform;
+  entry?: CatalogEntry;
+}
+
+/** Berechnet den gemeinsamen Schwerpunkt (Centroid) einer Menge von Gleisstücken und Modellen. */
+export function computeGroupCentroid(items: RotatableItem[]): Vec2 {
+  if (items.length === 0) return { x: 0, y: 0 };
+  let sumX = 0;
+  let sumY = 0;
+  for (const item of items) {
+    if (item.type === "piece" && item.entry) {
+      const c = getPieceCenterWorld(item.entry, item.transform);
+      sumX += c.x;
+      sumY += c.y;
+    } else {
+      sumX += item.transform.x;
+      sumY += item.transform.y;
+    }
+  }
+  return { x: sumX / items.length, y: sumY / items.length };
+}
+
+/**
+ * Dreht eine Gruppe von Gleisstücken und Modellen starr als eine Einheit ("all as one part")
+ * um ein gemeinsames Drehzentrum (standardmäßig der Schwerpunkt der Gruppe).
+ */
+export function rotateGroupAroundCentroid(
+  items: RotatableItem[],
+  deltaDeg: number,
+  centroid?: Vec2,
+): Map<string, Transform> {
+  const center = centroid ?? computeGroupCentroid(items);
+  const result = new Map<string, Transform>();
+
+  for (const item of items) {
+    if (item.type === "piece" && item.entry) {
+      const c = getPieceCenterWorld(item.entry, item.transform);
+      const offset = { x: c.x - center.x, y: c.y - center.y };
+      const rotatedOffset = rotate(offset, deltaDeg);
+      const newCenter = { x: center.x + rotatedOffset.x, y: center.y + rotatedOffset.y };
+
+      const newRotation = normAngle(item.transform.rotation + deltaDeg);
+      const localCenter = getPieceLocalCenter(item.entry);
+      const rotLocal = rotate(localCenter, newRotation);
+      result.set(item.id, {
+        x: newCenter.x - rotLocal.x,
+        y: newCenter.y - rotLocal.y,
+        rotation: newRotation,
+      });
+    } else {
+      const offset = { x: item.transform.x - center.x, y: item.transform.y - center.y };
+      const rotatedOffset = rotate(offset, deltaDeg);
+      result.set(item.id, {
+        x: center.x + rotatedOffset.x,
+        y: center.y + rotatedOffset.y,
+        rotation: normAngle(item.transform.rotation + deltaDeg),
+      });
+    }
+  }
+
+  return result;
 }
 
 /** Prüft, ob ein Gleisstück innerhalb einer Auswahlbox (Weltkoordinaten) liegt oder diese schneidet. */

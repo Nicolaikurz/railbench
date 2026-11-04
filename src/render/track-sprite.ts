@@ -9,6 +9,7 @@ export interface RenderOptions {
   isSelected?: boolean;
   showConnectors?: boolean;
   powerResult?: PiecePowerResult;
+  isShortCircuit?: boolean;
   showPowerDrop?: boolean;
   showTrackLabels?: boolean;
   showColorCode?: boolean;
@@ -162,7 +163,15 @@ export function createTrackGraphics(
   // --- 3. SCHIENEN ---
   drawRails(g, entry, railColor, gaugeHalf);
 
-  // --- 4. POWER-DROP HEATMAP ---
+  // --- 4. POWER-DROP HEATMAP & KURZSCHLUSS ---
+  const isShortCircuit = Boolean(options.isShortCircuit || powerResult?.isShortCircuit);
+
+  if (isShortCircuit && !showPowerDrop) {
+    // Rotes Warn-Glühen bei Kurzschluss (2-Leiter-System)
+    drawTrackCenterline(g, entry, 0xef4444, ballastWidth * 0.76, 0.45);
+    drawTrackCenterline(g, entry, 0xdc2626, 4, 0.95);
+  }
+
   if (showPowerDrop && powerResult) {
     let powerColor = 0x10b981; // Grün: optimal (> 15V)
     let powerAlpha = 0.35;
@@ -313,8 +322,13 @@ function drawVoltageBadge(
     badgeCont.rotation = Math.PI;
   }
 
+  const isShort = Boolean(powerResult.isShortCircuit);
   const isDisc = powerResult.status === "disconnected";
-  let voltText = isDisc ? "⛔ 0.0 V" : `${powerResult.isFeeder ? "⚡ " : ""}${powerResult.voltage.toFixed(1)} V`;
+  let voltText = isShort
+    ? "⚠️⚡ KURZSCHLUSS"
+    : isDisc
+      ? "⛔ 0.0 V"
+      : `${powerResult.isFeeder ? "⚡ " : ""}${powerResult.voltage.toFixed(1)} V`;
 
   if (powerResult.hasCatenary && powerResult.catenaryVoltage !== undefined) {
     const isCatDisc = powerResult.catenaryStatus === "disconnected";
@@ -328,7 +342,11 @@ function drawVoltageBadge(
   let strokeColor = 0x10b981;
   let textColor = 0xecfdf5;
 
-  if (isDisc) {
+  if (isShort) {
+    bgColor = 0x7f1d1d;
+    strokeColor = 0xef4444;
+    textColor = 0xfff1f2;
+  } else if (isDisc) {
     bgColor = 0x450a0a;
     strokeColor = 0xdc2626;
     textColor = 0xfecaca;
@@ -790,29 +808,29 @@ function drawSelectionGizmo(container: Container, entry: CatalogEntry) {
 
   const g = new Graphics();
   const center = getPieceLocalCenter(entry);
-  const stemOffset = entry.kind === "turntable" ? 220 : entry.kind === "dkw" ? 58 : 42;
+  const stemOffset = entry.kind === "turntable" ? 220 : entry.kind === "dkw" ? 62 : entry.isRoad ? 50 : 48;
   const handlePos = { x: center.x, y: center.y - stemOffset };
 
   // 1. Verbindungsschaft zum Drehgriff
   g.moveTo(center.x, center.y).lineTo(handlePos.x, handlePos.y);
-  g.stroke({ width: 2.2, color: 0x0284c7, alpha: 0.9 });
+  g.stroke({ width: 2.5, color: 0x0284c7, alpha: 0.9 });
 
   // 2. Mittelpunkts-Marker auf der Gleisachse
-  g.circle(center.x, center.y, 4.5);
+  g.circle(center.x, center.y, 5);
   g.fill({ color: 0x0284c7 });
-  g.circle(center.x, center.y, 2);
+  g.circle(center.x, center.y, 2.5);
   g.fill({ color: 0xffffff });
 
-  // 3. Dreh-Knopf (Rotation Handle)
-  g.circle(handlePos.x, handlePos.y, 11);
+  // 3. Dreh-Knopf (Rotation Handle) mit größerer, griffiger Trefferfläche
+  g.circle(handlePos.x, handlePos.y, 14);
   g.fill({ color: 0x0284c7 });
-  g.stroke({ width: 2, color: 0xffffff });
+  g.stroke({ width: 2.2, color: 0xffffff });
 
   // Symbol ↻
   const rotText = new Text({
     text: "↻",
     style: new TextStyle({
-      fontSize: 14,
+      fontSize: 16,
       fill: 0xffffff,
       fontWeight: "bold",
     }),
