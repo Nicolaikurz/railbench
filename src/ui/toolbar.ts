@@ -117,6 +117,40 @@ const ICONS = {
   layers: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>`,
 };
 
+/**
+ * Attaches hover behavior with a timeout buffer and coordination across dropdowns
+ * so the menu does not vanish when moving the mouse between the trigger and the menu.
+ */
+function attachDropdownHoverBridge(
+  wrapper: HTMLElement,
+  onOpen?: () => void,
+  onClose?: () => void,
+  closeDelayMs = 220
+) {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+
+  wrapper.addEventListener("mouseenter", () => {
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
+    document.querySelectorAll(".toolbar-dropdown.open").forEach((d) => {
+      if (d !== wrapper) d.classList.remove("open");
+    });
+    wrapper.classList.add("open");
+    onOpen?.();
+  });
+
+  wrapper.addEventListener("mouseleave", () => {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => {
+      wrapper.classList.remove("open");
+      onClose?.();
+      timer = null;
+    }, closeDelayMs);
+  });
+}
+
 export function createToolbar(host: HTMLElement, events: ToolbarEvents) {
   host.innerHTML = "";
   const t = getTranslations().toolbar;
@@ -292,7 +326,6 @@ function createBrandMainMenu(t: any, events: ToolbarEvents): HTMLElement {
   trigger.id = "tb-brand-trigger";
   trigger.className = "toolbar-btn toolbar-brand-btn dropdown-trigger";
   
-  // Matches the exact dark background tone of other toolbar buttons with persistent white text & icons
   trigger.style.display = "inline-flex";
   trigger.style.alignItems = "center";
   trigger.style.gap = "6px";
@@ -310,28 +343,12 @@ function createBrandMainMenu(t: any, events: ToolbarEvents): HTMLElement {
     <span class="dropdown-arrow" style="display:inline-flex; align-items:center; color:#ffffff;">${ICONS.chevronDown}</span>
   `;
 
-  // Hover highlighting
-  trigger.addEventListener("mouseenter", () => {
-    trigger.style.background = "rgba(255, 255, 255, 0.15)";
-  });
-  trigger.addEventListener("mouseleave", () => {
-    if (!brandMenuWrapper.classList.contains("open")) {
-      trigger.style.background = "rgba(255, 255, 255, 0.08)";
-    }
-  });
-
-  // Open instantly when mouse moves over the trigger
-  brandMenuWrapper.addEventListener("mouseenter", () => {
-    document.querySelectorAll(".toolbar-dropdown.open").forEach((d) => d.classList.remove("open"));
-    brandMenuWrapper.classList.add("open");
-    trigger.style.background = "rgba(255, 255, 255, 0.15)";
-  });
-
-  // Close instantly when mouse leaves the dropdown menu area
-  brandMenuWrapper.addEventListener("mouseleave", () => {
-    brandMenuWrapper.classList.remove("open");
-    trigger.style.background = "rgba(255, 255, 255, 0.08)";
-  });
+  // Attach safe-hover bridge with delayed close
+  attachDropdownHoverBridge(
+    brandMenuWrapper,
+    () => { trigger.style.background = "rgba(255, 255, 255, 0.15)"; },
+    () => { trigger.style.background = "rgba(255, 255, 255, 0.08)"; }
+  );
 
   // Keep click behavior for mobile/touch or explicit clicks
   trigger.addEventListener("pointerdown", (e) => e.stopPropagation());
@@ -399,16 +416,8 @@ function createIconDropdownMenu(iconSvg: string, tooltip: string, items: Dropdow
   wrapper.style.position = "relative";
   wrapper.style.alignItems = "center";
 
-  // Hover to open
-  wrapper.addEventListener("mouseenter", () => {
-    document.querySelectorAll(".toolbar-dropdown.open").forEach((d) => d.classList.remove("open"));
-    wrapper.classList.add("open");
-  });
-
-  // Leave to close
-  wrapper.addEventListener("mouseleave", () => {
-    wrapper.classList.remove("open");
-  });
+  // Attach safe-hover bridge
+  attachDropdownHoverBridge(wrapper);
 
   trigger.addEventListener("pointerdown", (e) => e.stopPropagation());
   trigger.addEventListener("click", (e) => {
@@ -698,16 +707,8 @@ function createDropdownMenu(triggerLabel: string, items: DropdownItemConfig[]): 
   trigger.className = "toolbar-btn dropdown-trigger";
   trigger.innerHTML = `${triggerLabel ? `<span>${triggerLabel}</span>` : ""} <span class="dropdown-arrow">${ICONS.chevronDown}</span>`;
 
-  // Hover to open
-  wrapper.addEventListener("mouseenter", () => {
-    document.querySelectorAll(".toolbar-dropdown.open").forEach((d) => d.classList.remove("open"));
-    wrapper.classList.add("open");
-  });
-
-  // Leave to close
-  wrapper.addEventListener("mouseleave", () => {
-    wrapper.classList.remove("open");
-  });
+  // Attach safe-hover bridge
+  attachDropdownHoverBridge(wrapper);
 
   trigger.addEventListener("pointerdown", (e) => e.stopPropagation());
   trigger.addEventListener("click", (e) => {

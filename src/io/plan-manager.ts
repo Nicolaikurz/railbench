@@ -2,10 +2,12 @@ import type { Layout } from "@/core/types";
 import { toJSON, fromJSON, toXML, fromXML } from "./serialize";
 import { downloadFile, openFileDialog } from "./export";
 
+export type PlanFormat = "railbench" | "json" | "xml";
+
 export interface PlanFileState {
   filePath: string | null;
   fileName: string | null;
-  format: "gleisplan" | "json" | "xml";
+  format: PlanFormat;
   isDirty: boolean;
 }
 
@@ -13,7 +15,7 @@ export class PlanManager {
   private state: PlanFileState = {
     filePath: null,
     fileName: null,
-    format: "gleisplan",
+    format: "railbench",
     isDirty: false,
   };
 
@@ -33,7 +35,7 @@ export class PlanManager {
     this.onStateChange?.(this.getState());
   }
 
-  setPlanInfo(name: string, filePath: string | null = null, format: "gleisplan" | "json" | "xml" = "gleisplan") {
+  setPlanInfo(name: string, filePath: string | null = null, format: PlanFormat = "railbench") {
     this.state.fileName = name;
     this.state.filePath = filePath;
     this.state.format = format;
@@ -53,6 +55,13 @@ export class PlanManager {
     }
   }
 
+  private detectFormat(fileName: string): PlanFormat {
+    const lower = fileName.toLowerCase();
+    if (lower.endsWith(".xml")) return "xml";
+    if (lower.endsWith(".json")) return "json";
+    return "railbench";
+  }
+
   /**
    * Opens a plan via native Electron dialog or browser file picker.
    */
@@ -66,7 +75,7 @@ export class PlanManager {
       this.setPlanInfo(
         res.fileName,
         res.filePath,
-        res.fileName.endsWith(".xml") ? "xml" : "gleisplan",
+        this.detectFormat(res.fileName),
       );
       this.saveToLocalStorage(layout);
       return { layout, fileName: res.fileName, filePath: res.filePath };
@@ -78,9 +87,9 @@ export class PlanManager {
         const [handle] = await window.showOpenFilePicker({
           types: [
             {
-              description: "Model Railway Track Plans",
+              description: "Railbench & JSON Track Plans",
               accept: {
-                "application/json": [".gleisplan", ".json"],
+                "application/json": [".railbench", ".json", ".gleisplan"],
                 "application/xml": [".xml"],
               },
             },
@@ -95,7 +104,7 @@ export class PlanManager {
           this.setPlanInfo(
             file.name,
             null,
-            file.name.endsWith(".xml") ? "xml" : "gleisplan",
+            this.detectFormat(file.name),
           );
           this.saveToLocalStorage(layout);
           return { layout, fileName: file.name, filePath: null };
@@ -108,13 +117,13 @@ export class PlanManager {
 
     // 3. Fallback via input[type=file]
     return new Promise((resolve) => {
-      openFileDialog(".gleisplan,.json,.xml", (content, filename) => {
+      openFileDialog(".railbench,.json,.gleisplan,.xml", (content, filename) => {
         try {
           const layout = this.parseContent(content, filename);
           this.setPlanInfo(
             filename,
             null,
-            filename.endsWith(".xml") ? "xml" : "gleisplan",
+            this.detectFormat(filename),
           );
           this.saveToLocalStorage(layout);
           resolve({ layout, fileName: filename, filePath: null });
@@ -127,13 +136,12 @@ export class PlanManager {
   }
 
   /**
-   * Speichert den aktuellen Plan. Falls bereits ein Speicherort bekannt ist, wird direkt gespeichert,
-   * sonst wird "Speichern unter..." aufgerufen.
+   * Speichert den aktuellen Plan. Falls bereits ein Pfad vorhanden ist, wird direkt überschrieben,
+   * andernfalls "Speichern unter..." geöffnet.
    */
   async savePlan(layout: Layout): Promise<boolean> {
     if (this.state.filePath && window.electronAPI) {
-      const content =
-        this.state.format === "xml" ? toXML(layout) : toJSON(layout);
+      const content = this.state.format === "xml" ? toXML(layout) : toJSON(layout);
       const res = await window.electronAPI.saveDirect(this.state.filePath, content);
       if (res.success) {
         this.markDirty(false);
@@ -149,15 +157,15 @@ export class PlanManager {
    */
   async savePlanAs(
     layout: Layout,
-    format: "gleisplan" | "json" | "xml" = "gleisplan",
+    format: PlanFormat = "railbench",
   ): Promise<boolean> {
-    const rawName = (layout.name || "Gleisplan").replace(/[/\\?%*:|"<>]/g, "_");
+    const rawName = (layout.name || "Layout").replace(/[/\\?%*:|"<>]/g, "_");
     const content = format === "xml" ? toXML(layout) : toJSON(layout);
     const mime = format === "xml" ? "application/xml" : "application/json";
-    const ext = format === "xml" ? "xml" : "gleisplan";
+    const ext = format === "xml" ? "xml" : format === "json" ? "json" : "railbench";
     const defaultName = rawName.endsWith(`.${ext}`) ? rawName : `${rawName}.${ext}`;
 
-    // 1. Electron-Pfad
+    // 1. Electron
     if (window.electronAPI) {
       const res = await window.electronAPI.savePlanAs(
         defaultName,
@@ -172,29 +180,47 @@ export class PlanManager {
       return false;
     }
 
-    // 2. Moderner Browser File System Access API
+    // 2. Modern Browser File System Access API
     if (typeof window.showSaveFilePicker === "function") {
       try {
-        const handle = await window.showSaveFilePicker({
+        let pickerTypes: Array<{ description: string; accept: Record<string, string[]> }>;
+
+        if (format === "xml") {
+          pickerTypes = [{ description: "Gleisplan XML (*.xml)", accept: { "application/xml": [".xml"] } }];
+        } else if (format === "json") {
+          pickerTypes = [
+            { description: "JSON Layout (*.json)", accept: { "application/json": [".json"] } },
+            { description: "Railbench Layout (*.railbench)", accept: { "application/json": [".railbench"] } },
+          ];
+        } else {
+          // Default: .railbench first, .json as optional second choice in the dropdown
+          pickerTypes = [
+            { description: "Railbench Layout (*.railbench)", accept: { "application/json": [".railbench"] } },
+            { description: "JSON Layout (*.json)", accept: { "application/json": [".json"] } },
+          ];
+        }
+
+        const handle = await (window as any).showSaveFilePicker({
           suggestedName: defaultName,
-          types: [
-            format === "xml"
-              ? { description: "Gleisplan XML", accept: { "application/xml": [".xml"] } }
-              : {
-                  description: "Gleisplan Datei",
-                  accept: { "application/json": [".gleisplan", ".json"] },
-                },
-          ],
+          types: pickerTypes,
         });
+
+        // Detect if user changed the extension in the dialog
+        const chosenFormat: PlanFormat = handle.name.toLowerCase().endsWith(".json")
+          ? "json"
+          : handle.name.toLowerCase().endsWith(".xml")
+          ? "xml"
+          : "railbench";
+
         const writable = await handle.createWritable();
         await writable.write(content);
         await writable.close();
-        this.setPlanInfo(handle.name, null, format);
+        this.setPlanInfo(handle.name, null, chosenFormat);
         this.saveToLocalStorage(layout);
         return true;
       } catch (err: any) {
         if (err.name === "AbortError") return false;
-        console.warn("showSaveFilePicker Fehler, wechsle zu Download:", err);
+        console.warn("showSaveFilePicker error, falling back to download:", err);
       }
     }
 
@@ -217,7 +243,7 @@ export class PlanManager {
       localStorage.setItem("railbench_current_plan", toJSON(layout));
       localStorage.setItem("railbench_last_saved", new Date().toISOString());
     } catch {
-      // localStorage voll oder blockiert
+      // Ignorieren falls localStorage voll oder blockiert ist
     }
   }
 

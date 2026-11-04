@@ -501,7 +501,7 @@ export async function openPrintDialog(
     exportPdfBtn.innerHTML = `<span>⏳</span><span>Generating PDF...</span>`;
 
     const isLandscape = printOptions.orientation === "landscape";
-    const defaultPdfName = `${layout.name || "Gleisplan"} - Plan.pdf`;
+    const defaultPdfName = `${layout.name || "Railbench"} - Plan.pdf`;
 
     // Pfad A: Electron Nativer PDF Export
     if ((window as any).electronAPI?.exportPDF) {
