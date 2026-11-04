@@ -30,7 +30,7 @@ class EmbeddedRoom {
 
   loadFromDisk(): void {
     try {
-      const filePath = path.join(this.plansDir, `${this.name}.gleisplan`);
+      const filePath = path.join(this.plansDir, `${this.name}.railbench`);
       if (fs.existsSync(filePath)) {
         const raw = fs.readFileSync(filePath, "utf-8");
         this.layout = JSON.parse(raw);
@@ -53,7 +53,7 @@ class EmbeddedRoom {
       if (!fs.existsSync(this.plansDir)) {
         fs.mkdirSync(this.plansDir, { recursive: true });
       }
-      const filePath = path.join(this.plansDir, `${this.name}.gleisplan`);
+      const filePath = path.join(this.plansDir, `${this.name}.railbench`);
       fs.writeFileSync(filePath, JSON.stringify(this.layout, null, 2), "utf-8");
     } catch (err) {
       console.warn(`[CollabRoom: ${this.name}] Speichern fehlgeschlagen:`, err);

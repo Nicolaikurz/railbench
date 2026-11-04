@@ -59,7 +59,7 @@ export function openHelpDialog(initialTab: HelpTab = "overview"): void {
       <div class="rb-modal-header">
         <div class="rb-modal-title">
           <span>${modalTitle}</span>
-          <span class="brand-badge">v0.4.0</span>
+          <span class="brand-badge">v0.5.1</span>
         </div>
         <button class="rb-modal-close-btn" id="help-modal-close" title="${closeTitle}">✕</button>
       </div>
@@ -244,23 +244,23 @@ function renderGermanTab(tab: HelpTab, contentArea: HTMLElement) {
     case "print":
       contentArea.innerHTML = `
         <div class="help-topic-section">
-          <h2>️ Ebenengetrennter Plan-Druck & PDF-Export (Strg+P)</h2>
+          <h2>️ Ebenengetrennter PDF-Export & Plan-Druck (Strg+P)</h2>
           <p>
-            Herkömmliche Programme drucken alle Ebenen unübersichtlich übereinander. Railbench bietet echten ebenengetrennten Ausdruck für den schrittweisen Anlagenbau.
+            Herkömmliche Programme exportieren oder drucken alle Ebenen unübersichtlich übereinander. Railbench bietet echten ebenengetrennten Export für den schrittweisen Anlagenbau.
           </p>
 
           <div class="help-feature-grid">
             <div class="help-card">
               <h3>1. Eine Seite je Ebene</h3>
               <p>
-                Jede Ebene wird sauber auf einem eigenen Blatt gedruckt – ideal als 1:1 oder maßstäbliche Bau- und Trassenunterlage.
+                Jede Ebene wird sauber auf einem eigenen Blatt ausgegeben – ideal als maßstäbliche Bau- und Trassenunterlage.
               </p>
             </div>
 
             <div class="help-card">
               <h3>2. Exakt identischer Ausschnitt & Maßstab</h3>
               <p>
-                Alle Ebenenseiten teilen sich exakt denselben Ursprung, Maßstab und Begrenzungsrahmen. So können transparente Folien oder Ausdrucke deckungsgleich übereinandergelegt werden!
+                Alle exportierten Ebenenseiten teilen sich exakt denselben Ursprung, Maßstab und Begrenzungsrahmen. So können Seiten deckungsgleich übereinandergelegt werden!
               </p>
             </div>
 
@@ -280,7 +280,7 @@ function renderGermanTab(tab: HelpTab, contentArea: HTMLElement) {
           </div>
 
           <div class="help-callout">
-            <strong>So drucken Sie:</strong> Drücken Sie <code>Strg+P</code>, wählen Sie die Ebenen in der Vorschau aus und klicken Sie auf <strong>"System-Druck..."</strong> oder <strong>"Direkt als PDF exportieren"</strong>.
+            <strong>So exportieren Sie:</strong> Drücken Sie <code>Strg+P</code>, wählen Sie die Ebenen in der Vorschau aus und klicken Sie auf <strong>"System-Druck..."</strong> oder <strong>"Als PDF exportieren"</strong>.
           </div>
         </div>
       `;
@@ -752,17 +752,17 @@ function renderEnglishTab(tab: HelpTab, contentArea: HTMLElement) {
     case "print":
       contentArea.innerHTML = `
         <div class="help-topic-section">
-          <h2>️ Layer-Separated Layout Printing (Ctrl+P)</h2>
+          <h2>️ Layer-Separated Layout Export / Printing (Ctrl+P)</h2>
           <p>
-            Traditional track planning software prints the whole layout as one overlapping tangle. Railbench introduces
-            <strong>true layer-separated printing</strong> designed for building real layouts benchwork by benchwork.
+            Traditional track planning software prints or exports the whole layout as one overlapping tangle. Railbench introduces
+            <strong>true layer-separated export</strong> designed for building real layouts benchwork by benchwork.
           </p>
 
           <div class="help-feature-grid">
             <div class="help-card">
               <h3>1. One Page Per Layer</h3>
               <p>
-                Every layer is printed on its own dedicated sheet. Automatic CSS print pagination guarantees clean page breaks
+                Every layer is exported on its own dedicated sheet. Automatic pagination guarantees clean page breaks
                 without overlapping content.
               </p>
             </div>
@@ -770,8 +770,8 @@ function renderEnglishTab(tab: HelpTab, contentArea: HTMLElement) {
             <div class="help-card">
               <h3>2. 100% Identical Scale & Bounding Box</h3>
               <p>
-                All printed layer sheets share the exact same bounding box, origin, and scale. You can print transparent or paper
-                sheets, stack them on top of each other, and verify that bridge pillars, ramp portals, and track curves align perfectly!
+                All exported layer sheets share the exact same bounding box, origin, and scale. You can view or print transparent
+                or paper sheets, stack them on top of each other, and verify that bridge pillars, ramp portals, and track curves align perfectly!
               </p>
             </div>
 
@@ -792,7 +792,7 @@ function renderEnglishTab(tab: HelpTab, contentArea: HTMLElement) {
           </div>
 
           <div class="help-callout">
-            <strong>How to Print:</strong> Press <code>Ctrl+P</code> (or <code>Cmd+P</code> on macOS), choose your layers in the preview dialog, and click <strong>"System Print..."</strong> or <strong>"Direct Export as PDF"</strong>.
+            <strong>How to Export / Print:</strong> Press <code>Ctrl+P</code> (or <code>Cmd+P</code> on macOS), choose your layers in the preview dialog, and click <strong>"System Print..."</strong> or <strong>"Export as PDF"</strong>.
           </div>
         </div>
       `;

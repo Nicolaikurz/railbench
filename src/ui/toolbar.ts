@@ -117,6 +117,40 @@ const ICONS = {
   layers: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>`,
 };
 
+/**
+ * Attaches hover behavior with a timeout buffer and coordination across dropdowns
+ * so the menu does not vanish when moving the mouse between the trigger and the menu.
+ */
+function attachDropdownHoverBridge(
+  wrapper: HTMLElement,
+  onOpen?: () => void,
+  onClose?: () => void,
+  closeDelayMs = 220
+) {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+
+  wrapper.addEventListener("mouseenter", () => {
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
+    document.querySelectorAll(".toolbar-dropdown.open").forEach((d) => {
+      if (d !== wrapper) d.classList.remove("open");
+    });
+    wrapper.classList.add("open");
+    onOpen?.();
+  });
+
+  wrapper.addEventListener("mouseleave", () => {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => {
+      wrapper.classList.remove("open");
+      onClose?.();
+      timer = null;
+    }, closeDelayMs);
+  });
+}
+
 export function createToolbar(host: HTMLElement, events: ToolbarEvents) {
   host.innerHTML = "";
   const t = getTranslations().toolbar;
@@ -250,7 +284,7 @@ export function createToolbar(host: HTMLElement, events: ToolbarEvents) {
   fileLabel.id = "tb-file-name";
   fileLabel.className = "brand-file";
   fileLabel.title = "Current layout plan";
-  fileLabel.textContent = "Model Railway.gleisplan";
+  fileLabel.textContent = "Model Railway.railbench";
 
   const countBadge = document.createElement("span");
   countBadge.id = "tb-piece-count";
@@ -289,26 +323,44 @@ function createBrandMainMenu(t: any, events: ToolbarEvents): HTMLElement {
 
   const trigger = document.createElement("button");
   trigger.type = "button";
-  trigger.className = "toolbar-brand-btn dropdown-trigger";
+  trigger.id = "tb-brand-trigger";
+  trigger.className = "toolbar-btn toolbar-brand-btn dropdown-trigger";
+  
+  trigger.style.display = "inline-flex";
+  trigger.style.alignItems = "center";
+  trigger.style.gap = "6px";
+  trigger.style.background = "rgba(255, 255, 255, 0.08)";
+  trigger.style.border = "1px solid rgba(255, 255, 255, 0.12)";
+  trigger.style.color = "#ffffff";
+  trigger.style.padding = "0 8px";
+  trigger.style.borderRadius = "4px";
+  trigger.style.height = "28px";
+  trigger.style.cursor = "pointer";
+
   trigger.innerHTML = `
-    <span class="brand-icon">${ICONS.train}</span>
-    <span class="brand-title">RAILbench</span>
-    <span class="dropdown-arrow">${ICONS.chevronDown}</span>
+    <span class="brand-icon" style="display:inline-flex; align-items:center; color:#ffffff;">${ICONS.train}</span>
+    <span class="brand-title" style="color:#ffffff; font-weight:600; font-size:12px;">RAILbench</span>
+    <span class="dropdown-arrow" style="display:inline-flex; align-items:center; color:#ffffff;">${ICONS.chevronDown}</span>
   `;
 
+  // Attach safe-hover bridge with delayed close
+  attachDropdownHoverBridge(
+    brandMenuWrapper,
+    () => { trigger.style.background = "rgba(255, 255, 255, 0.15)"; },
+    () => { trigger.style.background = "rgba(255, 255, 255, 0.08)"; }
+  );
+
+  // Keep click behavior for mobile/touch or explicit clicks
   trigger.addEventListener("pointerdown", (e) => e.stopPropagation());
   trigger.addEventListener("click", (e) => {
     e.stopPropagation();
     const isOpen = brandMenuWrapper.classList.contains("open");
     document.querySelectorAll(".toolbar-dropdown.open").forEach((d) => d.classList.remove("open"));
-    if (!isOpen) brandMenuWrapper.classList.add("open");
-  });
-
-  trigger.addEventListener("mouseenter", () => {
-    const anyOpen = document.querySelector(".toolbar-dropdown.open");
-    if (anyOpen && anyOpen !== brandMenuWrapper) {
-      anyOpen.classList.remove("open");
+    if (!isOpen) {
       brandMenuWrapper.classList.add("open");
+      trigger.style.background = "rgba(255, 255, 255, 0.15)";
+    } else {
+      trigger.style.background = "rgba(255, 255, 255, 0.08)";
     }
   });
 
@@ -364,20 +416,15 @@ function createIconDropdownMenu(iconSvg: string, tooltip: string, items: Dropdow
   wrapper.style.position = "relative";
   wrapper.style.alignItems = "center";
 
+  // Attach safe-hover bridge
+  attachDropdownHoverBridge(wrapper);
+
   trigger.addEventListener("pointerdown", (e) => e.stopPropagation());
   trigger.addEventListener("click", (e) => {
     e.stopPropagation();
     const isOpen = wrapper.classList.contains("open");
     document.querySelectorAll(".toolbar-dropdown.open").forEach((d) => d.classList.remove("open"));
     if (!isOpen) wrapper.classList.add("open");
-  });
-
-  trigger.addEventListener("mouseenter", () => {
-    const anyOpen = document.querySelector(".toolbar-dropdown.open");
-    if (anyOpen && anyOpen !== wrapper) {
-      anyOpen.classList.remove("open");
-      wrapper.classList.add("open");
-    }
   });
 
   wrapper.appendChild(trigger);
@@ -660,20 +707,15 @@ function createDropdownMenu(triggerLabel: string, items: DropdownItemConfig[]): 
   trigger.className = "toolbar-btn dropdown-trigger";
   trigger.innerHTML = `${triggerLabel ? `<span>${triggerLabel}</span>` : ""} <span class="dropdown-arrow">${ICONS.chevronDown}</span>`;
 
+  // Attach safe-hover bridge
+  attachDropdownHoverBridge(wrapper);
+
   trigger.addEventListener("pointerdown", (e) => e.stopPropagation());
   trigger.addEventListener("click", (e) => {
     e.stopPropagation();
     const isOpen = wrapper.classList.contains("open");
     document.querySelectorAll(".toolbar-dropdown.open").forEach((d) => d.classList.remove("open"));
     if (!isOpen) wrapper.classList.add("open");
-  });
-
-  trigger.addEventListener("mouseenter", () => {
-    const anyOpen = document.querySelector(".toolbar-dropdown.open");
-    if (anyOpen && anyOpen !== wrapper) {
-      anyOpen.classList.remove("open");
-      wrapper.classList.add("open");
-    }
   });
 
   wrapper.appendChild(trigger);

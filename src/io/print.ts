@@ -256,7 +256,7 @@ export async function openPrintDialog(
     <div class="rb-modal-card print-modal-card">
       <div class="rb-modal-header">
         <div class="rb-modal-title">
-          <span>🖨️</span>
+          <span></span>
           <span>${t.title}</span>
         </div>
         <button class="rb-modal-close-btn" id="print-modal-close">✕</button>
@@ -321,10 +321,7 @@ export async function openPrintDialog(
             </label>
           </div>
           <div class="print-option-row">
-            <label class="print-chk-label">
-              <input type="checkbox" id="chk-monochrome" />
-              <span>${t.chkMonochrome}</span>
-            </label>
+            
           </div>
 
           <div class="print-section-title">${t.sectionOrientation}</div>
@@ -354,10 +351,6 @@ export async function openPrintDialog(
 
       <div class="rb-modal-footer">
         <button class="rb-btn rb-btn-secondary" id="print-btn-cancel">${t.closeBtn}</button>
-        <button class="rb-btn rb-btn-secondary" id="print-btn-system" title="${t.systemPrintTooltip}">
-          <span>🖨️</span>
-          <span>${t.systemPrintBtn}</span>
-        </button>
         <button class="rb-btn rb-btn-primary" id="print-btn-export-pdf" title="${t.exportPdfTooltip}">
           <span>📄</span>
           <span>${t.exportPdfBtn}</span>
@@ -388,7 +381,6 @@ export async function openPrintDialog(
     printOptions.ghostOtherLayers = (modal.querySelector("#chk-ghost-layers") as HTMLInputElement).checked;
     printOptions.showTrackLabels = (modal.querySelector("#chk-track-numbers") as HTMLInputElement).checked;
     printOptions.showBaseboard = (modal.querySelector("#chk-baseboard") as HTMLInputElement).checked;
-    printOptions.monochrome = (modal.querySelector("#chk-monochrome") as HTMLInputElement).checked;
     const orientRadio = modal.querySelector<HTMLInputElement>("input[name='page-orientation']:checked");
     printOptions.orientation = (orientRadio?.value as "landscape" | "portrait") || "landscape";
   };
@@ -501,17 +493,7 @@ export async function openPrintDialog(
     inp.addEventListener("change", () => refreshPreview());
   });
 
-  // 1. System-Druckdialog ausführen
-  systemBtn.addEventListener("click", async () => {
-    systemBtn.disabled = true;
-    systemBtn.innerHTML = `<span>⏳</span><span>Preparing Pages...</span>`;
-
-    await mountPrintPagesToDom(layout, catalog, renderer, printOptions);
-    closeModal();
-    setTimeout(() => {
-      window.print();
-    }, 250);
-  });
+ 
 
   // 2. Direkt als PDF exportieren
   exportPdfBtn.addEventListener("click", async () => {
@@ -519,7 +501,7 @@ export async function openPrintDialog(
     exportPdfBtn.innerHTML = `<span>⏳</span><span>Generating PDF...</span>`;
 
     const isLandscape = printOptions.orientation === "landscape";
-    const defaultPdfName = `${layout.name || "Gleisplan"} - Plan.pdf`;
+    const defaultPdfName = `${layout.name || "Railbench"} - Plan.pdf`;
 
     // Pfad A: Electron Nativer PDF Export
     if ((window as any).electronAPI?.exportPDF) {

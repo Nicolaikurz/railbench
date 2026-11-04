@@ -60,7 +60,7 @@ import { createToolbar, updateToolbarState, type ToolbarEvents } from "@/ui/tool
 import { getTranslations, onLanguageChange, getLanguage } from "@/i18n";
 import { Sidebar } from "@/ui/sidebar";
 import { RightSidebar } from "@/ui/right-sidebar";
-import { PlanManager } from "@/io/plan-manager";
+import { PlanManager, type PlanFormat } from "@/io/plan-manager";
 import { exportPieceListCSV, downloadFile } from "@/io/export";
 import { openPrintDialog } from "@/io/print";
 import { openChangeHeightDialog } from "@/ui/height-dialog";
@@ -421,10 +421,10 @@ async function main() {
     layout = cachedPlan;
     ensureDefaultLayers(layout);
     history = new History(layout);
-    planManager.setPlanInfo(layout.name + ".gleisplan", null, "gleisplan");
+    planManager.setPlanInfo(layout.name + ".railbench", null, "railbench");
   } else {
     initDemoTracks(layout, catalog);
-    planManager.setPlanInfo("Model Railway Layout H0.gleisplan", null, "gleisplan");
+    planManager.setPlanInfo("Model Railway Layout H0.railbench", null, "railbench");
   }
 
   // Tisch-Drag & Snap Zustand
@@ -888,7 +888,7 @@ async function main() {
   }
 
   // Plan speichern unter Helper
-  async function triggerSavePlanAs(format: "gleisplan" | "xml" = "gleisplan") {
+  async function triggerSavePlanAs(format: PlanFormat = "railbench") {
     await planManager.savePlanAs(layout, format);
     sync(false);
   }
@@ -1621,7 +1621,6 @@ async function main() {
     },
     onSelectActiveLayer: (layerId) => {
       layout.activeLayerId = layerId;
-      // Auswahl filtern: Nur Teile behalten, die zur neuen aktiven Ebene gehören
       const toKeep = selection.all().filter((id) => {
         const p = layout.pieces.find((x) => x.id === id);
         if (p) return (p.layerId || "layer-1") === layerId;
@@ -1660,7 +1659,7 @@ async function main() {
         layout.pieces = [];
         ensureDefaultLayers(layout);
         selection.clear();
-        planManager.setPlanInfo("New Layout.gleisplan", null, "gleisplan");
+        planManager.setPlanInfo("New Layout.railbench", null, "railbench");
         sync(true);
       }
     },
@@ -1812,7 +1811,8 @@ async function main() {
     },
     onOpenPlan: () => triggerOpenPlan(),
     onSavePlan: () => triggerSavePlan(),
-    onSavePlanAs: () => triggerSavePlanAs("gleisplan"),
+    onSavePlanAs: (format?: PlanFormat) => triggerSavePlanAs(format ?? "railbench"),
+    //onSaveJSON: () => triggerSavePlanAs("json"),
     onSaveXML: () => triggerSavePlanAs("xml"),
     onExportCSV: () => triggerExportCSV(),
     onPrintPlan: () => openPrintDialog(layout, catalog, renderer),
@@ -1906,13 +1906,15 @@ async function main() {
           if (confirm(getTranslations().dialogs.confirmNewPlan)) {
             layout.pieces = [];
             selection.clear();
-            planManager.setPlanInfo("New Layout.gleisplan", null, "gleisplan");
+            planManager.setPlanInfo("New Layout.railbench", null, "railbench");
             sync(true);
           }
           break;
         case "openPlan": triggerOpenPlan(); break;
         case "savePlan": triggerSavePlan(); break;
-        case "savePlanAs": triggerSavePlanAs("gleisplan"); break;
+        case "savePlanAs": triggerSavePlanAs("railbench"); break;
+        case "savePlanAsJson": triggerSavePlanAs("json"); break;
+        case "savePlanAsXml": triggerSavePlanAs("xml"); break;
         case "exportCSV": triggerExportCSV(); break;
         case "copy": copySelected(); break;
         case "paste": pasteClipboard(); break;
@@ -2004,7 +2006,6 @@ async function main() {
   let pendingSingleSelect: string | null = null;
   let hasDragMoved = false;
 
-  // Kontextmenü der Canvas unterdrücken für ungestörte Rechtsklick-Auswahl
   canvas.addEventListener("contextmenu", (e) => {
     e.preventDefault();
   });
@@ -2015,7 +2016,6 @@ async function main() {
         const wPos = renderer.screenToWorld(e.clientX, e.clientY);
         const forceNoSnap = e.altKey;
 
-        // Check if user clicked near Point A or Point B to drag/reposition it
         if (measureStart && Math.hypot(wPos.x - measureStart.x, wPos.y - measureStart.y) <= 15) {
           measureDraggingPoint = "A";
           canvas.style.cursor = "grabbing";
@@ -2062,7 +2062,6 @@ async function main() {
     hasDragMoved = false;
     pendingSingleSelect = null;
 
-    // 1. Zuerst prüfen: Klick auf den Drehgriff (Rotation Handle) eines selektierten Gleises oder Modells?
     const selectedIds = selection.all();
     const scale = renderer.world.scale.x || 1;
     const handleHitRadius = Math.max(24, 20 / scale);
@@ -2098,7 +2097,6 @@ async function main() {
         activeModel = null;
         dragStartWorld = { ...wPos };
 
-        // Original-Transforms aller selektierten Teile der aktiven Ebene erfassen
         draggedPiecesMap.clear();
         const rotatableItems: RotatableItem[] = [];
         for (const id of selectedIds) {
@@ -2121,7 +2119,6 @@ async function main() {
       }
     }
 
-    // 2. Prüfen, ob ein 3D-Modell / Scenery auf der aktiven Ebene angeklickt wurde
     let hitModel: Model3D | null = null;
     if (layout.models) {
       for (const m of layout.models) {
@@ -2178,7 +2175,6 @@ async function main() {
       return;
     }
 
-    // 3. Präzises Anklicken eines Gleises oder einer Straße entlang der gesamten Form (nur aktive Ebene)
     let hit: TrackPiece | null = null;
     const hitGauge = catalog.gauge ?? 16.5;
     let minD = Infinity;
@@ -2202,16 +2198,13 @@ async function main() {
 
     if (hit) {
       if (isMultiSelect) {
-        // Strg / Shift + Linksklick: Gleis zur Auswahl hinzufügen oder entfernen
         selection.toggle(hit.id);
         if (!selection.has(hit.id)) {
           sync();
           return;
         }
       } else {
-        // Direkt auf ein Gleis klicken:
         if (selection.has(hit.id) && selection.all().length > 1) {
-          // Teil einer Mehrfachauswahl: Bei einfachem Klick ohne Ziehen auf dieses Gleis isolieren
           pendingSingleSelect = hit.id;
         } else {
           selection.set(hit.id);
@@ -2224,7 +2217,6 @@ async function main() {
       dragStartWorld = { ...wPos };
       originalTransform = { ...hit.transform };
 
-      // Alle selektierten Teile der aktiven Ebene für gleichzeitiges Verschieben erfassen
       draggedPiecesMap.clear();
       for (const id of selection.all()) {
         const p = layout.pieces.find((x) => x.id === id);
@@ -2248,8 +2240,6 @@ async function main() {
       canvas.style.cursor = "move";
       sync();
     } else {
-      // 4. Prüfen, ob ein Tisch (Baseboard) verschoben werden soll
-      // WICHTIG: Das Verschieben von Tischen ist NUR möglich, wenn das Tisch-Menü (Board-Tab) aktiv ist!
       if (sidebar?.isBaseboardTabActive()) {
         const baseboards = getBaseboards(layout);
         let hitBoard: BaseboardConfig | null = null;
@@ -2279,7 +2269,6 @@ async function main() {
             customY: bBounds.y,
           };
 
-          // Bei Shift-Hold: Alle Gleise auf dieser Platte für gleichzeitiges Mitbewegen erfassen
           baseboardInitialTrackTransforms.clear();
           for (const piece of layout.pieces) {
             const entry = getCatalogEntryForPiece(piece);
@@ -2298,7 +2287,6 @@ async function main() {
         }
       }
 
-      // 5. FREIER BEREICH: Box-Selection (Aufziehrahmen / Marquee) mit linker Maustaste starten
       isBoxSelecting = true;
       boxStartWorld = { ...wPos };
       currentSelectionBox = { start: { ...wPos }, end: { ...wPos } };
@@ -2342,7 +2330,6 @@ async function main() {
       return;
     }
 
-    // Modus 0: Rahmen-Auswahl (Aufziehrahmen / Marquee) mit Linksklick
     if (isBoxSelecting) {
       currentSelectionBox = { start: boxStartWorld, end: currentWPos };
       const distBox = Math.hypot(currentWPos.x - boxStartWorld.x, currentWPos.y - boxStartWorld.y);
@@ -2373,7 +2360,6 @@ async function main() {
       return;
     }
 
-    // Modus A: Rotieren über den Drehgriff
     if (isRotatingModel && activeModel) {
       const dx = currentWPos.x - activeModel.transform.x;
       const dy = currentWPos.y - activeModel.transform.y;
@@ -2392,7 +2378,6 @@ async function main() {
       const currentAngle = Math.atan2(currentWPos.y - pieceCenterWorld.y, currentWPos.x - pieceCenterWorld.x);
       let deltaDeg = rad2deg(currentAngle - startAngle);
 
-      // Sanfter Snap auf 7.5°-Schritte (Alt-Taste gedrückt = stufenlose Drehung)
       if (!e.altKey) {
         deltaDeg = Math.round(deltaDeg / 7.5) * 7.5;
       }
@@ -2472,7 +2457,6 @@ async function main() {
       return;
     }
 
-    // Modus C: Verschieben der Tischplatte mit freiem Bewegen & magnetischem Snapping
     if (isDraggingBaseboard && activeBaseboard) {
       const dx = currentWPos.x - baseboardDragStartWorld.x;
       const dy = currentWPos.y - baseboardDragStartWorld.y;
@@ -2483,14 +2467,12 @@ async function main() {
       const otherBoards = getBaseboards(layout).filter((b) => b.id !== activeBaseboard!.id && b.enabled !== false);
 
       if (!e.altKey && otherBoards.length > 0) {
-        // Magnetisches Snapping an Nachbartische (Kante-an-Kante, bündig & Ecken)
         const snap = snapBaseboard(activeBaseboard, candidateX, candidateY, otherBoards, 35);
         candidateX = snap.x;
         candidateY = snap.y;
         activeBaseboardSnapGuides = snap.guides;
       } else {
         activeBaseboardSnapGuides = [];
-        // Sanfter 20 mm Grid-Snap wenn Alt nicht gedrückt
         if (!e.altKey) {
           candidateX = Math.round(candidateX / 20) * 20;
           candidateY = Math.round(candidateY / 20) * 20;
@@ -2501,7 +2483,6 @@ async function main() {
       activeBaseboard.customX = Math.round(candidateX);
       activeBaseboard.customY = Math.round(candidateY);
 
-      // Falls Shift gedrückt gehalten wird: Gleise auf dieser Platte proportional mitbewegen
       if (e.shiftKey && baseboardInitialTrackTransforms.size > 0) {
         const deltaX = activeBaseboard.customX - baseboardOriginalPos.customX;
         const deltaY = activeBaseboard.customY - baseboardOriginalPos.customY;
@@ -2523,7 +2504,6 @@ async function main() {
       return;
     }
 
-    // Modus B: Verschieben des Gleises oder 3D-Modells (oder aller selektierten Teile gemeinsam)
     if (isDraggingPiece && (activePiece || activeModel)) {
       let dx = currentWPos.x - dragStartWorld.x;
       let dy = currentWPos.y - dragStartWorld.y;
@@ -2544,10 +2524,8 @@ async function main() {
       if (snappingEnabled) {
         const otherPieces = layout.pieces.filter((p) => !draggedPiecesMap.has(p.id));
         let bestDist = Infinity;
-        // Beim anfänglichen Wegziehen (< 28 mm) nicht sofort magnetisch an die bestehende Ausgangsverbindung zurücksnappen
         const ignoreConn = dragDist < 28 ? draggedInitialConnections : undefined;
 
-        // Prüfe Snapping für ALLE gezogenen Gleise/Straßen gegen die restliche Anlage
         for (const [id, origT] of draggedPiecesMap.entries()) {
           const piece = layout.pieces.find((p) => p.id === id);
           if (!piece) continue;
@@ -2573,7 +2551,6 @@ async function main() {
       }
 
       if (groupSnap) {
-        // Exaktes Einrasten mit Position UND Drehwinkel ("snap in place")!
         const { snappedTransform, origTransform } = groupSnap;
         const deltaRot = normAngle(snappedTransform.rotation - origTransform.rotation);
 
@@ -2596,7 +2573,6 @@ async function main() {
           if (m) m.transform = newPos;
         }
       } else {
-        // Freies Verschieben ohne Snap (oder Alt gedrückt)
         for (const [id, origT] of draggedPiecesMap.entries()) {
           const p = layout.pieces.find((x) => x.id === id);
           if (p) {
@@ -2617,7 +2593,6 @@ async function main() {
       return;
     }
 
-    // Hover-Feedback: Cursor anpassen, wenn über Drehgriff, Gleis oder Tischkante/Header
     if (!isDraggingPiece && !isRotatingPiece && !isRotatingModel && !isBoxSelecting && !isDraggingBaseboard) {
       const selectedIds = selection.all();
       const scale = renderer.world.scale.x || 1;
@@ -2645,7 +2620,6 @@ async function main() {
         }
       }
 
-      // Prüfen, ob über einem Gleis oder einer Straße der aktiven Ebene
       let isOverTrack = false;
       const screenGrabBuffer = 20 / scale;
       for (const piece of layout.pieces) {
@@ -2665,7 +2639,6 @@ async function main() {
       if (isOverTrack) {
         canvas.style.cursor = "pointer";
       } else {
-        // Prüfen, ob über Tisch-Header oder Tisch-Kante (nur wenn Tisch-Menü/Board-Tab aktiv ist)
         let isOverTable = false;
         if (sidebar?.isBaseboardTabActive()) {
           const baseboards = getBaseboards(layout);
@@ -2709,13 +2682,11 @@ async function main() {
       return;
     }
 
-    // 1. Box-Selection beenden
     if (isBoxSelecting) {
       const currentWPos = renderer.screenToWorld(e.clientX, e.clientY);
       const distBox = Math.hypot(currentWPos.x - boxStartWorld.x, currentWPos.y - boxStartWorld.y);
       const isMultiSelect = e.ctrlKey || e.metaKey || e.shiftKey;
 
-      // Falls nur kurz in freien Bereich geklickt wurde ohne zu ziehen (<= 5mm)
       if (distBox <= 5) {
         if (!isMultiSelect) {
           selection.clear();
@@ -2729,7 +2700,6 @@ async function main() {
       return;
     }
 
-    // 2. Rotation beenden
     if (isRotatingModel && activeModel) {
       const finalT = { ...activeModel.transform };
       if (finalT.rotation !== originalTransform.rotation) {
@@ -2761,9 +2731,7 @@ async function main() {
       canvas.style.cursor = "default";
       sync();
     } else if (isDraggingPiece) {
-      // 3. Verschieben beenden
       if (!hasDragMoved && pendingSingleSelect) {
-        // Es war nur ein Klick auf ein bereits selektiertes Gleis ohne Ziehen: Auf dieses Gleis isolieren!
         selection.set(pendingSingleSelect);
       } else if (hasDragMoved) {
         let movedAny = false;
@@ -2792,7 +2760,6 @@ async function main() {
       canvas.style.cursor = "default";
       sync();
     } else if (isDraggingBaseboard && activeBaseboard) {
-      // 4. Verschieben der Tischplatte beenden
       const finalX = activeBaseboard.customX ?? 0;
       const finalY = activeBaseboard.customY ?? 0;
       if (finalX !== baseboardOriginalPos.customX || finalY !== baseboardOriginalPos.customY) {
@@ -2813,7 +2780,6 @@ async function main() {
     }
   });
 
-  // Mausrad zum Drehen bei gedrückter Shift- oder Alt-Taste
   canvas.addEventListener(
     "wheel",
     (e) => {
@@ -2839,7 +2805,7 @@ async function main() {
     if (ctrlOrMeta && (e.key.toLowerCase() === "s" || e.code === "KeyS")) {
       e.preventDefault();
       if (e.shiftKey) {
-        triggerSavePlanAs("gleisplan");
+        triggerSavePlanAs("railbench");
       } else {
         triggerSavePlan();
       }
@@ -2849,7 +2815,7 @@ async function main() {
         layout.pieces = [];
         ensureDefaultLayers(layout);
         selection.clear();
-        planManager.setPlanInfo("New Layout.gleisplan", null, "gleisplan");
+        planManager.setPlanInfo("New Layout.railbench", null, "railbench");
         sync(true);
       }
     } else if (ctrlOrMeta && (e.key.toLowerCase() === "o" || e.code === "KeyO")) {
