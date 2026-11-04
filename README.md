@@ -1,12 +1,12 @@
-# Railbench – Model Railway Track Planner (v0.5.0)
+# Railbench – Model Railway Track Planner (v0.5.1)
 
 An intuitive, fast, and precise model railway track planning and layout simulation application (TypeScript + PixiJS + Vite + Electron).
 
 ---
 
 > [!IMPORTANT]
-> **Release 0.5 Testing Notice**:
-> For **Release 0.5**, the application includes multi-platform executables for **Linux (x86_64, arm64 AppImage)**, **Windows (x64, arm64 portable .exe)**, and **macOS (Apple Silicon M1/M2/M3/M4 arm64, Intel x64)**.
+> **Release 0.5.1 Testing Notice**:
+> For **Release 0.5.1, the application includes multi-platform executables for **Linux (x86_64, arm64 AppImage)**, **Windows (x64, arm64 portable Dir)**, and **macOS (Apple Silicon M1/M2/M3/M4 arm64(not tested))**.
 
 ---
 

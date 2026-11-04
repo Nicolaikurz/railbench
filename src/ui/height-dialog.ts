@@ -31,7 +31,7 @@ export function openChangeHeightDialog(options: ChangeHeightDialogOptions) {
     { id: "layer-1", name: "Ground Level / Ebene 1", visible: true, locked: false, heightMm: 0 },
   ];
 
-  // Finde die selektierten Stücke
+  // Find selected pieces
   const selectedPieces = layout.pieces.filter((p) => selectedPieceIds.includes(p.id));
   const firstPiece = selectedPieces[0];
   const currentLayerId = firstPiece?.layerId || layout.activeLayerId || layers[0]?.id;
@@ -54,171 +54,307 @@ export function openChangeHeightDialog(options: ChangeHeightDialogOptions) {
   const t = getTranslations().heightDialog;
 
   modal.innerHTML = `
-    <div class="rb-modal-card height-modal-card">
-      <div class="rb-modal-header">
-        <div class="rb-modal-title">
-          <span>📐</span>
-          <span>${t.title}</span>
-        </div>
-        <button class="rb-modal-close-btn" id="height-modal-close">✕</button>
+    <style>
+      #height-modal {
+        position: fixed;
+        inset: 0;
+        background: rgba(10, 15, 26, 0.7);
+        backdrop-filter: blur(4px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+      }
+      .rb-dialog-card {
+        width: 440px;
+        max-height: 90vh;
+        display: flex;
+        flex-direction: column;
+        background: #1e2638;
+        color: #e2e8f0;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 20px 45px rgba(0, 0, 0, 0.5);
+        font-size: 13px;
+        font-family: inherit;
+      }
+      .rb-dialog-header {
+        padding: 12px 18px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-bottom: 1px solid #2d3748;
+      }
+      .rb-dialog-body {
+        padding: 16px 18px;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        scrollbar-width: thin;
+      }
+      .rb-dialog-body::-webkit-scrollbar,
+      #height-modal #ramp-piece-list::-webkit-scrollbar {
+        width: 6px;
+      }
+      .rb-dialog-body::-webkit-scrollbar-thumb,
+      #height-modal #ramp-piece-list::-webkit-scrollbar-thumb {
+        background: rgba(148, 163, 184, 0.35);
+        border-radius: 3px;
+      }
+      .rb-meta-strip {
+        display: flex;
+        justify-content: space-between;
+        background: #141b2a;
+        padding: 8px 12px;
+        border-radius: 6px;
+        font-size: 12px;
+        color: #94a3b8;
+      }
+      .rb-meta-strip strong { color: #f8fafc; }
+      
+      /* Segmented 3-Way Mode Switch */
+      .rb-segmented-control {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        background: #141b2a;
+        border-radius: 8px;
+        padding: 3px;
+        gap: 3px;
+      }
+      .rb-segmented-item {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 7px 4px;
+        cursor: pointer;
+        border-radius: 6px;
+        font-size: 12px;
+        color: #94a3b8;
+        transition: all 0.15s ease;
+        user-select: none;
+      }
+      .rb-segmented-item input { display: none; }
+      .rb-segmented-item.active {
+        background: #0284c7;
+        color: #ffffff;
+        font-weight: 600;
+      }
+
+      .ramp-field-input, .height-field-select {
+        background: #141b2a;
+        border: 1px solid #334155;
+        color: #f8fafc;
+        border-radius: 6px;
+        padding: 6px 10px;
+        font-size: 13px;
+        width: 100%;
+        box-sizing: border-box;
+      }
+      .btn-icon-subtle {
+        background: #242f44;
+        border: 1px solid #3b4963;
+        color: #cbd5e1;
+        border-radius: 6px;
+        padding: 6px 10px;
+        cursor: pointer;
+        font-size: 12.5px;
+        transition: background 0.15s;
+      }
+      .btn-icon-subtle:hover { background: #323f5b; color: #fff; }
+      .btn-icon-subtle.active {
+        background: #0284c7;
+        border-color: #0284c7;
+        color: #ffffff;
+      }
+
+      .ramp-inputs-grid {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr auto;
+        gap: 8px;
+        align-items: center;
+      }
+      .steep-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        justify-content: space-between;
+      }
+      .pill-btn {
+        background: #242f44;
+        border: 1px solid transparent;
+        color: #94a3b8;
+        padding: 3px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        cursor: pointer;
+      }
+      .pill-btn.active {
+        background: #0284c7;
+        color: #fff;
+      }
+
+      /* Status Badge */
+      .badge-status {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 12px;
+        border-radius: 6px;
+        font-weight: 500;
+        font-size: 12px;
+      }
+      .badge-status.ok { background: rgba(34, 197, 94, 0.15); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3); }
+      .badge-status.warn { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
+      .badge-status.danger { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+
+      /* Collapsible Details */
+      details.ramp-breakdown-details {
+        background: #141b2a;
+        border-radius: 6px;
+        padding: 8px 12px;
+        font-size: 12px;
+      }
+      details.ramp-breakdown-details summary {
+        cursor: pointer;
+        color: #94a3b8;
+        font-weight: 500;
+        user-select: none;
+      }
+      .ramp-piece-list {
+        max-height: 140px;
+        overflow-y: auto;
+        margin-top: 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        scrollbar-width: thin;
+      }
+      .ramp-piece-row {
+        display: flex;
+        justify-content: space-between;
+        font-size: 11.5px;
+        color: #cbd5e1;
+        padding: 2px 0;
+      }
+
+      .rb-dialog-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        padding: 12px 18px;
+        border-top: 1px solid #2d3748;
+        background: #171e2e;
+      }
+    </style>
+
+    <div class="rb-dialog-card">
+      <div class="rb-dialog-header">
+        <strong>📐 ${t.title}</strong>
+        <button class="btn-icon-subtle" id="height-modal-close" style="padding: 2px 7px;">✕</button>
       </div>
 
-      <div class="height-modal-body">
-        <!-- Zusammenfassung der Selektion -->
-        <div class="height-summary-box">
-          <div class="height-summary-item">
-            <span class="height-summary-val">${selectedPieces.length}</span>
-            <span class="height-summary-lbl">${t.selectedCount}</span>
-          </div>
-          <div class="height-summary-item">
-            <span class="height-summary-val" id="summary-total-length">...</span>
-            <span class="height-summary-lbl">${t.trackLength}</span>
-          </div>
-          <div class="height-summary-item">
-            <span class="height-summary-val">${currentLayer.name}</span>
-            <span class="height-summary-lbl">${t.currentLayer} (${currentBaseHeight} mm)</span>
-          </div>
+      <div class="rb-dialog-body">
+        <!-- Selection Summary -->
+        <div class="rb-meta-strip">
+          <span><strong>${selectedPieces.length}</strong> tracks</span>
+          <span id="summary-total-length">...</span>
+          <span>${currentLayer.name.replace(/\s*\([0-9]+\s*mm\)$/, "")}</span>
         </div>
 
-        <!-- 1. Ziel-Ebene auswählen -->
-        <div class="height-field-group">
-          <label class="height-field-label">${t.targetLayer}</label>
-          <div class="height-layer-select-row">
-            <select id="height-layer-select" class="height-input-select">
-              ${layers
-                .map((l) => {
-                  const h = l.heightMm ?? 0;
-                  const hStr = h > 0 ? `+${h} mm` : `${h} mm`;
-                  const isSel = l.id === targetLayerId ? "selected" : "";
-                  return `<option value="${l.id}" ${isSel}>${l.name} (${hStr})</option>`;
-                })
-                .join("")}
-              <option value="__create_new__">${t.createNewOption}</option>
-            </select>
-          </div>
+        <!-- Target Layer -->
+        <div>
+          <label style="display:block; font-size:11px; color:#94a3b8; margin-bottom:5px;">${t.targetLayer}</label>
+          <select id="height-layer-select" class="height-field-select">
+            ${layers
+              .map((l) => {
+                const cleanName = l.name.replace(/\s*\([0-9]+\s*mm\)$/, "");
+                const isSel = l.id === targetLayerId ? "selected" : "";
+                return `<option value="${l.id}" ${isSel}>${cleanName} (${l.heightMm ?? 0} mm)</option>`;
+              })
+              .join("")}
+            <option value="__create_new__">${t.createNewOption}</option>
+          </select>
         </div>
 
-        <!-- 2. Höhenmodus wählen -->
-        <div class="height-field-group">
-          <label class="height-field-label">${t.adjustmentLabel}</label>
-          
-          <div class="height-mode-options">
-            <!-- Modus A: Ziel-Ebenen-Höhe übernehmen (Flat) -->
-            <label class="height-mode-card active" id="card-mode-match">
-              <input type="radio" name="height-mode" value="match" checked />
-              <div class="height-mode-content">
-                <strong>${t.modeMatch}</strong>
-                <span class="height-mode-desc" id="desc-match-height">${t.modeMatchDesc.replace("{height}", String(targetBaseHeight))}</span>
-              </div>
-            </label>
+        <!-- Segmented Mode Control -->
+        <div class="rb-segmented-control">
+          <label class="rb-segmented-item active" id="card-mode-match">
+            <input type="radio" name="height-mode" value="match" checked />
+            Flat on Layer
+          </label>
+          <label class="rb-segmented-item" id="card-mode-custom">
+            <input type="radio" name="height-mode" value="custom" />
+            Custom
+          </label>
+          <label class="rb-segmented-item" id="card-mode-ramp">
+            <input type="radio" name="height-mode" value="ramp" />
+            Incline (Ramp)
+          </label>
+        </div>
 
-            <!-- Modus B: Eigene absolute Höhe -->
-            <label class="height-mode-card" id="card-mode-custom">
-              <input type="radio" name="height-mode" value="custom" />
-              <div class="height-mode-content">
-                <strong>${t.modeCustom}</strong>
-                <span class="height-mode-desc">${t.modeCustomDesc}</span>
-                <div class="height-inline-inputs" id="custom-inputs-row" style="display: none;">
-                  <input type="number" id="input-custom-height" value="${targetBaseHeight}" step="1" class="height-num-input" />
-                  <span class="unit-tag">mm</span>
-                </div>
-              </div>
-            </label>
+        <!-- Mode Custom Input -->
+        <div id="custom-inputs-row" style="display: none;">
+          <label style="display:block; font-size:11px; color:#94a3b8; margin-bottom:5px;">Elevation Height (mm)</label>
+          <input type="number" id="input-custom-height" value="${targetBaseHeight}" step="1" class="ramp-field-input" />
+        </div>
 
-            <!-- Modus C: Steigung / Rampe (Incline mit Dreisatz & Ausrundung) -->
-            <label class="height-mode-card" id="card-mode-ramp">
-              <input type="radio" name="height-mode" value="ramp" />
-              <div class="height-mode-content">
-                <strong>${t.modeRamp}</strong>
-                <span class="height-mode-desc">${t.modeRampDesc}</span>
-                
-                <div class="height-ramp-inputs" id="ramp-inputs-row" style="display: none;">
-                  <div class="ramp-col">
-                    <label>${t.rampStart}</label>
-                    <div class="ramp-input-wrap">
-                      <input type="number" id="input-ramp-start" value="${defaultStartH}" step="1" class="height-num-input" />
-                      <span class="unit-tag">mm</span>
-                    </div>
-                  </div>
-                  <span class="ramp-arrow">➔</span>
-                  <div class="ramp-col">
-                    <label>${t.rampEnd}</label>
-                    <div class="ramp-input-wrap">
-                      <input type="number" id="input-ramp-end" value="${defaultEndH}" step="1" class="height-num-input" />
-                      <span class="unit-tag">mm</span>
-                    </div>
-                  </div>
-                </div>
+        <!-- Mode Ramp Controls -->
+        <div id="ramp-inputs-row" style="display: none; flex-direction: column; gap: 12px;">
+          <!-- Start / End Row -->
+          <div class="ramp-inputs-grid">
+            <div>
+              <span style="font-size:11px; color:#94a3b8;">${t.rampStart}</span>
+              <input type="number" id="input-ramp-start" value="${defaultStartH}" step="1" class="ramp-field-input" />
+            </div>
+            <span style="color:#64748b; font-size:14px; margin-top:14px;">➔</span>
+            <div>
+              <span style="font-size:11px; color:#94a3b8;">${t.rampEnd}</span>
+              <input type="number" id="input-ramp-end" value="${defaultEndH}" step="1" class="ramp-field-input" />
+            </div>
+            <button type="button" class="btn-icon-subtle" id="btn-ramp-reverse" title="Reverse Direction" style="margin-top:14px;">⇄</button>
+          </div>
 
-                <!-- Rampen-Optionen: Linear vs. Ausrundung & Richtung -->
-                <div class="ramp-options-row" id="ramp-options-row" style="display: none;">
-                  <div class="ramp-profile-selector">
-                    <button type="button" class="ramp-profile-btn active" id="btn-profile-linear" title="${t.rampProfileLinearDesc}">
-                      📏 <span>${t.rampProfileLinear}</span>
-                    </button>
-                    <button type="button" class="ramp-profile-btn" id="btn-profile-eased" title="${t.rampProfileEasedDesc}">
-                      〰️ <span>${t.rampProfileEased}</span>
-                    </button>
-                  </div>
-                  <button type="button" class="ramp-reverse-btn" id="btn-ramp-reverse" title="${t.reverseRampDirection}">
-                    <span>${t.reverseRampDirection}</span>
-                  </button>
-                </div>
-
-                <!-- Ziel-Maximalsteigung -->
-                <div class="ramp-target-steep-box" id="ramp-target-steep-box" style="display: none;">
-                  <div class="ramp-target-steep-header">
-                    <span>🎯 ${t.targetMaxSteep}</span>
-                    <span style="font-size: 9.5px; opacity: 0.8;">${t.targetMaxSteepDesc}</span>
-                  </div>
-                  <div class="ramp-target-steep-controls">
-                    <div class="steep-input-wrap">
-                      <input type="number" id="input-target-max-steep" value="2.5" step="0.1" min="0.5" max="15.0" />
-                      <span class="steep-unit">%</span>
-                    </div>
-                    <div class="steep-presets">
-                      <button type="button" class="steep-preset-btn" data-steep="2.0">2.0%</button>
-                      <button type="button" class="steep-preset-btn active" data-steep="2.5">2.5%</button>
-                      <button type="button" class="steep-preset-btn" data-steep="3.0">3.0%</button>
-                      <button type="button" class="steep-preset-btn" data-steep="3.5">3.5%</button>
-                    </div>
-                    <button type="button" class="ramp-apply-steep-btn" id="btn-apply-max-steep" title="${t.targetMaxSteepDesc}">
-                      <span>✨</span>
-                      <span>${t.applyTargetSteep}</span>
-                    </button>
-                  </div>
-                  <div class="ramp-steep-warning-box" id="ramp-steep-warning-box" style="display: none;">
-                    <div class="steep-warning-header">
-                      <span id="steep-warning-text"></span>
-                      <button type="button" class="steep-clamp-btn" id="btn-clamp-steep">${t.clampToTarget}</button>
-                    </div>
-                    <div class="steep-req-length" id="steep-req-length"></div>
-                  </div>
-                </div>
-
-                <!-- Steigungs-Indikator -->
-                <div class="ramp-gradient-calc" id="ramp-gradient-calc" style="display: none;">
-                  <span id="ramp-gradient-text">${t.rampSlope} 0.0%</span>
-                  <span id="ramp-gradient-badge" class="gradient-badge ok">Gentle Incline</span>
-                </div>
-
-                <!-- Stück-Vorschau (Dreisatz / Kette) -->
-                <div class="ramp-chain-box" id="ramp-chain-box" style="display: none;">
-                  <div class="ramp-chain-title">
-                    <span id="ramp-chain-title-text">${t.rampPieceBreakdown}</span>
-                    <span id="ramp-continuity-badge"></span>
-                  </div>
-                  <div class="ramp-piece-list" id="ramp-piece-list"></div>
-                </div>
-              </div>
+          <!-- Max Gradient and Auto-Fit -->
+          <div class="steep-row">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span style="color:#94a3b8; font-size:11px;">Max Slope:</span>
+              <input type="number" id="input-target-max-steep" value="2.5" step="0.1" style="width:52px; padding:3px 6px; background:#141b2a; border:1px solid #334155; color:#fff; border-radius:4px;" />
+              <span style="color:#94a3b8; font-size:11px;">%</span>
+            </div>
+            <div style="display:flex; gap:4px;">
+              <button type="button" class="pill-btn" data-steep="2.0">2.0%</button>
+              <button type="button" class="pill-btn active" data-steep="2.5">2.5%</button>
+              <button type="button" class="pill-btn" data-steep="3.0">3.0%</button>
+            </div>
+            <label style="font-size:11px; display:inline-flex; align-items:center; gap:4px; cursor:pointer; color:#94a3b8; user-select:none;">
+              <input type="checkbox" id="chk-auto-clamp-steep" checked /> Auto-Fit
             </label>
           </div>
+
+          <!-- Profile Selectors -->
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+            <button type="button" class="btn-icon-subtle active" id="btn-profile-linear">Linear</button>
+            <button type="button" class="btn-icon-subtle" id="btn-profile-eased">Eased (S-Curve)</button>
+          </div>
+
+          <!-- Live Slope Badge -->
+          <div class="badge-status ok" id="ramp-gradient-calc">
+            <span id="ramp-gradient-text">Slope: 0.0%</span>
+            <span id="ramp-gradient-badge" style="font-size:11px;">Gentle</span>
+          </div>
+
+          <!-- Collapsible Pieces List -->
+          <details class="ramp-breakdown-details">
+            <summary id="ramp-chain-title-text">▸ Piece breakdown (${selectedPieces.length} tracks)</summary>
+            <div class="ramp-piece-list" id="ramp-piece-list"></div>
+          </details>
         </div>
       </div>
 
-      <div class="rb-modal-footer">
-        <button class="rb-btn rb-btn-secondary" id="height-btn-cancel">${t.cancelBtn}</button>
-        <button class="rb-btn rb-btn-primary" id="height-btn-apply">
+      <div class="rb-dialog-footer">
+        <button class="btn-icon-subtle" id="height-btn-cancel">${t.cancelBtn}</button>
+        <button class="rb-btn rb-btn-primary" id="height-btn-apply" style="background:#0284c7; color:#fff; border:none; padding:7px 16px; border-radius:6px; cursor:pointer; font-weight:600;">
           <span id="apply-btn-label">${t.applyBtn}</span>
         </button>
       </div>
@@ -236,29 +372,23 @@ export function openChangeHeightDialog(options: ChangeHeightDialogOptions) {
   const cardMatch = modal.querySelector("#card-mode-match") as HTMLElement;
   const cardCustom = modal.querySelector("#card-mode-custom") as HTMLElement;
   const cardRamp = modal.querySelector("#card-mode-ramp") as HTMLElement;
+
   const customInputsRow = modal.querySelector("#custom-inputs-row") as HTMLElement;
   const rampInputsRow = modal.querySelector("#ramp-inputs-row") as HTMLElement;
-  const rampOptionsRow = modal.querySelector("#ramp-options-row") as HTMLElement;
-  const rampCalcRow = modal.querySelector("#ramp-gradient-calc") as HTMLElement;
+  const summaryTotalLength = modal.querySelector("#summary-total-length") as HTMLElement;
+
+  const rampGradCalc = modal.querySelector("#ramp-gradient-calc") as HTMLElement;
   const rampGradText = modal.querySelector("#ramp-gradient-text") as HTMLElement;
   const rampGradBadge = modal.querySelector("#ramp-gradient-badge") as HTMLElement;
-  const descMatchHeight = modal.querySelector("#desc-match-height") as HTMLElement;
-  const summaryTotalLength = modal.querySelector("#summary-total-length") as HTMLElement;
 
   const btnProfileLinear = modal.querySelector("#btn-profile-linear") as HTMLButtonElement;
   const btnProfileEased = modal.querySelector("#btn-profile-eased") as HTMLButtonElement;
   const btnRampReverse = modal.querySelector("#btn-ramp-reverse") as HTMLButtonElement;
-  const rampChainBox = modal.querySelector("#ramp-chain-box") as HTMLElement;
   const rampPieceList = modal.querySelector("#ramp-piece-list") as HTMLElement;
-  const rampContinuityBadge = modal.querySelector("#ramp-continuity-badge") as HTMLElement;
+  const rampChainTitleText = modal.querySelector("#ramp-chain-title-text") as HTMLElement;
 
-  const rampTargetSteepBox = modal.querySelector("#ramp-target-steep-box") as HTMLElement;
   const inputTargetSteep = modal.querySelector("#input-target-max-steep") as HTMLInputElement;
-  const btnApplyMaxSteep = modal.querySelector("#btn-apply-max-steep") as HTMLButtonElement;
-  const rampSteepWarningBox = modal.querySelector("#ramp-steep-warning-box") as HTMLElement;
-  const steepWarningText = modal.querySelector("#steep-warning-text") as HTMLElement;
-  const btnClampSteep = modal.querySelector("#btn-clamp-steep") as HTMLButtonElement;
-  const steepReqLength = modal.querySelector("#steep-req-length") as HTMLElement;
+  const chkAutoClampSteep = modal.querySelector("#chk-auto-clamp-steep") as HTMLInputElement;
 
   const inputCustom = modal.querySelector("#input-custom-height") as HTMLInputElement;
   const inputRampStart = modal.querySelector("#input-ramp-start") as HTMLInputElement;
@@ -289,10 +419,12 @@ export function openChangeHeightDialog(options: ChangeHeightDialogOptions) {
   btnRampReverse.addEventListener("click", (e) => {
     e.stopPropagation();
     rampReversed = !rampReversed;
+    const s = inputRampStart.value;
+    inputRampStart.value = inputRampEnd.value;
+    inputRampEnd.value = s;
     updateModeCards();
   });
 
-  // Modus-Umschaltung
   const updateModeCards = () => {
     const mode = modal.querySelector<HTMLInputElement>("input[name='height-mode']:checked")?.value || "match";
 
@@ -300,31 +432,24 @@ export function openChangeHeightDialog(options: ChangeHeightDialogOptions) {
     cardCustom.classList.toggle("active", mode === "custom");
     cardRamp.classList.toggle("active", mode === "ramp");
 
-    customInputsRow.style.display = mode === "custom" ? "flex" : "none";
+    customInputsRow.style.display = mode === "custom" ? "block" : "none";
     rampInputsRow.style.display = mode === "ramp" ? "flex" : "none";
-    rampOptionsRow.style.display = mode === "ramp" ? "flex" : "none";
-    rampTargetSteepBox.style.display = mode === "ramp" ? "flex" : "none";
-    rampCalcRow.style.display = mode === "ramp" ? "flex" : "none";
-    rampChainBox.style.display = mode === "ramp" ? "block" : "none";
 
     const selLayerId = layerSelect.value;
     const selLayer = layers.find((l) => l.id === selLayerId) || initialTargetLayer;
     const selHeight = selLayer.heightMm ?? 0;
 
-    descMatchHeight.textContent = t.modeMatchDesc.replace("{height}", String(selHeight));
-
-    // Ramp calculation
-    const sH = parseFloat(inputRampStart.value) || 0;
-    const eH = parseFloat(inputRampEnd.value) || 0;
+    let sH = parseFloat(inputRampStart.value) || 0;
+    let eH = parseFloat(inputRampEnd.value) || 0;
     const targetSteep = parseFloat(inputTargetSteep.value) || 2.5;
 
-    // Update preset pills active state
-    modal.querySelectorAll<HTMLButtonElement>(".steep-preset-btn").forEach((btn) => {
+    // Sync quick preset pills
+    modal.querySelectorAll<HTMLButtonElement>(".pill-btn").forEach((btn) => {
       const val = parseFloat(btn.dataset.steep || "0");
       btn.classList.toggle("active", Math.abs(val - targetSteep) < 0.05);
     });
 
-    const rampResult = calculateRamp({
+    let rampResult = calculateRamp({
       pieces: selectedPieces,
       catalog,
       startHeightMm: sH,
@@ -338,83 +463,70 @@ export function openChangeHeightDialog(options: ChangeHeightDialogOptions) {
     lastTotalLengthMm = rampResult.totalLengthMm;
     summaryTotalLength.textContent = `${(rampResult.totalLengthMm / 10).toFixed(1)} cm`;
 
+    // Auto-fit calculation when enabled and maximum threshold exceeded
+    if (chkAutoClampSteep?.checked && rampResult.exceedsTargetMax) {
+      const dir: 1 | -1 = eH < sH ? -1 : 1;
+      const fittedEndH = Math.round(
+        calculateEndHeightFromMaxGradient({
+          startHeightMm: sH,
+          totalLengthMm: rampResult.totalLengthMm,
+          targetMaxGradientPercent: targetSteep,
+          profile: rampProfile,
+          direction: dir,
+        }),
+      );
+
+      eH = fittedEndH;
+      inputRampEnd.value = String(fittedEndH);
+
+      rampResult = calculateRamp({
+        pieces: selectedPieces,
+        catalog,
+        startHeightMm: sH,
+        endHeightMm: eH,
+        layerBaseHeightMm: selHeight,
+        profile: rampProfile,
+        reversed: rampReversed,
+        targetMaxGradientPercent: targetSteep,
+      });
+    }
+
     if (mode === "match") {
-      applyLabel.textContent = t.applyMoveTo.replace("{layer}", selLayer.name).replace("{height}", String(selHeight));
+      applyLabel.textContent = `Set to ${selLayer.name} (${selHeight} mm)`;
     } else if (mode === "custom") {
       const customH = parseFloat(inputCustom.value) || 0;
-      applyLabel.textContent = t.applyCustomHeight.replace("{height}", String(customH));
+      applyLabel.textContent = `Set to ${customH} mm`;
     } else {
-      applyLabel.textContent = t.applyRampLabel.replace("{start}", String(sH)).replace("{end}", String(eH));
+      applyLabel.textContent = `Apply Ramp (${sH} → ${eH} mm)`;
 
-      // Steigungsberechnung
       const deltaH = Math.abs(eH - sH);
       const gradient = rampResult.averageGradientPercent;
       const maxGradient = rampResult.maxGradientPercent;
 
-      let gradSummary = t.gradientCalcText
-        .replace("{gradient}", gradient.toFixed(1))
-        .replace("{delta}", String(deltaH))
-        .replace("{total}", String(Math.round(rampResult.totalLengthMm)));
-
-      if (rampProfile === "eased" && Math.abs(maxGradient - gradient) >= 0.2) {
-        gradSummary += ` [Max: ${maxGradient.toFixed(1)}%]`;
-      }
-
-      rampGradText.textContent = gradSummary;
+      rampGradText.textContent = `Slope: ${gradient.toFixed(1)}% (Δ ${deltaH} mm)`;
 
       const evalGrad = Math.max(gradient, maxGradient);
       if (evalGrad <= 3.0) {
-        rampGradBadge.textContent = t.badgeRecommended;
-        rampGradBadge.className = "gradient-badge ok";
+        rampGradBadge.textContent = "Safe (< 3.0%)";
+        rampGradCalc.className = "badge-status ok";
       } else if (evalGrad <= 4.5) {
-        rampGradBadge.textContent = t.badgeModerate;
-        rampGradBadge.className = "gradient-badge warn";
+        rampGradBadge.textContent = "Moderate (3-4.5%)";
+        rampGradCalc.className = "badge-status warn";
       } else {
-        rampGradBadge.textContent = t.badgeSteep;
-        rampGradBadge.className = "gradient-badge danger";
+        rampGradBadge.textContent = "Steep (> 4.5%)";
+        rampGradCalc.className = "badge-status danger";
       }
 
-      // Ziel-Maximalsteigung Warnung & Anpassen
-      if (rampResult.exceedsTargetMax) {
-        rampSteepWarningBox.style.display = "flex";
-        steepWarningText.textContent = t.steepExceededWarning
-          .replace("{current}", rampResult.maxGradientPercent.toFixed(1))
-          .replace("{target}", targetSteep.toFixed(1));
-        btnClampSteep.textContent = t.clampToTarget.replace("{target}", targetSteep.toFixed(1));
-
-        const avgPieceLen = rampResult.totalLengthMm / (selectedPieces.length || 1);
-        const approxPieces = Math.ceil((rampResult.requiredLengthMm || 0) / (avgPieceLen > 0 ? avgPieceLen : 188.3));
-        steepReqLength.textContent = t.requiredLengthTip
-          .replace("{delta}", String(deltaH))
-          .replace("{target}", targetSteep.toFixed(1))
-          .replace("{length}", ((rampResult.requiredLengthMm || 0) / 10).toFixed(1))
-          .replace("{tracks}", String(approxPieces));
-      } else {
-        rampSteepWarningBox.style.display = "none";
-      }
-
-      // Chain Breakdown Rendering
-      if (rampResult.isContinuous) {
-        rampContinuityBadge.textContent = "✔ Kette verbunden";
-        rampContinuityBadge.style.color = "#16a34a";
-      } else {
-        rampContinuityBadge.textContent = "ℹ Teilweise unverbunden";
-        rampContinuityBadge.style.color = "#f59e0b";
-      }
+      rampChainTitleText.textContent = `▸ View breakdown (${selectedPieces.length} tracks, ${rampResult.isContinuous ? "connected" : "split"})`;
 
       rampPieceList.innerHTML = rampResult.chain
         .map((info, idx) => {
-          let gradClass = "ok";
-          if (info.gradientPercent > 4.5) gradClass = "danger";
-          else if (info.gradientPercent > 3.0) gradClass = "warn";
-
           const h1Str = info.entryHeightMm >= 0 ? `+${info.entryHeightMm}` : `${info.entryHeightMm}`;
           const h2Str = info.exitHeightMm >= 0 ? `+${info.exitHeightMm}` : `${info.exitHeightMm}`;
-
           return `
             <div class="ramp-piece-row">
               <span>${idx + 1}. #${info.piece.catalogId} (${Math.round(info.lengthMm)} mm)</span>
-              <span>${h1Str} ➔ ${h2Str} mm <span class="grad ${gradClass}">(${info.gradientPercent.toFixed(1)}%)</span></span>
+              <span>${h1Str} ➔ ${h2Str} mm (${info.gradientPercent.toFixed(1)}%)</span>
             </div>
           `;
         })
@@ -430,8 +542,9 @@ export function openChangeHeightDialog(options: ChangeHeightDialogOptions) {
   inputRampStart.addEventListener("input", updateModeCards);
   inputRampEnd.addEventListener("input", updateModeCards);
   inputTargetSteep.addEventListener("input", updateModeCards);
+  chkAutoClampSteep.addEventListener("change", updateModeCards);
 
-  modal.querySelectorAll<HTMLButtonElement>(".steep-preset-btn").forEach((btn) => {
+  modal.querySelectorAll<HTMLButtonElement>(".pill-btn").forEach((btn) => {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
       const val = parseFloat(btn.dataset.steep || "2.5") || 2.5;
@@ -440,27 +553,6 @@ export function openChangeHeightDialog(options: ChangeHeightDialogOptions) {
     });
   });
 
-  const applyMaxSteepHandler = (e: Event) => {
-    e.stopPropagation();
-    const sH = parseFloat(inputRampStart.value) || 0;
-    const eH = parseFloat(inputRampEnd.value) || 0;
-    const targetSteep = parseFloat(inputTargetSteep.value) || 2.5;
-    const dir: 1 | -1 = eH < sH ? -1 : 1;
-    const newEndH = calculateEndHeightFromMaxGradient({
-      startHeightMm: sH,
-      totalLengthMm: lastTotalLengthMm,
-      targetMaxGradientPercent: targetSteep,
-      profile: rampProfile,
-      direction: dir,
-    });
-    inputRampEnd.value = String(newEndH);
-    updateModeCards();
-  };
-
-  btnApplyMaxSteep.addEventListener("click", applyMaxSteepHandler);
-  btnClampSteep.addEventListener("click", applyMaxSteepHandler);
-
-  // Layer Select Change
   layerSelect.addEventListener("change", () => {
     if (layerSelect.value === "__create_new__") {
       openLayerDialog({
@@ -471,10 +563,9 @@ export function openChangeHeightDialog(options: ChangeHeightDialogOptions) {
           layers.push(newLayer);
           if (!layout.layers) layout.layers = layers;
 
-          // Dropdown aktualisieren
           layerSelect.innerHTML = `
             ${layers
-              .map((l) => `<option value="${l.id}" ${l.id === newLayer.id ? "selected" : ""}>${l.name} (${l.heightMm ?? 0} mm)</option>`)
+              .map((l) => `<option value="${l.id}" ${l.id === newLayer.id ? "selected" : ""}>${l.name.replace(/\s*\([0-9]+\s*mm\)$/, "")} (${l.heightMm ?? 0} mm)</option>`)
               .join("")}
             <option value="__create_new__">${t.createNewOption}</option>
           `;
@@ -485,7 +576,6 @@ export function openChangeHeightDialog(options: ChangeHeightDialogOptions) {
           updateModeCards();
         },
       });
-      // Fallback falls der Dialog abgebrochen wird
       layerSelect.value = targetLayerId;
       return;
     } else {
@@ -498,7 +588,6 @@ export function openChangeHeightDialog(options: ChangeHeightDialogOptions) {
     updateModeCards();
   });
 
-  // Apply Action
   applyBtn.addEventListener("click", () => {
     const selLayerId = layerSelect.value;
     const selLayer = layers.find((l) => l.id === selLayerId) || initialTargetLayer;
@@ -508,15 +597,12 @@ export function openChangeHeightDialog(options: ChangeHeightDialogOptions) {
     let elevation: { start: number; end: number } | Map<string, { start: number; end: number }> | undefined = undefined;
 
     if (mode === "match") {
-      // Flach auf Ebene: Relatives Offset = 0
       elevation = { start: 0, end: 0 };
     } else if (mode === "custom") {
-      // Eigene absolute Höhe: Relatives Offset = CustomH - BaseH
       const customH = parseFloat(inputCustom.value) || 0;
       const offset = customH - selBaseH;
       elevation = { start: offset, end: offset };
     } else if (mode === "ramp") {
-      // Berechne proportionale Höhenverteilung per Dreisatz / Kette für alle Stücke
       const sH = parseFloat(inputRampStart.value) || 0;
       const eH = parseFloat(inputRampEnd.value) || 0;
       const targetSteep = parseFloat(inputTargetSteep.value) || 2.5;
