@@ -603,7 +603,7 @@ function renderGermanTab(tab: HelpTab, contentArea: HTMLElement) {
         <div class="help-topic-section">
           <h2>Über Railbench & Gleissysteme</h2>
           <p>
-            <strong>Railbench v0.5.0</strong> ist eine Open-Source-Modellbahn-CAD-Anwendung für die Planung und elektrische Netzanalyse von Modellbahnanlagen.
+            <strong>Railbench v0.5.1</strong> ist eine Open-Source-Modellbahn-CAD-Anwendung für die Planung und elektrische Netzanalyse von Modellbahnanlagen.
             Sie basiert auf moderner Web-Technologie (TypeScript, PixiJS WebGL-Rendering, Vite und Electron).
           </p>
 
@@ -1119,7 +1119,7 @@ function renderEnglishTab(tab: HelpTab, contentArea: HTMLElement) {
         <div class="help-topic-section">
           <h2>About Railbench & Track Libraries</h2>
           <p>
-            <strong>Railbench v0.5.0</strong> is an open-source model railway track design and layout planning CAD tool.
+            <strong>Railbench v0.5.1</strong> is an open-source model railway track design and layout planning CAD tool.
             It is built using modern TypeScript, PixiJS WebGL rendering, Vite, and Electron.
           </p>
 

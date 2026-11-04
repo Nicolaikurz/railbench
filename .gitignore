@@ -2,7 +2,3 @@ node_modules
 dist
 dist-electron
 release/*
-!release/*.AppImage
-!release/*.zip
-PUSH_TO_GITHUB.md
-
