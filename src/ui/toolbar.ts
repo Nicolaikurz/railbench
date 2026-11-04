@@ -289,26 +289,61 @@ function createBrandMainMenu(t: any, events: ToolbarEvents): HTMLElement {
 
   const trigger = document.createElement("button");
   trigger.type = "button";
-  trigger.className = "toolbar-brand-btn dropdown-trigger";
+  trigger.id = "tb-brand-trigger";
+  trigger.className = "toolbar-btn toolbar-brand-btn dropdown-trigger";
+  
+  // Matches the exact dark background tone of other toolbar buttons with persistent white text & icons
+  trigger.style.display = "inline-flex";
+  trigger.style.alignItems = "center";
+  trigger.style.gap = "6px";
+  trigger.style.background = "rgba(255, 255, 255, 0.08)";
+  trigger.style.border = "1px solid rgba(255, 255, 255, 0.12)";
+  trigger.style.color = "#ffffff";
+  trigger.style.padding = "0 8px";
+  trigger.style.borderRadius = "4px";
+  trigger.style.height = "28px";
+  trigger.style.cursor = "pointer";
+
   trigger.innerHTML = `
-    <span class="brand-icon">${ICONS.train}</span>
-    <span class="brand-title">RAILbench</span>
-    <span class="dropdown-arrow">${ICONS.chevronDown}</span>
+    <span class="brand-icon" style="display:inline-flex; align-items:center; color:#ffffff;">${ICONS.train}</span>
+    <span class="brand-title" style="color:#ffffff; font-weight:600; font-size:12px;">RAILbench</span>
+    <span class="dropdown-arrow" style="display:inline-flex; align-items:center; color:#ffffff;">${ICONS.chevronDown}</span>
   `;
 
+  // Hover highlighting
+  trigger.addEventListener("mouseenter", () => {
+    trigger.style.background = "rgba(255, 255, 255, 0.15)";
+  });
+  trigger.addEventListener("mouseleave", () => {
+    if (!brandMenuWrapper.classList.contains("open")) {
+      trigger.style.background = "rgba(255, 255, 255, 0.08)";
+    }
+  });
+
+  // Open instantly when mouse moves over the trigger
+  brandMenuWrapper.addEventListener("mouseenter", () => {
+    document.querySelectorAll(".toolbar-dropdown.open").forEach((d) => d.classList.remove("open"));
+    brandMenuWrapper.classList.add("open");
+    trigger.style.background = "rgba(255, 255, 255, 0.15)";
+  });
+
+  // Close instantly when mouse leaves the dropdown menu area
+  brandMenuWrapper.addEventListener("mouseleave", () => {
+    brandMenuWrapper.classList.remove("open");
+    trigger.style.background = "rgba(255, 255, 255, 0.08)";
+  });
+
+  // Keep click behavior for mobile/touch or explicit clicks
   trigger.addEventListener("pointerdown", (e) => e.stopPropagation());
   trigger.addEventListener("click", (e) => {
     e.stopPropagation();
     const isOpen = brandMenuWrapper.classList.contains("open");
     document.querySelectorAll(".toolbar-dropdown.open").forEach((d) => d.classList.remove("open"));
-    if (!isOpen) brandMenuWrapper.classList.add("open");
-  });
-
-  trigger.addEventListener("mouseenter", () => {
-    const anyOpen = document.querySelector(".toolbar-dropdown.open");
-    if (anyOpen && anyOpen !== brandMenuWrapper) {
-      anyOpen.classList.remove("open");
+    if (!isOpen) {
       brandMenuWrapper.classList.add("open");
+      trigger.style.background = "rgba(255, 255, 255, 0.15)";
+    } else {
+      trigger.style.background = "rgba(255, 255, 255, 0.08)";
     }
   });
 
@@ -364,20 +399,23 @@ function createIconDropdownMenu(iconSvg: string, tooltip: string, items: Dropdow
   wrapper.style.position = "relative";
   wrapper.style.alignItems = "center";
 
+  // Hover to open
+  wrapper.addEventListener("mouseenter", () => {
+    document.querySelectorAll(".toolbar-dropdown.open").forEach((d) => d.classList.remove("open"));
+    wrapper.classList.add("open");
+  });
+
+  // Leave to close
+  wrapper.addEventListener("mouseleave", () => {
+    wrapper.classList.remove("open");
+  });
+
   trigger.addEventListener("pointerdown", (e) => e.stopPropagation());
   trigger.addEventListener("click", (e) => {
     e.stopPropagation();
     const isOpen = wrapper.classList.contains("open");
     document.querySelectorAll(".toolbar-dropdown.open").forEach((d) => d.classList.remove("open"));
     if (!isOpen) wrapper.classList.add("open");
-  });
-
-  trigger.addEventListener("mouseenter", () => {
-    const anyOpen = document.querySelector(".toolbar-dropdown.open");
-    if (anyOpen && anyOpen !== wrapper) {
-      anyOpen.classList.remove("open");
-      wrapper.classList.add("open");
-    }
   });
 
   wrapper.appendChild(trigger);
@@ -660,20 +698,23 @@ function createDropdownMenu(triggerLabel: string, items: DropdownItemConfig[]): 
   trigger.className = "toolbar-btn dropdown-trigger";
   trigger.innerHTML = `${triggerLabel ? `<span>${triggerLabel}</span>` : ""} <span class="dropdown-arrow">${ICONS.chevronDown}</span>`;
 
+  // Hover to open
+  wrapper.addEventListener("mouseenter", () => {
+    document.querySelectorAll(".toolbar-dropdown.open").forEach((d) => d.classList.remove("open"));
+    wrapper.classList.add("open");
+  });
+
+  // Leave to close
+  wrapper.addEventListener("mouseleave", () => {
+    wrapper.classList.remove("open");
+  });
+
   trigger.addEventListener("pointerdown", (e) => e.stopPropagation());
   trigger.addEventListener("click", (e) => {
     e.stopPropagation();
     const isOpen = wrapper.classList.contains("open");
     document.querySelectorAll(".toolbar-dropdown.open").forEach((d) => d.classList.remove("open"));
     if (!isOpen) wrapper.classList.add("open");
-  });
-
-  trigger.addEventListener("mouseenter", () => {
-    const anyOpen = document.querySelector(".toolbar-dropdown.open");
-    if (anyOpen && anyOpen !== wrapper) {
-      anyOpen.classList.remove("open");
-      wrapper.classList.add("open");
-    }
   });
 
   wrapper.appendChild(trigger);
