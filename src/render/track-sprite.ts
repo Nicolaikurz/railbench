@@ -1,6 +1,6 @@
 import { Container, Graphics, Text, TextStyle } from "pixi.js";
 import type { TrackPiece, ColorMode } from "@/core/types";
-import { getLocalConnectors, type CatalogEntry } from "@/catalog/catalog";
+import { Catalog, getLocalConnectors, type CatalogEntry } from "@/catalog/catalog";
 import type { PiecePowerResult } from "@/core/simulation";
 import { deg2rad, getPieceLocalCenter } from "@/core/geometry";
 import { getTrackBlueprintColor, type BlueprintColor } from "./blueprint-colors";
@@ -31,6 +31,7 @@ export interface RenderOptions {
 export function createTrackGraphics(
   piece: TrackPiece,
   entry: CatalogEntry,
+  catalog?: Catalog, // <-- Hier den Katalog des Gleises übergeben
   options: RenderOptions = {},
 ): Container {
   const container = new Container();

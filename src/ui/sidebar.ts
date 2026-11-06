@@ -167,7 +167,7 @@ const SIDEBAR_DRILLDOWN_STYLES = `
 .popover-list {
   display: flex;
   flex-direction: column;
-  max-height: 220px;
+  max-height: 400px;
   overflow-y: auto;
   padding: 4px;
   gap: 2px;

@@ -1,5 +1,5 @@
 import type { ColorMode } from "@/core/types";
-
+import type { StartupAction } from "@/ui/welcome-dialog";
 export interface AppSettings {
   /** Automatische Einrastfunktion aktiv */
   snappingEnabled?: boolean;

@@ -190,7 +190,7 @@ export class Renderer {
       const powerResult = powerSim?.results.get(piece.id);
       const isShortCircuit = Boolean(options.shortCircuit?.shortCircuitPieces.has(piece.id));
 
-      const sprite = createTrackGraphics(piece, entry, {
+      const sprite = createTrackGraphics(piece, entry, catalog, {
         isSelected,
         showConnectors: options.showConnectors,
         showPowerDrop,
