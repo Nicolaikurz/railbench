@@ -1265,11 +1265,20 @@ export class Viewer3D {
       addStraightSection(track2Group, len, -h, false);
       dkwGroup.add(track2Group);
 
-      // 4 Verbindungsschienen (Bogenverbindungen des doppelten Gleiswechsels)
       const br = entry.branchRadius ?? 437.5;
       const ba = entry.branchAngle ?? a;
+
+      // --- ADJUSTED SECTION ---
+      // Curve 1 (left side): keep direction = 1 so it branches toward the crossing track
       addCurvedSection(dkwGroup, br, ba, 1, 0, heightDiff);
-      addCurvedSection(dkwGroup, br, ba, -1, 0, heightDiff);
+
+      // Curve 2 (right side): anchor at (len, 0, 0), turn 180° (Math.PI) back inward,
+      // and curve with direction = -1
+      const rightBranch = new THREE.Group();
+      rightBranch.position.set(len, 0, 0);       // <-- parameter: start at x = len
+      rightBranch.rotation.y = Math.PI;           // <-- parameter: face backward
+      addCurvedSection(rightBranch, br, ba, 1, 0, heightDiff); // <-- parameter: direction = -1
+      dkwGroup.add(rightBranch);
 
       group.add(dkwGroup);
     }
