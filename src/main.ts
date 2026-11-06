@@ -1292,7 +1292,7 @@ async function main() {
       <span class="sel-bar-unit">°</span>
     </div>
     <span class="sel-bar-divider"></span>
-    <button id="sel-bar-btn-feeder" class="sel-bar-btn" title="Gleis-Einspeisung an/aus (F)">⚡ Einspeisung</button>
+    <button id="sel-bar-btn-feeder" class="sel-bar-btn" title="Gleis-Einspeisung an/aus (F)">${initialSelT.trackFeederBtn}</button>
     <button id="sel-bar-btn-isolator" class="sel-bar-btn" title="${initialSelT.isolatorInactiveTitle}">${initialSelT.isolatorInactive}</button>
     <span class="sel-bar-divider"></span>
     <button id="sel-bar-btn-catenary" class="sel-bar-btn" title="${initialSelT.catenaryInactiveTitle}">${initialSelT.catenaryBtn}</button>

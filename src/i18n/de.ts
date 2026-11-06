@@ -326,8 +326,10 @@ export const de: Translations = {
     catenaryActive: "Oberleitung",
     catenaryActiveTitle: "Oberleitung für markierte Gleise entfernen (O)",
     catenaryInactiveTitle: "Oberleitung (Fahrdraht & Masten) für markierte Gleise aktivieren (O)",
-    catenaryFeederBtn: "Einspeisung",
-    catenaryFeederActive: "Einspeisung",
+    catenaryFeederBtn: "OL +",
+    catenaryFeederActive: "OL +", // oder "OL platzieren"
+    trackFeederBtn: "Gleis +",
+    trackFeederActive: "Gleis setzen...",
     catenaryFeederActiveTitle: "Oberleitungs-Einspeisepunkt entfernen (Shift+F)",
     catenaryFeederInactiveTitle: "Oberleitungs-Einspeisepunkt setzen (Shift+F)",
     catenaryIsolatorBtn: "OL-Trenner",
