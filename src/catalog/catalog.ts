@@ -16,6 +16,8 @@ export * from "./systems/fleischmann-piccolo-n";
 export * from "./systems/tillig-tt";
 export * from "./systems/generic-streets-h0";
 export * from "./systems/generic-streets-n";
+export * from "./systems/generic-streets-tt";
+export * from "./systems/generic-streets-z";
 
 // Abwärtskompatibilität
 export const cGleisCatalogEntries = maerklinCEntries;

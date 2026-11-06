@@ -9,6 +9,8 @@ import { fleischmannPiccoloCatalog } from "./systems/fleischmann-piccolo-n";
 import { tilligTTCatalog } from "./systems/tillig-tt";
 import { genericStreetsCatalog } from "./systems/generic-streets-h0";
 import { genericStreetsNCatalog } from "./systems/generic-streets-n";
+import { genericStreetsTTCatalog } from "./systems/generic-streets-tt";
+import { genericStreetsZCatalog} from "./systems/generic-streets-z";
 
 export class CatalogRegistry {
   private catalogs = new Map<string, Catalog>();
@@ -26,7 +28,9 @@ export class CatalogRegistry {
     this.register(fleischmannPiccoloCatalog);
     this.register(tilligTTCatalog);
     this.register(genericStreetsCatalog);
+    this.register(genericStreetsTTCatalog);
     this.register(genericStreetsNCatalog);
+    this.register(genericStreetsZCatalog);
   }
 
   /** Registriert ein neues Gleissystem im Katalog. */
