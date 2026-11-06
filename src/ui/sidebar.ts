@@ -2,7 +2,16 @@ import { catalogRegistry, type Catalog, type CatalogEntry } from "@/catalog/cata
 import type { Layout, Layer, BaseboardConfig, Model3D, ModelCategory } from "@/core/types";
 import { openLayerDialog } from "./layer-dialog";
 import type { SimulationSummary } from "@/core/simulation";
-import { ensureDefaultLayers, sortLayers, ensureBaseboard, getBaseboards, addBaseboard, removeBaseboard, duplicateBaseboard, getBaseboardBounds } from "@/core/layout";
+import {
+  ensureDefaultLayers,
+  sortLayers,
+  ensureBaseboard,
+  getBaseboards,
+  addBaseboard,
+  removeBaseboard,
+  duplicateBaseboard,
+  getBaseboardBounds,
+} from "@/core/layout";
 import {
   getTranslations,
   onLanguageChange,
@@ -20,19 +29,21 @@ import {
   type BuiltinModelDef,
 } from "@/core/models-3d";
 
+export type ModelScale = "H0" | "TT" | "N" | "Z";
+export type SidebarTab = "catalog" | "roads" | "models" | "board" | "bom" | "layers";
+
 export interface SidebarCallbacks {
   onAddPiece: (entry: CatalogEntry) => void;
   onAddModel?: (model: Model3D) => void;
   onExportCSV: () => void;
   onSelectSystem?: (system: string) => void;
+  onSelectRoadScale?: (scale: ModelScale) => void;
   onLayerChange?: () => void;
   onMoveSelectedToLayer?: (layerId: string) => void;
   selectedPieceIds?: () => string[];
   onBaseboardChange?: () => void;
   onTabChange?: (tab: SidebarTab) => void;
 }
-
-export type SidebarTab = "catalog" | "roads" | "models" | "board" | "bom" | "layers";
 
 const CATEGORY_MAP: Record<string, string[]> = {
   All: ["All", "Alle"],
@@ -43,21 +54,145 @@ const CATEGORY_MAP: Record<string, string[]> = {
   Accessories: ["Accessories", "Zubehör"],
 };
 
-let catalogDropdownDismissSetup = false;
-function setupCatalogDropdownDismiss() {
-  if (catalogDropdownDismissSetup) return;
-  catalogDropdownDismissSetup = true;
-  window.addEventListener("click", (e) => {
-    const target = e.target as HTMLElement;
-    if (!target.closest(".catalog-dropdown")) {
-      document.querySelectorAll(".catalog-dropdown.open").forEach((d) => d.classList.remove("open"));
-    }
-  });
-  window.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") {
-      document.querySelectorAll(".catalog-dropdown.open").forEach((d) => d.classList.remove("open"));
-    }
-  });
+const AVAILABLE_SCALES: ModelScale[] = ["H0", "TT", "N", "Z"];
+
+const SCALE_DESCRIPTIONS: Record<ModelScale, { de: string; en: string }> = {
+  H0: { de: "1:87 (Fahrbahn ~60 mm)", en: "1:87 (Roadway ~60 mm)" },
+  TT: { de: "1:120 (Fahrbahn ~45 mm)", en: "1:120 (Roadway ~45 mm)" },
+  N: { de: "1:160 (Fahrbahn ~35 mm)", en: "1:160 (Roadway ~35 mm)" },
+  Z: { de: "1:220 (Fahrbahn ~25 mm)", en: "1:220 (Roadway ~25 mm)" },
+};
+
+/** Roadway width per scale in mm (full 2-lane width). */
+const ROAD_WIDTH_MM: Record<ModelScale, number> = { H0: 60, TT: 45, N: 35, Z: 25 };
+
+function getRoadWidthMm(scale?: string): number {
+  return ROAD_WIDTH_MM[((scale || "H0").toUpperCase() as ModelScale)] ?? 60;
+}
+
+/** Scale denominators (1:x). Built-in models are defined in H0. */
+const MODEL_SCALE_RATIOS: Record<ModelScale, number> = { H0: 87, TT: 120, N: 160, Z: 220 };
+
+const MODEL_CATEGORIES = ["All", "Buildings", "Railway", "Nature", "Custom"];
+
+const MODEL_CATEGORY_LABELS_DE: Record<string, string> = {
+  All: "Alle",
+  Buildings: "Gebäude",
+  Railway: "Bahn",
+  Nature: "Natur",
+  Custom: "Eigene",
+};
+
+const SIDEBAR_DRILLDOWN_STYLES_ID = "sidebar-drilldown-styles";
+const SIDEBAR_DRILLDOWN_STYLES = `
+.two-step-popover {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  background: var(--cl-bg-glass, rgba(30, 41, 59, 0.96));
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--cl-edge, rgba(255, 255, 255, 0.15));
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.35);
+  z-index: 100;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.popover-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--cl-edge, rgba(255, 255, 255, 0.1));
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.popover-back-btn {
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: var(--cl-accent, #38bdf8);
+  font-size: 14px;
+  line-height: 1;
+  font-weight: bold;
+}
+.popover-back-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.popover-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 4px;
+  gap: 2px;
+}
+
+.popover-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.popover-item:hover {
+  background: var(--cl-glass-hover, rgba(255, 255, 255, 0.08));
+}
+
+.popover-item.active {
+  background: var(--cl-accent-soft, rgba(2, 132, 199, 0.2));
+  color: var(--cl-accent, #38bdf8);
+}
+
+.models-dropzone {
+  cursor: pointer;
+}
+.models-dropzone:hover,
+.models-dropzone:focus-visible {
+  border-color: var(--cl-accent, #38bdf8);
+  outline: none;
+}
+`;
+
+/**
+ * Finds the road catalog for a scale. Matches the catalog's `scale` field (case-insensitive),
+ * and falls back to the id convention `generic-streets-<scale>`.
+ */
+function findRoadCatalogForScale(scale: string): Catalog | undefined {
+  const sc = scale.toUpperCase();
+  const roads = catalogRegistry.getAll().filter((c) => c.isRoadSystem);
+  return (
+    roads.find((c) => c.id.toLowerCase() === `generic-streets-${sc.toLowerCase()}`) ??
+    roads.find((c) => (c.scale || "").toUpperCase() === sc) ??
+    roads.find((c) => c.id.toLowerCase().endsWith(`-${sc.toLowerCase()}`))
+  );
+}
+
+function ensureSidebarDrilldownStyles() {
+  if (document.getElementById(SIDEBAR_DRILLDOWN_STYLES_ID)) return;
+  const styleEl = document.createElement("style");
+  styleEl.id = SIDEBAR_DRILLDOWN_STYLES_ID;
+  styleEl.textContent = SIDEBAR_DRILLDOWN_STYLES;
+  document.head.appendChild(styleEl);
 }
 
 function formatCatalogTitle(cat: Catalog): string {
@@ -69,13 +204,18 @@ function formatCatalogTitle(cat: Catalog): string {
 
 function formatCatalogSubtitle(cat: Catalog, isDe: boolean, t: any): string {
   if (cat.isRoadSystem) {
-    const width = cat.scale === "N" ? "35" : "60";
+    const width = getRoadWidthMm(cat.scale);
     return isDe ? `Fahrbahnbreite ${width} mm, 2-spurig` : `Road width ${width} mm, 2-lane`;
   }
   const gauge = cat.gauge ?? 16.5;
-  const roadbedText = cat.hasRoadbed === false
-    ? (isDe ? "ohne Bettung" : "without roadbed")
-    : (isDe ? "mit Bettung" : "roadbed");
+  const roadbedText =
+    cat.hasRoadbed === false
+      ? isDe
+        ? "ohne Bettung"
+        : "without roadbed"
+      : isDe
+      ? "mit Bettung"
+      : "roadbed";
 
   let conductorsText = "";
   if (cat.conductors === 3) {
@@ -89,6 +229,81 @@ function formatCatalogSubtitle(cat: Catalog, isDe: boolean, t: any): string {
   return conductorsText ? `${gauge} mm, ${roadbedText}, ${conductorsText}` : `${gauge} mm, ${roadbedText}`;
 }
 
+/**
+ * Generates an offscreen Canvas 2D image depicting the actual piece geometry
+ * to use directly as the HTML5 drag ghost.
+ */
+function createPieceDragImage(
+  entry: CatalogEntry,
+  isRoad: boolean = false,
+  roadWidthMm: number = 60,
+): HTMLImageElement {
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+  const img = new Image();
+
+  const pxPerMm = 0.45;
+  const strokeColor = isRoad ? "#64748b" : "#0284c7";
+  const bedColor = isRoad ? "rgba(71, 85, 105, 0.4)" : "rgba(148, 163, 184, 0.3)";
+  const gauge = (isRoad ? roadWidthMm / 2 : 16.5) * pxPerMm;
+
+  if (entry.radius && entry.angle) {
+    const r = entry.radius * pxPerMm;
+    const rad = (Math.abs(entry.angle) * Math.PI) / 180;
+    const padding = 20;
+
+    canvas.width = Math.max(72, r * (1 - Math.cos(rad)) + padding * 2);
+    canvas.height = Math.max(72, r * Math.sin(rad) + padding * 2);
+
+    if (ctx) {
+      ctx.translate(padding, canvas.height / 2);
+
+      // Track bed / road surface
+      ctx.beginPath();
+      ctx.arc(0, r, r, -Math.PI / 2, -Math.PI / 2 + rad, false);
+      ctx.lineWidth = gauge + 6;
+      ctx.strokeStyle = bedColor;
+      ctx.lineCap = "butt";
+      ctx.stroke();
+
+      // Rail / Road lines
+      ctx.beginPath();
+      ctx.arc(0, r, r, -Math.PI / 2, -Math.PI / 2 + rad, false);
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = strokeColor;
+      ctx.stroke();
+    }
+  } else {
+    const len = (entry.length || 180) * pxPerMm;
+    const h = gauge + 16;
+    const padding = 10;
+
+    canvas.width = Math.max(64, len + padding * 2);
+    canvas.height = Math.max(32, h);
+
+    if (ctx) {
+      const cy = canvas.height / 2;
+
+      // Roadbed / ballast
+      ctx.fillStyle = bedColor;
+      ctx.fillRect(padding, cy - gauge / 2 - 2, len, gauge + 4);
+
+      // Dual parallel rails or street lines
+      ctx.lineWidth = 1.8;
+      ctx.strokeStyle = strokeColor;
+      ctx.beginPath();
+      ctx.moveTo(padding, cy - gauge / 2);
+      ctx.lineTo(padding + len, cy - gauge / 2);
+      ctx.moveTo(padding, cy + gauge / 2);
+      ctx.lineTo(padding + len, cy + gauge / 2);
+      ctx.stroke();
+    }
+  }
+
+  img.src = canvas.toDataURL();
+  return img;
+}
+
 export class Sidebar {
   private activeTab: SidebarTab = "catalog";
   private searchQuery = "";
@@ -96,8 +311,10 @@ export class Sidebar {
   private roadSearchQuery = "";
   private selectedRoadCategory = "All";
   private roadCatalog: Catalog;
+  private currentRoadScale: ModelScale = "H0";
   private modelsSearchQuery = "";
   private selectedModelCategory = "All";
+  private currentModelScale: ModelScale = "H0";
   private customModelsLibrary: Model3D[] = [];
   private activeBoardId?: string;
   private activePartsCategory: "all" | "tracks" | "roads" | "buildings" = "all";
@@ -106,6 +323,8 @@ export class Sidebar {
   private layout: Layout;
   private simulation: SimulationSummary | null = null;
   private callbacks: SidebarCallbacks;
+  /** Window listeners registered by the current render pass; removed at the start of the next one. */
+  private windowCleanups: Array<() => void> = [];
 
   constructor(
     host: HTMLElement,
@@ -114,16 +333,24 @@ export class Sidebar {
     callbacks: SidebarCallbacks,
   ) {
     this.host = host;
+    ensureSidebarDrilldownStyles();
+
     this.catalog = catalog.isRoadSystem
-      ? (catalogRegistry.getAll().find((c) => !c.isRoadSystem) ?? catalogRegistry.getDefault())
+      ? catalogRegistry.getAll().find((c) => !c.isRoadSystem) ?? catalogRegistry.getDefault()
       : catalog;
+
     this.roadCatalog = catalog.isRoadSystem
       ? catalog
-      : (catalogRegistry.get(layout.scale === "N" ? "generic-streets-n" : "generic-streets-h0") ??
-         catalogRegistry.getAll().find((c) => c.isRoadSystem) ??
-         catalog);
+      : findRoadCatalogForScale(layout.scale || "H0") ??
+        findRoadCatalogForScale("H0") ??
+        catalogRegistry.getAll().find((c) => c.isRoadSystem) ??
+        catalog;
+
+    this.currentRoadScale = (layout.scale as ModelScale) || "H0";
+    this.currentModelScale = (layout.scale as ModelScale) || "H0";
     this.layout = layout;
     this.callbacks = callbacks;
+
     ensureDefaultLayers(this.layout);
     onLanguageChange(() => this.render());
     this.render();
@@ -141,6 +368,7 @@ export class Sidebar {
   setCatalog(catalog: Catalog) {
     if (catalog.isRoadSystem) {
       this.roadCatalog = catalog;
+      this.currentRoadScale = ((catalog.scale || "H0").toUpperCase() as ModelScale);
       this.activeTab = "roads";
     } else {
       this.catalog = catalog;
@@ -150,14 +378,24 @@ export class Sidebar {
 
   setRoadCatalog(catalog: Catalog) {
     this.roadCatalog = catalog;
+    this.currentRoadScale = ((catalog.scale || "H0").toUpperCase() as ModelScale);
     this.render();
   }
 
+  /** Registers a window click listener that is automatically removed on the next render(). */
+  private addWindowClickListener(handler: (e: MouseEvent) => void) {
+    window.addEventListener("click", handler);
+    this.windowCleanups.push(() => window.removeEventListener("click", handler));
+  }
+
   private render() {
+    for (const cleanup of this.windowCleanups) cleanup();
+    this.windowCleanups = [];
+
     this.host.innerHTML = "";
     ensureDefaultLayers(this.layout);
 
-    // 1. Tab Headers
+    // 1. Tab Navigation
     const tabHeader = document.createElement("div");
     tabHeader.className = "sidebar-tabs";
 
@@ -169,18 +407,10 @@ export class Sidebar {
     const t = getTranslations().sidebar;
 
     tabHeader.appendChild(
-      this.createTabButton(
-        "catalog",
-        t.tabs.tracks,
-        `${t.tabs.tracks} (${this.catalog.entries.length})`,
-      ),
+      this.createTabButton("catalog", t.tabs.tracks, `${t.tabs.tracks} (${this.catalog.entries.length})`),
     );
     tabHeader.appendChild(
-      this.createTabButton(
-        "roads",
-        t.tabs.roads,
-        `${t.tabs.roads} (${this.roadCatalog.entries.length})`,
-      ),
+      this.createTabButton("roads", t.tabs.roads, `${t.tabs.roads} (${this.roadCatalog.entries.length})`),
     );
     tabHeader.appendChild(
       this.createTabButton(
@@ -189,20 +419,8 @@ export class Sidebar {
         `${t.tabs.models} (${BUILTIN_MODELS.length + this.customModelsLibrary.length})`,
       ),
     );
-    tabHeader.appendChild(
-      this.createTabButton(
-        "board",
-        t.tabs.board,
-        t.board.title,
-      ),
-    );
-    tabHeader.appendChild(
-      this.createTabButton(
-        "bom",
-        t.tabs.bom,
-        `${t.bom.title} (${bomSummary.totalObjects})`,
-      ),
-    );
+    tabHeader.appendChild(this.createTabButton("board", t.tabs.board, t.board.title));
+    tabHeader.appendChild(this.createTabButton("bom", t.tabs.bom, `${t.bom.title} (${bomSummary.totalObjects})`));
     this.host.appendChild(tabHeader);
 
     // 2. Tab Content Container
@@ -253,11 +471,7 @@ export class Sidebar {
     return this.activeTab === "board";
   }
 
-  private createTabButton(
-    tab: SidebarTab,
-    label: string,
-    tooltip: string,
-  ): HTMLButtonElement {
+  private createTabButton(tab: SidebarTab, label: string, tooltip: string): HTMLButtonElement {
     const btn = document.createElement("button");
     btn.className = `tab-btn ${this.activeTab === tab ? "active" : ""}`;
     btn.title = tooltip;
@@ -270,87 +484,136 @@ export class Sidebar {
     return btn;
   }
 
-  // --- TAB 1: TRACK CATALOG ---
+  // =========================================================================
+  // TAB 1: TRACK CATALOG (2-STEP MENU: MANUFACTURER -> TRACK SYSTEM)
+  // =========================================================================
   private renderCatalogTab(container: HTMLElement) {
     const t = getTranslations().sidebar;
     const isDe = getLanguage() === "de";
-
-    // 1. System Selection Dropdown
-    const selectorBox = document.createElement("div");
-    selectorBox.className = "catalog-system-box";
-
-    const label = document.createElement("label");
-    label.className = "catalog-system-label";
-    label.textContent = isDe ? "Gleissystem:" : "Track System:";
-    selectorBox.appendChild(label);
-
-    setupCatalogDropdownDismiss();
-
-    const dropdown = document.createElement("div");
-    dropdown.className = "catalog-dropdown";
-
-    const trigger = document.createElement("button");
-    trigger.type = "button";
-    trigger.className = "catalog-dropdown-trigger";
-
-    const currentTitle = formatCatalogTitle(this.catalog);
-    const currentSub = formatCatalogSubtitle(this.catalog, isDe, t);
-
-    trigger.innerHTML = `
-      <div class="catalog-trigger-text">
-        <span class="catalog-trigger-title">${currentTitle}</span>
-        <span class="catalog-trigger-sub">${currentSub}</span>
-      </div>
-      <span class="catalog-dropdown-arrow">▾</span>
-    `;
-
-    const menu = document.createElement("div");
-    menu.className = "catalog-dropdown-menu";
 
     const allCatalogs = catalogRegistry.getAll().filter((c) => !c.isRoadSystem);
     if (this.catalog.isRoadSystem) {
       this.catalog = allCatalogs[0] ?? catalogRegistry.getDefault();
     }
-    for (const cat of allCatalogs) {
-      const item = document.createElement("button");
-      item.type = "button";
-      const isSelected = cat.id === this.catalog.id;
-      item.className = `catalog-dropdown-item ${isSelected ? "active" : ""}`;
 
-      const title = formatCatalogTitle(cat);
-      const sub = formatCatalogSubtitle(cat, isDe, t);
+    let menuStep: "closed" | "manufacturers" | "systems" = "closed";
+    let activeMfg = this.catalog.manufacturer;
 
-      item.innerHTML = `
-        <div class="catalog-item-info">
-          <span class="catalog-item-title">${title}</span>
-          <span class="catalog-item-sub">${sub}</span>
-        </div>
-        ${isSelected ? `<span class="catalog-item-check">✓</span>` : ""}
-      `;
+    const selectorBox = document.createElement("div");
+    selectorBox.className = "catalog-system-box";
+    selectorBox.style.position = "relative";
 
-      item.addEventListener("click", (e) => {
-        e.stopPropagation();
-        dropdown.classList.remove("open");
-        this.catalog = cat;
-        this.callbacks.onSelectSystem?.(cat.id);
-        this.render();
-      });
+    const trigger = document.createElement("button");
+    trigger.type = "button";
+    trigger.className = "catalog-dropdown-trigger";
+    trigger.innerHTML = `
+      <div class="catalog-trigger-text">
+        <span class="catalog-trigger-title">${this.catalog.manufacturer} — ${this.catalog.system}</span>
+        <span class="catalog-trigger-sub">${formatCatalogSubtitle(this.catalog, isDe, t)}</span>
+      </div>
+      <span class="catalog-dropdown-arrow">▾</span>
+    `;
 
-      menu.appendChild(item);
-    }
+    const popover = document.createElement("div");
+    popover.className = "two-step-popover";
+    popover.style.display = "none";
+
+    const updatePopover = () => {
+      if (menuStep === "closed") {
+        popover.style.display = "none";
+        return;
+      }
+      popover.style.display = "flex";
+      popover.innerHTML = "";
+
+      if (menuStep === "manufacturers") {
+        const header = document.createElement("div");
+        header.className = "popover-header";
+        header.textContent = isDe ? "1. Hersteller wählen" : "1. Select Manufacturer";
+        popover.appendChild(header);
+
+        const list = document.createElement("div");
+        list.className = "popover-list";
+
+        const manufacturers = Array.from(new Set(allCatalogs.map((c) => c.manufacturer)));
+        for (const mfg of manufacturers) {
+          const item = document.createElement("button");
+          item.type = "button";
+          item.className = `popover-item ${mfg === this.catalog.manufacturer ? "active" : ""}`;
+          item.innerHTML = `<span>${mfg}</span><span>›</span>`;
+          item.addEventListener("click", (e) => {
+            e.stopPropagation();
+            activeMfg = mfg;
+            menuStep = "systems";
+            updatePopover();
+          });
+          list.appendChild(item);
+        }
+        popover.appendChild(list);
+      } else if (menuStep === "systems") {
+        const header = document.createElement("div");
+        header.className = "popover-header";
+
+        const backBtn = document.createElement("button");
+        backBtn.type = "button";
+        backBtn.className = "popover-back-btn";
+        backBtn.textContent = "‹";
+        backBtn.title = isDe ? "Zurück zu Herstellern" : "Back to Manufacturers";
+        backBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          menuStep = "manufacturers";
+          updatePopover();
+        });
+
+        const title = document.createElement("span");
+        title.textContent = `${activeMfg} Systems`;
+
+        header.append(backBtn, title);
+        popover.appendChild(header);
+
+        const list = document.createElement("div");
+        list.className = "popover-list";
+
+        const systems = allCatalogs.filter((c) => c.manufacturer === activeMfg);
+        for (const cat of systems) {
+          const item = document.createElement("button");
+          item.type = "button";
+          const isSelected = cat.id === this.catalog.id;
+          item.className = `popover-item ${isSelected ? "active" : ""}`;
+          item.innerHTML = `
+            <div>
+              <div style="font-weight: 600;">${cat.system}</div>
+              <div style="font-size: 9.5px; opacity: 0.7;">${cat.scale} • ${cat.gauge ?? 16.5} mm</div>
+            </div>
+            ${isSelected ? `<span>✓</span>` : ""}
+          `;
+          item.addEventListener("click", (e) => {
+            e.stopPropagation();
+            this.catalog = cat;
+            this.callbacks.onSelectSystem?.(cat.id);
+            menuStep = "closed";
+            this.render();
+          });
+          list.appendChild(item);
+        }
+        popover.appendChild(list);
+      }
+    };
 
     trigger.addEventListener("click", (e) => {
       e.stopPropagation();
-      const isOpen = dropdown.classList.contains("open");
-      document.querySelectorAll(".catalog-dropdown.open").forEach((d) => d.classList.remove("open"));
-      if (!isOpen) {
-        dropdown.classList.add("open");
+      menuStep = menuStep === "closed" ? "manufacturers" : "closed";
+      updatePopover();
+    });
+
+    this.addWindowClickListener((e) => {
+      if (!selectorBox.contains(e.target as Node) && menuStep !== "closed") {
+        menuStep = "closed";
+        updatePopover();
       }
     });
 
-    dropdown.appendChild(trigger);
-    dropdown.appendChild(menu);
-    selectorBox.appendChild(dropdown);
+    selectorBox.append(trigger, popover);
     container.appendChild(selectorBox);
 
     // Search Box
@@ -398,7 +661,7 @@ export class Sidebar {
       : " <em>Drag track onto canvas or click <strong>+</strong></em>";
     container.appendChild(hint);
 
-    // Track List Container
+    // Track Cards List
     const listContainer = document.createElement("div");
     listContainer.className = "track-cards-list";
     this.renderTrackList(listContainer);
@@ -415,9 +678,7 @@ export class Sidebar {
 
     const filtered = this.catalog.entries.filter((e) => {
       const matchCat =
-        this.selectedCategory === "All" ||
-        allowedCats.includes(e.category) ||
-        e.category === this.selectedCategory;
+        this.selectedCategory === "All" || allowedCats.includes(e.category) || e.category === this.selectedCategory;
       const matchQuery =
         !query ||
         e.id.toLowerCase().includes(query) ||
@@ -429,7 +690,9 @@ export class Sidebar {
     });
 
     if (filtered.length === 0) {
-      container.innerHTML = `<div class="empty-state">${isDe ? "Keine passenden Gleise gefunden." : "No matching tracks found."}</div>`;
+      container.innerHTML = `<div class="empty-state">${
+        isDe ? "Keine passenden Gleise gefunden." : "No matching tracks found."
+      }</div>`;
       return;
     }
 
@@ -440,16 +703,18 @@ export class Sidebar {
       card.className = "track-card";
       card.draggable = true;
 
-      // Color coding matching Blueprint mode
       const bp = getTrackBlueprintColor(entry.id);
 
-      // HTML5 Drag & Drop data
+      // Dragstart: Bind JSON payload + directly render 2D Track Preview
       card.addEventListener("dragstart", (e) => {
         card.classList.add("dragging");
         e.dataTransfer?.setData("application/json", JSON.stringify(entry));
         e.dataTransfer?.setData("text/plain", entry.id);
+
         if (e.dataTransfer) {
           e.dataTransfer.effectAllowed = "copy";
+          const previewImg = createPieceDragImage(entry, false);
+          e.dataTransfer.setDragImage(previewImg, previewImg.width / 2, previewImg.height / 2);
         }
       });
 
@@ -457,7 +722,6 @@ export class Sidebar {
         card.classList.remove("dragging");
       });
 
-      // Technical Specs
       let spec = "";
       if (entry.length) spec += `L: ${entry.length} mm `;
       if (entry.radius) spec += `R: ${entry.radius} mm `;
@@ -480,7 +744,6 @@ export class Sidebar {
         <div class="card-spec">${spec}</div>
       `;
 
-      // Quick-add button
       const addBtn = document.createElement("button");
       addBtn.className = "card-add-btn";
       addBtn.innerHTML = `+ ${t.catalog.addToPlan}`;
@@ -495,84 +758,103 @@ export class Sidebar {
     }
   }
 
-  // --- TAB 1B: ROADS / STREETS CATALOG ---
+  // =========================================================================
+  // TAB 1B: ROADS CATALOG (1-STEP MENU: SCALE -> AUTO-LOAD)
+  // =========================================================================
   private renderRoadsTab(container: HTMLElement) {
     const t = getTranslations().sidebar;
     const isDe = getLanguage() === "de";
 
-    // 1. Road System Selection Dropdown
+    let isMenuOpen = false;
+
     const selectorBox = document.createElement("div");
     selectorBox.className = "catalog-system-box";
-
-    const label = document.createElement("label");
-    label.className = "catalog-system-label";
-    label.textContent = isDe ? "Straßensystem:" : "Road System:";
-    selectorBox.appendChild(label);
-
-    setupCatalogDropdownDismiss();
-
-    const dropdown = document.createElement("div");
-    dropdown.className = "catalog-dropdown";
+    selectorBox.style.position = "relative";
 
     const trigger = document.createElement("button");
     trigger.type = "button";
     trigger.className = "catalog-dropdown-trigger";
-
-    const currentTitle = formatCatalogTitle(this.roadCatalog);
-    const currentSub = formatCatalogSubtitle(this.roadCatalog, isDe, t);
-
     trigger.innerHTML = `
       <div class="catalog-trigger-text">
-        <span class="catalog-trigger-title">${currentTitle}</span>
-        <span class="catalog-trigger-sub">${currentSub}</span>
+        <span class="catalog-trigger-title">${formatCatalogTitle(this.roadCatalog)}</span>
+        <span class="catalog-trigger-sub">${formatCatalogSubtitle(this.roadCatalog, isDe, t)}</span>
       </div>
       <span class="catalog-dropdown-arrow">▾</span>
     `;
 
-    const menu = document.createElement("div");
-    menu.className = "catalog-dropdown-menu";
+    const popover = document.createElement("div");
+    popover.className = "two-step-popover";
+    popover.style.display = "none";
 
-    const roadCatalogs = catalogRegistry.getAll().filter((c) => c.isRoadSystem);
-    for (const cat of roadCatalogs) {
-      const item = document.createElement("button");
-      item.type = "button";
-      const isSelected = cat.id === this.roadCatalog.id;
-      item.className = `catalog-dropdown-item ${isSelected ? "active" : ""}`;
+    // Single-step menu: pick a scale -> its road catalog is loaded automatically.
+    const updateRoadPopover = () => {
+      if (!isMenuOpen) {
+        popover.style.display = "none";
+        return;
+      }
+      popover.style.display = "flex";
+      popover.innerHTML = "";
 
-      const title = formatCatalogTitle(cat);
-      const sub = formatCatalogSubtitle(cat, isDe, t);
+      const header = document.createElement("div");
+      header.className = "popover-header";
+      header.textContent = isDe ? "Maßstab wählen" : "Select Scale";
+      popover.appendChild(header);
 
-      item.innerHTML = `
-        <div class="catalog-item-info">
-          <span class="catalog-item-title">${title}</span>
-          <span class="catalog-item-sub">${sub}</span>
-        </div>
-        ${isSelected ? `<span class="catalog-item-check">✓</span>` : ""}
-      `;
+      const list = document.createElement("div");
+      list.className = "popover-list";
 
-      item.addEventListener("click", (e) => {
-        e.stopPropagation();
-        dropdown.classList.remove("open");
-        this.roadCatalog = cat;
-        this.callbacks.onSelectSystem?.(cat.id);
-        this.render();
-      });
-
-      menu.appendChild(item);
-    }
+      for (const sc of AVAILABLE_SCALES) {
+        const cat = findRoadCatalogForScale(sc);
+        const item = document.createElement("button");
+        item.type = "button";
+        item.disabled = !cat;
+        item.className = `popover-item ${sc === this.currentRoadScale ? "active" : ""}`;
+        item.style.opacity = cat ? "1" : "0.45";
+        item.style.cursor = cat ? "pointer" : "not-allowed";
+        item.innerHTML = `
+          <div>
+            <div style="font-weight: 600;">Spur ${sc}</div>
+            <div style="font-size: 9.5px; opacity: 0.7;">${
+              cat
+                ? isDe
+                  ? SCALE_DESCRIPTIONS[sc].de
+                  : SCALE_DESCRIPTIONS[sc].en
+                : isDe
+                ? "Kein Straßenkatalog gefunden"
+                : "No road catalog found"
+            }</div>
+          </div>
+          ${sc === this.currentRoadScale ? "<span>✓</span>" : ""}
+        `;
+        item.addEventListener("click", (e) => {
+          e.stopPropagation();
+          if (!cat) return;
+          this.currentRoadScale = sc;
+          this.roadCatalog = cat;
+          this.callbacks.onSelectRoadScale?.(sc);
+          this.callbacks.onSelectSystem?.(cat.id);
+          isMenuOpen = false;
+          this.render();
+        });
+        list.appendChild(item);
+      }
+      popover.appendChild(list);
+    };
 
     trigger.addEventListener("click", (e) => {
       e.stopPropagation();
-      const isOpen = dropdown.classList.contains("open");
-      document.querySelectorAll(".catalog-dropdown.open").forEach((d) => d.classList.remove("open"));
-      if (!isOpen) {
-        dropdown.classList.add("open");
+      isMenuOpen = !isMenuOpen;
+      updateRoadPopover();
+    });
+
+    this.addWindowClickListener((e) => {
+      if (!selectorBox.contains(e.target as Node) && isMenuOpen) {
+        isMenuOpen = false;
+        updateRoadPopover();
       }
     });
 
-    dropdown.appendChild(trigger);
-    dropdown.appendChild(menu);
-    selectorBox.appendChild(dropdown);
+    selectorBox.append(trigger, popover);
     container.appendChild(selectorBox);
 
     // Search Box
@@ -619,7 +901,7 @@ export class Sidebar {
       : " <em>Drag road onto canvas or click <strong>+</strong></em>";
     container.appendChild(hint);
 
-    // Road List Container
+    // Road Cards List
     const listContainer = document.createElement("div");
     listContainer.className = "track-cards-list";
     this.renderRoadsList(listContainer);
@@ -650,7 +932,9 @@ export class Sidebar {
     });
 
     if (filtered.length === 0) {
-      container.innerHTML = `<div class="empty-state">${isDe ? "Keine passenden Straßen gefunden." : "No matching roads found."}</div>`;
+      container.innerHTML = `<div class="empty-state">${
+        isDe ? "Keine passenden Straßen gefunden." : "No matching roads found."
+      }</div>`;
       return;
     }
 
@@ -661,12 +945,16 @@ export class Sidebar {
       card.className = "track-card";
       card.draggable = true;
 
+      // Dragstart: Bind JSON payload + directly render 2D Road Preview
       card.addEventListener("dragstart", (e) => {
         card.classList.add("dragging");
         e.dataTransfer?.setData("application/json", JSON.stringify(entry));
         e.dataTransfer?.setData("text/plain", entry.id);
+
         if (e.dataTransfer) {
           e.dataTransfer.effectAllowed = "copy";
+          const previewImg = createPieceDragImage(entry, true, getRoadWidthMm(this.roadCatalog.scale));
+          e.dataTransfer.setDragImage(previewImg, previewImg.width / 2, previewImg.height / 2);
         }
       });
 
@@ -710,69 +998,207 @@ export class Sidebar {
     }
   }
 
-  // --- TAB 1B: 3D MODELS & SCENERY ---
+  // =========================================================================
+  // TAB 1C: 3D MODELS & SCENERY (2-STEP MENU: SCALE -> CATEGORY)
+  // =========================================================================
+
+  /** Built-in models are defined in H0, so scale their dimensions to the selected scale. */
+  private getModelScaleFactor(): number {
+    return MODEL_SCALE_RATIOS.H0 / MODEL_SCALE_RATIOS[this.currentModelScale];
+  }
+
+  private createScaledBuiltin(id: string): Model3D {
+    const m = createBuiltinModel(id);
+    const f = this.getModelScaleFactor();
+    if (f === 1) return m;
+    const r = (v: number) => Math.round(v * f * 10) / 10;
+    return { ...m, width: r(m.width), depth: r(m.depth), height: r(m.height) };
+  }
+
   private renderModelsTab(container: HTMLElement) {
-    const t = getTranslations().sidebar;
     const isDe = getLanguage() === "de";
 
-    // 1. Header
- 
-    // 2. Import Action & Drag-Drop Zone
+    // ---- Single import field: click to open file dialog OR drop files ----
     const importArea = document.createElement("div");
     importArea.className = "models-import-area";
 
     const fileInput = document.createElement("input");
     fileInput.type = "file";
     fileInput.accept = ".glb,.gltf";
+    fileInput.multiple = true;
     fileInput.style.display = "none";
-    fileInput.addEventListener("change", async (e) => {
-      const files = (e.target as HTMLInputElement).files;
-      if (files && files[0]) {
-        await this.handleImportModel(files[0]!);
-        fileInput.value = "";
-      }
+    fileInput.addEventListener("change", async () => {
+      const files = Array.from(fileInput.files ?? []);
+      fileInput.value = "";
+      for (const f of files) await this.handleImportModel(f);
     });
     importArea.appendChild(fileInput);
 
-    const importBtn = document.createElement("button");
-    importBtn.className = "rb-btn rb-btn-primary models-import-btn";
-    importBtn.innerHTML = `<strong>${isDe ? "3D-Modell importieren (.glb / .gltf)..." : "Import 3D Model (.glb / .gltf)..."}</strong>`;
-    importBtn.title = isDe ? "3D-Modelldatei (.glb oder .gltf) importieren" : "Import a 3D model file (.glb binary or .gltf JSON)";
-    importBtn.addEventListener("click", () => fileInput.click());
-    importArea.appendChild(importBtn);
-
-    // Dropzone für .glb / .gltf
     const dropzone = document.createElement("div");
     dropzone.className = "models-dropzone";
+    dropzone.tabIndex = 0;
+    dropzone.setAttribute("role", "button");
+    dropzone.title = isDe ? "3D-Modell (.glb / .gltf) importieren" : "Import a 3D model (.glb / .gltf)";
     dropzone.innerHTML = `
       <div class="dropzone-icon">📂</div>
-      <div class="dropzone-text">Drop <code>.glb</code> or <code>.gltf</code> files here</div>
+      <div class="dropzone-text">${
+        isDe
+          ? "<code>.glb</code> / <code>.gltf</code> hierher ziehen oder <strong>klicken</strong>"
+          : "Drop <code>.glb</code> / <code>.gltf</code> here or <strong>click to import</strong>"
+      }</div>
     `;
 
+    dropzone.addEventListener("click", () => fileInput.click());
+    dropzone.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        fileInput.click();
+      }
+    });
     dropzone.addEventListener("dragover", (e) => {
       e.preventDefault();
       dropzone.classList.add("dragover");
       if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
     });
-    dropzone.addEventListener("dragleave", () => {
-      dropzone.classList.remove("dragover");
-    });
+    dropzone.addEventListener("dragleave", () => dropzone.classList.remove("dragover"));
     dropzone.addEventListener("drop", async (e) => {
       e.preventDefault();
       dropzone.classList.remove("dragover");
-      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) {
-        await this.handleImportModel(e.dataTransfer.files[0]!);
-      }
+      const files = Array.from(e.dataTransfer?.files ?? []);
+      for (const f of files) await this.handleImportModel(f);
     });
+
     importArea.appendChild(dropzone);
     container.appendChild(importArea);
 
-    // 3. Search Box
+    // ---- 2-step menu: SCALE -> CATEGORY ----
+    let menuStep: "closed" | "scales" | "categories" = "closed";
+    let activeScale: ModelScale = this.currentModelScale;
+
+    const categoryLabel = (cat: string) => (isDe ? MODEL_CATEGORY_LABELS_DE[cat] ?? cat : cat);
+
+    const selectorBox = document.createElement("div");
+    selectorBox.className = "catalog-system-box";
+    selectorBox.style.position = "relative";
+
+    const trigger = document.createElement("button");
+    trigger.type = "button";
+    trigger.className = "catalog-dropdown-trigger";
+    trigger.innerHTML = `
+      <div class="catalog-trigger-text">
+        <span class="catalog-trigger-title">${isDe ? "Spur" : "Scale"} ${this.currentModelScale} — ${categoryLabel(
+      this.selectedModelCategory,
+    )}</span>
+        <span class="catalog-trigger-sub">${
+          isDe ? SCALE_DESCRIPTIONS[this.currentModelScale].de : SCALE_DESCRIPTIONS[this.currentModelScale].en
+        }</span>
+      </div>
+      <span class="catalog-dropdown-arrow">▾</span>
+    `;
+
+    const popover = document.createElement("div");
+    popover.className = "two-step-popover";
+    popover.style.display = "none";
+
+    const updateModelPopover = () => {
+      if (menuStep === "closed") {
+        popover.style.display = "none";
+        return;
+      }
+      popover.style.display = "flex";
+      popover.innerHTML = "";
+
+      if (menuStep === "scales") {
+        const header = document.createElement("div");
+        header.className = "popover-header";
+        header.textContent = isDe ? "1. Maßstab wählen" : "1. Select Scale";
+        popover.appendChild(header);
+
+        const list = document.createElement("div");
+        list.className = "popover-list";
+        for (const sc of AVAILABLE_SCALES) {
+          const item = document.createElement("button");
+          item.type = "button";
+          item.className = `popover-item ${sc === this.currentModelScale ? "active" : ""}`;
+          item.innerHTML = `
+            <div>
+              <div style="font-weight: 600;">Spur ${sc}</div>
+              <div style="font-size: 9.5px; opacity: 0.7;">1:${MODEL_SCALE_RATIOS[sc]}</div>
+            </div>
+            <span>›</span>
+          `;
+          item.addEventListener("click", (e) => {
+            e.stopPropagation();
+            activeScale = sc;
+            menuStep = "categories";
+            updateModelPopover();
+          });
+          list.appendChild(item);
+        }
+        popover.appendChild(list);
+      } else {
+        const header = document.createElement("div");
+        header.className = "popover-header";
+
+        const backBtn = document.createElement("button");
+        backBtn.type = "button";
+        backBtn.className = "popover-back-btn";
+        backBtn.textContent = "‹";
+        backBtn.title = isDe ? "Zurück zu Maßstäben" : "Back to Scales";
+        backBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          menuStep = "scales";
+          updateModelPopover();
+        });
+
+        const title = document.createElement("span");
+        title.textContent = `${isDe ? "Kategorie für Spur" : "Category for"} ${activeScale}`;
+        header.append(backBtn, title);
+        popover.appendChild(header);
+
+        const list = document.createElement("div");
+        list.className = "popover-list";
+        for (const cat of MODEL_CATEGORIES) {
+          const isSelected = cat === this.selectedModelCategory && activeScale === this.currentModelScale;
+          const item = document.createElement("button");
+          item.type = "button";
+          item.className = `popover-item ${isSelected ? "active" : ""}`;
+          item.innerHTML = `<span>${categoryLabel(cat)}</span>${isSelected ? "<span>✓</span>" : ""}`;
+          item.addEventListener("click", (e) => {
+            e.stopPropagation();
+            this.currentModelScale = activeScale;
+            this.selectedModelCategory = cat;
+            menuStep = "closed";
+            this.render();
+          });
+          list.appendChild(item);
+        }
+        popover.appendChild(list);
+      }
+    };
+
+    trigger.addEventListener("click", (e) => {
+      e.stopPropagation();
+      menuStep = menuStep === "closed" ? "scales" : "closed";
+      updateModelPopover();
+    });
+
+    this.addWindowClickListener((e) => {
+      if (!selectorBox.contains(e.target as Node) && menuStep !== "closed") {
+        menuStep = "closed";
+        updateModelPopover();
+      }
+    });
+
+    selectorBox.append(trigger, popover);
+    container.appendChild(selectorBox);
+
+    // ---- Search ----
     const searchBox = document.createElement("div");
     searchBox.className = "search-box";
     const input = document.createElement("input");
     input.type = "text";
-    input.placeholder = "🔍 Search 3D models...";
+    input.placeholder = isDe ? "🔍 3D-Modelle suchen..." : "🔍 Search 3D models...";
     input.value = this.modelsSearchQuery;
     input.addEventListener("input", (e) => {
       this.modelsSearchQuery = (e.target as HTMLInputElement).value;
@@ -781,29 +1207,13 @@ export class Sidebar {
     searchBox.appendChild(input);
     container.appendChild(searchBox);
 
-    // 4. Category Filter Bar
-    const categories = ["All", "Buildings", "Railway", "Nature", "Custom"];
-    const filterBar = document.createElement("div");
-    filterBar.className = "category-filter-bar";
-    for (const cat of categories) {
-      const pill = document.createElement("button");
-      pill.className = `filter-pill ${this.selectedModelCategory === cat ? "active" : ""}`;
-      pill.textContent = cat;
-      pill.addEventListener("click", () => {
-        this.selectedModelCategory = cat;
-        this.renderModelsTab(container);
-      });
-      filterBar.appendChild(pill);
-    }
-    container.appendChild(filterBar);
-
-    // 5. Drag & Drop Hint
     const hint = document.createElement("div");
     hint.className = "drag-hint";
-    hint.innerHTML = " <em>Drag model onto canvas or click <strong>+ Add to Plan</strong></em>";
+    hint.innerHTML = isDe
+      ? " <em>Modell auf die Arbeitsfläche ziehen oder auf <strong>+</strong> klicken</em>"
+      : " <em>Drag model onto canvas or click <strong>+ Add to Plan</strong></em>";
     container.appendChild(hint);
 
-    // 6. Models List Container
     const listContainer = document.createElement("div");
     listContainer.className = "track-cards-list";
     this.renderModelsList(listContainer);
@@ -831,7 +1241,6 @@ export class Sidebar {
     const query = this.modelsSearchQuery.toLowerCase().trim();
     const selCat = this.selectedModelCategory.toLowerCase();
 
-    // 1. Eingebaute Modelle filtern
     const matchingBuiltins = BUILTIN_MODELS.filter((def) => {
       if (selCat !== "all" && selCat !== "custom" && def.category.toLowerCase() !== selCat) {
         return false;
@@ -841,7 +1250,6 @@ export class Sidebar {
       return def.name.toLowerCase().includes(query) || def.description.toLowerCase().includes(query);
     });
 
-    // 2. Custom Modelle filtern
     const matchingCustoms = this.customModelsLibrary.filter((m) => {
       if (selCat !== "all" && selCat !== "custom") return false;
       if (!query) return true;
@@ -851,20 +1259,22 @@ export class Sidebar {
     if (matchingBuiltins.length === 0 && matchingCustoms.length === 0) {
       const empty = document.createElement("div");
       empty.className = "catalog-empty";
-      empty.textContent = "No 3D models found matching your search.";
+      empty.textContent = isDe ? "Keine 3D-Modelle gefunden." : "No 3D models found matching your search.";
       container.appendChild(empty);
       return;
     }
 
-    // Built-in Cards rendern
     for (const def of matchingBuiltins) {
+      const f = this.getModelScaleFactor();
+      const fmt = (v: number) => Math.round(v * f * 10) / 10;
+
       const card = document.createElement("div");
       card.className = "track-card model-card";
       card.draggable = true;
 
       card.addEventListener("dragstart", (e) => {
         card.classList.add("dragging");
-        const newModel = createBuiltinModel(def.id);
+        const newModel = this.createScaledBuiltin(def.id);
         e.dataTransfer?.setData("application/railbench-model", JSON.stringify(newModel));
         e.dataTransfer?.setData("text/plain", def.name);
         if (e.dataTransfer) e.dataTransfer.effectAllowed = "copy";
@@ -883,7 +1293,7 @@ export class Sidebar {
           <span class="card-category-badge" style="background: ${def.badgeBg}; color: ${def.badgeColor};">${def.category}</span>
         </div>
         <div class="card-spec" style="margin-top: 4px; font-weight: 600; color: var(--text-main);">
-          Size: ${def.width} × ${def.depth} × ${def.height} mm (H0)
+          Size: ${fmt(def.width)} × ${fmt(def.depth)} × ${fmt(def.height)} mm (${this.currentModelScale})
         </div>
         <div class="card-desc" style="font-size: 10px; color: var(--text-muted); line-height: 1.3; margin-top: 2px;">
           ${def.description}
@@ -896,14 +1306,13 @@ export class Sidebar {
       addBtn.title = isDe ? `${def.name} in den Plan einfügen` : `Place ${def.name} in center of layout`;
       addBtn.addEventListener("click", (e) => {
         e.stopPropagation();
-        this.callbacks.onAddModel?.(createBuiltinModel(def.id));
+        this.callbacks.onAddModel?.(this.createScaledBuiltin(def.id));
       });
 
       card.appendChild(addBtn);
       container.appendChild(card);
     }
 
-    // Custom Cards rendern
     for (const m of matchingCustoms) {
       const card = document.createElement("div");
       card.className = "track-card model-card custom-model-card";
@@ -953,7 +1362,7 @@ export class Sidebar {
       const delBtn = document.createElement("button");
       delBtn.className = "layer-action-btn btn-danger";
       delBtn.innerHTML = "🗑";
-      delBtn.title = "Remove from custom library";
+      delBtn.title = isDe ? "Aus eigener Bibliothek entfernen" : "Remove from custom library";
       delBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         this.customModelsLibrary = this.customModelsLibrary.filter((x) => x.name !== m.name);
@@ -966,7 +1375,9 @@ export class Sidebar {
     }
   }
 
-  // --- TAB 2: LAYERS MANAGEMENT ---
+  // =========================================================================
+  // TAB 2: LAYERS MANAGEMENT
+  // =========================================================================
   private renderLayersTab(container: HTMLElement) {
     this.layout.layers = sortLayers(this.layout.layers || []);
     const layers = this.layout.layers;
@@ -1089,11 +1500,9 @@ export class Sidebar {
       cardMain.appendChild(metaDiv);
       card.appendChild(cardMain);
 
-      // Actions container
       const actions = document.createElement("div");
       actions.className = "layer-actions";
 
-      // Select active layer
       if (!isActive) {
         const activateBtn = document.createElement("button");
         activateBtn.className = "layer-btn-pill";
@@ -1107,7 +1516,6 @@ export class Sidebar {
         actions.appendChild(activateBtn);
       }
 
-      // Visibility toggle
       const visBtn = document.createElement("button");
       visBtn.className = `layer-icon-btn ${layer.visible ? "active" : "muted"}`;
       visBtn.innerHTML = layer.visible ? "👁️" : "🕶️";
@@ -1119,7 +1527,6 @@ export class Sidebar {
       });
       actions.appendChild(visBtn);
 
-      // Lock toggle
       const lockBtn = document.createElement("button");
       lockBtn.className = `layer-icon-btn ${layer.locked ? "locked active-warning" : ""}`;
       lockBtn.innerHTML = layer.locked ? "🔒" : "🔓";
@@ -1131,7 +1538,6 @@ export class Sidebar {
       });
       actions.appendChild(lockBtn);
 
-      // Move selected tracks here
       if (selectedPieceIds.length > 0) {
         const moveBtn = document.createElement("button");
         moveBtn.className = "layer-btn-pill";
@@ -1144,7 +1550,6 @@ export class Sidebar {
         actions.appendChild(moveBtn);
       }
 
-      // Delete layer (if > 1)
       if (layers.length > 1) {
         const delBtn = document.createElement("button");
         delBtn.className = "layer-icon-btn btn-danger";
@@ -1173,7 +1578,6 @@ export class Sidebar {
 
     container.appendChild(list);
 
-    // Add New Layer Button
     const addLayerBtn = document.createElement("button");
     addLayerBtn.className = "btn-export-csv";
     addLayerBtn.style.marginTop = "6px";
@@ -1197,7 +1601,9 @@ export class Sidebar {
     container.appendChild(addLayerBtn);
   }
 
-  // --- TAB: TABLE / BASEBOARD SETTINGS ---
+  // =========================================================================
+  // TAB 2B: TABLE / BASEBOARD SETTINGS
+  // =========================================================================
   private renderBoardTab(container: HTMLElement) {
     const baseboards = getBaseboards(this.layout);
     if (!this.activeBoardId || !baseboards.some((b) => b.id === this.activeBoardId)) {
@@ -1208,12 +1614,9 @@ export class Sidebar {
     const tBoard = getTranslations().sidebar.board;
     const isDe = getLanguage() === "de";
 
-    // 1. Header
     const header = document.createElement("div");
-
     container.appendChild(header);
 
-    // 2. Global Enable Toggle & Add Table Button
     const anyEnabled = baseboards.some((b) => b.enabled);
     const topCard = document.createElement("div");
     topCard.className = "board-card";
@@ -1253,12 +1656,15 @@ export class Sidebar {
     if (!anyEnabled) {
       const note = document.createElement("div");
       note.className = "empty-state";
-      note.innerHTML = `<span class="empty-text">${isDe ? "Tisch ist ausgeblendet" : "Table is hidden"}</span><span class="empty-sub">${isDe ? "Aktivieren Sie die Option oben, um den Tisch anzuzeigen." : "Check the option above to show table benchwork."}</span>`;
+      note.innerHTML = `<span class="empty-text">${
+        isDe ? "Tisch ist ausgeblendet" : "Table is hidden"
+      }</span><span class="empty-sub">${
+        isDe ? "Aktivieren Sie die Option oben, um den Tisch anzuzeigen." : "Check the option above to show table benchwork."
+      }</span>`;
       container.appendChild(note);
       return;
     }
 
-    // 3. Table Selector & Name Card
     const tableCard = document.createElement("div");
     tableCard.className = "board-card";
 
@@ -1270,11 +1676,15 @@ export class Sidebar {
             ${baseboards
               .map(
                 (b, i) =>
-                  `<option value="${b.id}" ${b.id === bb.id ? "selected" : ""}>${b.name ?? (isDe ? `Tisch ${i + 1}` : `Table ${i + 1}`)} (${b.width} × ${b.depth} mm)</option>`,
+                  `<option value="${b.id}" ${b.id === bb.id ? "selected" : ""}>${
+                    b.name ?? (isDe ? `Tisch ${i + 1}` : `Table ${i + 1}`)
+                  } (${b.width} × ${b.depth} mm)</option>`,
               )
               .join("")}
           </select>
-          <button class="rb-btn rb-btn-secondary board-action-btn" id="bb-vis-btn" title="${isDe ? "Sichtbarkeit umschalten" : "Toggle visibility"}">${bb.enabled ? "👁️" : "🚫"}</button>
+          <button class="rb-btn rb-btn-secondary board-action-btn" id="bb-vis-btn" title="${
+            isDe ? "Sichtbarkeit umschalten" : "Toggle visibility"
+          }">${bb.enabled ? "👁️" : "🚫"}</button>
           <button class="rb-btn rb-btn-secondary board-action-btn" id="bb-dup-btn" title="${tBoard.duplicateTable}">📑</button>
           <button class="rb-btn rb-btn-secondary board-action-btn" id="bb-del-btn" title="${tBoard.deleteTable}" style="color: #ef4444;">🗑️</button>
         </div>
@@ -1331,7 +1741,6 @@ export class Sidebar {
     });
     container.appendChild(tableCard);
 
-    // 4. Shape & Dimensions Card
     const currentShape = bb.shape ?? "rect";
     const dimsCard = document.createElement("div");
     dimsCard.className = "board-card";
@@ -1456,7 +1865,9 @@ export class Sidebar {
 
       ${shapeSpecificHTML}
 
-      <button class="board-btn-fit" id="bb-fit-tracks" title="${isDe ? "Tisch automatisch an alle platzierten Gleise anpassen" : "Auto-calculate table size from placed tracks"}" style="margin-top: 6px;">
+      <button class="board-btn-fit" id="bb-fit-tracks" title="${
+        isDe ? "Tisch automatisch an alle platzierten Gleise anpassen" : "Auto-calculate table size from placed tracks"
+      }" style="margin-top: 6px;">
         ${tBoard.fitTracks}
       </button>
     `;
@@ -1492,7 +1903,6 @@ export class Sidebar {
       this.callbacks.onBaseboardChange?.();
     });
 
-    // L-shape listeners
     const lWingW = dimsCard.querySelector("#bb-l-wing-w") as HTMLInputElement | null;
     const lMainD = dimsCard.querySelector("#bb-l-main-d") as HTMLInputElement | null;
     const lSideSel = dimsCard.querySelector("#bb-l-side") as HTMLSelectElement | null;
@@ -1500,7 +1910,6 @@ export class Sidebar {
     if (lMainD) lMainD.addEventListener("change", () => { bb.lWingDepth = parseFloat(lMainD.value) || 800; this.callbacks.onBaseboardChange?.(); });
     if (lSideSel) lSideSel.addEventListener("change", () => { bb.lSide = lSideSel.value as any; this.callbacks.onBaseboardChange?.(); });
 
-    // U-shape listeners
     const uLeftW = dimsCard.querySelector("#bb-u-left-w") as HTMLInputElement | null;
     const uRightW = dimsCard.querySelector("#bb-u-right-w") as HTMLInputElement | null;
     const uBackD = dimsCard.querySelector("#bb-u-back-d") as HTMLInputElement | null;
@@ -1508,7 +1917,6 @@ export class Sidebar {
     if (uRightW) uRightW.addEventListener("change", () => { bb.uRightWingWidth = parseFloat(uRightW.value) || 700; this.callbacks.onBaseboardChange?.(); });
     if (uBackD) uBackD.addEventListener("change", () => { bb.uBackDepth = parseFloat(uBackD.value) || 600; this.callbacks.onBaseboardChange?.(); });
 
-    // T-shape listeners
     const tBarD = dimsCard.querySelector("#bb-t-bar-d") as HTMLInputElement | null;
     const tStemW = dimsCard.querySelector("#bb-t-stem-w") as HTMLInputElement | null;
     if (tBarD) tBarD.addEventListener("change", () => { bb.tBarDepth = parseFloat(tBarD.value) || 600; this.callbacks.onBaseboardChange?.(); });
@@ -1543,7 +1951,7 @@ export class Sidebar {
 
     container.appendChild(dimsCard);
 
-    // 5. Position & Style Card
+    // Position & Surface Style Card
     const styleCard = document.createElement("div");
     styleCard.className = "board-card";
     const hasOtherTables = baseboards.length > 1;
@@ -1667,11 +2075,12 @@ export class Sidebar {
     container.appendChild(styleCard);
   }
 
-  // --- TAB 3: BILL OF MATERIALS (PARTS LIST) ---
+  // =========================================================================
+  // TAB 3: BILL OF MATERIALS (BOM)
+  // =========================================================================
   private renderBomTab(container: HTMLElement, summary: ReturnType<typeof getPieceListSummary>) {
     const tBom = getTranslations().sidebar.bom;
 
-    // Filter Bar (All / Tracks / Roads / Buildings)
     const filterBar = document.createElement("div");
     filterBar.className = "bom-filter-bar";
     filterBar.innerHTML = `
@@ -1700,7 +2109,6 @@ export class Sidebar {
     });
     container.appendChild(filterBar);
 
-    // Summary Metric Box
     const summaryBox = document.createElement("div");
     summaryBox.className = "bom-summary-box";
 
@@ -1770,7 +2178,6 @@ export class Sidebar {
     const showRoads = this.activePartsCategory === "all" || this.activePartsCategory === "roads";
     const showBuildings = this.activePartsCategory === "all" || this.activePartsCategory === "buildings";
 
-    // 1. Tracks Section
     if (showTracks) {
       if (summary.tracks.items.length > 0) {
         const secHeader = document.createElement("div");
@@ -1819,7 +2226,6 @@ export class Sidebar {
       }
     }
 
-    // 2. Roads Section
     if (showRoads) {
       if (summary.roads.items.length > 0) {
         const secHeader = document.createElement("div");
@@ -1867,7 +2273,6 @@ export class Sidebar {
       }
     }
 
-    // 3. Buildings & Models Section
     if (showBuildings) {
       if (summary.buildings.items.length > 0) {
         const secHeader = document.createElement("div");
@@ -1913,13 +2318,17 @@ export class Sidebar {
       }
     }
   }
-
 }
 
 /** Legacy helper */
 export function renderCatalog(host: HTMLElement, catalog: Catalog) {
-  new Sidebar(host, catalog, { name: "New Layout", scale: "H0", pieces: [] }, {
-    onAddPiece: () => {},
-    onExportCSV: () => {},
-  });
+  new Sidebar(
+    host,
+    catalog,
+    { name: "New Layout", scale: "H0", pieces: [] },
+    {
+      onAddPiece: () => {},
+      onExportCSV: () => {},
+    },
+  );
 }
