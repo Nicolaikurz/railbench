@@ -1,19 +1,19 @@
-# Railbench – Model Railway Track Planner (v0.5.1)
+# Railbench – Model Railway Track Planner (v0.5.2)
 
 An intuitive, fast, and precise model railway track planning and layout simulation application (TypeScript + PixiJS + Vite + Electron).
 
 ---
 
 > [!IMPORTANT]
-> **Release 0.5.1 Testing Notice**:
-> For **Release 0.5.1, the application includes multi-platform executables for **Linux (x86_64, arm64 AppImage)**, **Windows (x64, arm64 portable Dir)**, and **macOS (Apple Silicon M1/M2/M3/M4 arm64(not tested))**.
+> **Release 0.5.2 Testing Notice**:
+> For **Release 0.5.2, the application includes multi-platform executables for **Linux (x86_64, arm64 AppImage)**, **Windows (x64, arm64 portable Dir)**, and **macOS (Apple Silicon M1/M2/M3/M4 arm64(not tested))**.
 
 ---
 
 ## Key Features & Capabilities
 
 ### 1. Precision Track CAD & Multi-Scale Catalogs
-* **Popular Track Systems**: Includes ready-to-use geometries for **H0 (1:87)** (Märklin C-Gleis, Märklin K-Gleis, Märklin M-Gleis, Trix C-Gleis [2-Leiter DCC], Piko A-Gleis, Roco Line), **TT (1:120)** (Tillig Modellgleis), and **N (1:160)** (Fleischmann Piccolo).
+* **Popular Track Systems**: Includes ready-to-use geometries for H0 (1:87) (Märklin C-Gleis, Märklin K-Gleis, Märklin M-Gleis, Trix C-Gleis, Piko A-Gleis, Roco Line, Tillig Elite, Peco Streamline Code 100), TT (1:120) (Tillig Modellgleis, Tillig Bettungsgleis, Kuehn Gleis), N (1:160) (Fleischmann Piccolo, Kato Unitrack, Minitrix), and Z (1:220) (Märklin mini-club, Rokuhan).
 * **Märklin C-Gleis Drehscheibe 74862 & Trix 66862**: Full turntable support (DB 23 m standard type) with 30 exits at 12° increments, circular pit rail, bridge with wooden catwalks, operator cab, and true 3D pit rendering.
 * **Integrated Street & Road Systems**: Dedicated street catalogs for H0 and N scale in their own sidebar tab (Straßen) with straights, curves, junctions, turning loops, and asphalt rendering.
 * **Point-to-Point Distance Measuring Tool**: Measure straight-line distance, horizontal/vertical deltas, and angle between any two points with snap guidance.
