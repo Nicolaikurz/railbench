@@ -1,11 +1,13 @@
 import * as THREE from "three";
-import type { Model3D } from "@/core/types";
+import { applyModelScale, type ModelScale } from "@/core/model-scale";
 
-/**
- * Erzeugt fotorealistische, maßstäbliche prozedurale Three.js 3D-Modelle für alle Standard-Modellbahn-Objekte.
- */
-export function createBuiltinModel3DMesh(builtinId: string, _model: Model3D): THREE.Group {
+export function createBuiltinModel3DMesh(
+  builtinId: string,
+  _model: Model3D,
+  scale: ModelScale = "H0",
+): THREE.Group {
   const group = new THREE.Group();
+
 
   switch (builtinId) {
     case "station":
@@ -50,7 +52,7 @@ export function createBuiltinModel3DMesh(builtinId: string, _model: Model3D): TH
       obj.receiveShadow = true;
     }
   });
-
+  applyModelScale(group, scale);
   return group;
 }
 

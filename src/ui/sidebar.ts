@@ -28,8 +28,9 @@ import {
   parseGlbOrGltfFile,
   type BuiltinModelDef,
 } from "@/core/models-3d";
+import { MODEL_SCALE_RATIOS, getScaleFactor, scaleDimensions, type ModelScale } from "@/core/model-scale";
 
-export type ModelScale = "H0" | "TT" | "N" | "Z";
+export type { ModelScale };
 export type SidebarTab = "catalog" | "roads" | "models" | "board" | "bom" | "layers";
 
 export interface SidebarCallbacks {
@@ -69,9 +70,6 @@ const ROAD_WIDTH_MM: Record<ModelScale, number> = { H0: 60, TT: 45, N: 35, Z: 25
 function getRoadWidthMm(scale?: string): number {
   return ROAD_WIDTH_MM[((scale || "H0").toUpperCase() as ModelScale)] ?? 60;
 }
-
-/** Scale denominators (1:x). Built-in models are defined in H0. */
-const MODEL_SCALE_RATIOS: Record<ModelScale, number> = { H0: 87, TT: 120, N: 160, Z: 220 };
 
 const MODEL_CATEGORIES = ["All", "Buildings", "Railway", "Nature", "Custom"];
 
@@ -1044,15 +1042,11 @@ export class Sidebar {
 
   /** Built-in models are defined in H0, so scale their dimensions to the selected scale. */
   private getModelScaleFactor(): number {
-    return MODEL_SCALE_RATIOS.H0 / MODEL_SCALE_RATIOS[this.currentModelScale];
+    return getScaleFactor(this.currentModelScale);
   }
 
   private createScaledBuiltin(id: string): Model3D {
-    const m = createBuiltinModel(id);
-    const f = this.getModelScaleFactor();
-    if (f === 1) return m;
-    const r = (v: number) => Math.round(v * f * 10) / 10;
-    return { ...m, width: r(m.width), depth: r(m.depth), height: r(m.height) };
+    return scaleDimensions(createBuiltinModel(id), this.currentModelScale);
   }
 
   private renderModelsTab(container: HTMLElement) {
