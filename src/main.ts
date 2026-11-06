@@ -1671,12 +1671,7 @@ selBarElevInput.addEventListener("keydown", (e: KeyboardEvent) => {
     const minHStr = roundH(minH) > 0 ? `+${roundH(minH)}` : `${roundH(minH)}`;
     const maxHStr = roundH(maxH) > 0 ? `+${roundH(maxH)}` : `${roundH(maxH)}`;
 
-    if (!anyRamp && minH === maxH) {
-      selBarElevBadge.textContent = `${minHStr} mm`;
-    } else {
-      selBarElevBadge.textContent = `${tSel.rampPrefix} ${minHStr}→${maxHStr} mm`;
-    }
-
+    
     const activeAngle = firstPiece ? firstPiece.transform.rotation : 0;
     if (document.activeElement !== selBarAngleInput) {
       selBarAngleInput.value = (Math.round(activeAngle * 100) / 100).toString();

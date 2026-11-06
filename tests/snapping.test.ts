@@ -418,13 +418,13 @@ describe("isPieceInSelectionBox & multi-selection", () => {
       layerId: "layer-2",
     };
 
-    const spriteOff = createTrackGraphics(piece, g188, { colorMode: "off" });
+    const spriteOff = createTrackGraphics(piece, g188,undefined, { colorMode: "off" });
     expect(spriteOff).toBeDefined();
 
-    const spriteTypes = createTrackGraphics(piece, g188, { colorMode: "types" });
+    const spriteTypes = createTrackGraphics(piece, g188,undefined, { colorMode: "types" });
     expect(spriteTypes).toBeDefined();
 
-    const spriteLayers = createTrackGraphics(piece, g188, {
+    const spriteLayers = createTrackGraphics(piece, g188,undefined, {
       colorMode: "layers",
       layerColor: "#ec4899",
     });

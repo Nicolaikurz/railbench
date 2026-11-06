@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { applyModelScale, type ModelScale } from "@/core/model-scale";
+import type { Model3D } from "@/core/types";
 
 export function createBuiltinModel3DMesh(
   builtinId: string,

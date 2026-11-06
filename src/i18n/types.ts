@@ -346,6 +346,7 @@ export interface Translations {
     turnoutCurrentTitle: string;
     multipleLayers: string;
     rampPrefix: string;
+    heightLabel: string;
   };
   heightDialog: {
     title: string;
