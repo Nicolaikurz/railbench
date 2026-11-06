@@ -346,6 +346,7 @@ export const de: Translations = {
     turnoutCurrentTitle: "Ruhestrom der Weiche in mA",
     multipleLayers: "(Mehrere Ebenen)",
     rampPrefix: "Rampe",
+    heightLabel: "Höhe:",
   },
   heightDialog: {
     title: "Gleishöhe & Ebene anpassen",

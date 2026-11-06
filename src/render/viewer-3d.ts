@@ -8,6 +8,8 @@ import { catalogRegistry } from "@/catalog/catalog";
 import { deg2rad, getPieceLocalCenter } from "@/core/geometry";
 import { getTrackBlueprintColor } from "@/render/blueprint-colors";
 import { createBuiltinModel3DMesh } from "@/render/builtin-models-3d";
+import { BUILTIN_MODELS } from "@/core/models-3d";
+import { getScaleFactor, parseModelScale, type ModelScale } from "@/core/model-scale";
 import type { ShortCircuitDetectionResult } from "@/core/simulation";
 import { getTranslations } from "@/i18n";
 
@@ -59,6 +61,8 @@ export class Viewer3D {
   private showWoodPlate = true;
   private gltfLoader = new GLTFLoader();
   private gltfCache = new Map<string, THREE.Group>();
+  /** Maßstab des aktuellen Layouts (Fallback für eingebaute Modelle ohne bekannte Basismaße). */
+  private layoutScale: ModelScale = "H0";
   private isVisible = false;
   private currentTheme: "light" | "dark" = "light";
   private sunLight: THREE.DirectionalLight | null = null;
@@ -264,12 +268,11 @@ export class Viewer3D {
     this.overlayEl = overlay;
 
     overlay.innerHTML = `
-      <div class="viewer-3d-badge">
-        <span class="v3d-icon">🧊</span>
-        <span class="v3d-title">3D Elevation & Layout View</span>
-      </div>
-      <div class="viewer-3d-actions">
-        <div class="v3d-daynight-bar" title="Tag/Nacht-Zyklus mit wandernder Sonne">
+      <div class="viewer-3d-header" style="position: absolute; top: 16px; left: 16px; right: 16px; display: flex; align-items: center; justify-content: space-between; pointer-events: none; z-index: 25;">
+        
+      
+        <!-- Mitte: Uhr & Zeitschieberegler zentriert -->
+        <div class="v3d-daynight-bar" style="pointer-events: auto; display: flex; align-items: center; gap: 8px; position: absolute; left: 50%; transform: translateX(-50%);" title="Tag/Nacht-Zyklus mit wandernder Sonne">
           <button class="v3d-btn ${this.dayNightActive ? "active" : ""}" id="v3d-toggle-cycle" title="Tag/Nacht-Zyklus starten oder anhalten">
             <span id="v3d-cycle-label">14:00</span>
           </button>
@@ -278,12 +281,11 @@ export class Viewer3D {
             <span id="v3d-speed-label">${this.cycleSpeed}x</span>
           </button>
         </div>
-        <button class="v3d-btn" id="v3d-short-circuit-btn" style="display: none; background: #dc2626; color: #ffffff; border-color: #ef4444; font-weight: 700;" title="Kurzschluss anzeigen">
-          <span>⚠️⚡ Kurzschluss</span>
-        </button>
-        <button class="v3d-btn v3d-btn-back" id="v3d-close" title="Zurück zum 2D-Gleisplan (Esc)">
-          <span>← Zurück zum 2D-Plan</span>
-        </button>
+
+        <!-- Rechts: Aktions-Buttons -->
+        <div class="viewer-3d-actions" style="pointer-events: auto; display: flex; align-items: center; gap: 8px;">
+          
+        </div>
       </div>
     `;
 
@@ -595,6 +597,7 @@ export class Viewer3D {
     options?: { showColorCode?: boolean; colorMode?: ColorMode; shortCircuit?: ShortCircuitDetectionResult },
   ) {
     this.currentShortCircuit = options?.shortCircuit;
+    this.layoutScale = parseModelScale(layout.scale);
     this.clearGroup(this.tableGroup);
     this.clearGroup(this.pillarsGroup);
     this.clearGroup(this.woodPlateGroup);
@@ -743,14 +746,24 @@ export class Viewer3D {
     this.controls.update();
   }
 
+  /**
+   * Maßstabsfaktor für eingebaute Modelle. Die Meshes sind in H0-Millimetern gebaut. Die Sidebar speichert im
+   * Model3D bereits die auf den gewählten Maßstab umgerechneten Maße, daraus ergibt sich der Faktor
+   * (z. B. N: 87/160 ≈ 0,544). Fehlt die Definition, wird der Layout-Maßstab verwendet.
+   */
+  private getBuiltinScaleFactor(model: Model3D): number {
+    const def = BUILTIN_MODELS.find((d) => d.id === model.builtinId);
+    if (def && def.width > 0 && model.width > 0) return model.width / def.width;
+    return getScaleFactor(this.layoutScale);
+  }
+
   private buildModel3D(model: Model3D, elevation: number) {
     if (model.modelType === "builtin") {
       const mesh = createBuiltinModel3DMesh(model.builtinId || "station", model);
       mesh.position.set(model.transform.x, elevation, model.transform.y);
       mesh.rotation.y = -deg2rad(model.transform.rotation);
-      if (model.scale && model.scale !== 1.0) {
-        mesh.scale.setScalar(model.scale);
-      }
+      // Maßstab und manueller Skalierungsfaktor des Nutzers werden multipliziert (nicht überschrieben).
+      mesh.scale.setScalar(this.getBuiltinScaleFactor(model) * (model.scale || 1));
       this.modelsGroup.add(mesh);
     } else if (model.fileData) {
       // Custom .glb oder .gltf

@@ -1233,6 +1233,44 @@ async function main() {
     });
   }
 
+  function injectSelectionBarStyles(): void {
+  const STYLE_ID = "selection-bar-overrides";
+  if (document.getElementById(STYLE_ID)) return; // only inject once
+
+  const style = document.createElement("style");
+  style.id = STYLE_ID;
+  style.textContent = `
+    .selection-floating-bar {
+      gap: 6px;
+      padding: 6px 10px;
+      max-width: calc(100% - 24px);
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .selection-floating-bar .sel-bar-btn {
+      padding: 4px 8px;
+      font-size: 12px;
+    }
+    .selection-floating-bar .sel-bar-divider {
+      margin: 0 2px;
+    }
+    .selection-floating-bar .sel-bar-select {
+      width: 84px;
+      max-width: 84px;
+      padding: 2px 4px;
+      font-size: 12px;
+      text-overflow: ellipsis;
+    }
+    .selection-floating-bar .sel-bar-angle-input {
+      width: 52px;
+    }
+    #sel-bar-elev-input {
+      width: 84px; /* wider for ramp placeholder like +10→+20 */
+    }
+  `;
+  document.head.appendChild(style);
+  }
+  injectSelectionBarStyles();
   // --- FLOATING SELECTION ACTION BAR ---
   const selectionFloatingBar = document.createElement("div");
   selectionFloatingBar.id = "selection-floating-bar";
@@ -1240,16 +1278,16 @@ async function main() {
   const initialSelT = getTranslations().selectionBar;
   selectionFloatingBar.innerHTML = `
     <span class="sel-bar-count" id="sel-bar-count">0 ${initialSelT.piecePlural}</span>
-    <span class="sel-bar-divider"></span>
     <div class="sel-bar-layer-group">
-      <label id="sel-bar-layer-lbl">${initialSelT.layerLabel}</label>
-      <select id="sel-bar-layer-select" class="sel-bar-select"></select>
-      <button id="sel-bar-btn-height" class="sel-bar-elev-btn" title="${initialSelT.heightRampBtn}">
-        <span class="sel-bar-elev-badge" id="sel-bar-elev-badge">0 mm</span>
-      </button>
+      <select id="sel-bar-layer-select" class="sel-bar-select" title="${initialSelT.layerLabel}"></select>
+    </div>
+    <div class="sel-bar-angle-group" id="sel-bar-elev-group">
+      <button id="sel-bar-btn-height" class="sel-bar-btn" title="${initialSelT.heightRampBtn}">${initialSelT.heightLabel}</button>
+      <input type="number" id="sel-bar-elev-input" class="sel-bar-angle-input" step="any" placeholder="0" title="Set exact height in mm (Enter to apply, Up/Down for ±1 mm, Shift for ±0.1)" />
+      <span class="sel-bar-unit">mm</span>
     </div>
     <div class="sel-bar-angle-group">
-      <span class="sel-bar-angle-label">${initialSelT.angleLabel}</span>
+      <span class="sel-bar-angle-label" id="sel-bar-angle-lbl">${initialSelT.angleLabel}</span>
       <input type="number" id="sel-bar-angle-input" class="sel-bar-angle-input" step="any" placeholder="0" title="Set exact rotation angle in degrees (Enter to apply, Up/Down for ±7.5°)" />
       <span class="sel-bar-unit">°</span>
     </div>
@@ -1271,8 +1309,10 @@ async function main() {
   const selBarCount = selectionFloatingBar.querySelector("#sel-bar-count") as HTMLElement;
   const selBarLayerLbl = selectionFloatingBar.querySelector("#sel-bar-layer-lbl") as HTMLElement;
   const selBarLayerSelect = selectionFloatingBar.querySelector("#sel-bar-layer-select") as HTMLSelectElement;
-  const selBarElevBadge = selectionFloatingBar.querySelector("#sel-bar-elev-badge") as HTMLElement;
-  const selBarAngleLabel = selectionFloatingBar.querySelector(".sel-bar-angle-label") as HTMLElement;
+  const selBarElevGroup = selectionFloatingBar.querySelector("#sel-bar-elev-group") as HTMLElement;
+  const selBarElevLabel = selectionFloatingBar.querySelector("#sel-bar-elev-label") as HTMLElement;
+  const selBarElevInput = selectionFloatingBar.querySelector("#sel-bar-elev-input") as HTMLInputElement;
+  const selBarAngleLabel = selectionFloatingBar.querySelector("#sel-bar-angle-lbl") as HTMLElement;
   const selBarAngleInput = selectionFloatingBar.querySelector("#sel-bar-angle-input") as HTMLInputElement;
   const selBarBtnHeight = selectionFloatingBar.querySelector("#sel-bar-btn-height") as HTMLButtonElement;
   const selBarBtnFeeder = selectionFloatingBar.querySelector("#sel-bar-btn-feeder") as HTMLButtonElement;
@@ -1286,6 +1326,8 @@ async function main() {
 
   function updateSelectionFloatingBarStatic(): void {
     const t = getTranslations().selectionBar;
+    if (selBarElevLabel) selBarElevLabel.textContent = t.heightLabel;
+    if (selBarBtnHeight) selBarBtnHeight.textContent = t.rampPrefix;
     if (selBarLayerLbl) selBarLayerLbl.textContent = t.layerLabel;
     if (selBarAngleLabel) selBarAngleLabel.textContent = t.angleLabel;
     if (selBarBtnHeight) selBarBtnHeight.title = t.heightRampBtn;
@@ -1315,6 +1357,50 @@ async function main() {
     }
     updateSelectionFloatingBar();
   }
+  function applyHeightInput(): void {
+  const target = parseFloat(selBarElevInput.value);
+  if (isNaN(target)) return;
+  const layers = layout.layers || [];
+
+  // group interactive selected pieces by layer (elevation is relative to the layer height)
+  const byLayer = new Map<string, string[]>();
+  for (const id of selection.all()) {
+    const p = layout.pieces.find((x) => x.id === id);
+    if (!p || !isPieceInteractive(p)) continue;
+    const lid = p.layerId || "layer-1";
+    const base = layers.find((l) => l.id === lid)?.heightMm ?? 0;
+    const elev = target - base;
+    // skip pieces already at this height (avoids duplicate undo steps on Enter + change)
+    if (Math.abs((p.elevation?.start ?? 0) - elev) < 0.05 && Math.abs((p.elevation?.end ?? 0) - elev) < 0.05) continue;
+    if (!byLayer.has(lid)) byLayer.set(lid, []);
+    byLayer.get(lid)!.push(id);
+  }
+  if (byLayer.size === 0) return;
+
+  for (const [lid, ids] of byLayer) {
+    const base = layers.find((l) => l.id === lid)?.heightMm ?? 0;
+    const elev = target - base;
+    history.run(new MovePiecesToLayerCommand(ids, lid, { start: elev, end: elev }));
+  }
+  sync(true);
+}
+
+selBarElevInput.addEventListener("change", applyHeightInput);
+selBarElevInput.addEventListener("keydown", (e: KeyboardEvent) => {
+  if (e.key === "Enter") {
+    applyHeightInput();
+    selBarElevInput.blur();
+  } else if (e.key === "Escape") {
+    selBarElevInput.blur();
+    updateSelectionFloatingBar();
+  } else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+    e.preventDefault();
+    const step = (e.shiftKey ? 0.1 : 1) * (e.key === "ArrowUp" ? 1 : -1);
+    const cur = parseFloat(selBarElevInput.value) || 0;
+    selBarElevInput.value = (Math.round((cur + step) * 10) / 10).toString();
+    applyHeightInput();
+  }
+});
 
   function applyAngleInput(): void {
     const rawVal = parseFloat(selBarAngleInput.value);
@@ -1432,8 +1518,8 @@ async function main() {
     const firstModel = layout.models?.find((m) => m.id === selectedIds[0]);
 
     if (firstModel && selectedPieces.length === 0) {
-      selBarCount.textContent = `📦 ${firstModel.name}`;
-      selBarElevBadge.textContent = `${firstModel.width}×${firstModel.depth} mm (H: ${firstModel.height}mm)`;
+      selBarCount.textContent = `📦 ${firstModel.name} · ${firstModel.width}×${firstModel.depth} mm (H: ${firstModel.height}mm)`;
+      selBarElevGroup.style.display = "none";
       selBarBtnHeight.style.display = "none";
       selBarBtnFeeder.style.display = "none";
       selBarBtnIsolator.style.display = "none";

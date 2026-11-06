@@ -346,6 +346,7 @@ export const en: Translations = {
     turnoutCurrentTitle: "Turnout quiescent current in mA",
     multipleLayers: "(Multiple Layers)",
     rampPrefix: "Ramp",
+    heightLabel: "Height:",
   },
   heightDialog: {
     title: "Set Track Height & Layer",
