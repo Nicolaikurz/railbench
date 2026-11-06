@@ -8,16 +8,21 @@ export * from "./types";
 export * from "./registry";
 export * from "./systems/maerklin-c-h0";
 export * from "./systems/trix-c-h0";
+export * from "./systems/minitrix-n";
+export * from "./systems/rokuhan-z"
 export * from "./systems/maerklin-m-h0";
 export * from "./systems/maerklin-k-h0";
+export * from "./systems/maerklin-z";
 export * from "./systems/piko-a-h0";
 export * from "./systems/roco-line-h0";
 export * from "./systems/fleischmann-piccolo-n";
 export * from "./systems/tillig-tt";
+
 export * from "./systems/generic-streets-h0";
 export * from "./systems/generic-streets-n";
 export * from "./systems/generic-streets-tt";
 export * from "./systems/generic-streets-z";
+
 
 // Abwärtskompatibilität
 export const cGleisCatalogEntries = maerklinCEntries;

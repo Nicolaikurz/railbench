@@ -7,21 +7,48 @@ function collabDevPlugin(): Plugin {
     name: "collab-dev-server",
     configureServer(server) {
       if (!server.httpServer) return;
+
       const wss = new WebSocketServer({ noServer: true });
       const rooms = new Map<string, any>();
 
+      // Globaler Fehler-Handler für den WSS, damit Node nicht crasht
+      wss.on("error", (err) => {
+        console.error("[collab-wss] Server-Fehler:", err);
+      });
+
+      // Eigener Upgrade-Handler: Explizit NUR auf /collab reagieren
       server.httpServer.on("upgrade", (req, socket, head) => {
-        const url = new URL(req.url || "/", "http://localhost");
-        if (url.pathname === "/collab" || url.pathname === "/ws") {
-          wss.handleUpgrade(req, socket, head, (ws) => {
-            wss.emit("connection", ws, req);
-          });
+        try {
+          const url = new URL(req.url || "/", "http://localhost");
+          // WICHTIG: Vermeide "/ws", da Vite HMR das standardmäßig nutzt!
+          if (url.pathname === "/collab") {
+            wss.handleUpgrade(req, socket, head, (ws) => {
+              wss.emit("connection", ws, req);
+            });
+          }
+        } catch (e) {
+          console.error("[collab-wss] Upgrade-Fehler:", e);
         }
       });
+
+      const safeSend = (targetWs: WebSocket, data: string) => {
+        if (targetWs.readyState === WebSocket.OPEN) {
+          try {
+            targetWs.send(data);
+          } catch (err) {
+            console.error("[collab-wss] Send-Fehler:", err);
+          }
+        }
+      };
 
       wss.on("connection", (ws) => {
         let currentRoom: any = null;
         let currentUser: any = null;
+
+        // WICHTIG: Unhandled socket error fangen!
+        ws.on("error", (err) => {
+          console.error("[collab-ws] Client-Fehler:", err);
+        });
 
         ws.on("message", (raw) => {
           try {
@@ -44,7 +71,8 @@ function collabDevPlugin(): Plugin {
                 }
 
                 if (room.password && room.password !== requestedPass) {
-                  ws.send(
+                  safeSend(
+                    ws,
                     JSON.stringify({
                       type: "error",
                       code: "INVALID_PASSWORD",
@@ -68,7 +96,8 @@ function collabDevPlugin(): Plugin {
                   currentRoom.layout = msg.initialLayout;
                 }
 
-                ws.send(
+                safeSend(
+                  ws,
                   JSON.stringify({
                     type: "init",
                     room: currentRoom.name,
@@ -82,8 +111,8 @@ function collabDevPlugin(): Plugin {
 
                 const joinPacket = JSON.stringify({ type: "user_joined", user: currentUser });
                 for (const [otherWs] of currentRoom.clients) {
-                  if (otherWs !== ws && otherWs.readyState === WebSocket.OPEN) {
-                    otherWs.send(joinPacket);
+                  if (otherWs !== ws) {
+                    safeSend(otherWs, joinPacket);
                   }
                 }
                 break;
@@ -99,8 +128,8 @@ function collabDevPlugin(): Plugin {
                   fromUserName: currentUser.name,
                 });
                 for (const [otherWs] of currentRoom.clients) {
-                  if (otherWs !== ws && otherWs.readyState === WebSocket.OPEN) {
-                    otherWs.send(updatePacket);
+                  if (otherWs !== ws) {
+                    safeSend(otherWs, updatePacket);
                   }
                 }
                 break;
@@ -116,8 +145,8 @@ function collabDevPlugin(): Plugin {
                   y: msg.y,
                 });
                 for (const [otherWs] of currentRoom.clients) {
-                  if (otherWs !== ws && otherWs.readyState === WebSocket.OPEN) {
-                    otherWs.send(cursorPacket);
+                  if (otherWs !== ws) {
+                    safeSend(otherWs, cursorPacket);
                   }
                 }
                 break;
@@ -132,8 +161,8 @@ function collabDevPlugin(): Plugin {
                   selectedIds: currentUser.selectedIds,
                 });
                 for (const [otherWs] of currentRoom.clients) {
-                  if (otherWs !== ws && otherWs.readyState === WebSocket.OPEN) {
-                    otherWs.send(selPacket);
+                  if (otherWs !== ws) {
+                    safeSend(otherWs, selPacket);
                   }
                 }
                 break;
@@ -153,14 +182,14 @@ function collabDevPlugin(): Plugin {
                   timestamp: Date.now(),
                 });
                 for (const [otherWs] of currentRoom.clients) {
-                  if (otherWs.readyState === WebSocket.OPEN) {
-                    otherWs.send(chatPacket);
-                  }
+                  safeSend(otherWs, chatPacket);
                 }
                 break;
               }
             }
-          } catch {}
+          } catch (e) {
+            console.error("[collab-ws] Message-Parsing-Fehler:", e);
+          }
         });
 
         ws.on("close", () => {
@@ -172,9 +201,7 @@ function collabDevPlugin(): Plugin {
               userName: currentUser.name,
             });
             for (const [otherWs] of currentRoom.clients) {
-              if (otherWs.readyState === WebSocket.OPEN) {
-                otherWs.send(leavePacket);
-              }
+              safeSend(otherWs, leavePacket);
             }
           }
         });
@@ -187,6 +214,10 @@ export default defineConfig({
   base: "./",
   resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
   server: {
+    // Port/HMR explizit trennen, falls Vite ins Gehege kommt:
+    hmr: {
+      path: "/@vite/hmr",
+    },
     watch: {
       ignored: [
         "**/packaging/**",

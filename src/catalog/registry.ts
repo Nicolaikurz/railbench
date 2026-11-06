@@ -1,16 +1,25 @@
 import type { Catalog, CatalogEntry } from "./types";
 import { maerklinCCatalog } from "./systems/maerklin-c-h0";
-import { trixCCatalog } from "./systems/trix-c-h0";
 import { maerklinMCatalog } from "./systems/maerklin-m-h0";
 import { maerklinKCatalog } from "./systems/maerklin-k-h0";
+import { maerklinZCatalog } from "./systems/maerklin-z";
+import { trixCCatalog } from "./systems/trix-c-h0";
+import{ minitrixNCatalog } from "./systems/minitrix-n";
 import { pikoACatalog } from "./systems/piko-a-h0";
 import { rocoLineCatalog } from "./systems/roco-line-h0";
 import { fleischmannPiccoloCatalog } from "./systems/fleischmann-piccolo-n";
-import { tilligTTCatalog } from "./systems/tillig-tt";
+import { pecoStreamlineH0Catalog } from "./systems/peco-streamline-h0-code100";
+import { katoUnitrackNCatalog } from "./systems/kato-unitrack-n";
 import { genericStreetsCatalog } from "./systems/generic-streets-h0";
 import { genericStreetsNCatalog } from "./systems/generic-streets-n";
 import { genericStreetsTTCatalog } from "./systems/generic-streets-tt";
 import { genericStreetsZCatalog} from "./systems/generic-streets-z";
+import { kuehnGleisTTCatalog } from "./systems/kuehn-gleis-tt";
+import { tilligEliteH0Catalog } from "./systems/tillig-elite-h0";
+import { tilligBettungsgleisTTCatalog } from "./systems/tillig-bettungsgleis-tt";
+import { tilligTTCatalog } from "./systems/tillig-tt";
+import { rokuhanZCatalog } from "./systems/rokuhan-z";
+
 
 export class CatalogRegistry {
   private catalogs = new Map<string, Catalog>();
@@ -26,11 +35,19 @@ export class CatalogRegistry {
     this.register(pikoACatalog);
     this.register(rocoLineCatalog);
     this.register(fleischmannPiccoloCatalog);
+    this.register(pecoStreamlineH0Catalog);
+    this.register(katoUnitrackNCatalog);
     this.register(tilligTTCatalog);
     this.register(genericStreetsCatalog);
     this.register(genericStreetsTTCatalog);
     this.register(genericStreetsNCatalog);
     this.register(genericStreetsZCatalog);
+    this.register(maerklinZCatalog);
+    this.register(kuehnGleisTTCatalog);
+    this.register(tilligEliteH0Catalog);
+    this.register(tilligBettungsgleisTTCatalog);
+    this.register(rokuhanZCatalog);
+    this.register(minitrixNCatalog);
   }
 
   /** Registriert ein neues Gleissystem im Katalog. */

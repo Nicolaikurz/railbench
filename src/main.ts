@@ -1,4 +1,5 @@
 import { Renderer } from "@/render/renderer";
+import { showWelcomeDialog, type StartupChoice, type StartupAction } from "@/ui/welcome-dialog";
 import { attachCamera } from "@/render/camera";
 import {
   createLayout,
@@ -1232,7 +1233,7 @@ async function main() {
     });
   }
 
-  // Floating Selection Action Bar auf der Canvas
+  // --- FLOATING SELECTION ACTION BAR ---
   const selectionFloatingBar = document.createElement("div");
   selectionFloatingBar.id = "selection-floating-bar";
   selectionFloatingBar.className = "selection-floating-bar hidden";
@@ -1243,23 +1244,26 @@ async function main() {
     <div class="sel-bar-layer-group">
       <label id="sel-bar-layer-lbl">${initialSelT.layerLabel}</label>
       <select id="sel-bar-layer-select" class="sel-bar-select"></select>
+      <button id="sel-bar-btn-height" class="sel-bar-elev-btn" title="${initialSelT.heightRampBtn}">
+        <span class="sel-bar-elev-badge" id="sel-bar-elev-badge">0 mm</span>
+      </button>
     </div>
-    <span class="sel-bar-elev-badge" id="sel-bar-elev-badge">0 mm</span>
-    <span class="sel-bar-divider"></span>
     <div class="sel-bar-angle-group">
       <span class="sel-bar-angle-label">${initialSelT.angleLabel}</span>
       <input type="number" id="sel-bar-angle-input" class="sel-bar-angle-input" step="any" placeholder="0" title="Set exact rotation angle in degrees (Enter to apply, Up/Down for ±7.5°)" />
       <span class="sel-bar-unit">°</span>
     </div>
-    <button id="sel-bar-btn-rotate" class="sel-bar-btn" title="${initialSelT.rotateBtn} (R)">${initialSelT.rotateBtn}</button>
-    <button id="sel-bar-btn-duplicate" class="sel-bar-btn" title="${initialSelT.duplicateBtn} (Ctrl+D)">${initialSelT.duplicateBtn}</button>
+    <span class="sel-bar-divider"></span>
+    <button id="sel-bar-btn-feeder" class="sel-bar-btn" title="Gleis-Einspeisung an/aus (F)">⚡ Einspeisung</button>
+    <button id="sel-bar-btn-isolator" class="sel-bar-btn" title="${initialSelT.isolatorInactiveTitle}">${initialSelT.isolatorInactive}</button>
+    <span class="sel-bar-divider"></span>
     <button id="sel-bar-btn-catenary" class="sel-bar-btn" title="${initialSelT.catenaryInactiveTitle}">${initialSelT.catenaryBtn}</button>
     <button id="sel-bar-btn-catenary-feed" class="sel-bar-btn" title="${initialSelT.catenaryFeederInactiveTitle}">${initialSelT.catenaryFeederBtn}</button>
     <button id="sel-bar-btn-catenary-iso" class="sel-bar-btn" title="${initialSelT.catenaryIsolatorInactiveTitle}">${initialSelT.catenaryIsolatorBtn}</button>
-    <button id="sel-bar-btn-lantern" class="sel-bar-btn" title="${initialSelT.lanternInactiveTitle}">${initialSelT.lanternBtn}</button>
+    <span class="sel-bar-divider"></span>
     <button id="sel-bar-btn-decoder" class="sel-bar-btn" title="${initialSelT.decoderInactiveTitle}">${initialSelT.decoderBtn}</button>
-    <button id="sel-bar-btn-isolator" class="sel-bar-btn" title="${initialSelT.isolatorInactiveTitle}">${initialSelT.isolatorInactive}</button>
-    <button id="sel-bar-btn-height" class="sel-bar-btn" title="${initialSelT.heightRampBtn}">${initialSelT.heightRampBtn}</button>
+    <button id="sel-bar-btn-lantern" class="sel-bar-btn" title="${initialSelT.lanternInactiveTitle}">${initialSelT.lanternBtn}</button>
+    <span class="sel-bar-divider"></span>
     <button id="sel-bar-btn-delete" class="sel-bar-btn sel-bar-btn-danger" title="${initialSelT.deleteBtn} (Del)">${initialSelT.deleteBtn}</button>
   `;
   canvasHost.appendChild(selectionFloatingBar);
@@ -1271,28 +1275,20 @@ async function main() {
   const selBarAngleLabel = selectionFloatingBar.querySelector(".sel-bar-angle-label") as HTMLElement;
   const selBarAngleInput = selectionFloatingBar.querySelector("#sel-bar-angle-input") as HTMLInputElement;
   const selBarBtnHeight = selectionFloatingBar.querySelector("#sel-bar-btn-height") as HTMLButtonElement;
-  const selBarBtnRotate = selectionFloatingBar.querySelector("#sel-bar-btn-rotate") as HTMLButtonElement;
-  const selBarBtnDuplicate = selectionFloatingBar.querySelector("#sel-bar-btn-duplicate") as HTMLButtonElement;
+  const selBarBtnFeeder = selectionFloatingBar.querySelector("#sel-bar-btn-feeder") as HTMLButtonElement;
+  const selBarBtnIsolator = selectionFloatingBar.querySelector("#sel-bar-btn-isolator") as HTMLButtonElement;
   const selBarBtnCatenary = selectionFloatingBar.querySelector("#sel-bar-btn-catenary") as HTMLButtonElement;
   const selBarBtnCatenaryFeed = selectionFloatingBar.querySelector("#sel-bar-btn-catenary-feed") as HTMLButtonElement;
   const selBarBtnCatenaryIso = selectionFloatingBar.querySelector("#sel-bar-btn-catenary-iso") as HTMLButtonElement;
-  const selBarBtnLantern = selectionFloatingBar.querySelector("#sel-bar-btn-lantern") as HTMLButtonElement;
   const selBarBtnDecoder = selectionFloatingBar.querySelector("#sel-bar-btn-decoder") as HTMLButtonElement;
-  const selBarBtnIsolator = selectionFloatingBar.querySelector("#sel-bar-btn-isolator") as HTMLButtonElement;
+  const selBarBtnLantern = selectionFloatingBar.querySelector("#sel-bar-btn-lantern") as HTMLButtonElement;
   const selBarBtnDelete = selectionFloatingBar.querySelector("#sel-bar-btn-delete") as HTMLButtonElement;
 
-  function updateSelectionFloatingBarStatic() {
+  function updateSelectionFloatingBarStatic(): void {
     const t = getTranslations().selectionBar;
     if (selBarLayerLbl) selBarLayerLbl.textContent = t.layerLabel;
     if (selBarAngleLabel) selBarAngleLabel.textContent = t.angleLabel;
-    if (selBarBtnRotate) {
-      selBarBtnRotate.textContent = t.rotateBtn;
-      selBarBtnRotate.title = `${t.rotateBtn} (R)`;
-    }
-    if (selBarBtnDuplicate) {
-      selBarBtnDuplicate.textContent = t.duplicateBtn;
-      selBarBtnDuplicate.title = `${t.duplicateBtn} (Ctrl+D)`;
-    }
+    if (selBarBtnHeight) selBarBtnHeight.title = t.heightRampBtn;
     if (selBarBtnCatenary) {
       selBarBtnCatenary.textContent = t.catenaryBtn;
       selBarBtnCatenary.title = t.catenaryInactiveTitle;
@@ -1313,10 +1309,6 @@ async function main() {
       selBarBtnDecoder.textContent = t.decoderBtn;
       selBarBtnDecoder.title = t.decoderInactiveTitle;
     }
-    if (selBarBtnHeight) {
-      selBarBtnHeight.textContent = t.heightRampBtn;
-      selBarBtnHeight.title = t.heightRampBtn;
-    }
     if (selBarBtnDelete) {
       selBarBtnDelete.textContent = t.deleteBtn;
       selBarBtnDelete.title = `${t.deleteBtn} (Del)`;
@@ -1324,7 +1316,7 @@ async function main() {
     updateSelectionFloatingBar();
   }
 
-  function applyAngleInput() {
+  function applyAngleInput(): void {
     const rawVal = parseFloat(selBarAngleInput.value);
     if (isNaN(rawVal)) return;
     const targetAngle = normAngle(rawVal);
@@ -1341,7 +1333,7 @@ async function main() {
       if (piece && isPieceInteractive(piece)) {
         const oldT = { ...piece.transform };
         const newRot = selectedIds.length === 1 ? targetAngle : normAngle(piece.transform.rotation + delta);
-        const newT = { ...piece.transform, rotation: newRot };
+        const newT: Transform = { ...piece.transform, rotation: newRot };
         const entry = getCatalogEntryForPiece(piece);
         if (entry) {
           piece.transform = newT;
@@ -1353,7 +1345,7 @@ async function main() {
       if (model) {
         const oldT = { ...model.transform };
         const newRot = selectedIds.length === 1 ? targetAngle : normAngle(model.transform.rotation + delta);
-        const newT = { ...oldT, rotation: newRot };
+        const newT: Transform = { ...oldT, rotation: newRot };
         model.transform = newT;
         history.run(new MoveModelCommand(model.id, oldT, newT));
       }
@@ -1362,7 +1354,7 @@ async function main() {
   }
 
   selBarAngleInput.addEventListener("change", applyAngleInput);
-  selBarAngleInput.addEventListener("keydown", (e) => {
+  selBarAngleInput.addEventListener("keydown", (e: KeyboardEvent) => {
     if (e.key === "Enter") {
       applyAngleInput();
       selBarAngleInput.blur();
@@ -1394,12 +1386,12 @@ async function main() {
     openHeightDialogForSelection();
   });
 
-  selBarBtnRotate.addEventListener("click", () => {
-    rotateSelected(7.5);
+  selBarBtnFeeder.addEventListener("click", () => {
+    toggleSelectedFeeder();
   });
 
-  selBarBtnDuplicate.addEventListener("click", () => {
-    duplicateSelected();
+  selBarBtnIsolator.addEventListener("click", () => {
+    toggleSelectedIsolator();
   });
 
   selBarBtnCatenary.addEventListener("click", () => {
@@ -1414,23 +1406,19 @@ async function main() {
     toggleSelectedCatenaryIsolator();
   });
 
-  selBarBtnLantern.addEventListener("click", () => {
-    toggleSelectedTurnoutLantern();
-  });
-
   selBarBtnDecoder.addEventListener("click", () => {
     toggleSelectedTurnoutDecoder();
   });
 
-  selBarBtnIsolator.addEventListener("click", () => {
-    toggleSelectedIsolator();
+  selBarBtnLantern.addEventListener("click", () => {
+    toggleSelectedTurnoutLantern();
   });
 
   selBarBtnDelete.addEventListener("click", () => {
     deleteSelected();
   });
 
-  function updateSelectionFloatingBar() {
+  function updateSelectionFloatingBar(): void {
     const selectedIds = selection.all();
     if (selectedIds.length === 0) {
       selectionFloatingBar.classList.add("hidden");
@@ -1447,12 +1435,14 @@ async function main() {
       selBarCount.textContent = `📦 ${firstModel.name}`;
       selBarElevBadge.textContent = `${firstModel.width}×${firstModel.depth} mm (H: ${firstModel.height}mm)`;
       selBarBtnHeight.style.display = "none";
+      selBarBtnFeeder.style.display = "none";
       selBarBtnIsolator.style.display = "none";
       selBarBtnCatenary.style.display = "none";
       selBarBtnCatenaryFeed.style.display = "none";
       selBarBtnCatenaryIso.style.display = "none";
-      selBarBtnLantern.style.display = "none";
       selBarBtnDecoder.style.display = "none";
+      selBarBtnLantern.style.display = "none";
+
       const mLayer = layers.find((l) => l.id === firstModel.layerId) || layers[0];
       selBarLayerSelect.innerHTML = layers
         .map((l) => `<option value="${l.id}" ${l.id === mLayer?.id ? "selected" : ""}>${l.name}</option>`)
@@ -1464,12 +1454,31 @@ async function main() {
     }
 
     selBarBtnHeight.style.display = "";
+    selBarBtnFeeder.style.display = "";
     selBarBtnIsolator.style.display = "";
     selBarBtnCatenary.style.display = "";
     selBarBtnCatenaryFeed.style.display = "";
     selBarBtnCatenaryIso.style.display = "";
     const tSel = getTranslations().selectionBar;
 
+    // Track Feeder (Einspeisung)
+    const allHaveFeeder = selectedPieces.length > 0 && selectedPieces.every((p) => !!p.powerFeed);
+    selBarBtnFeeder.classList.toggle("active", allHaveFeeder);
+
+    // Track Isolator
+    if (firstPiece?.isIsolator) {
+      const idx = (firstPiece.isolatedConnectorIndex ?? 0) + 1;
+      const total = firstPiece.connectors?.length || 2;
+      selBarBtnIsolator.classList.add("active");
+      selBarBtnIsolator.textContent = tSel.isolatorActive.replace("{idx}", String(idx)).replace("{total}", String(total));
+      selBarBtnIsolator.title = tSel.isolatorActiveTitle.replace("{idx}", String(idx)).replace("{total}", String(total));
+    } else {
+      selBarBtnIsolator.classList.remove("active");
+      selBarBtnIsolator.textContent = tSel.isolatorInactive;
+      selBarBtnIsolator.title = tSel.isolatorInactiveTitle;
+    }
+
+    // Oberleitung (Catenary)
     const allHaveCatenary = selectedPieces.length > 0 && selectedPieces.every((p) => !!p.hasCatenary);
     if (allHaveCatenary) {
       selBarBtnCatenary.classList.add("active");
@@ -1504,37 +1513,15 @@ async function main() {
       selBarBtnCatenaryIso.title = tSel.catenaryIsolatorInactiveTitle;
     }
 
-    if (firstPiece?.isIsolator) {
-      const idx = (firstPiece.isolatedConnectorIndex ?? 0) + 1;
-      const total = firstPiece.connectors?.length || 2;
-      selBarBtnIsolator.classList.add("active");
-      selBarBtnIsolator.textContent = tSel.isolatorActive.replace("{idx}", String(idx)).replace("{total}", String(total));
-      selBarBtnIsolator.title = tSel.isolatorActiveTitle.replace("{idx}", String(idx)).replace("{total}", String(total));
-    } else {
-      selBarBtnIsolator.classList.remove("active");
-      selBarBtnIsolator.textContent = tSel.isolatorInactive;
-      selBarBtnIsolator.title = tSel.isolatorInactiveTitle;
-    }
-
+    // Weichen-Optionen (Decoder & Laterne)
     const turnoutPieces = selectedPieces.filter((p) => {
       const entry = getCatalogEntryForPiece(p);
       return isTurnoutEntry(entry);
     });
 
     if (turnoutPieces.length > 0) {
-      selBarBtnLantern.style.display = "";
       selBarBtnDecoder.style.display = "";
-
-      const allHaveLantern = turnoutPieces.every((p) => !!p.hasLantern);
-      if (allHaveLantern) {
-        selBarBtnLantern.classList.add("active");
-        selBarBtnLantern.textContent = tSel.lanternActive;
-        selBarBtnLantern.title = tSel.lanternActiveTitle;
-      } else {
-        selBarBtnLantern.classList.remove("active");
-        selBarBtnLantern.textContent = tSel.lanternBtn;
-        selBarBtnLantern.title = tSel.lanternInactiveTitle;
-      }
+      selBarBtnLantern.style.display = "";
 
       const allHaveDecoder = turnoutPieces.every((p) => !!p.hasDecoder);
       if (allHaveDecoder) {
@@ -1546,10 +1533,22 @@ async function main() {
         selBarBtnDecoder.textContent = tSel.decoderBtn;
         selBarBtnDecoder.title = tSel.decoderInactiveTitle;
       }
+
+      const allHaveLantern = turnoutPieces.every((p) => !!p.hasLantern);
+      if (allHaveLantern) {
+        selBarBtnLantern.classList.add("active");
+        selBarBtnLantern.textContent = tSel.lanternActive;
+        selBarBtnLantern.title = tSel.lanternActiveTitle;
+      } else {
+        selBarBtnLantern.classList.remove("active");
+        selBarBtnLantern.textContent = tSel.lanternBtn;
+        selBarBtnLantern.title = tSel.lanternInactiveTitle;
+      }
     } else {
-      selBarBtnLantern.style.display = "none";
       selBarBtnDecoder.style.display = "none";
+      selBarBtnLantern.style.display = "none";
     }
+
     const pieceWord = selectedIds.length === 1 ? tSel.pieceSingular : tSel.piecePlural;
     selBarCount.textContent = `${selectedIds.length} ${pieceWord}`;
 
@@ -1582,7 +1581,7 @@ async function main() {
     }
     if (minH === Infinity) { minH = baseH; maxH = baseH; }
 
-    const roundH = (v: number) => (Math.abs(v) < 0.1 ? 0 : Math.round(v * 10) / 10);
+    const roundH = (v: number): number => (Math.abs(v) < 0.1 ? 0 : Math.round(v * 10) / 10);
     const minHStr = roundH(minH) > 0 ? `+${roundH(minH)}` : `${roundH(minH)}`;
     const maxHStr = roundH(maxH) > 0 ? `+${roundH(maxH)}` : `${roundH(maxH)}`;
 
