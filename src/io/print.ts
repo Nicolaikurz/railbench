@@ -152,7 +152,7 @@ export async function renderLayerToDataUrl(
           description: "",
           length: 188.3,
         };
-        const sprite = createTrackGraphics(piece, entry, {
+        const sprite = createTrackGraphics(piece, entry,catalog, {
           isSelected: false,
           showTrackLabels: false,
           showColorCode: false,
@@ -177,7 +177,7 @@ export async function renderLayerToDataUrl(
         length: 188.3,
       };
 
-      const sprite = createTrackGraphics(piece, entry, {
+      const sprite = createTrackGraphics(piece, entry,catalog, {
         isSelected: false,
         showTrackLabels,
         showColorCode: monochrome ? false : showColorCode,
