@@ -7,10 +7,15 @@ export type TrackKind =
   | "turnout-right"
   | "curved-turnout-left"
   | "curved-turnout-right"
-  | "crossing"
-  | "dkw"
+  | "uncoupler"
   | "three-way"
+  | "crossing"
+  | "flex"
   | "turntable"
+  | "feeder"
+  | "buffer-stop"
+  | "dkw"
+  | "isolating"
   | "accessory";
 
 export interface LocalConnector {
