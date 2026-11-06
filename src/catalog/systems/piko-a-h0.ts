@@ -42,8 +42,24 @@ export const pikoAEntries: CatalogEntry[] = [
     description: "Viertelgleis G62, Länge 61,88 mm",
     length: 61.88,
   },
+  {
+    id: "55205",
+    name: "Gerades Gleis G940 (Flexgleis)",
+    kind: "straight",
+    category: "Geraden",
+    description: "Flexgleis G940, Länge 940 mm",
+    length: 940,
+  },
+  {
+    id: "55206",
+    name: "Gerades Gleis G940 Holzschwellenband",
+    kind: "straight",
+    category: "Geraden",
+    description: "Schwellenband für Flexgleis, Länge 940 mm",
+    length: 940,
+  },
 
-  // --- BÖGEN ---
+  // --- BÖGEN (30°) ---
   {
     id: "55211",
     name: "Gebogenes Gleis R1 / 30°",
@@ -80,6 +96,44 @@ export const pikoAEntries: CatalogEntry[] = [
     radius: 545.63,
     angle: 30,
   },
+
+  // --- AUSGLEICHSBÖGEN (7,5° & 15°) ---
+  {
+    id: "55251",
+    name: "Gebogenes Gleis R1 / 7,5°",
+    kind: "curve",
+    category: "Bögen",
+    description: "Ausgleichsbogen Radius R1 = 360 mm, Bogen 7,5°",
+    radius: 360,
+    angle: 7.5,
+  },
+  {
+    id: "55252",
+    name: "Gebogenes Gleis R2 / 7,5°",
+    kind: "curve",
+    category: "Bögen",
+    description: "Ausgleichsbogen Radius R2 = 421,88 mm, Bogen 7,5°",
+    radius: 421.88,
+    angle: 7.5,
+  },
+  {
+    id: "55253",
+    name: "Gebogenes Gleis R3 / 7,5°",
+    kind: "curve",
+    category: "Bögen",
+    description: "Ausgleichsbogen Radius R3 = 483,75 mm, Bogen 7,5°",
+    radius: 483.75,
+    angle: 7.5,
+  },
+  {
+    id: "55254",
+    name: "Gebogenes Gleis R4 / 7,5°",
+    kind: "curve",
+    category: "Bögen",
+    description: "Ausgleichsbogen Radius R4 = 545,63 mm, Bogen 7,5°",
+    radius: 545.63,
+    angle: 7.5,
+  },
   {
     id: "55219",
     name: "Gebogenes Gleis R9 / 15°",
@@ -90,7 +144,7 @@ export const pikoAEntries: CatalogEntry[] = [
     angle: 15,
   },
 
-  // --- WEICHEN ---
+  // --- WEICHEN (15° & DREIWEG) ---
   {
     id: "55220",
     name: "Weiche WL links 15°",
@@ -112,6 +166,64 @@ export const pikoAEntries: CatalogEntry[] = [
     branchAngle: 15,
   },
   {
+    id: "55225",
+    name: "Dreiwegweiche W3 (15°)",
+    kind: "three-way",
+    category: "Weichen",
+    description: "Länge 239,07 mm, 2x symmetrischer Abzweig 15° / R9 = 907,97 mm",
+    length: 239.07,
+    branchRadius: 907.97,
+    branchAngle: 15,
+  },
+
+  // --- BOGENWEICHEN (BWL / BWR) ---
+  {
+    id: "55222",
+    name: "Bogenweiche BWL links (R2/R3)",
+    kind: "curved-turnout-left",
+    category: "Weichen",
+    description: "Stammbogen R2 = 421,88 mm / 30°, Abzweig R3 = 483,75 mm / 30°",
+    radius: 421.88,
+    angle: 30,
+    branchRadius: 483.75,
+    branchAngle: 30,
+  },
+  {
+    id: "55223",
+    name: "Bogenweiche BWR rechts (R2/R3)",
+    kind: "curved-turnout-right",
+    category: "Weichen",
+    description: "Stammbogen R2 = 421,88 mm / 30°, Abzweig R3 = 483,75 mm / 30°",
+    radius: 421.88,
+    angle: 30,
+    branchRadius: 483.75,
+    branchAngle: 30,
+  },
+
+  // --- STEILE / WEITERE WEICHEN (falls im Systemtyp abgebildet) ---
+  {
+    id: "55227",
+    name: "Einfache Weiche WL links (kurz / 30°)",
+    kind: "turnout-left",
+    category: "Weichen",
+    description: "Kurze Weiche Länge G231 (230,93 mm), Abzweig R2 = 421,88 mm / 30°",
+    length: 230.93,
+    branchRadius: 421.88,
+    branchAngle: 30,
+  },
+  {
+    id: "55228",
+    name: "Einfache Weiche WR rechts (kurz / 30°)",
+    kind: "turnout-right",
+    category: "Weichen",
+    description: "Kurze Weiche Länge G231 (230,93 mm), Abzweig R2 = 421,88 mm / 30°",
+    length: 230.93,
+    branchRadius: 421.88,
+    branchAngle: 30,
+  },
+
+  // --- KREUZUNGEN & KREUZUNGSWEICHEN ---
+  {
     id: "55224",
     name: "Doppelkreuzungsweiche DKW 15°",
     kind: "dkw",
@@ -132,17 +244,48 @@ export const pikoAEntries: CatalogEntry[] = [
     angle: 15,
   },
   {
-    id: "55225",
-    name: "Dreiwegweiche W3 (15°)",
-    kind: "three-way",
-    category: "Weichen",
-    description: "Länge 239,07 mm, 2x symmetrischer Abzweig 15° / R9 = 907,97 mm",
-    length: 239.07,
-    branchRadius: 907.97,
-    branchAngle: 15,
+    id: "55241",
+    name: "Kreuzung K30 (30°)",
+    kind: "crossing",
+    category: "Kreuzungen",
+    description: "Länge 119,54 mm, Kreuzungswinkel 30°",
+    length: 119.54,
+    angle: 30,
   },
 
-  // --- ZUBEHÖR ---
+  // --- FUNKTIONSGLEISE & ZUBEHÖR ---
+  {
+    id: "55270",
+    name: "Anschluss-Clip analog",
+    kind: "straight",
+    category: "Zubehör",
+    description: "Schienenanschluss analog",
+    length: 0,
+  },
+  {
+    id: "55275",
+    name: "Anschlussgleis G239 analog",
+    kind: "straight",
+    category: "Zubehör",
+    description: "Gerade G239 (239,07 mm) mit integriertem analogen Anschluss-Clip",
+    length: 239.07,
+  },
+  {
+    id: "55276",
+    name: "Anschlussgleis G239 digital",
+    kind: "straight",
+    category: "Zubehör",
+    description: "Gerade G239 (239,07 mm) mit integriertem digitalen Anschluss-Clip",
+    length: 239.07,
+  },
+  {
+    id: "55274",
+    name: "Entkupplungsgleis elektrisch G119",
+    kind: "straight",
+    category: "Zubehör",
+    description: "Elektrisches Entkupplungsgleis, Länge 119,54 mm",
+    length: 119.54,
+  },
   {
     id: "55280",
     name: "Prellbock-Bausatz mit Gleis",
@@ -150,6 +293,22 @@ export const pikoAEntries: CatalogEntry[] = [
     category: "Zubehör",
     description: "Gleis G62 (61,9 mm) mit Prellbock",
     length: 61.88,
+  },
+  {
+    id: "55281",
+    name: "Prellbock auf Schwellenträger",
+    kind: "straight",
+    category: "Zubehör",
+    description: "Prellbock zum Aufstecken auf Schienenprofile",
+    length: 0,
+  },
+  {
+    id: "55289",
+    name: "Aufgleisvorrichtung",
+    kind: "straight",
+    category: "Zubehör",
+    description: "Aufgleiser / Eingleisvorrichtung Länge G119 (119,54 mm)",
+    length: 119.54,
   },
 ];
 
@@ -164,4 +323,3 @@ export const pikoACatalog: Catalog = {
   conductors: 2,
   entries: pikoAEntries,
 };
-
