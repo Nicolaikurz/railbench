@@ -326,8 +326,10 @@ export const en: Translations = {
     catenaryActive: "Catenary",
     catenaryActiveTitle: "Remove catenary wire from selected tracks (O)",
     catenaryInactiveTitle: "Add catenary (overhead wire & masts) to selected tracks (O)",
-    catenaryFeederBtn: "Feeder",
-    catenaryFeederActive: "Feeder",
+    catenaryFeederBtn: "Catenary +",
+    catenaryFeederActive: "Catenary +", // oder "Catenary platzieren"
+    trackFeederBtn: "Track +",
+    trackFeederActive: "Track +",
     catenaryFeederActiveTitle: "Remove catenary power connector (Shift+F)",
     catenaryFeederInactiveTitle: "Add catenary power connector (Shift+F)",
     catenaryIsolatorBtn: "Insulator",

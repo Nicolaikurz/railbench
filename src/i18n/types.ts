@@ -347,6 +347,8 @@ export interface Translations {
     multipleLayers: string;
     rampPrefix: string;
     heightLabel: string;
+    trackFeederBtn: string;
+    trackFeederActive: string;
   };
   heightDialog: {
     title: string;
