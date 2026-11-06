@@ -603,20 +603,35 @@ function renderGermanTab(tab: HelpTab, contentArea: HTMLElement) {
         <div class="help-topic-section">
           <h2>Über Railbench & Gleissysteme</h2>
           <p>
-            <strong>Railbench v0.5.1</strong> ist eine Open-Source-Modellbahn-CAD-Anwendung für die Planung und elektrische Netzanalyse von Modellbahnanlagen.
+            <strong>Railbench v0.5.2</strong> ist eine Open-Source-Modellbahn-CAD-Anwendung für die Planung und elektrische Netzanalyse von Modellbahnanlagen.
             Sie basiert auf moderner Web-Technologie (TypeScript, PixiJS WebGL-Rendering, Vite und Electron).
           </p>
 
           <h3>Unterstützte Nenngrößen & Gleisbibliotheken:</h3>
           <ul class="help-systems-list">
+            <!-- H0 (1:87) -->
             <li><strong>H0 (1:87)</strong>: Märklin C-Gleis (Dreileiter-Bettungsgleis mit allen Radien R1–R5, Weichen, schlanken Weichen und Kreuzungen)</li>
             <li><strong>H0 (1:87)</strong>: Märklin K-Gleis (Vorbildgetreues Dreileiter-Schwellengleis ohne Bettung, R1–R5, schlanke Weichen 14° 26' und Flexgleis)</li>
             <li><strong>H0 (1:87)</strong>: Märklin M-Gleis (Klassisches Metallgleis mit Blechbettung und Punktkontakten, R1, R2, Industriekreis und DKW)</li>
             <li><strong>H0 (1:87)</strong>: Trix C-Gleis (Zweileiter-Gleichstrom mit C-Gleis-Bettungsgeometrie)</li>
             <li><strong>H0 (1:87)</strong>: Piko A-Gleis (Zweileiter-Gleichstrom Schwellengleis)</li>
             <li><strong>H0 (1:87)</strong>: Roco Line (Zweileiter-Gleichstrom Gleis mit Bettung)</li>
+            <li><strong>H0 (1:87)</strong>: Peco Streamline Code 100 (Universelles Zweileiter-Schwellengleissystem)</li>
+            <li><strong>H0 (1:87)</strong>: Tillig Elite (Vorbildgetreues Zweileiter-Gleissystem mit feinem Schienenprofil)</li>
+
+            <!-- TT (1:120) -->
             <li><strong>TT (1:120)</strong>: Tillig TT Modellgleis</li>
+            <li><strong>TT (1:120)</strong>: Tillig TT Bettungsgleis (Gleissystem mit integrierter Schotterbettung)</li>
+            <li><strong>TT (1:120)</strong>: Kuehn TT Gleis (Zweileiter-Gleissystem für Spur TT)</li>
+
+            <!-- N (1:160) -->
             <li><strong>N (1:160)</strong>: Fleischmann Piccolo (Spur N Bettungsgleis)</li>
+            <li><strong>N (1:160)</strong>: Kato Unitrack (N-Gleis mit integriertem Schotterbett und Unijoiner-Steckverbindung)</li>
+            <li><strong>N (1:160)</strong>: Minitrix (Klassisches Zweileiter-Schwellengleis für Spur N)</li>
+
+            <!-- Z (1:220) -->
+            <li><strong>Z (1:220)</strong>: Märklin mini-club (Klassisches Spur-Z-Zweileitergleis)</li>
+            <li><strong>Z (1:220)</strong>: Rokuhan (Spur-Z-Gleissystem mit integriertem Schotterbett)</li>
           </ul>
 
           <div class="help-callout">
@@ -1119,20 +1134,35 @@ function renderEnglishTab(tab: HelpTab, contentArea: HTMLElement) {
         <div class="help-topic-section">
           <h2>About Railbench & Track Libraries</h2>
           <p>
-            <strong>Railbench v0.5.1</strong> is an open-source model railway track design and layout planning CAD tool.
+            <strong>Railbench v0.5.2</strong> is an open-source model railway track design and layout planning CAD tool.
             It is built using modern TypeScript, PixiJS WebGL rendering, Vite, and Electron.
           </p>
 
           <h3>Supported Scale Systems & Catalogs:</h3>
           <ul class="help-systems-list">
+            <!-- H0 Scale (1:87) -->
             <li><strong>H0 (1:87)</strong>: Märklin C-Gleis (Full 3-rail with roadbed geometry, curves R1–R5, turnouts, crossings)</li>
             <li><strong>H0 (1:87)</strong>: Märklin K-Gleis (Prototypical 3-rail tie-only track without roadbed, R1–R5, slim turnouts 14° 26' and flex-track)</li>
             <li><strong>H0 (1:87)</strong>: Märklin M-Gleis (Classic sheet-metal roadbed 3-rail track, R1, R2, industrial circle and crossings)</li>
             <li><strong>H0 (1:87)</strong>: Trix C-Gleis (2-rail DC with C-track roadbed geometry, identical footprint)</li>
             <li><strong>H0 (1:87)</strong>: Piko A-Gleis (2-rail standard gauge, flexible geometries, turnouts)</li>
             <li><strong>H0 (1:87)</strong>: Roco Line (2-rail realistic high-fidelity track with roadbed)</li>
+            <li><strong>H0 (1:87)</strong>: Peco Streamline Code 100 (Universal 2-rail standard gauge system)</li>
+            <li><strong>H0 (1:87)</strong>: Tillig Elite (Fine scale 2-rail prototypical track system)</li>
+
+            <!-- TT Scale (1:120) -->
             <li><strong>TT (1:120)</strong>: Tillig TT Modellgleis</li>
+            <li><strong>TT (1:120)</strong>: Tillig TT Bettungsgleis (Track system with integrated roadbed)</li>
+            <li><strong>TT (1:120)</strong>: Kuehn TT Gleis (2-rail TT track geometry)</li>
+
+            <!-- N Scale (1:160) -->
             <li><strong>N (1:160)</strong>: Fleischmann Piccolo (N-scale with roadbed ballasting)</li>
+            <li><strong>N (1:160)</strong>: Kato Unitrack (Integrated roadbed track system with Unijoiners)</li>
+            <li><strong>N (1:160)</strong>: Minitrix (Classic 2-rail tie-only track system)</li>
+
+            <!-- Z Scale (1:220) -->
+            <li><strong>Z (1:220)</strong>: Märklin mini-club (Classic Z-scale 2-rail track system)</li>
+            <li><strong>Z (1:220)</strong>: Rokuhan (Z-scale integrated roadbed track system)</li>
           </ul>
 
           <div class="help-callout">
