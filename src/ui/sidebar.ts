@@ -85,18 +85,52 @@ const MODEL_CATEGORY_LABELS_DE: Record<string, string> = {
 
 const SIDEBAR_DRILLDOWN_STYLES_ID = "sidebar-drilldown-styles";
 const SIDEBAR_DRILLDOWN_STYLES = `
+:root {
+  --popover-bg: var(--cl-bg-glass, rgba(30, 41, 59, 0.96));
+  --popover-border: var(--cl-edge, rgba(255, 255, 255, 0.15));
+  --popover-header-bg: var(--cl-header-bg, rgba(0, 0, 0, 0.15));
+  --popover-header-border: var(--cl-edge, rgba(255, 255, 255, 0.1));
+  --popover-header-text: var(--text-muted, rgba(255, 255, 255, 0.7));
+  --popover-hover-bg: var(--cl-glass-hover, rgba(255, 255, 255, 0.08));
+  --popover-shadow: 0 10px 25px rgba(0, 0, 0, 0.35);
+}
+
+:root[data-theme="light"],
+[data-theme="light"] {
+  --popover-bg: var(--cl-bg-glass, rgba(255, 255, 255, 0.96));
+  --popover-border: var(--cl-edge, rgba(0, 0, 0, 0.12));
+  --popover-header-bg: var(--cl-header-bg, rgba(0, 0, 0, 0.04));
+  --popover-header-border: var(--cl-edge, rgba(0, 0, 0, 0.08));
+  --popover-header-text: var(--text-muted, #64748b);
+  --popover-hover-bg: var(--cl-glass-hover, rgba(0, 0, 0, 0.05));
+  --popover-shadow: 0 10px 25px rgba(0, 0, 0, 0.12);
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --popover-bg: var(--cl-bg-glass, rgba(255, 255, 255, 0.96));
+    --popover-border: var(--cl-edge, rgba(0, 0, 0, 0.12));
+    --popover-header-bg: var(--cl-header-bg, rgba(0, 0, 0, 0.04));
+    --popover-header-border: var(--cl-edge, rgba(0, 0, 0, 0.08));
+    --popover-header-text: var(--text-muted, #64748b);
+    --popover-hover-bg: var(--cl-glass-hover, rgba(0, 0, 0, 0.05));
+    --popover-shadow: 0 10px 25px rgba(0, 0, 0, 0.12);
+  }
+}
+
 .two-step-popover {
   position: absolute;
   top: 100%;
   left: 0;
   right: 0;
   margin-top: 4px;
-  background: var(--cl-bg-glass, rgba(30, 41, 59, 0.96));
+  background: var(--popover-bg);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid var(--cl-edge, rgba(255, 255, 255, 0.15));
+  border: 1px solid var(--popover-border);
   border-radius: 8px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--popover-shadow);
+  color: var(--text-main, inherit);
   z-index: 100;
   overflow: hidden;
   display: flex;
@@ -110,8 +144,9 @@ const SIDEBAR_DRILLDOWN_STYLES = `
   padding: 6px 8px;
   font-size: 11px;
   font-weight: 600;
-  border-bottom: 1px solid var(--cl-edge, rgba(255, 255, 255, 0.1));
-  background: rgba(0, 0, 0, 0.15);
+  color: var(--popover-header-text);
+  border-bottom: 1px solid var(--popover-header-border);
+  background: var(--popover-header-bg);
 }
 
 .popover-back-btn {
@@ -120,13 +155,13 @@ const SIDEBAR_DRILLDOWN_STYLES = `
   cursor: pointer;
   padding: 2px 6px;
   border-radius: 4px;
-  color: var(--cl-accent, #38bdf8);
+  color: var(--cl-accent, #0284c7);
   font-size: 14px;
   line-height: 1;
   font-weight: bold;
 }
 .popover-back-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--popover-hover-bg);
 }
 
 .popover-list {
@@ -146,21 +181,27 @@ const SIDEBAR_DRILLDOWN_STYLES = `
   border-radius: 6px;
   background: transparent;
   border: 0;
-  color: inherit;
+  color: var(--text-main, inherit);
   font: inherit;
   font-size: 11px;
   text-align: left;
   cursor: pointer;
-  transition: background 0.12s;
+  transition: background 0.12s, color 0.12s;
 }
 
 .popover-item:hover {
-  background: var(--cl-glass-hover, rgba(255, 255, 255, 0.08));
+  background: var(--popover-hover-bg);
 }
 
 .popover-item.active {
-  background: var(--cl-accent-soft, rgba(2, 132, 199, 0.2));
-  color: var(--cl-accent, #38bdf8);
+  background: var(--cl-accent-soft, rgba(2, 132, 199, 0.15));
+  color: var(--cl-accent, #0284c7);
+  font-weight: 600;
+}
+
+.popover-item-sub {
+  font-size: 9.5px;
+  color: var(--text-muted, rgba(148, 163, 184, 0.85));
 }
 
 .models-dropzone {
@@ -168,7 +209,7 @@ const SIDEBAR_DRILLDOWN_STYLES = `
 }
 .models-dropzone:hover,
 .models-dropzone:focus-visible {
-  border-color: var(--cl-accent, #38bdf8);
+  border-color: var(--cl-accent, #0284c7);
   outline: none;
 }
 `;
@@ -583,7 +624,7 @@ export class Sidebar {
           item.innerHTML = `
             <div>
               <div style="font-weight: 600;">${cat.system}</div>
-              <div style="font-size: 9.5px; opacity: 0.7;">${cat.scale} • ${cat.gauge ?? 16.5} mm</div>
+              <div class="popover-item-sub">${cat.scale} • ${cat.gauge ?? 16.5} mm</div>
             </div>
             ${isSelected ? `<span>✓</span>` : ""}
           `;
@@ -786,7 +827,6 @@ export class Sidebar {
     popover.className = "two-step-popover";
     popover.style.display = "none";
 
-    // Single-step menu: pick a scale -> its road catalog is loaded automatically.
     const updateRoadPopover = () => {
       if (!isMenuOpen) {
         popover.style.display = "none";
@@ -814,7 +854,7 @@ export class Sidebar {
         item.innerHTML = `
           <div>
             <div style="font-weight: 600;">Spur ${sc}</div>
-            <div style="font-size: 9.5px; opacity: 0.7;">${
+            <div class="popover-item-sub">${
               cat
                 ? isDe
                   ? SCALE_DESCRIPTIONS[sc].de
@@ -1018,7 +1058,7 @@ export class Sidebar {
   private renderModelsTab(container: HTMLElement) {
     const isDe = getLanguage() === "de";
 
-    // ---- Single import field: click to open file dialog OR drop files ----
+    // Single import field: click to open file dialog OR drop files
     const importArea = document.createElement("div");
     importArea.className = "models-import-area";
 
@@ -1071,7 +1111,7 @@ export class Sidebar {
     importArea.appendChild(dropzone);
     container.appendChild(importArea);
 
-    // ---- 2-step menu: SCALE -> CATEGORY ----
+    // 2-step menu: SCALE -> CATEGORY
     let menuStep: "closed" | "scales" | "categories" = "closed";
     let activeScale: ModelScale = this.currentModelScale;
 
@@ -1123,7 +1163,7 @@ export class Sidebar {
           item.innerHTML = `
             <div>
               <div style="font-weight: 600;">Spur ${sc}</div>
-              <div style="font-size: 9.5px; opacity: 0.7;">1:${MODEL_SCALE_RATIOS[sc]}</div>
+              <div class="popover-item-sub">1:${MODEL_SCALE_RATIOS[sc]}</div>
             </div>
             <span>›</span>
           `;
@@ -1193,7 +1233,7 @@ export class Sidebar {
     selectorBox.append(trigger, popover);
     container.appendChild(selectorBox);
 
-    // ---- Search ----
+    // Search Box
     const searchBox = document.createElement("div");
     searchBox.className = "search-box";
     const input = document.createElement("input");
