@@ -260,7 +260,7 @@ export function renderGermanTab(tab: HelpTab, contentArea: HTMLElement) {
     case "view3d":
       contentArea.innerHTML = `
         <div class="help-topic-section">
-          <h2>3D-Perspektive & Ansicht <span class="v3d-alpha-tag">ALPHA</span></h2>
+          <h2>3D-Perspektive & Ansicht</h2>
           <p>
             Der 3D-Viewer rendert Ihre gesamte Modellbahnanlage in Echtzeit dreidimensional inklusive Grundplatte, Brückenpfeilern, Ebenen und 3D-Ausschmückung.
           </p>
@@ -306,9 +306,9 @@ export function renderGermanTab(tab: HelpTab, contentArea: HTMLElement) {
             </div>
 
             <div class="help-card">
-              <h3>Hinweis zum Alpha-Status</h3>
+              <h3>Rückkehr zur 2D-Zeichnung</h3>
               <p>
-                Der 3D-Modus befindet sich in stetiger Weiterentwicklung. Taste <code>3</code>, <code>V</code> oder <code>Esc</code> schaltet jederzeit zurück in die 2D-Planung.
+                Mit Taste <code>3</code>, <code>V</code> oder <code>Esc</code> schalten Sie jederzeit nahtlos zurück in die 2D-Planung.
               </p>
             </div>
           </div>
@@ -455,7 +455,7 @@ export function renderGermanTab(tab: HelpTab, contentArea: HTMLElement) {
               <tr><td><kbd>Umschalt</kbd> + <kbd>D</kbd></td><td>Digitalen Weichendecoder einbauen / entfernen</td><td>Elektrik / Weichen</td></tr>
               <tr><td><kbd>Umschalt</kbd> + <kbd>L</kbd></td><td>Beleuchtete Weichenlaterne montieren / ausschalten</td><td>Elektrik / Weichen</td></tr>
               <tr><td><kbd>P</kbd></td><td>Spannungsabfall-Heatmap ein/aus</td><td>Elektrik</td></tr>
-              <tr><td><kbd>3</kbd> oder <kbd>V</kbd></td><td><strong>3D-Perspektive & Ansicht umschalten (Alpha)</strong></td><td>Ansicht / 3D</td></tr>
+              <tr><td><kbd>3</kbd> oder <kbd>V</kbd></td><td><strong>3D-Perspektive & Ansicht umschalten</strong></td><td>Ansicht / 3D</td></tr>
               <tr><td><kbd>Esc</kbd></td><td>3D-Modus verlassen / Dialoge schließen</td><td>Ansicht / Navigation</td></tr>
               <tr><td><kbd>S</kbd></td><td>Automatisches Einrasten umschalten</td><td>Ansicht / Fangmodus</td></tr>
               <tr><td><kbd>C</kbd></td><td>Gleistyp-Farben umschalten</td><td>Ansicht</td></tr>

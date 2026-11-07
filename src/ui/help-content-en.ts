@@ -273,7 +273,7 @@ export function renderEnglishTab(tab: HelpTab, contentArea: HTMLElement) {
     case "view3d":
       contentArea.innerHTML = `
         <div class="help-topic-section">
-          <h2>3D Perspective & Elevation View <span class="v3d-alpha-tag">ALPHA</span></h2>
+          <h2>3D Perspective & Elevation View</h2>
           <p>
             The 3D Viewer renders your entire model railroad layout in real-time three dimensions, including the baseboard table, multi-deck elevations, bridge pillars, ballasting, and tracks.
           </p>
@@ -319,9 +319,9 @@ export function renderEnglishTab(tab: HelpTab, contentArea: HTMLElement) {
             </div>
 
             <div class="help-card">
-              <h3>Alpha Status Notice</h3>
+              <h3>Return to 2D Plan</h3>
               <p>
-                The 3D viewer is currently in <strong>Alpha preview</strong>. Features like 3D track connection editing, detailed scenery, and catenary are actively in development. Press <code>3</code>, <code>V</code>, or <code>Esc</code> anytime to return to 2D planning.
+                Press <code>3</code>, <code>V</code>, or <code>Esc</code> anytime to smoothly return to 2D track planning mode.
               </p>
             </div>
           </div>
@@ -468,7 +468,7 @@ export function renderEnglishTab(tab: HelpTab, contentArea: HTMLElement) {
               <tr><td><kbd>Shift</kbd> + <kbd>D</kbd></td><td>Toggle Digital Turnout Decoder</td><td>Electrical / Turnouts</td></tr>
               <tr><td><kbd>Shift</kbd> + <kbd>L</kbd></td><td>Toggle Lighted Turnout Lantern</td><td>Electrical / Turnouts</td></tr>
               <tr><td><kbd>P</kbd></td><td>Toggle Traction Voltage Heatmap Simulation</td><td>Electrical</td></tr>
-              <tr><td><kbd>3</kbd> or <kbd>V</kbd></td><td><strong>Toggle 3D Elevation & Perspective View (Alpha)</strong></td><td>View / 3D</td></tr>
+              <tr><td><kbd>3</kbd> or <kbd>V</kbd></td><td><strong>Toggle 3D Elevation & Perspective View</strong></td><td>View / 3D</td></tr>
               <tr><td><kbd>Esc</kbd></td><td>Exit 3D View / Close Dialogs</td><td>View / Navigation</td></tr>
               <tr><td><kbd>S</kbd></td><td>Toggle Automatic Track Snapping</td><td>View / Snapping</td></tr>
               <tr><td><kbd>C</kbd></td><td>Toggle Track Geometry Color-Coding</td><td>View</td></tr>

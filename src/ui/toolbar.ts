@@ -282,7 +282,7 @@ export function createToolbar(host: HTMLElement, events: ToolbarEvents) {
     events.onFocusShortCircuit?.();
   });
 
-  const btn3D = createToggleBtn(ICONS.box3d, "3D (Alpha)", "3D", false, () => events.onToggle3D?.(), "tb-3d");
+  const btn3D = createToggleBtn(ICONS.box3d, "3D", "3D", false, () => events.onToggle3D?.(), "tb-3d");
   btn3D.title = t.toggles.toggle3dTitle;
 
   featureGroup.appendChild(btnSnap);
@@ -691,8 +691,8 @@ export function updateToolbarState(state: ToolbarState) {
       btn3D.title = "3 / V: Return to 2D track planning mode";
     } else {
       btn3D.classList.remove("active");
-      setBtnLabel(btn3D, ICONS.box3d, "3D (Alpha)", "3D");
-      btn3D.title = "3 / V: Switch to realistic 3D perspective with layers & bridges (Alpha)";
+      setBtnLabel(btn3D, ICONS.box3d, "3D", "3D");
+      btn3D.title = t.toggles.toggle3dTitle;
     }
   }
 
