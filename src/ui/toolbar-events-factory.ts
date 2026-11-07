@@ -17,6 +17,7 @@ import { openPrintDialog } from "@/io/print";
 import { getTranslations, getLanguage } from "@/i18n";
 import { ensureDefaultLayers, getBaseboards } from "@/core/layout";
 import { isTurnoutEntry, type ShortCircuitDetectionResult } from "@/core/simulation";
+import { resetPersonalConfig } from "@/settings/settings-manager";
 
 export interface ToolbarFactoryDeps {
   getLayout: () => Layout;
@@ -39,6 +40,7 @@ export interface ToolbarFactoryDeps {
   sync: (dirty?: boolean) => void;
   isSnappingEnabled: () => boolean;
   setSnappingEnabled: (val: boolean) => void;
+  toggleSelectionLock?: () => void;
   cycleColorMode: (mode?: ColorMode) => void;
   isTrackLabelsEnabled: () => boolean;
   setTrackLabelsEnabled: (val: boolean) => void;
@@ -46,6 +48,7 @@ export interface ToolbarFactoryDeps {
   setPowerSimEnabled: (val: boolean) => void;
   openHeightDialogForSelection: () => void;
   triggerCollabDialog: () => void;
+  triggerWelcomeDialog?: () => void;
   showToast: (msg: string, icon?: string) => void;
 }
 
@@ -92,6 +95,9 @@ export function buildToolbarEvents(deps: ToolbarFactoryDeps): ToolbarEvents {
       deps.setSnappingEnabled(!deps.isSnappingEnabled());
       deps.sync();
       deps.saveSettingsState();
+    },
+    onToggleSelectionLock: () => {
+      deps.toggleSelectionLock?.();
     },
     onToggleColorCode: () => {
       deps.cycleColorMode();
@@ -223,6 +229,7 @@ export function buildToolbarEvents(deps: ToolbarFactoryDeps): ToolbarEvents {
     onPrintPlan: () => openPrintDialog(layout, deps.getCatalog(), renderer),
     onMoveSelectedToLayerPrompt: () => deps.openHeightDialogForSelection(),
     onOpenHelp: (tab?: string) => openHelpDialog((tab as HelpTab) || "overview"),
+    onOpenWelcome: () => deps.triggerWelcomeDialog?.(),
     onResetView: () => {
       renderer.resetView();
       ruler.update();
@@ -230,6 +237,18 @@ export function buildToolbarEvents(deps: ToolbarFactoryDeps): ToolbarEvents {
     },
     onOpenCollab: () => deps.triggerCollabDialog(),
     onTogglePerfMonitor: () => deps.getPerfMonitor().toggle(),
+    onResetPersonalConfig: () => {
+      const t = getTranslations();
+      if (confirm(t.dialogs.confirmResetConfig)) {
+        resetPersonalConfig();
+        deps.showToast(t.dialogs.configResetSuccess, "🧹");
+        if (typeof window !== "undefined" && typeof window.location?.reload === "function") {
+          setTimeout(() => {
+            window.location.reload();
+          }, 200);
+        }
+      }
+    },
     onFocusShortCircuit: () => {
       const currentShortCircuit = deps.getCurrentShortCircuit();
       if (currentShortCircuit?.shortCircuitPoints.length) {

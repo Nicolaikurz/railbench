@@ -13,6 +13,10 @@ export interface AppSettings {
   rulerVisible?: boolean;
   /** Rechte Sidebar eingeklappt */
   rightSidebarCollapsed?: boolean;
+  /** Auswahlsperre aufgehoben (alle Ebenen & gelöschte Ebenen auswählbar) */
+  selectionLockDisabled?: boolean;
+  /** Startverhalten: "ask" (Willkommensdialog anzeigen), "recent", "new", "demo", "open" */
+  startupAction?: StartupAction;
   /** Zuletzt ausgewähltes Gleissystem (z.B. maerklin-c, tillig-tt, fleischmann-n) */
   selectedCatalogId?: string;
   /** Zuletzt aktiver Tab in der linken Seitenleiste */
@@ -57,6 +61,53 @@ export function saveAppSettings(patch: Partial<AppSettings>): void {
     localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(updated));
   } catch (err) {
     console.warn("Could not save app settings to localStorage:", err);
+  }
+}
+
+export const KNOWN_PERSONAL_CONFIG_KEYS = [
+  SETTINGS_STORAGE_KEY,
+  "railbench_theme_pref",
+  "theme-pref",
+  "railbench_lang",
+  "railbench_collab_username",
+  "railbench_collab_color",
+  "railbench_collab_userid",
+  "railbench_collab_password",
+  "railbench_clipboard",
+  "railbench_3d_env",
+  "railbench_3d_trainhall",
+  "railbench_3d_woodplate",
+  "railbench_show_perf_monitor",
+];
+
+/**
+ * Löscht alle persönlichen Einstellungen und Konfigurationen aus dem LocalStorage.
+ * Der aktuell geöffnete/gespeicherte Gleisplan bleibt dabei unangetastet.
+ */
+export function resetPersonalConfig(): void {
+  try {
+    if (typeof localStorage === "undefined") return;
+    const preserveKeys = new Set(["railbench_current_plan", "railbench_last_saved"]);
+    const keysToRemove = new Set<string>(KNOWN_PERSONAL_CONFIG_KEYS);
+
+    if (typeof localStorage.length === "number") {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (!key) continue;
+        if (preserveKeys.has(key)) continue;
+        if (key.startsWith("railbench_") || key === "theme-pref") {
+          keysToRemove.add(key);
+        }
+      }
+    }
+
+    for (const key of keysToRemove) {
+      if (!preserveKeys.has(key)) {
+        localStorage.removeItem(key);
+      }
+    }
+  } catch (err) {
+    console.warn("Could not reset personal config from localStorage:", err);
   }
 }
 

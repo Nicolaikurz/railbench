@@ -26,6 +26,7 @@ export interface KeyboardControllerDeps {
   updateMeasureHud: () => void;
   isSnappingEnabled: () => boolean;
   setSnappingEnabled: (val: boolean) => void;
+  toggleSelectionLock?: () => void;
   getColorMode: () => ColorMode;
   cycleColorMode: (target?: ColorMode) => void;
   isTrackLabelsEnabled: () => boolean;
@@ -186,6 +187,9 @@ export class KeyboardController {
     } else if (e.key.toLowerCase() === "b" && e.shiftKey && !ctrlOrMeta) {
       e.preventDefault();
       this.deps.toggleRightSidebar();
+    } else if (e.altKey && (e.key.toLowerCase() === "l" || e.code === "KeyL")) {
+      e.preventDefault();
+      this.deps.toggleSelectionLock?.();
     } else if (e.key.toLowerCase() === "l" && !ctrlOrMeta) {
       e.preventDefault();
       if (e.shiftKey) {

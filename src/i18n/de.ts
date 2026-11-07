@@ -7,6 +7,8 @@ export const de: Translations = {
       edit: "Bearbeiten",
       view: "Ansicht",
       help: "Hilfe",
+      settings: "Einstellungen",
+      resetPersonalConfig: "Persönliche Konfiguration löschen...",
     },
     fileMenu: {
       newPlan: "Neuer Gleisplan",
@@ -105,6 +107,9 @@ export const de: Translations = {
       measureMeasured: "Gemessen zwischen A und B",
       measurePrototype: "Vorbild",
       toggle3dTitle: "3 / V: Realistische 3D-Ansicht mit Ebenen & Brücken (Alpha)",
+      selectionLockLabel: "Sperre ein",
+      selectionLockDisabledLabel: "Sperre aus",
+      selectionLockTitle: "Auswahlsperre umschalten (erlaubt Auswahl von Gleisen/Modellen auf inaktiven, gesperrten oder gelöschten Ebenen)",
     },
     colorsMenu: {
       types: "Gleistypen farbig unterscheiden",
@@ -308,6 +313,9 @@ export const de: Translations = {
     deleteLayer: "Ebene löschen",
     tracksCount: "{count} Gleise",
     renamePlaceholder: "Ebenenname...",
+    disableSelectionLock: "Auswahlsperre aufheben (alle / gelöschte Ebenen)",
+    orphanedItemsWarning: "{count} Element(e) auf gelöschter Ebene",
+    reassignOrphaned: "Auf aktive Ebene verschieben",
   },
   selectionBar: {
     selectedPrefix: "Ausgewählt:",
@@ -463,6 +471,8 @@ export const de: Translations = {
   dialogs: {
     confirmNewPlan: "Möchten Sie wirklich einen neuen, leeren Plan beginnen? Nicht gespeicherte Änderungen gehen verloren.",
     confirmClearLayout: "Möchten Sie wirklich alle Gleise und 3D-Modelle aus dem Plan löschen?",
+    confirmResetConfig: "Möchten Sie alle persönlichen Einstellungen (Design, Ansicht, Einrasten, Sprache, Fenster) auf die Standardwerte zurücksetzen?\n\nIhr aktueller Gleisplan bleibt dabei erhalten.",
+    configResetSuccess: "Persönliche Konfiguration wurde erfolgreich gelöscht.",
     selectTracksFirst: "Bitte wählen Sie zuerst ein oder mehrere Gleise aus.",
     newLayerPrompt: "Name für die neue Ebene eingeben:",
     newLayerHeightPrompt: "Basishöhe in mm für '{name}' eingeben:",

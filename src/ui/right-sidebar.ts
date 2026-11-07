@@ -10,6 +10,8 @@ export interface RightSidebarCallbacks {
   onSelectActiveLayer?: (layerId: string) => void;
   onToggleWoodPlate?: () => void;
   isWoodPlateActive?: () => boolean;
+  onToggleSelectionLock?: () => void;
+  isSelectionLockDisabled?: () => boolean;
   onClose?: () => void;
   selectedPieceIds: () => string[];
 }
@@ -311,6 +313,54 @@ export class RightSidebar {
       this.addLayerButton(getLanguage() === "de" ? "Ebene hinzufügen" : "Add layer", t.addAboveTooltip, true),
     );
 
+    // Orphaned items alert (e.g. from previously deleted layers)
+    const orphanedPieces = this.layout.pieces.filter((p) => !layers.some((l) => l.id === (p.layerId || "layer-1")));
+    const orphanedModels = (this.layout.models || []).filter((m) => !layers.some((l) => l.id === (m.layerId || "layer-1")));
+    const totalOrphaned = orphanedPieces.length + orphanedModels.length;
+
+    if (totalOrphaned > 0) {
+      const alertBox = document.createElement("div");
+      alertBox.className = "cl-orphan-alert";
+      alertBox.style.cssText =
+        "margin: 6px 0; padding: 8px 10px; border-radius: 8px; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.35); font-size: 11px; display: flex; flex-direction: column; gap: 6px;";
+      alertBox.innerHTML = `
+        <div style="color: #ef4444; font-weight: 600;">⚠️ ${t.orphanedItemsWarning.replace("{count}", String(totalOrphaned))}</div>
+        <button type="button" class="cl-pill is-primary" style="align-self: flex-start; cursor: pointer; padding: 3px 8px; font-size: 11px;">
+          ${t.reassignOrphaned}
+        </button>
+      `;
+      alertBox.querySelector("button")?.addEventListener("click", () => {
+        const targetId = this.layout.activeLayerId || layers[0]?.id || "layer-1";
+        for (const p of orphanedPieces) p.layerId = targetId;
+        for (const m of orphanedModels) m.layerId = targetId;
+        this.callbacks.onLayerChange();
+        this.render();
+      });
+      body.appendChild(alertBox);
+    }
+
+    // Disable Selection Lock toggle switch
+    if (this.callbacks.onToggleSelectionLock) {
+      const de = getLanguage() === "de";
+      const on = this.callbacks.isSelectionLockDisabled?.() ?? false;
+      const lockRow = document.createElement("button");
+      lockRow.type = "button";
+      lockRow.className = `cl-toggle ${on ? "is-on" : ""}`;
+      lockRow.setAttribute("role", "switch");
+      lockRow.setAttribute("aria-checked", String(on));
+      lockRow.title = de
+        ? "Auswahlsperre aufheben: Erlaubt das Auswählen von Gleisen und Modellen über alle Ebenen hinweg, auch auf gesperrten oder gelöschten Ebenen"
+        : "Disable selection lock: Allows selecting items across all layers, even locked or deleted layers";
+      lockRow.innerHTML = `
+        <span>${t.disableSelectionLock}</span>
+        <span class="cl-switch"><span class="cl-switch-knob"></span></span>`;
+      lockRow.addEventListener("click", () => {
+        this.callbacks.onToggleSelectionLock?.();
+        this.render();
+      });
+      body.appendChild(lockRow);
+    }
+
     // Wood plate toggle
     if (this.callbacks.onToggleWoodPlate) {
       const de = getLanguage() === "de";
@@ -462,6 +512,11 @@ export class RightSidebar {
           const fallbackId = layers.find((l) => l.id !== layer.id)!.id;
           for (const p of this.layout.pieces) {
             if (p.layerId === layer.id) p.layerId = fallbackId;
+          }
+          if (this.layout.models) {
+            for (const m of this.layout.models) {
+              if (m.layerId === layer.id) m.layerId = fallbackId;
+            }
           }
           this.layout.layers = layers.filter((l) => l.id !== layer.id);
           if (this.layout.activeLayerId === layer.id) this.layout.activeLayerId = fallbackId;

@@ -29,6 +29,12 @@ import {
   type BuiltinModelDef,
 } from "@/core/models-3d";
 import { MODEL_SCALE_RATIOS, getScaleFactor, scaleDimensions, type ModelScale } from "@/core/model-scale";
+import {
+  createPieceDragCanvas,
+  createModelDragCanvas,
+  createCustomModelDragCanvas,
+  attachDragImage,
+} from "./drag-preview";
 
 export type { ModelScale };
 export type SidebarTab = "catalog" | "roads" | "models" | "board" | "bom" | "layers";
@@ -41,8 +47,11 @@ export interface SidebarCallbacks {
   onSelectRoadScale?: (scale: ModelScale) => void;
   onLayerChange?: () => void;
   onMoveSelectedToLayer?: (layerId: string) => void;
+  onToggleSelectionLock?: () => void;
+  isSelectionLockDisabled?: () => boolean;
   selectedPieceIds?: () => string[];
   onBaseboardChange?: () => void;
+  getZoom?: () => number;
   onTabChange?: (tab: SidebarTab) => void;
 }
 
@@ -268,80 +277,7 @@ function formatCatalogSubtitle(cat: Catalog, isDe: boolean, t: any): string {
   return conductorsText ? `${gauge} mm, ${roadbedText}, ${conductorsText}` : `${gauge} mm, ${roadbedText}`;
 }
 
-/**
- * Generates an offscreen Canvas 2D image depicting the actual piece geometry
- * to use directly as the HTML5 drag ghost.
- */
-function createPieceDragImage(
-  entry: CatalogEntry,
-  isRoad: boolean = false,
-  roadWidthMm: number = 60,
-): HTMLImageElement {
-  const canvas = document.createElement("canvas");
-  const ctx = canvas.getContext("2d");
-  const img = new Image();
 
-  const pxPerMm = 0.45;
-  const strokeColor = isRoad ? "#64748b" : "#0284c7";
-  const bedColor = isRoad ? "rgba(71, 85, 105, 0.4)" : "rgba(148, 163, 184, 0.3)";
-  const gauge = (isRoad ? roadWidthMm / 2 : 16.5) * pxPerMm;
-
-  if (entry.radius && entry.angle) {
-    const r = entry.radius * pxPerMm;
-    const rad = (Math.abs(entry.angle) * Math.PI) / 180;
-    const padding = 20;
-
-    canvas.width = Math.max(72, r * (1 - Math.cos(rad)) + padding * 2);
-    canvas.height = Math.max(72, r * Math.sin(rad) + padding * 2);
-
-    if (ctx) {
-      ctx.translate(padding, canvas.height / 2);
-
-      // Track bed / road surface
-      ctx.beginPath();
-      ctx.arc(0, r, r, -Math.PI / 2, -Math.PI / 2 + rad, false);
-      ctx.lineWidth = gauge + 6;
-      ctx.strokeStyle = bedColor;
-      ctx.lineCap = "butt";
-      ctx.stroke();
-
-      // Rail / Road lines
-      ctx.beginPath();
-      ctx.arc(0, r, r, -Math.PI / 2, -Math.PI / 2 + rad, false);
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = strokeColor;
-      ctx.stroke();
-    }
-  } else {
-    const len = (entry.length || 180) * pxPerMm;
-    const h = gauge + 16;
-    const padding = 10;
-
-    canvas.width = Math.max(64, len + padding * 2);
-    canvas.height = Math.max(32, h);
-
-    if (ctx) {
-      const cy = canvas.height / 2;
-
-      // Roadbed / ballast
-      ctx.fillStyle = bedColor;
-      ctx.fillRect(padding, cy - gauge / 2 - 2, len, gauge + 4);
-
-      // Dual parallel rails or street lines
-      ctx.lineWidth = 1.8;
-      ctx.strokeStyle = strokeColor;
-      ctx.beginPath();
-      ctx.moveTo(padding, cy - gauge / 2);
-      ctx.lineTo(padding + len, cy - gauge / 2);
-      ctx.moveTo(padding, cy + gauge / 2);
-      ctx.lineTo(padding + len, cy + gauge / 2);
-      ctx.stroke();
-    }
-  }
-
-  img.src = canvas.toDataURL();
-  return img;
-}
 
 export class Sidebar {
   private activeTab: SidebarTab = "catalog";
@@ -752,8 +688,9 @@ export class Sidebar {
 
         if (e.dataTransfer) {
           e.dataTransfer.effectAllowed = "copy";
-          const previewImg = createPieceDragImage(entry, false);
-          e.dataTransfer.setDragImage(previewImg, previewImg.width / 2, previewImg.height / 2);
+          const zoom = this.callbacks.getZoom?.() ?? 1.0;
+          const canvas = createPieceDragCanvas(entry, false, undefined, this.catalog.gauge, zoom);
+          attachDragImage(e.dataTransfer, canvas);
         }
       });
 
@@ -991,8 +928,9 @@ export class Sidebar {
 
         if (e.dataTransfer) {
           e.dataTransfer.effectAllowed = "copy";
-          const previewImg = createPieceDragImage(entry, true, getRoadWidthMm(this.roadCatalog.scale));
-          e.dataTransfer.setDragImage(previewImg, previewImg.width / 2, previewImg.height / 2);
+          const zoom = this.callbacks.getZoom?.() ?? 1.0;
+          const canvas = createPieceDragCanvas(entry, true, getRoadWidthMm(this.roadCatalog.scale), undefined, zoom);
+          attachDragImage(e.dataTransfer, canvas);
         }
       });
 
@@ -1105,11 +1043,8 @@ export class Sidebar {
     importArea.appendChild(dropzone);
     container.appendChild(importArea);
 
-    // 2-step menu: SCALE -> CATEGORY
-    let menuStep: "closed" | "scales" | "categories" = "closed";
-    let activeScale: ModelScale = this.currentModelScale;
-
-    const categoryLabel = (cat: string) => (isDe ? MODEL_CATEGORY_LABELS_DE[cat] ?? cat : cat);
+    // 1-step menu: SCALE SELECTOR (identical to streets tab)
+    let isMenuOpen = false;
 
     const selectorBox = document.createElement("div");
     selectorBox.className = "catalog-system-box";
@@ -1120,9 +1055,7 @@ export class Sidebar {
     trigger.className = "catalog-dropdown-trigger";
     trigger.innerHTML = `
       <div class="catalog-trigger-text">
-        <span class="catalog-trigger-title">${isDe ? "Spur" : "Scale"} ${this.currentModelScale} — ${categoryLabel(
-      this.selectedModelCategory,
-    )}</span>
+        <span class="catalog-trigger-title">${isDe ? "Spur" : "Scale"} ${this.currentModelScale} (1:${MODEL_SCALE_RATIOS[this.currentModelScale]})</span>
         <span class="catalog-trigger-sub">${
           isDe ? SCALE_DESCRIPTIONS[this.currentModelScale].de : SCALE_DESCRIPTIONS[this.currentModelScale].en
         }</span>
@@ -1135,91 +1068,54 @@ export class Sidebar {
     popover.style.display = "none";
 
     const updateModelPopover = () => {
-      if (menuStep === "closed") {
+      if (!isMenuOpen) {
         popover.style.display = "none";
         return;
       }
       popover.style.display = "flex";
       popover.innerHTML = "";
 
-      if (menuStep === "scales") {
-        const header = document.createElement("div");
-        header.className = "popover-header";
-        header.textContent = isDe ? "1. Maßstab wählen" : "1. Select Scale";
-        popover.appendChild(header);
+      const header = document.createElement("div");
+      header.className = "popover-header";
+      header.textContent = isDe ? "Maßstab wählen" : "Select Scale";
+      popover.appendChild(header);
 
-        const list = document.createElement("div");
-        list.className = "popover-list";
-        for (const sc of AVAILABLE_SCALES) {
-          const item = document.createElement("button");
-          item.type = "button";
-          item.className = `popover-item ${sc === this.currentModelScale ? "active" : ""}`;
-          item.innerHTML = `
-            <div>
-              <div style="font-weight: 600;">Spur ${sc}</div>
-              <div class="popover-item-sub">1:${MODEL_SCALE_RATIOS[sc]}</div>
-            </div>
-            <span>›</span>
-          `;
-          item.addEventListener("click", (e) => {
-            e.stopPropagation();
-            activeScale = sc;
-            menuStep = "categories";
-            updateModelPopover();
-          });
-          list.appendChild(item);
-        }
-        popover.appendChild(list);
-      } else {
-        const header = document.createElement("div");
-        header.className = "popover-header";
+      const list = document.createElement("div");
+      list.className = "popover-list";
 
-        const backBtn = document.createElement("button");
-        backBtn.type = "button";
-        backBtn.className = "popover-back-btn";
-        backBtn.textContent = "‹";
-        backBtn.title = isDe ? "Zurück zu Maßstäben" : "Back to Scales";
-        backBtn.addEventListener("click", (e) => {
+      for (const sc of AVAILABLE_SCALES) {
+        const item = document.createElement("button");
+        item.type = "button";
+        item.className = `popover-item ${sc === this.currentModelScale ? "active" : ""}`;
+        item.innerHTML = `
+          <div>
+            <div style="font-weight: 600;">Spur ${sc}</div>
+            <div class="popover-item-sub">1:${MODEL_SCALE_RATIOS[sc]} · ${
+              isDe ? SCALE_DESCRIPTIONS[sc].de : SCALE_DESCRIPTIONS[sc].en
+            }</div>
+          </div>
+          ${sc === this.currentModelScale ? "<span>✓</span>" : ""}
+        `;
+        item.addEventListener("click", (e) => {
           e.stopPropagation();
-          menuStep = "scales";
-          updateModelPopover();
+          this.currentModelScale = sc;
+          isMenuOpen = false;
+          this.render();
         });
-
-        const title = document.createElement("span");
-        title.textContent = `${isDe ? "Kategorie für Spur" : "Category for"} ${activeScale}`;
-        header.append(backBtn, title);
-        popover.appendChild(header);
-
-        const list = document.createElement("div");
-        list.className = "popover-list";
-        for (const cat of MODEL_CATEGORIES) {
-          const isSelected = cat === this.selectedModelCategory && activeScale === this.currentModelScale;
-          const item = document.createElement("button");
-          item.type = "button";
-          item.className = `popover-item ${isSelected ? "active" : ""}`;
-          item.innerHTML = `<span>${categoryLabel(cat)}</span>${isSelected ? "<span>✓</span>" : ""}`;
-          item.addEventListener("click", (e) => {
-            e.stopPropagation();
-            this.currentModelScale = activeScale;
-            this.selectedModelCategory = cat;
-            menuStep = "closed";
-            this.render();
-          });
-          list.appendChild(item);
-        }
-        popover.appendChild(list);
+        list.appendChild(item);
       }
+      popover.appendChild(list);
     };
 
     trigger.addEventListener("click", (e) => {
       e.stopPropagation();
-      menuStep = menuStep === "closed" ? "scales" : "closed";
+      isMenuOpen = !isMenuOpen;
       updateModelPopover();
     });
 
     this.addWindowClickListener((e) => {
-      if (!selectorBox.contains(e.target as Node) && menuStep !== "closed") {
-        menuStep = "closed";
+      if (!selectorBox.contains(e.target as Node) && isMenuOpen) {
+        isMenuOpen = false;
         updateModelPopover();
       }
     });
@@ -1240,6 +1136,30 @@ export class Sidebar {
     });
     searchBox.appendChild(input);
     container.appendChild(searchBox);
+
+    // Category Filter Bar (Pills like in streets & tracks)
+    const categories: Array<{ id: string; label: string }> = [
+      { id: "All", label: isDe ? MODEL_CATEGORY_LABELS_DE.All ?? "Alle" : "All" },
+      { id: "Buildings", label: isDe ? MODEL_CATEGORY_LABELS_DE.Buildings ?? "Gebäude" : "Buildings" },
+      { id: "Railway", label: isDe ? MODEL_CATEGORY_LABELS_DE.Railway ?? "Bahn" : "Railway" },
+      { id: "Nature", label: isDe ? MODEL_CATEGORY_LABELS_DE.Nature ?? "Natur" : "Nature" },
+      { id: "Custom", label: isDe ? MODEL_CATEGORY_LABELS_DE.Custom ?? "Eigene" : "Custom" },
+    ];
+    const filterBar = document.createElement("div");
+    filterBar.className = "category-filter-bar";
+    for (const cat of categories) {
+      const pill = document.createElement("button");
+      pill.className = `filter-pill ${
+        this.selectedModelCategory.toLowerCase() === cat.id.toLowerCase() ? "active" : ""
+      }`;
+      pill.textContent = cat.label;
+      pill.addEventListener("click", () => {
+        this.selectedModelCategory = cat.id;
+        this.render();
+      });
+      filterBar.appendChild(pill);
+    }
+    container.appendChild(filterBar);
 
     const hint = document.createElement("div");
     hint.className = "drag-hint";
@@ -1311,7 +1231,12 @@ export class Sidebar {
         const newModel = this.createScaledBuiltin(def.id);
         e.dataTransfer?.setData("application/railbench-model", JSON.stringify(newModel));
         e.dataTransfer?.setData("text/plain", def.name);
-        if (e.dataTransfer) e.dataTransfer.effectAllowed = "copy";
+        if (e.dataTransfer) {
+          e.dataTransfer.effectAllowed = "copy";
+          const zoom = this.callbacks.getZoom?.() ?? 1.0;
+          const canvas = createModelDragCanvas(def, f, zoom);
+          attachDragImage(e.dataTransfer, canvas);
+        }
       });
 
       card.addEventListener("dragend", () => {
@@ -1356,7 +1281,12 @@ export class Sidebar {
         card.classList.add("dragging");
         const fresh = { ...m, id: `model-${Date.now()}-${Math.random().toString(36).slice(2, 6)}` };
         e.dataTransfer?.setData("application/railbench-model", JSON.stringify(fresh));
-        if (e.dataTransfer) e.dataTransfer.effectAllowed = "copy";
+        if (e.dataTransfer) {
+          e.dataTransfer.effectAllowed = "copy";
+          const zoom = this.callbacks.getZoom?.() ?? 1.0;
+          const canvas = createCustomModelDragCanvas(m, zoom);
+          attachDragImage(e.dataTransfer, canvas);
+        }
       });
 
       card.addEventListener("dragend", () => {
@@ -1423,6 +1353,54 @@ export class Sidebar {
       <div class="layers-title">Layout Layers</div>
       <div class="layers-subtitle">Active layer receives new tracks. Hide or lock layers during construction.</div>
     `;
+
+    const isDe = getLanguage() === "de";
+    const isUnlocked = this.callbacks.isSelectionLockDisabled?.() ?? false;
+    const lockBar = document.createElement("div");
+    lockBar.style.cssText = "display: flex; gap: 8px; margin-top: 8px; align-items: center;";
+    const lockBtn = document.createElement("button");
+    lockBtn.className = `btn-pill ${isUnlocked ? "active" : ""}`;
+    lockBtn.style.cssText = isUnlocked
+      ? "background: rgba(245, 158, 11, 0.2); border: 1px solid #f59e0b; color: #f59e0b; font-weight: 600; padding: 4px 8px; font-size: 11px; cursor: pointer; border-radius: 6px;"
+      : "background: var(--bg-surface); border: 1px solid var(--border-color); color: var(--text-main); padding: 4px 8px; font-size: 11px; cursor: pointer; border-radius: 6px;";
+    lockBtn.innerHTML = isUnlocked
+      ? (isDe ? "🔓 Auswahlsperre aufgehoben" : "🔓 Selection lock disabled")
+      : (isDe ? "🔒 Auswahlsperre aktiv" : "🔒 Selection lock active");
+    lockBtn.title = isDe
+      ? "Klicken, um die Auswahlsperre aufzuheben (erlaubt Auswahl von Gleisen auf gesperrten oder gelöschten Ebenen)"
+      : "Click to toggle selection lock (select items across locked or deleted layers)";
+    lockBtn.addEventListener("click", () => {
+      this.callbacks.onToggleSelectionLock?.();
+      this.render();
+    });
+    lockBar.appendChild(lockBtn);
+    header.appendChild(lockBar);
+
+    // Orphaned items alert
+    const orphanedPieces = this.layout.pieces.filter((p) => !layers.some((l) => l.id === (p.layerId || "layer-1")));
+    const orphanedModels = (this.layout.models || []).filter((m) => !layers.some((l) => l.id === (m.layerId || "layer-1")));
+    const totalOrphaned = orphanedPieces.length + orphanedModels.length;
+
+    if (totalOrphaned > 0) {
+      const alertBox = document.createElement("div");
+      alertBox.style.cssText =
+        "margin-top: 8px; padding: 8px; border-radius: 6px; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); font-size: 11px; display: flex; flex-direction: column; gap: 6px;";
+      alertBox.innerHTML = `
+        <div style="color: #ef4444; font-weight: 600;">⚠️ ${totalOrphaned} ${isDe ? "Element(e) auf gelöschter Ebene" : "item(s) on deleted layer"}</div>
+        <button type="button" style="align-self: flex-start; cursor: pointer; padding: 3px 8px; font-size: 11px; border-radius: 4px; border: 1px solid #0284c7; background: #0284c7; color: #fff;">
+          ${isDe ? "Auf aktive Ebene verschieben" : "Move to active layer"}
+        </button>
+      `;
+      alertBox.querySelector("button")?.addEventListener("click", () => {
+        const targetId = this.layout.activeLayerId || layers[0]?.id || "layer-1";
+        for (const p of orphanedPieces) p.layerId = targetId;
+        for (const m of orphanedModels) m.layerId = targetId;
+        this.callbacks.onLayerChange?.();
+        this.render();
+      });
+      header.appendChild(alertBox);
+    }
+
     container.appendChild(header);
 
     const list = document.createElement("div");
@@ -1594,6 +1572,11 @@ export class Sidebar {
             const fallbackId = layers.find((l) => l.id !== layer.id)!.id;
             for (const p of this.layout.pieces) {
               if (p.layerId === layer.id) p.layerId = fallbackId;
+            }
+            if (this.layout.models) {
+              for (const m of this.layout.models) {
+                if (m.layerId === layer.id) m.layerId = fallbackId;
+              }
             }
             this.layout.layers = layers.filter((l) => l.id !== layer.id);
             if (this.layout.activeLayerId === layer.id) {

@@ -13,6 +13,7 @@ export interface ToolbarEvents {
   onPrintPlan?: () => void;
   onMoveSelectedToLayerPrompt?: () => void;
   onOpenHelp?: (tab?: string) => void;
+  onOpenWelcome?: () => void;
   onUndo: () => void;
   onRedo: () => void;
   onCopy?: () => void;
@@ -40,6 +41,7 @@ export interface ToolbarEvents {
   onToggleMeasureTool?: () => void;
   onToggleWoodPlate?: () => void;
   onToggleSnapping: () => void;
+  onToggleSelectionLock?: () => void;
   onToggleColorCode: () => void;
   onSetColorMode?: (mode: ColorMode) => void;
   onToggleTrackLabels: () => void;
@@ -51,6 +53,7 @@ export interface ToolbarEvents {
   onClearLayout?: () => void;
   onOpenCollab?: () => void;
   onTogglePerfMonitor?: () => void;
+  onResetPersonalConfig?: () => void;
 }
 
 export interface ToolbarState {
@@ -58,6 +61,7 @@ export interface ToolbarState {
   canRedo?: boolean;
   hasSelection?: boolean;
   snappingEnabled?: boolean;
+  selectionLockDisabled?: boolean;
   measureToolActive?: boolean;
   colorCodeEnabled?: boolean;
   colorMode?: ColorMode;
@@ -116,6 +120,8 @@ const ICONS = {
   box3d: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 8-9-4-9 4v8l9 4 9-4V8Z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>`,
   plan2d: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>`,
   layers: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>`,
+  lock: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>`,
+  unlock: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.5-2"/></svg>`,
 };
 
 /**
@@ -202,6 +208,16 @@ export function createToolbar(host: HTMLElement, events: ToolbarEvents) {
   const btnSnap = createToggleBtn(ICONS.magnet, t.toggles.snapLabel, "Snap", true, events.onToggleSnapping, "tb-snap");
   btnSnap.title = t.toggles.snapTitle;
 
+  const btnSelectionLock = createToggleBtn(
+    ICONS.lock,
+    t.toggles.selectionLockLabel,
+    "Lock",
+    false,
+    () => events.onToggleSelectionLock?.(),
+    "tb-selection-lock",
+  );
+  btnSelectionLock.title = t.toggles.selectionLockTitle;
+
   const btnMeasure = createToggleBtn(ICONS.ruler, t.toggles.measureLabel, "Dist", false, () => events.onToggleMeasureTool?.(), "tb-measure");
   btnMeasure.title = t.toggles.measureTitle;
 
@@ -270,6 +286,7 @@ export function createToolbar(host: HTMLElement, events: ToolbarEvents) {
   btn3D.title = t.toggles.toggle3dTitle;
 
   featureGroup.appendChild(btnSnap);
+  featureGroup.appendChild(btnSelectionLock);
   featureGroup.appendChild(btnMeasure);
   featureGroup.appendChild(colorsWrapper);
   featureGroup.appendChild(btnLabels);
@@ -394,6 +411,15 @@ function createBrandMainMenu(t: any, events: ToolbarEvents): HTMLElement {
     { label: t.editMenu.rotateCcw, shortcut: "Shift+R", onClick: () => events.onRotateSelected(-7.5) },
     { label: t.editMenu.deleteSelected, shortcut: "Del", onClick: events.onDeleteSelected, isDanger: true },
     { label: t.editMenu.changeHeight, shortcut: "M", onClick: () => events.onMoveSelectedToLayerPrompt?.() },
+
+    { isDivider: true },
+    { sectionHeader: t.menus.settings },
+    {
+      label: t.menus.resetPersonalConfig,
+      id: "item-reset-personal-config",
+      isDanger: true,
+      onClick: () => events.onResetPersonalConfig?.(),
+    },
   ];
 
   const menu = buildDropdownItems(menuItems, () => brandMenuWrapper.classList.remove("open"));
@@ -462,6 +488,8 @@ function createHelpMenu(t: any, events: ToolbarEvents): HTMLElement {
     [
       { label: t.helpMenu.helpGuide, shortcut: "F1", onClick: () => events.onOpenHelp?.("overview") },
       { label: t.helpMenu.shortcuts, shortcut: "?", onClick: () => events.onOpenHelp?.("shortcuts") },
+      { isDivider: true },
+      { label: getLanguage() === "de" ? "Willkommens-Bildschirm…" : "Welcome Screen…", onClick: () => events.onOpenWelcome?.() },
       { isDivider: true },
       { label: t.helpMenu.layersGuide, onClick: () => events.onOpenHelp?.("layers") },
       { label: t.helpMenu.voltageGuide, onClick: () => events.onOpenHelp?.("power") },
@@ -555,6 +583,20 @@ export function updateToolbarState(state: ToolbarState) {
   if (btnSnap) {
     setBtnLabel(btnSnap, ICONS.magnet, t.toggles.snapLabel, "Snap");
     btnSnap.classList.toggle("active", !!state.snappingEnabled);
+  }
+
+  const btnSelectionLock = document.getElementById("tb-selection-lock");
+  if (btnSelectionLock && state.selectionLockDisabled !== undefined) {
+    const isUnlocked = !!state.selectionLockDisabled;
+    btnSelectionLock.classList.toggle("active", isUnlocked);
+    btnSelectionLock.classList.toggle("tb-unlocked-alert", isUnlocked);
+    setBtnLabel(
+      btnSelectionLock,
+      isUnlocked ? ICONS.unlock : ICONS.lock,
+      isUnlocked ? t.toggles.selectionLockDisabledLabel : t.toggles.selectionLockLabel,
+      isUnlocked ? "Unlocked" : "Lock",
+    );
+    btnSelectionLock.title = t.toggles.selectionLockTitle;
   }
 
   const btnMeasure = document.getElementById("tb-measure");
@@ -766,6 +808,7 @@ function createDivider(): HTMLDivElement {
 
 let dropdownDismissSetup = false;
 function setupDropdownGlobalDismiss() {
+  if (typeof window === "undefined") return;
   if (dropdownDismissSetup) return;
   dropdownDismissSetup = true;
 
