@@ -1,5 +1,6 @@
 import type { ColorMode } from "@/core/types";
 import { getTranslations, getLanguage, toggleLanguage } from "@/i18n";
+import { getAppVersionTag, getFullAppTitle } from "@/version";
 
 export interface ToolbarEvents {
   onToggleRightSidebar?: () => void;
@@ -337,9 +338,11 @@ function createBrandMainMenu(t: any, events: ToolbarEvents): HTMLElement {
   trigger.style.height = "28px";
   trigger.style.cursor = "pointer";
 
+  trigger.title = getFullAppTitle();
   trigger.innerHTML = `
     <span class="brand-icon" style="display:inline-flex; align-items:center; color:#ffffff;">${ICONS.train}</span>
     <span class="brand-title" style="color:#ffffff; font-weight:600; font-size:12px;">RAILbench</span>
+    <span class="brand-version" style="color:rgba(255,255,255,0.6); font-size:10px; margin-left:3px; font-variant-numeric: tabular-nums;">${getAppVersionTag()}</span>
     <span class="dropdown-arrow" style="display:inline-flex; align-items:center; color:#ffffff;">${ICONS.chevronDown}</span>
   `;
 
