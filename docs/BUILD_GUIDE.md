@@ -1,13 +1,13 @@
-# Build-Anleitung: Windows, Linux & macOS (Release 0.5.0)
+# Build-Anleitung: Windows, Linux & macOS (Release 0.5.2)
 
 Diese Anleitung beschreibt Schritt für Schritt, wie eigenständige ausführbare Pakete für **Windows (Portable EXE)**, **Linux (AppImage & Flatpak)** und **macOS (ZIP & DMG)** für **x86_64** und **ARM64** gebaut und verteilt werden.
 
 ---
 
 > [!IMPORTANT]
-> **Release 0.4 Testing Notice (Wichtiger Hinweis zur Testabdeckung)**:
-> In Release **0.4.0** wurden die Binärpakete für folgende Plattformen bereitgestellt:
-> * ✅ **Windows x86_64 / ARM64**: Portable EXE.
+> **Release 0.5.2 Testing Notice (Wichtiger Hinweis zur Testabdeckung)**:
+> In Release **0.5.2** werden die Binärpakete für folgende Plattformen bereitgestellt:
+> * ✅ **Windows x86_64 / ARM64**: Portable EXE / Directory.
 > * ✅ **Linux x86_64 / ARM64**: AppImage & Flatpak.
 > * ✅ **macOS ARM64 (Apple Silicon M1/M2/M3/M4) / x64**: ZIP-Paket & DMG.
 

@@ -439,7 +439,7 @@ export function renderEnglishTab(tab: HelpTab, contentArea: HTMLElement) {
             </thead>
             <tbody>
               <tr><td><kbd>Ctrl</kbd> + <kbd>N</kbd></td><td>New Layout Plan</td><td>File</td></tr>
-              <tr><td><kbd>Ctrl</kbd> + <kbd>O</kbd></td><td>Open Plan File (.gleisplan / XML)</td><td>File</td></tr>
+              <tr><td><kbd>Ctrl</kbd> + <kbd>O</kbd></td><td>Open Plan File (.railbench / .gleisplan / XML)</td><td>File</td></tr>
               <tr><td><kbd>Ctrl</kbd> + <kbd>S</kbd></td><td>Save Plan (Quick Save)</td><td>File</td></tr>
               <tr><td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd></td><td>Save Plan As...</td><td>File</td></tr>
               <tr><td><kbd>Ctrl</kbd> + <kbd>W</kbd></td><td><strong>Close Plan / Dialog / Window</strong></td><td>File / Navigation</td></tr>
@@ -457,6 +457,7 @@ export function renderEnglishTab(tab: HelpTab, contentArea: HTMLElement) {
               <tr><td><kbd>Left Click</kbd> + Drag (empty area)</td><td><strong>Marquee Box Selection (Multiple Tracks)</strong></td><td>Selection</td></tr>
               <tr><td><kbd>Right Click</kbd> / <kbd>Middle Click</kbd> + Drag</td><td>Pan Canvas Viewport</td><td>Navigation</td></tr>
               <tr><td><kbd>Ctrl</kbd> / <kbd>Shift</kbd> + <kbd>Left Click</kbd></td><td>Toggle track in selection (Multi-selection)</td><td>Selection</td></tr>
+              <tr><td><kbd>Alt</kbd> + <kbd>L</kbd></td><td><strong>Toggle Selection Lock (Select locked & deleted layer items)</strong></td><td>Workspace / Layers</td></tr>
               <tr><td><kbd>M</kbd></td><td><strong>Change Track Height / Move to Layer</strong></td><td>Layers</td></tr>
               <tr><td><kbd>Del</kbd> / <kbd>Backspace</kbd></td><td>Delete selected tracks</td><td>Editing</td></tr>
               <tr><td><kbd>F</kbd></td><td>Toggle Power Feeder point</td><td>Electrical</td></tr>
@@ -464,7 +465,8 @@ export function renderEnglishTab(tab: HelpTab, contentArea: HTMLElement) {
               <tr><td><kbd>I</kbd></td><td>Toggle Track Isolator / Gap</td><td>Electrical</td></tr>
               <tr><td><kbd>Shift</kbd> + <kbd>I</kbd></td><td>Toggle Catenary Section Insulator</td><td>Electrical / Catenary</td></tr>
               <tr><td><kbd>O</kbd></td><td>Toggle Catenary (Overhead wire & masts)</td><td>Electrical / 3D</td></tr>
-              <tr><td><kbd>W</kbd> / <kbd>Shift</kbd> + <kbd>W</kbd></td><td>Toggle Turnout Lantern / Decoder</td><td>Electrical / Turnouts</td></tr>
+              <tr><td><kbd>Shift</kbd> + <kbd>D</kbd></td><td>Toggle Digital Turnout Decoder</td><td>Electrical / Turnouts</td></tr>
+              <tr><td><kbd>Shift</kbd> + <kbd>L</kbd></td><td>Toggle Lighted Turnout Lantern</td><td>Electrical / Turnouts</td></tr>
               <tr><td><kbd>P</kbd></td><td>Toggle Traction Voltage Heatmap Simulation</td><td>Electrical</td></tr>
               <tr><td><kbd>3</kbd> or <kbd>V</kbd></td><td><strong>Toggle 3D Elevation & Perspective View (Alpha)</strong></td><td>View / 3D</td></tr>
               <tr><td><kbd>Esc</kbd></td><td>Exit 3D View / Close Dialogs</td><td>View / Navigation</td></tr>

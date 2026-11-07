@@ -426,7 +426,7 @@ export function renderGermanTab(tab: HelpTab, contentArea: HTMLElement) {
             </thead>
             <tbody>
               <tr><td><kbd>Strg</kbd> + <kbd>N</kbd></td><td>Neuer Gleisplan</td><td>Datei</td></tr>
-              <tr><td><kbd>Strg</kbd> + <kbd>O</kbd></td><td>Plan öffnen (.gleisplan / XML)</td><td>Datei</td></tr>
+              <tr><td><kbd>Strg</kbd> + <kbd>O</kbd></td><td>Plan öffnen (.railbench / .gleisplan / XML)</td><td>Datei</td></tr>
               <tr><td><kbd>Strg</kbd> + <kbd>S</kbd></td><td>Plan speichern</td><td>Datei</td></tr>
               <tr><td><kbd>Strg</kbd> + <kbd>Umschalt</kbd> + <kbd>S</kbd></td><td>Plan speichern unter...</td><td>Datei</td></tr>
               <tr><td><kbd>Strg</kbd> + <kbd>W</kbd></td><td><strong>Plan / Dialog / Fenster schließen</strong></td><td>Datei / Navigation</td></tr>
@@ -444,6 +444,7 @@ export function renderGermanTab(tab: HelpTab, contentArea: HTMLElement) {
               <tr><td><kbd>Linksklick</kbd> + Ziehen (freier Bereich)</td><td><strong>Aufziehrahmen / Mehrfachauswahl (Marquee)</strong></td><td>Auswahl</td></tr>
               <tr><td><kbd>Rechtsklick</kbd> / <kbd>Mittelklick</kbd> + Ziehen</td><td>Arbeitsfläche verschieben (Pan)</td><td>Navigation</td></tr>
               <tr><td><kbd>Strg</kbd> / <kbd>Umschalt</kbd> + <kbd>Linksklick</kbd></td><td>Gleis zur Auswahl hinzufügen / entfernen (Mehrfachauswahl)</td><td>Auswahl</td></tr>
+              <tr><td><kbd>Alt</kbd> + <kbd>L</kbd></td><td><strong>Auswahlsperre aufheben (Gesperrte & gelöschte Ebenen auswählen)</strong></td><td>Arbeitsbereich / Ebenen</td></tr>
               <tr><td><kbd>M</kbd></td><td><strong>Gleishöhe & Ebene anpassen</strong></td><td>Ebenen</td></tr>
               <tr><td><kbd>Entf</kbd> / <kbd>Rückschritt</kbd></td><td>Markierte Gleise löschen</td><td>Bearbeiten</td></tr>
               <tr><td><kbd>F</kbd></td><td>Stromeinspeisepunkt setzen / umschalten</td><td>Elektrik</td></tr>
@@ -451,7 +452,8 @@ export function renderGermanTab(tab: HelpTab, contentArea: HTMLElement) {
               <tr><td><kbd>I</kbd></td><td>Trennstelle / Isolierverbinder setzen</td><td>Elektrik</td></tr>
               <tr><td><kbd>Umschalt</kbd> + <kbd>I</kbd></td><td>Oberleitungs-Trennstelle / Streckentrenner setzen</td><td>Elektrik / Oberleitung</td></tr>
               <tr><td><kbd>O</kbd></td><td>Oberleitung (Fahrdraht & Masten) umschalten</td><td>Elektrik / 3D</td></tr>
-              <tr><td><kbd>W</kbd> / <kbd>Umschalt</kbd> + <kbd>W</kbd></td><td>Weichenlaterne / Weichendecoder umschalten</td><td>Elektrik / Weichen</td></tr>
+              <tr><td><kbd>Umschalt</kbd> + <kbd>D</kbd></td><td>Digitalen Weichendecoder einbauen / entfernen</td><td>Elektrik / Weichen</td></tr>
+              <tr><td><kbd>Umschalt</kbd> + <kbd>L</kbd></td><td>Beleuchtete Weichenlaterne montieren / ausschalten</td><td>Elektrik / Weichen</td></tr>
               <tr><td><kbd>P</kbd></td><td>Spannungsabfall-Heatmap ein/aus</td><td>Elektrik</td></tr>
               <tr><td><kbd>3</kbd> oder <kbd>V</kbd></td><td><strong>3D-Perspektive & Ansicht umschalten (Alpha)</strong></td><td>Ansicht / 3D</td></tr>
               <tr><td><kbd>Esc</kbd></td><td>3D-Modus verlassen / Dialoge schließen</td><td>Ansicht / Navigation</td></tr>
