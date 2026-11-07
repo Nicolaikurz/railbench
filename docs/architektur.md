@@ -229,7 +229,7 @@ Das Verzeichnis `src/core/` operiert komplett headless und bildet die mathematis
 | <kbd>I</kbd> | Spannungstrennstelle / Isolator setzen (⊘) | Elektrik |
 | <kbd>Shift</kbd> + <kbd>D</kbd> / <kbd>L</kbd> | Weichendecoder / Weichenlaterne umschalten | Elektrik |
 | <kbd>P</kbd> | Fahrspannungsabfall-Heatmap umschalten | Elektrik |
-| <kbd>3</kbd> oder <kbd>V</kbd> | 3D-Ansicht umschalten (Alpha) | Ansicht |
+| <kbd>3</kbd> oder <kbd>V</kbd> | 3D-Ansicht umschalten | Ansicht |
 | <kbd>Shift</kbd> + <kbd>L</kbd> | Millimeter-Lineale ein-/ausblenden | Ansicht |
 | <kbd>F1</kbd> oder <kbd>?</kbd> | Hilfe & Feature-Guide öffnen | Hilfe |
 

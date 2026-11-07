@@ -74,8 +74,8 @@
       "target": [
         "dir"
       ],
-      "icon": "build/icon.png",
-      "signAndEditExecutable": false
+      "icon": "build/icon.ico",
+      "signExecutable": false
     },
     "mac": {
       "target": [

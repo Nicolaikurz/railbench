@@ -11,7 +11,7 @@ import { createBuiltinModel3DMesh } from "@/render/builtin-models-3d";
 import { BUILTIN_MODELS } from "@/core/models-3d";
 import { getScaleFactor, parseModelScale, type ModelScale } from "@/core/model-scale";
 import type { ShortCircuitDetectionResult } from "@/core/simulation";
-import { getTranslations } from "@/i18n";
+import { getTranslations, getLanguage } from "@/i18n";
 
 export type Viewer3DEnvironment = "landscape" | "hall" | "minimal";
 
@@ -171,12 +171,21 @@ export class Viewer3D {
     window.addEventListener("resize", () => this.onResize());
   }
 
+  private getIsDark(): boolean {
+    if (typeof document !== "undefined" && document.documentElement) {
+      const attr = document.documentElement.getAttribute("data-theme");
+      if (attr === "dark") return true;
+      if (attr === "light") return false;
+    }
+    return this.currentTheme === "dark";
+  }
+
   private updateSceneBackground() {
     if (this.envMode === "minimal") {
-      const isDark = this.currentTheme === "dark";
-      const studioColor = isDark ? 0x0f172a : 0xecf0f5;
-      this.scene.background = new THREE.Color(studioColor);
-      this.scene.fog = new THREE.FogExp2(studioColor, 0.00008);
+      const isDark = this.getIsDark();
+      const cadColor = isDark ? 0x131b2e : 0xe4dfd5;
+      this.scene.background = new THREE.Color(cadColor);
+      this.scene.fog = new THREE.FogExp2(cadColor, 0.00002);
       this.celestialGroup.visible = false;
     } else {
       this.celestialGroup.visible = true;
@@ -188,6 +197,7 @@ export class Viewer3D {
     this.currentTheme = theme;
     this.updateSceneBackground();
     this.updateLighting();
+    this.updateOverlayUIActiveStates();
   }
 
   private setupLighting() {
@@ -221,18 +231,26 @@ export class Viewer3D {
   private updateLighting() {
     if (!this.sunLight || !this.hemiLight || !this.fillLight) return;
     if (this.envMode === "minimal") {
-      const isDark = this.currentTheme === "dark";
+      const isDark = this.getIsDark();
       this.sunLight.color.setHex(0xffffff);
-      this.sunLight.intensity = isDark ? 0.7 : 1.3;
+      this.sunLight.intensity = isDark ? 0.9 : 1.25;
       this.hemiLight.color.setHex(0xffffff);
-      this.hemiLight.groundColor.setHex(0x64748b);
-      this.hemiLight.intensity = isDark ? 0.4 : 0.8;
-      this.fillLight.color.setHex(0x94a3b8);
-      this.fillLight.intensity = 0.35;
+      this.hemiLight.groundColor.setHex(isDark ? 0x1e293b : 0xc8c2b7);
+      this.hemiLight.intensity = isDark ? 0.5 : 0.8;
+      this.fillLight.color.setHex(isDark ? 0x475569 : 0xd1ccc0);
+      this.fillLight.intensity = isDark ? 0.3 : 0.35;
       this.sunLight.position.set(1600, 3200, 1400);
     } else {
       this.applyTimeOfDay();
     }
+  }
+
+  cycleEnvironment(): Viewer3DEnvironment {
+    const modes: Viewer3DEnvironment[] = ["hall", "minimal"];
+    const curIdx = modes.indexOf(this.envMode);
+    const nextMode = modes[(curIdx + 1) % modes.length]!;
+    this.setEnvironment(nextMode);
+    return nextMode;
   }
 
   setEnvironment(mode: Viewer3DEnvironment) {
@@ -254,10 +272,37 @@ export class Viewer3D {
 
   private updateOverlayUIActiveStates() {
     if (!this.overlayEl) return;
-    const btnLandscape = this.overlayEl.querySelector("#v3d-env-landscape");
+    const isDe = getLanguage() === "de";
+    const iconEl = this.overlayEl.querySelector("#v3d-env-icon");
+    const labelEl = this.overlayEl.querySelector("#v3d-env-label");
+    const toggleBtn = this.overlayEl.querySelector("#v3d-toggle-env") as HTMLElement | null;
+
+    if (iconEl && labelEl) {
+      if (this.envMode === "minimal") {
+        iconEl.textContent = "📐";
+        labelEl.textContent = isDe ? "CAD / Minimal" : "CAD / Minimal";
+      } else {
+        iconEl.textContent = "🏛️";
+        labelEl.textContent = isDe ? "Halle" : "Hall";
+      }
+    }
+
+    if (toggleBtn) {
+      const nextMode = this.envMode === "hall" 
+        ? (isDe ? "CAD / Minimal" : "CAD / Minimal") 
+        : (isDe ? "Halle" : "Hall");
+      toggleBtn.title = isDe
+        ? `3D-Hintergrund umschalten (Klicken für: ${nextMode})`
+        : `Toggle 3D background (Click for: ${nextMode})`;
+    }
+
+    const dayNightBar = this.overlayEl.querySelector(".v3d-daynight-bar") as HTMLElement | null;
+    if (dayNightBar) {
+      dayNightBar.style.display = this.envMode === "minimal" ? "none" : "inline-flex";
+    }
+
     const btnHall = this.overlayEl.querySelector("#v3d-env-hall");
     const btnMinimal = this.overlayEl.querySelector("#v3d-env-minimal");
-    btnLandscape?.classList.toggle("active", this.envMode === "landscape");
     btnHall?.classList.toggle("active", this.envMode === "hall");
     btnMinimal?.classList.toggle("active", this.envMode === "minimal");
   }
@@ -269,22 +314,26 @@ export class Viewer3D {
 
     overlay.innerHTML = `
       <div class="viewer-3d-header" style="position: absolute; top: 16px; left: 16px; right: 16px; display: flex; align-items: center; justify-content: space-between; pointer-events: none; z-index: 25;">
-        
-      
-        <!-- Mitte: Uhr & Zeitschieberegler zentriert -->
-        <div class="v3d-daynight-bar" style="pointer-events: auto; display: flex; align-items: center; gap: 8px; position: absolute; left: 50%; transform: translateX(-50%);" title="Tag/Nacht-Zyklus mit wandernder Sonne">
-          <button class="v3d-btn ${this.dayNightActive ? "active" : ""}" id="v3d-toggle-cycle" title="Tag/Nacht-Zyklus starten oder anhalten">
-            <span id="v3d-cycle-label">14:00</span>
+        <!-- Links: Hintergrund-Umschalter & Tageszeit-Steuerung nebeneinander -->
+        <div class="viewer-3d-left" style="pointer-events: auto; display: flex; align-items: center; gap: 8px;">
+          <button class="v3d-btn" id="v3d-toggle-env" title="3D-Hintergrund umschalten (Halle / Minimal)">
+            <span id="v3d-env-icon">🏛️</span>
+            <span id="v3d-env-label">Halle</span>
           </button>
-          <input type="range" id="v3d-time-slider" class="v3d-time-slider" min="0" max="24" step="0.05" value="${this.timeOfDay.toFixed(2)}" title="Tageszeit einstellen (00:00 - 24:00 Uhr)">
-          <button class="v3d-btn" id="v3d-cycle-speed" title="Geschwindigkeit ändern (1x = 20 Min. pro Tag)">
-            <span id="v3d-speed-label">${this.cycleSpeed}x</span>
-          </button>
+
+          <div class="v3d-daynight-bar" title="Tag/Nacht-Zyklus mit wandernder Sonne">
+            <button class="v3d-btn ${this.dayNightActive ? "active" : ""}" id="v3d-toggle-cycle" title="Tag/Nacht-Zyklus starten oder anhalten">
+              <span id="v3d-cycle-label">14:00</span>
+            </button>
+            <input type="range" id="v3d-time-slider" class="v3d-time-slider" min="0" max="24" step="0.05" value="${this.timeOfDay.toFixed(2)}" title="Tageszeit einstellen (00:00 - 24:00 Uhr)">
+            <button class="v3d-btn" id="v3d-cycle-speed" title="Geschwindigkeit ändern (1x = 20 Min. pro Tag)">
+              <span id="v3d-speed-label">${this.cycleSpeed}x</span>
+            </button>
+          </div>
         </div>
 
-        <!-- Rechts: Aktions-Buttons -->
+        <!-- Rechts: Aktions-Buttons (falls vorhanden) -->
         <div class="viewer-3d-actions" style="pointer-events: auto; display: flex; align-items: center; gap: 8px;">
-          
         </div>
       </div>
     `;
@@ -293,6 +342,11 @@ export class Viewer3D {
     this.cycleBtnEl = overlay.querySelector("#v3d-toggle-cycle");
     this.cycleLabelEl = overlay.querySelector("#v3d-cycle-label");
     this.speedBtnEl = overlay.querySelector("#v3d-cycle-speed");
+
+    const toggleEnvBtn = overlay.querySelector("#v3d-toggle-env");
+    toggleEnvBtn?.addEventListener("click", () => {
+      this.cycleEnvironment();
+    });
 
     this.cycleBtnEl?.addEventListener("click", () => {
       this.setDayNightActive(!this.dayNightActive);
@@ -317,12 +371,18 @@ export class Viewer3D {
       }
     });
 
+    this.updateOverlayUIActiveStates();
     this.container.appendChild(overlay);
   }
 
   show(onClose?: () => void) {
     this.isVisible = true;
     this.container.style.display = "block";
+    const isDark = this.getIsDark();
+    this.currentTheme = isDark ? "dark" : "light";
+    this.updateSceneBackground();
+    this.updateLighting();
+    this.updateOverlayUIActiveStates();
     const closeBtn = this.container.querySelector("#v3d-close") as HTMLElement | null;
     if (closeBtn && onClose) {
       closeBtn.onclick = onClose;

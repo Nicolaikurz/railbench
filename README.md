@@ -37,9 +37,9 @@ An intuitive, fast, and precise model railway track planning and layout simulati
   * `📟` / `💡` Digital turnout decoders (<kbd>Shift+D</kbd>) and illuminated lanterns (<kbd>Shift+L</kbd>).
   * `🗑` Delete selected items (<kbd>Del</kbd>).
 
-### 3. 3D Perspective & Elevation View *(Alpha)*
+### 3. 3D Perspective & Elevation View
 > [!NOTE]
-> **Alpha Status**: The 3D layout viewer is currently in active **Alpha preview**. It provides realistic 3D perspective visualization of your plan, multi-deck elevations, bridge structures, benchwork, and scenery. Full 3D track connection editing is actively being expanded.
+> **3D Visualization**: The 3D layout viewer provides realistic 3D perspective visualization of your plan, multi-deck elevations, bridge structures, benchwork, and scenery directly rendered in Three.js.
 * **3D Perspective (<kbd>3</kbd> or <kbd>V</kbd>)**: One-key toggle between 2D precision CAD drafting and realistic 3D perspective.
 * **3D Models & Scenery Support (`.glb` / `.gltf`)**:
   * **Import custom 3D models**: Import binary `.glb` or `.gltf` 3D files directly from disk or via drag-and-drop onto the canvas. Auto-scales models from real-world meters to prototypical H0/N/TT scale.
