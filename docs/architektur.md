@@ -1,6 +1,6 @@
 # Railbench – Systemarchitektur & Technische Dokumentation
 
-Diese Dokumentation beschreibt die interne Architektur, Komponentenaufteilung, Datenflüsse und Design-Prinzipien der Modellbahn-Planungssoftware **Railbench** (v0.4.0).
+Diese Dokumentation beschreibt die interne Architektur, Komponentenaufteilung, Datenflüsse und Design-Prinzipien der Modellbahn-Planungssoftware **Railbench** (v0.5.2).
 
 ---
 
@@ -177,7 +177,7 @@ Das Verzeichnis `src/core/` operiert komplett headless und bildet die mathematis
 ### 3.5 `src/io/` – Dateiformate, Export & Druck
 
 * [`serialize.ts`](file:///home/nicolai/Documents/Projects/railbench/src/io/serialize.ts):
-  * XML- und JSON-Serialisierung im `.gleisplan`-Format.
+  * XML- und JSON-Serialisierung im primären **`.railbench`**- sowie `.gleisplan`-Format.
   * Persistiert Gleise, Konnektoren, Ebenen, Höhen/Rampen, Einspeisepunkte, Isolatoren, Grundplatten und 3D-Modelle.
 * [`export.ts`](file:///home/nicolai/Documents/Projects/railbench/src/io/export.ts):
   * Erstellt die Stückliste (BOM) mit Teilenummer, Bezeichnung, System, Mengenangaben und Gesamtlänge in Metern als CSV-Datei.
@@ -188,19 +188,25 @@ Das Verzeichnis `src/core/` operiert komplett headless und bildet die mathematis
 
 ---
 
-### 3.6 `src/ui/` – Benutzerführung & Menüs
+### 3.6 `src/ui/` & `src/settings/` – Benutzerführung, Menüs & Konfiguration
 
 * [`toolbar.ts`](file:///home/nicolai/Documents/Projects/railbench/src/ui/toolbar.ts):
-  * Native Menüs (Datei, Bearbeiten, Ansicht, Hilfe) mit Shortcut-Hinweisen.
-  * Schnellzugriffe für Undo, Redo, Drehung in $7{,}5^\circ$-Schritten, Löschen, Ansichts-Reset, 3D-Toggle, Lineale, etc.
+  * Brand-Hauptmenü (`RAILbench`), Werkzeugleiste und Dropdowns (Datei, Bearbeiten, Ansicht, Hilfe, Einstellungen).
+  * Schnellzugriffe für Undo, Redo, Drehung in $7{,}5^\circ$-Schritten, Auswahlsperre aufheben (<kbd>Alt+L</kbd>), Ansichts-Reset, 3D-Toggle, Lineale, etc.
+* [`drag-preview.ts`](file:///home/nicolai/Documents/Projects/railbench/src/ui/drag-preview.ts):
+  * Hochpräziser 1:1-CAD-Vorschau-Generator für Drag & Drop direkt aus dem Katalog auf das Canvas (Gleisbögen, Schotterbett, Schwellen, Straßen und Modellgrundrisse).
+* [`selection-bar.ts`](file:///home/nicolai/Documents/Projects/railbench/src/ui/selection-bar.ts):
+  * Kompakte schwebende Aktionsleiste auf dem Canvas mit Icon-Pills für Höhen-/Rampendialog (`⤉`), Millimeter-Eingabe, Grad-Winkel (`↻`), Gleiseinspeisung (`⚡`), Trennstellen (`⊘`), Oberleitung (`⌁`), Decoder (`📟`), Laternen (`💡`) und Löschen (`🗑`).
+* [`welcome-dialog.ts`](file:///home/nicolai/Documents/Projects/railbench/src/ui/welcome-dialog.ts):
+  * Interaktiver Start- & Willkommensbildschirm mit Schnellaktionen (Zuletzt geöffneter Plan, Neuer Plan, Demo-Layout, Datei durchsuchen) und wählbarem Startverhalten.
+* [`settings-manager.ts`](file:///home/nicolai/Documents/Projects/railbench/src/settings/settings-manager.ts):
+  * Verwaltet benutzerspezifische Einstellungen im LocalStorage und bietet `resetPersonalConfig()`, um persönliche Einstellungen und Caches ohne Beeinträchtigung des aktuellen Gleisplans zurückzusetzen.
 * [`sidebar.ts`](file:///home/nicolai/Documents/Projects/railbench/src/ui/sidebar.ts):
-  * Akkordeon-Seitenleiste: Gleiskatalog-Browser, Live-Stückliste, Grundplatten-Editor, 3D-Modell-Bibliothek.
+  * Akkordeon-Seitenleiste: Standardisierter Gleiskatalog-Browser, Straßenbau, Live-Stückliste, Grundplatten-Editor, 3D-Modell-Bibliothek mit Ein-Schritt-Maßstabswahl und Kategorie-Filtern.
 * [`power-dialog.ts`](file:///home/nicolai/Documents/Projects/railbench/src/ui/power-dialog.ts):
   * Modales Einstellungsfenster für Versorgungsspannung (`Custom Voltage`) und Lokomotiv-Stromaufnahme / Gesamtzuglast (stufenloser Slider, Maßstabs-Presets N/Z, TT, H0, Mehrzug-Stepper und automatische 1A-Begrenzung).
 * [`right-sidebar.ts`](file:///home/nicolai/Documents/Projects/railbench/src/ui/right-sidebar.ts):
   * Floating Layer Manager: Anzeige aller Ebenen geordnet nach Höhe, Sichtbarkeitstoggle (<kbd>👁️</kbd>), Bearbeitungsschutz (<kbd>🔒</kbd>), Löschen, Ebene oben/unten hinzufügen und Inline-Ebenenumbenennung.
-* **Canvas Selection Floating Bar** (in [`src/main.ts`](file:///home/nicolai/Documents/Projects/railbench/src/main.ts#L434-L525)):
-  * Schwebende Aktionsleiste bei Selektion: Auswahl-Zähler, Ebenen-Dropdown, Höhen-Badge, Rampen-Rechner (<kbd>M</kbd>), $7{,}5^\circ$-Drehung (<kbd>R</kbd>) und **Winkeleingabefeld** für beliebige Gradzahlen.
 * [`help-dialog.ts`](file:///home/nicolai/Documents/Projects/railbench/src/ui/help-dialog.ts):
   * Interaktives Hilfefenster mit Themen-Navigation (Übersicht, Tastenkombinationen, Ebenen & Steigungen, 3D-Ansicht, Spannungsabfall, Gleissysteme).
 * [`height-dialog.ts`](file:///home/nicolai/Documents/Projects/railbench/src/ui/height-dialog.ts):
@@ -212,14 +218,16 @@ Das Verzeichnis `src/core/` operiert komplett headless und bildet die mathematis
 
 | Kürzel | Aktion | Bereich |
 |---|---|---|
-| <kbd>Ctrl</kbd> + <kbd>N</kbd> / <kbd>O</kbd> / <kbd>S</kbd> | Neu / Öffnen / Speichern | Datei |
+| <kbd>Ctrl</kbd> + <kbd>N</kbd> / <kbd>O</kbd> / <kbd>S</kbd> | Neu / Öffnen (.railbench) / Speichern | Datei |
 | <kbd>Ctrl</kbd> + <kbd>P</kbd> | Layer-separierter Plandruck | Druck |
 | <kbd>Ctrl</kbd> + <kbd>E</kbd> | Stückliste als CSV exportieren | Export |
 | <kbd>Ctrl</kbd> + <kbd>Z</kbd> / <kbd>Y</kbd> | Rückgängig / Wiederherstellen | Bearbeiten |
 | <kbd>R</kbd> / <kbd>Shift</kbd> + <kbd>R</kbd> | Selektion um $+7{,}5^\circ$ / $-7{,}5^\circ$ drehen | Bearbeiten |
+| <kbd>Alt</kbd> + <kbd>L</kbd> | Auswahlsperre aufheben (Gesperrte & gelöschte Ebenen auswählen) | Ebenen |
 | <kbd>M</kbd> | Höhe / Rampe / Ebenenwechsel öffnen | Ebenen |
 | <kbd>F</kbd> | Stromeinspeisepunkt setzen/entfernen (⚡) | Elektrik |
-| <kbd>I</kbd> | Spannungstrennstelle / Isolator setzen (⛔) | Elektrik |
+| <kbd>I</kbd> | Spannungstrennstelle / Isolator setzen (⊘) | Elektrik |
+| <kbd>Shift</kbd> + <kbd>D</kbd> / <kbd>L</kbd> | Weichendecoder / Weichenlaterne umschalten | Elektrik |
 | <kbd>P</kbd> | Fahrspannungsabfall-Heatmap umschalten | Elektrik |
 | <kbd>3</kbd> oder <kbd>V</kbd> | 3D-Ansicht umschalten (Alpha) | Ansicht |
 | <kbd>Shift</kbd> + <kbd>L</kbd> | Millimeter-Lineale ein-/ausblenden | Ansicht |

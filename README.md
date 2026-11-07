@@ -16,6 +16,7 @@ An intuitive, fast, and precise model railway track planning and layout simulati
 * **Popular Track Systems**: Includes ready-to-use geometries for H0 (1:87) (Märklin C-Gleis, Märklin K-Gleis, Märklin M-Gleis, Trix C-Gleis, Piko A-Gleis, Roco Line, Tillig Elite, Peco Streamline Code 100), TT (1:120) (Tillig Modellgleis, Tillig Bettungsgleis, Kuehn Gleis), N (1:160) (Fleischmann Piccolo, Kato Unitrack, Minitrix), and Z (1:220) (Märklin mini-club, Rokuhan).
 * **Märklin C-Gleis Drehscheibe 74862 & Trix 66862**: Full turntable support (DB 23 m standard type) with 30 exits at 12° increments, circular pit rail, bridge with wooden catwalks, operator cab, and true 3D pit rendering.
 * **Integrated Street & Road Systems**: Dedicated street catalogs for H0 and N scale in their own sidebar tab (Straßen) with straights, curves, junctions, turning loops, and asphalt rendering.
+* **1:1 Direct 2D Drag-and-Drop Canvas Preview**: Dragging tracks, roads, or 3D buildings from the catalog renders an exact 1:1 millimetric preview directly under the cursor matching the canvas scale, complete with ballast beds, sleeper ties, road textures, and architectural footprints.
 * **Point-to-Point Distance Measuring Tool**: Measure straight-line distance, horizontal/vertical deltas, and angle between any two points with snap guidance.
 * **Smart Magnetic Snapping (<kbd>S</kbd>)**: Connectors automatically align with exact millimetric coordinates and tangent angles.
 * **Color-Coding (<kbd>C</kbd>) & Part Numbers (<kbd>N</kbd>)**: Distinguish identical track radii and straights by color or display official manufacturer part numbers directly on the track bed.
@@ -24,10 +25,17 @@ An intuitive, fast, and precise model railway track planning and layout simulati
 ### 2. Multi-Deck Layers & Height Management
 * **Floating Layers Menu (<kbd>Shift+B</kbd>)**: Manage multiple elevation decks (Ground level, Mountain branches, Staging yards / *Schattenbahnhöfe*) sorted by vertical height.
 * **Custom Layer Naming & Renaming**: Name layers when creating them, or rename any existing layer at any time by clicking the **✏️** icon or **double-clicking** the layer title. Click the elevation badge (e.g. `+80 mm`) to directly adjust the layer's base height.
-* **Deck Protection**: Independent visibility toggles (<kbd>👁️</kbd>) to hide upper decks and editing locks (<kbd>🔒</kbd>) to prevent accidental movement.
+* **Deck Protection & Selection Lock Bypass (<kbd>Alt+L</kbd>)**: Independent visibility toggles (<kbd>👁️</kbd>) to hide upper decks and editing locks (<kbd>🔒</kbd>) to prevent accidental movement. When needed, toggle the Selection Lock bypass button (<kbd>Alt+L</kbd>) to select locked elements or reassign orphan tracks whose layer was previously deleted.
 * **Change Height / Move to Layer (<kbd>M</kbd>)**: Assign selected tracks to another layer and automatically synchronize their elevation.
 * **Continuous Ramp & Incline Calculator**: Calculate continuous multi-track ramps using proportional length (*Dreisatz*), optional vertical easing (*Ausrundung* 1%→2%→3%→2%→1%), 2D slope direction chevrons & badges, and 3D helical elevation rendering.
-* **Canvas Selection Bar**: Quick floating pill on canvas showing current selection count, layer dropdown, elevation badge, and one-click height adjustment.
+* **Overhauled Compact Floating Selection Bar**: A sleek, space-efficient floating pill on the canvas with concise action icons:
+  * `⤉` One-click ramp/height configuration dialog and direct `[ 0 ] mm` numeric height input.
+  * `↻` Direct degree rotation input `[ 180 ] °`.
+  * `⚡` Power feed toggle (<kbd>F</kbd>).
+  * `⊘` Track gap isolator with connector indicator `⊘ 1/2` (<kbd>I</kbd>).
+  * `⌁` / `⌁+` / `⌁⊘` Catenary overhead wire, catenary power feed (<kbd>Shift+F</kbd>), and catenary section insulators (<kbd>Shift+I</kbd>).
+  * `📟` / `💡` Digital turnout decoders (<kbd>Shift+D</kbd>) and illuminated lanterns (<kbd>Shift+L</kbd>).
+  * `🗑` Delete selected items (<kbd>Del</kbd>).
 
 ### 3. 3D Perspective & Elevation View *(Alpha)*
 > [!NOTE]
@@ -75,7 +83,12 @@ An intuitive, fast, and precise model railway track planning and layout simulati
 ### 7. Bill of Materials (BOM) & File Export
 * **Live Piece Counter**: Real-time inventory list with total parts and track lengths in meters.
 * **CSV Export (<kbd>Ctrl+E</kbd>)**: Export structured BOM tables for Microsoft Excel, LibreOffice Calc, or Google Sheets.
-* **File Formats**: Save and open layouts in native `.gleisplan` (JSON) or standard `.xml` formats with full layer and elevation persistence.
+* **File Formats**: Save and open layouts in the native **`.railbench`** (JSON) format, with full backward compatibility for legacy `.gleisplan` and `.xml` files.
+
+### 8. Welcome Screen & Personal Configuration
+* **Interactive Welcome Screen**: Quick start modal on launch allowing users to reopen recent layouts, create an empty layout, load the built-in demo track, or browse `.railbench` files.
+* **Configurable Startup Behavior**: Set default launch actions (Ask every start, Directly load recent plan, Start with empty layout, or Always open demo track).
+* **Reset Personal Configuration**: Safely wipe all local user settings, preferences, and cached UI states via **Main Menu → Einstellungen → Persönliche Konfiguration löschen...** without affecting the saved layout plan.
 
 ---
 
@@ -84,7 +97,7 @@ An intuitive, fast, and precise model railway track planning and layout simulati
 | Shortcut | Action | Category |
 |---|---|---|
 | <kbd>Ctrl</kbd> + <kbd>N</kbd> | New empty layout | File |
-| <kbd>Ctrl</kbd> + <kbd>O</kbd> | Open layout plan (`.gleisplan` / `.xml`) | File |
+| <kbd>Ctrl</kbd> + <kbd>O</kbd> | Open layout plan (`.railbench` / `.gleisplan` / `.xml`) | File |
 | <kbd>Ctrl</kbd> + <kbd>S</kbd> | Save layout plan | File |
 | <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd> | Save layout plan as... | File |
 | <kbd>Ctrl</kbd> + <kbd>W</kbd> | **Close Plan / Dialog / Window** | File / Navigation |
@@ -99,14 +112,16 @@ An intuitive, fast, and precise model railway track planning and layout simulati
 | <kbd>R</kbd> | Rotate selected track +7.5° clockwise | Editing |
 | <kbd>Shift</kbd> + <kbd>R</kbd> | Rotate selected track -7.5° counter-clockwise | Editing |
 | <kbd>Shift</kbd> + **Mouse Wheel** | Rotate track under cursor continuously | Editing |
-| <kbd>W</kbd> / <kbd>Shift</kbd> + <kbd>W</kbd> | Toggle Turnout Lantern / Decoder | Electrical / Turnouts |
+| <kbd>Shift</kbd> + <kbd>D</kbd> | Toggle Digital Turnout Decoder (📟) | Electrical / Turnouts |
+| <kbd>Shift</kbd> + <kbd>L</kbd> | Toggle Lighted Turnout Lantern (💡) | Electrical / Turnouts |
+| <kbd>Alt</kbd> + <kbd>L</kbd> | **Toggle Selection Lock / Layer Protection Bypass** | Workspace / Layers |
 | <kbd>M</kbd> | **Change Track Height / Move to Layer** | Layers |
 | <kbd>Del</kbd> / <kbd>Backspace</kbd> | Delete selected tracks | Editing |
 | <kbd>F</kbd> | Toggle Power Feeder point (⚡) | Electrical |
-| <kbd>Shift</kbd> + <kbd>F</kbd> | Toggle Catenary Power Feeder (⚡🔌) | Electrical / Catenary |
-| <kbd>I</kbd> | Toggle Track Isolator gap (⛔) | Electrical |
-| <kbd>Shift</kbd> + <kbd>I</kbd> | Toggle Catenary Section Insulator (⚡⛔) | Electrical / Catenary |
-| <kbd>O</kbd> | Toggle Catenary (Overhead wire & masts) (⚡) | Electrical / 3D |
+| <kbd>Shift</kbd> + <kbd>F</kbd> | Toggle Catenary Power Feeder (⌁+) | Electrical / Catenary |
+| <kbd>I</kbd> | Toggle Track Isolator gap (⊘) | Electrical |
+| <kbd>Shift</kbd> + <kbd>I</kbd> | Toggle Catenary Section Insulator (⌁⊘) | Electrical / Catenary |
+| <kbd>O</kbd> | Toggle Catenary (Overhead wire & masts) (⌁) | Electrical / 3D |
 | <kbd>P</kbd> | Toggle Traction Voltage Simulation heatmap | Electrical |
 | <kbd>3</kbd> or <kbd>V</kbd> | **Toggle 3D Elevation & Perspective View (Alpha)** | View / 3D |
 | <kbd>Esc</kbd> | Exit 3D View / Close dialogs | View / Navigation |
