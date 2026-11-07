@@ -1,4 +1,5 @@
 import { getLanguage } from "@/i18n";
+import { getAppVersionTag } from "@/version";
 
 export type StartupAction = "recent" | "new" | "demo" | "open" | "ask";
 
@@ -20,7 +21,7 @@ export function showWelcomeDialog(
       <div class="welcome-card">
         <div class="welcome-header">
           <span class="welcome-logo-badge">🚆</span>
-          <h2>Railbench</h2>
+          <h2>Railbench <span style="font-size:12px;opacity:0.6;font-weight:normal;vertical-align:middle;margin-left:4px;">${getAppVersionTag()}</span></h2>
           <p class="welcome-subtitle">
             ${isDe ? "Wähle, wie du heute starten möchtest:" : "Choose how you want to get started:"}
           </p>
