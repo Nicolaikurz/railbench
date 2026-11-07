@@ -7,6 +7,8 @@ export const en: Translations = {
       edit: "Edit",
       view: "View",
       help: "Help",
+      settings: "Settings",
+      resetPersonalConfig: "Reset personal configuration...",
     },
     fileMenu: {
       newPlan: "New Layout",
@@ -105,6 +107,9 @@ export const en: Translations = {
       measureMeasured: "Measured between A and B",
       measurePrototype: "Prototype",
       toggle3dTitle: "3 / V: Toggle realistic 3D elevation view with layers & bridges (Alpha)",
+      selectionLockLabel: "Sel-Lock",
+      selectionLockDisabledLabel: "Unlocked",
+      selectionLockTitle: "Toggle selection lock (allows selecting items on inactive, locked or deleted layers)",
     },
     colorsMenu: {
       types: "Color-Code by Track Type",
@@ -308,6 +313,9 @@ export const en: Translations = {
     deleteLayer: "Delete Layer",
     tracksCount: "{count} track{s}",
     renamePlaceholder: "Layer name...",
+    disableSelectionLock: "Disable selection lock (all / deleted layers)",
+    orphanedItemsWarning: "{count} item(s) on deleted layer",
+    reassignOrphaned: "Move to active layer",
   },
   selectionBar: {
     selectedPrefix: "Selected:",
@@ -463,6 +471,8 @@ export const en: Translations = {
   dialogs: {
     confirmNewPlan: "Do you really want to start a new empty layout? Any unsaved changes will be lost.",
     confirmClearLayout: "Do you really want to clear all tracks and 3D models from the layout?",
+    confirmResetConfig: "Do you really want to reset all personal settings (theme, view, snapping, language, window states) to defaults?\n\nYour current track plan will be preserved.",
+    configResetSuccess: "Personal configuration has been reset successfully.",
     selectTracksFirst: "Please select one or more tracks first.",
     newLayerPrompt: "Enter name for the new layer:",
     newLayerHeightPrompt: "Enter base elevation in mm for '{name}':",

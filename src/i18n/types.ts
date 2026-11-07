@@ -7,6 +7,8 @@ export interface Translations {
       edit: string;
       view: string;
       help: string;
+      settings: string;
+      resetPersonalConfig: string;
     };
     fileMenu: {
       newPlan: string;
@@ -105,6 +107,9 @@ export interface Translations {
       measureMeasured: string;
       measurePrototype: string;
       toggle3dTitle: string;
+      selectionLockLabel: string;
+      selectionLockDisabledLabel: string;
+      selectionLockTitle: string;
     };
     colorsMenu: {
       types: string;
@@ -308,6 +313,9 @@ export interface Translations {
     deleteLayer: string;
     tracksCount: string;
     renamePlaceholder: string;
+    disableSelectionLock: string;
+    orphanedItemsWarning: string;
+    reassignOrphaned: string;
   };
   selectionBar: {
     selectedPrefix: string;
@@ -463,6 +471,8 @@ export interface Translations {
   dialogs: {
     confirmNewPlan: string;
     confirmClearLayout: string;
+    confirmResetConfig: string;
+    configResetSuccess: string;
     selectTracksFirst: string;
     newLayerPrompt: string;
     newLayerHeightPrompt: string;

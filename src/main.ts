@@ -1,22 +1,11 @@
 import { Renderer } from "@/render/renderer";
 import { attachCamera } from "@/render/camera";
-import {
-  createLayout,
-  ensureDefaultLayers,
-  getBaseboards,
-  getBaseboardPolygon,
-} from "@/core/layout";
+import { createLayout, ensureDefaultLayers, getBaseboards, getBaseboardPolygon } from "@/core/layout";
 import type { BaseboardSnapGuide } from "@/core/baseboard-snapping";
-import type { BaseboardConfig } from "@/core/types";
+import type { BaseboardConfig, Layout, TrackPiece, Transform, Model3D, ColorMode } from "@/core/types";
 import { Ruler } from "@/ui/ruler";
 import { Viewer3D } from "@/render/viewer-3d";
-import type { Layout, TrackPiece, Transform, Model3D, ColorMode } from "@/core/types";
-import {
-  catalogRegistry,
-  computeWorldConnectors,
-  type Catalog,
-  type CatalogEntry,
-} from "@/catalog/catalog";
+import { catalogRegistry, computeWorldConnectors, type Catalog, type CatalogEntry } from "@/catalog/catalog";
 import {
   simulatePowerDrop,
   type SimulationSummary,
@@ -47,6 +36,7 @@ import { MeasureHud, getScaleRatio } from "@/ui/measure-hud";
 import { TrackOperations } from "@/editor/track-operations";
 import { CanvasController } from "@/editor/canvas-controller";
 import { initDemoTracks, generateStressTracks } from "@/editor/demo-tracks";
+import { showWelcomeDialog, type StartupAction } from "@/ui/welcome-dialog";
 import { getFullAppTitle } from "@/version";
 
 async function main() {
@@ -65,6 +55,7 @@ async function main() {
   let trackLabelsEnabled = savedSettings.trackLabelsEnabled ?? true;
   let powerSimEnabled = savedSettings.powerSimEnabled ?? false;
   let rightSidebarCollapsed = savedSettings.rightSidebarCollapsed ?? false;
+  let selectionLockDisabled = savedSettings.selectionLockDisabled ?? false;
   let rightSidebar: RightSidebar | null = null;
   let currentSimulation: SimulationSummary | undefined = undefined;
   let currentShortCircuit: ShortCircuitDetectionResult | undefined = undefined;
@@ -106,6 +97,7 @@ async function main() {
   function saveSettingsState() {
     saveAppSettings({
       snappingEnabled,
+      selectionLockDisabled,
       colorMode,
       trackLabelsEnabled,
       powerSimEnabled,
@@ -142,7 +134,21 @@ async function main() {
     return catalog.entries.find((e) => e.id === piece.catalogId) ?? catalogRegistry.findEntry(piece.catalogId);
   }
 
+  function toggleSelectionLock(forcedState?: boolean) {
+    selectionLockDisabled = forcedState !== undefined ? forcedState : !selectionLockDisabled;
+    const isDe = getLanguage() === "de";
+    showToast(
+      selectionLockDisabled
+        ? (isDe ? "Auswahlsperre aufgehoben (alle Ebenen wählbar)" : "Selection lock disabled (all layers selectable)")
+        : (isDe ? "Auswahlsperre aktiviert (nur aktive Ebene)" : "Selection lock enabled (active layer only)"),
+      selectionLockDisabled ? "🔓" : "🔒",
+    );
+    saveSettingsState();
+    sync();
+  }
+
   function isPieceLockedOrHidden(piece: TrackPiece): boolean {
+    if (selectionLockDisabled) return false;
     if (!layout.layers) return false;
     const layer = layout.layers.find((l) => l.id === (piece.layerId || "layer-1"));
     if (!layer) return false;
@@ -150,15 +156,21 @@ async function main() {
   }
 
   function isPieceInteractive(piece: TrackPiece): boolean {
+    if (selectionLockDisabled) return true;
     const activeId = getActiveLayerId();
     const pieceLayerId = piece.layerId || "layer-1";
+    const layerExists = layout.layers?.some((l) => l.id === pieceLayerId);
+    if (!layerExists) return true;
     if (pieceLayerId !== activeId) return false;
     return !isPieceLockedOrHidden(piece);
   }
 
   function isModelInteractive(model: Model3D): boolean {
+    if (selectionLockDisabled) return true;
     const activeId = getActiveLayerId();
     const modelLayerId = model.layerId || layout.layers?.[0]?.id || "layer-1";
+    const layerExists = layout.layers?.some((l) => l.id === modelLayerId);
+    if (!layerExists) return true;
     if (modelLayerId !== activeId) return false;
     if (!layout.layers) return true;
     const layer = layout.layers.find((l) => l.id === modelLayerId);
@@ -171,6 +183,7 @@ async function main() {
       canRedo: history.canRedo(),
       hasSelection: selection.all().length > 0,
       snappingEnabled,
+      selectionLockDisabled,
       colorCodeEnabled: colorMode !== "off",
       colorMode,
       trackLabelsEnabled,
@@ -573,6 +586,7 @@ async function main() {
       canRedo: history.canRedo(),
       hasSelection: selectedIds.size > 0,
       snappingEnabled,
+      selectionLockDisabled,
       measureToolActive: isMeasureToolActive,
       colorCodeEnabled: colorMode !== "off",
       colorMode,
@@ -647,6 +661,9 @@ async function main() {
     onMoveSelectedToLayer: (layerId) => {
       operations.moveSelectedToLayer(layerId, { start: 0, end: 0 });
     },
+    onToggleSelectionLock: () => toggleSelectionLock(),
+    isSelectionLockDisabled: () => selectionLockDisabled,
+    getZoom: () => renderer.world.scale.x || 1.0,
     selectedPieceIds: () => selection.all(),
   });
 
@@ -660,6 +677,7 @@ async function main() {
     onLayerChange: () => {
       const activeId = getActiveLayerId();
       const toKeep = selection.all().filter((id) => {
+        if (selectionLockDisabled) return true;
         const p = layout.pieces.find((x) => x.id === id);
         if (p) return (p.layerId || "layer-1") === activeId && !isPieceLockedOrHidden(p);
         const m = layout.models?.find((x) => x.id === id);
@@ -678,6 +696,7 @@ async function main() {
     onSelectActiveLayer: (layerId) => {
       layout.activeLayerId = layerId;
       const toKeep = selection.all().filter((id) => {
+        if (selectionLockDisabled) return true;
         const p = layout.pieces.find((x) => x.id === id);
         if (p) return (p.layerId || "layer-1") === layerId;
         const m = layout.models?.find((x) => x.id === id);
@@ -700,6 +719,8 @@ async function main() {
       sync();
     },
     isWoodPlateActive: () => viewer3D.isWoodPlateEnabled(),
+    onToggleSelectionLock: () => toggleSelectionLock(),
+    isSelectionLockDisabled: () => selectionLockDisabled,
     onClose: () => {
       toggleRightSidebar();
     },
@@ -729,6 +750,7 @@ async function main() {
     sync,
     isSnappingEnabled: () => snappingEnabled,
     setSnappingEnabled: (val) => { snappingEnabled = val; },
+    toggleSelectionLock: () => toggleSelectionLock(),
     cycleColorMode,
     isTrackLabelsEnabled: () => trackLabelsEnabled,
     setTrackLabelsEnabled: (val) => { trackLabelsEnabled = val; },
@@ -736,6 +758,7 @@ async function main() {
     setPowerSimEnabled: (val) => { powerSimEnabled = val; },
     openHeightDialogForSelection,
     triggerCollabDialog,
+    triggerWelcomeDialog: () => triggerWelcome(),
     showToast,
   });
 
@@ -822,6 +845,7 @@ async function main() {
     },
     isSnappingEnabled: () => snappingEnabled,
     setSnappingEnabled: (val) => { snappingEnabled = val; },
+    toggleSelectionLock: () => toggleSelectionLock(),
     getColorMode: () => colorMode,
     cycleColorMode,
     isTrackLabelsEnabled: () => trackLabelsEnabled,
@@ -899,20 +923,69 @@ async function main() {
     sync(false);
   });
 
-  // Prüfen, ob ein gespeicherter Plan im LocalStorage vorhanden ist
-  const cachedPlan = planManager.loadFromLocalStorage();
-  if (cachedPlan && cachedPlan.pieces && cachedPlan.pieces.length > 0) {
-    layout = cachedPlan;
-    ensureDefaultLayers(layout);
+  function applyStartupAction(action: "recent" | "new" | "demo" | "open", cached?: Layout | null) {
+    if (action === "recent" && cached && cached.pieces?.length) {
+      layout = cached;
+      ensureDefaultLayers(layout);
+      planManager.setPlanInfo(layout.name + ".railbench", null, "railbench");
+    } else if (action === "new") {
+      layout.pieces = [];
+      ensureDefaultLayers(layout);
+      planManager.setPlanInfo(getLanguage() === "de" ? "Neuer Plan.railbench" : "New Layout.railbench", null, "railbench");
+    } else {
+      initDemoTracks(layout, catalog);
+      planManager.setPlanInfo(`${layout.name}.railbench`, null, "railbench");
+      if (action === "open") setTimeout(() => operations.triggerOpenPlan(), 50);
+    }
     history = new History(layout);
-    planManager.setPlanInfo(layout.name + ".railbench", null, "railbench");
-  } else {
-    initDemoTracks(layout, catalog);
-    planManager.setPlanInfo(`${layout.name}.railbench`, null, "railbench");
+    selection.clear();
+    sync(true);
   }
 
-  // Initialer Render
-  sync();
+  async function triggerWelcome() {
+    const cached = planManager.loadFromLocalStorage();
+    const hasRec = Boolean(cached && cached.pieces?.length);
+    const recName = cached?.name ? `${cached.name}.railbench` : undefined;
+    const choice = await showWelcomeDialog(hasRec, recName);
+    if (choice.dontAskAgain) {
+      saveAppSettings({ startupAction: choice.action });
+    } else {
+      saveAppSettings({ startupAction: "ask" });
+    }
+    applyStartupAction(choice.action, cached);
+  }
+
+  // Startverhalten ermitteln (Willkommensdialog vs. gemerkte Auswahl)
+  const cachedPlan = planManager.loadFromLocalStorage();
+  const hasRecent = Boolean(cachedPlan && cachedPlan.pieces?.length);
+  const recentName = cachedPlan?.name ? `${cachedPlan.name}.railbench` : undefined;
+
+  let startupAction: StartupAction = savedSettings.startupAction || "ask";
+  if (startupAction === "recent" && !hasRecent) {
+    startupAction = "ask";
+  }
+
+  if (startupAction === "ask") {
+    // Vorab-Initialisierung für ansprechenden Hintergrund hinter dem Weichzeichner
+    if (hasRecent && cachedPlan) {
+      layout = cachedPlan;
+      ensureDefaultLayers(layout);
+      history = new History(layout);
+      planManager.setPlanInfo(layout.name + ".railbench", null, "railbench");
+    } else {
+      initDemoTracks(layout, catalog);
+      planManager.setPlanInfo(`${layout.name}.railbench`, null, "railbench");
+    }
+    sync(false);
+
+    const choice = await showWelcomeDialog(hasRecent, recentName);
+    if (choice.dontAskAgain) {
+      saveAppSettings({ startupAction: choice.action });
+    }
+    applyStartupAction(choice.action, cachedPlan);
+  } else {
+    applyStartupAction(startupAction as "recent" | "new" | "demo" | "open", cachedPlan);
+  }
 }
 
 main();

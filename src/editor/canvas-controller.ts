@@ -81,6 +81,7 @@ export interface CanvasControllerDeps {
   }>) => void;
   isSnappingEnabled: () => boolean;
   setSnappingEnabled: (val: boolean) => void;
+  toggleSelectionLock?: () => void;
   getColorMode: () => ColorMode;
   cycleColorMode: (target?: ColorMode) => void;
   isTrackLabelsEnabled: () => boolean;

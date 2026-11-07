@@ -4478,14 +4478,18 @@
         background: var(--bg-card);
         color: var(--text-main);
         border: 1px solid var(--border-main);
-        border-radius: 24px;
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+        border-radius: 20px;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.22);
         display: flex;
         align-items: center;
-        gap: 10px;
-        padding: 6px 14px;
+        gap: 4px;
+        padding: 4px 8px;
         z-index: 90;
         pointer-events: auto;
+        backdrop-filter: blur(8px);
+        max-width: calc(100% - 24px);
+        overflow-x: auto;
+        scrollbar-width: none;
       }
 
       .selection-floating-bar.hidden {
@@ -4493,33 +4497,45 @@
       }
 
       .sel-bar-count {
-        font-size: 12.5px;
+        font-size: 11px;
         font-weight: 700;
-        color: var(--text-main);
+        color: var(--text-sub);
+        background: var(--bg-surface);
+        border: 1px solid var(--border-main);
+        padding: 3px 8px;
+        border-radius: 12px;
         white-space: nowrap;
+        max-width: 200px;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
 
       .sel-bar-divider {
         width: 1px;
-        height: 18px;
+        height: 16px;
         background: var(--border-main);
+        margin: 0 2px;
+        flex-shrink: 0;
       }
 
       .sel-bar-layer-group {
         display: flex;
         align-items: center;
-        gap: 6px;
-        font-size: 12px;
+        gap: 4px;
+        font-size: 11px;
       }
 
       .sel-bar-select {
+        height: 26px;
+        max-width: 86px;
+        padding: 2px 6px;
+        font-size: 11px;
+        font-weight: 600;
+        border-radius: 10px;
         background: var(--bg-surface);
         color: var(--text-main);
         border: 1px solid var(--border-main);
-        border-radius: 14px;
-        padding: 3px 8px;
-        font-size: 11.5px;
-        font-weight: 600;
+        text-overflow: ellipsis;
         cursor: pointer;
       }
 
@@ -4535,26 +4551,29 @@
       }
 
       .sel-bar-angle-group {
-        display: flex;
+        display: inline-flex;
         align-items: center;
-        gap: 4px;
-        font-size: 12px;
+        gap: 3px;
+        font-size: 11px;
       }
 
       .sel-bar-angle-label {
+        font-size: 11px;
+        font-weight: 700;
         color: var(--text-muted);
-        font-weight: 600;
-        font-size: 11.5px;
+        cursor: default;
+        user-select: none;
       }
 
       .sel-bar-angle-input {
-        width: 54px;
+        width: 42px;
+        height: 24px;
         background: var(--bg-surface);
         color: var(--text-main);
         border: 1px solid var(--border-main);
-        border-radius: 12px;
-        padding: 2.5px 6px;
-        font-size: 11.5px;
+        border-radius: 8px;
+        padding: 1px 5px;
+        font-size: 11px;
         font-weight: 700;
         font-family: inherit;
         text-align: right;
@@ -4569,18 +4588,19 @@
 
       .sel-bar-unit {
         color: var(--text-muted);
-        font-size: 11.5px;
+        font-size: 10.5px;
         font-weight: 600;
         margin-left: -1px;
+        user-select: none;
       }
 
       .sel-bar-btn {
         background: var(--bg-surface);
         color: var(--text-main);
         border: 1px solid var(--border-main);
-        border-radius: 14px;
-        padding: 4px 6px;
-        font-size: 11px;
+        border-radius: 10px;
+        padding: 2px 7px;
+        font-size: 11.5px;
         font-weight: 600;
         cursor: pointer;
         display: inline-flex;
@@ -4588,31 +4608,36 @@
         justify-content: center;
         text-align: center;
         white-space: nowrap;
-        width: 86px;
-        min-width: 86px;
-        max-width: 86px;
-        height: 28px;
+        min-width: 28px;
+        height: 26px;
         box-sizing: border-box;
         transition: all 0.12s;
-      }
-
-      .sel-bar-btn.active {
-        background: var(--primary-color);
-        color: #ffffff;
-        border-color: var(--primary-color);
-        box-shadow: 0 0 6px rgba(2, 132, 199, 0.4);
+        user-select: none;
       }
 
       .sel-bar-btn:hover {
-        background: var(--primary-color);
-        color: #ffffff;
+        background: var(--bg-card-hover);
         border-color: var(--primary-color);
+        color: var(--primary-color);
+      }
+
+      .sel-bar-btn:active {
+        transform: scale(0.96);
+      }
+
+      .sel-bar-btn.active {
+        background: var(--primary-color) !important;
+        color: #ffffff !important;
+        border-color: var(--primary-color) !important;
+        box-shadow: 0 0 8px rgba(2, 132, 199, 0.45);
+        font-weight: 700;
       }
 
       .sel-bar-btn-danger:hover {
-        background: #ef4444;
-        color: #ffffff;
-        border-color: #ef4444;
+        background: #ef4444 !important;
+        color: #ffffff !important;
+        border-color: #ef4444 !important;
+        box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
       }
 
       /* Right Sidebar Selection Actions */
