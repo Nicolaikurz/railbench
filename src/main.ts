@@ -56,7 +56,8 @@ async function main() {
   let powerSimEnabled = savedSettings.powerSimEnabled ?? false;
   let rightSidebarCollapsed = savedSettings.rightSidebarCollapsed ?? false;
   let selectionLockDisabled = savedSettings.selectionLockDisabled ?? false;
-  let rightSidebar: RightSidebar | null = null;
+  let sidebar: Sidebar | null = null, rightSidebar: RightSidebar | null = null;
+  let ruler: Ruler | null = null, viewer3D: Viewer3D | null = null;
   let currentSimulation: SimulationSummary | undefined = undefined;
   let currentShortCircuit: ShortCircuitDetectionResult | undefined = undefined;
   let currentSelectionBox: { start: { x: number; y: number }; end: { x: number; y: number } } | null = null;
@@ -198,12 +199,12 @@ async function main() {
   const renderer = new Renderer();
   await renderer.init(canvasHost);
 
-  const ruler = new Ruler({
+  ruler = new Ruler({
     host: canvasHost,
     world: renderer.world,
     onCenterOrigin: () => {
       renderer.resetView();
-      ruler.update();
+      ruler?.update();
       sync();
       saveSettingsState();
     },
@@ -350,19 +351,26 @@ async function main() {
     ruler.update();
   }
 
-  const viewer3D = new Viewer3D(canvasHost);
+  viewer3D = new Viewer3D(canvasHost);
   let is3DMode = false;
 
   function toggle3D(force?: boolean) {
+    if (!viewer3D?.isSupported()) {
+      const msg = getLanguage() === "de"
+        ? "3D-Ansicht nicht verfügbar (WebGL-Kontext erforderlich)"
+        : "3D view unavailable (WebGL context required)";
+      showToast(msg, "⚠️");
+      return;
+    }
     is3DMode = force !== undefined ? force : !is3DMode;
     if (is3DMode) {
-      ruler.setVisible(false);
+      ruler?.setVisible(false);
       viewer3D.show(() => toggle3D(false));
       viewer3D.updateLayout(layout, catalog, { colorMode, showColorCode: colorMode !== "off" });
       viewer3D.resetCamera();
     } else {
       viewer3D.hide();
-      ruler.setVisible(true);
+      ruler?.setVisible(true);
     }
     sync();
   }
@@ -567,13 +575,13 @@ async function main() {
         : null,
     });
 
-    ruler.update();
+    ruler?.update();
     collabOverlay.update();
     collabClient.broadcastSelection(selection.all());
     selectionBar.update();
 
     if (is3DMode) {
-      viewer3D.updateLayout(layout, catalog, {
+      viewer3D?.updateLayout(layout, catalog, {
         colorMode,
         showColorCode: colorMode !== "off",
         shortCircuit: currentShortCircuit,
@@ -594,7 +602,7 @@ async function main() {
       powerSimEnabled,
       hasShortCircuit: currentShortCircuit.hasShortCircuit,
       shortCircuitCount: currentShortCircuit.shortCircuitPoints.length,
-      rulersEnabled: ruler.isVisible(),
+      rulersEnabled: ruler?.isVisible() ?? true,
       baseboardEnabled: getBaseboards(layout).some((b) => b.enabled),
       is3DActive: is3DMode,
       selectedHasFeeder: selectedPiece?.powerFeed ?? false,
@@ -609,7 +617,7 @@ async function main() {
       collabUsersCount: collabClient.getUsers().length,
     });
 
-    sidebar.update(layout, currentSimulation);
+    sidebar?.update(layout, currentSimulation);
     if (rightSidebar) {
       rightSidebar.update(layout);
     }
@@ -617,7 +625,7 @@ async function main() {
 
   // Sidebar initialisieren
   const sidebarHost = document.getElementById("sidebar")!;
-  const sidebar = new Sidebar(sidebarHost, catalog, layout, {
+  sidebar = new Sidebar(sidebarHost, catalog, layout, {
     onAddPiece: (entry) => {
       operations.addPieceToLayout(entry);
       sync(true);
@@ -632,7 +640,7 @@ async function main() {
       const newCat = catalogRegistry.get(systemId);
       if (newCat) {
         catalog = newCat;
-        sidebar.setCatalog(catalog);
+        sidebar?.setCatalog(catalog);
         if (layout.pieces.length === 0 && (newCat.scale === "H0" || newCat.scale === "N" || newCat.scale === "TT" || newCat.scale === "Z" || newCat.scale === "1")) {
           layout.scale = newCat.scale;
         }
@@ -707,18 +715,13 @@ async function main() {
       sync(true);
     },
     onToggleWoodPlate: () => {
-      const active = !viewer3D.isWoodPlateEnabled();
-      viewer3D.setWoodPlate(active);
+      const active = !viewer3D?.isWoodPlateEnabled();
+      viewer3D?.setWoodPlate(active);
       const isDe = getLanguage() === "de";
-      showToast(
-        active
-          ? (isDe ? "Woodplatte (Trassenbrett) platziert" : "Wood plate placed under tracks & roads")
-          : (isDe ? "Woodplatte entfernt" : "Wood plate removed"),
-        "🪵"
-      );
+      showToast(active ? (isDe ? "Woodplatte (Trassenbrett) platziert" : "Wood plate placed under tracks & roads") : (isDe ? "Woodplatte entfernt" : "Wood plate removed"), "🪵");
       sync();
     },
-    isWoodPlateActive: () => viewer3D.isWoodPlateEnabled(),
+    isWoodPlateActive: () => viewer3D?.isWoodPlateEnabled() ?? false,
     onToggleSelectionLock: () => toggleSelectionLock(),
     isSelectionLockDisabled: () => selectionLockDisabled,
     onClose: () => {
@@ -766,8 +769,8 @@ async function main() {
 
   themeManager.onChange((resolved, pref) => {
     renderer.setTheme(resolved);
-    ruler.setTheme(resolved);
-    viewer3D.setTheme(resolved);
+    ruler?.setTheme(resolved);
+    viewer3D?.setTheme(resolved);
     updateToolbarState({ themePref: pref, resolvedTheme: resolved });
   });
 

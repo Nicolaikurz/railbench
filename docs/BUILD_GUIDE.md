@@ -24,10 +24,12 @@ Diese Anleitung beschreibt Schritt für Schritt, wie eigenständige ausführbare
 | **Linux AppImage** | ARM64 | `npm run dist:linux:appimage:arm64` | `scripts/build-linux-appimage.sh arm64` | `release/Gleisplan-0.4.0-arm64.AppImage` | Für Raspberry Pi 4/5, Asahi Linux |
 | **Linux AppImage (Alle)** | x64 + arm64 | `npm run dist:linux:appimage:all` | `scripts/build-linux-appimage.sh all` | `release/Gleisplan-0.4.0-*.AppImage` | Baut beide Linux-Architekturen |
 | **Linux Flatpak** | x86_64 | `npm run dist:linux:flatpak` | `scripts/build-flatpak.sh` | `release/Railbench.flatpak` | Sandbox-Paket (Wayland/X11) |
-| **macOS Package** | ARM64 | `npm run dist:mac:zip:arm64` | `scripts/build-macos.sh arm64` | `release/Gleisplan-0.4.0-mac-arm64.zip` | Für Apple Silicon (M1/M2/M3/M4) |
-| **macOS Package** | x86_64 | `npm run dist:mac:zip:x64` | `scripts/build-macos.sh x64` | `release/Gleisplan-0.4.0-mac-x64.zip` | Für Intel-basierte Macs |
-| **macOS Packages (Alle)** | x64 + arm64 | `npm run dist:mac:zip:all` | `scripts/build-macos.sh all` | `release/Gleisplan-0.4.0-mac-*.zip` | Baut beide macOS-Architekturen |
-| **macOS DMG (Installer)** | x64 / arm64 | `npm run dist:mac:dmg` | `scripts/build-macos.sh` (auf macOS) | `release/Gleisplan-0.4.0-mac-*.dmg` | Native DMG-Erstellung auf macOS |
+| **macOS Package (ZIP)** | ARM64 | `npm run dist:mac:zip:arm64` | `scripts/build-macos.sh arm64 zip` | `release/railbench-0.5.3-mac-arm64.zip` | Für Apple Silicon (M1/M2/M3/M4) |
+| **macOS Package (ZIP)** | x86_64 | `npm run dist:mac:zip:x64` | `scripts/build-macos.sh x64 zip` | `release/railbench-0.5.3-mac-x64.zip` | Für Intel-basierte Macs |
+| **macOS Packages (ZIP Alle)** | x64 + arm64 | `npm run dist:mac:zip:all` | `scripts/build-macos.sh all zip` | `release/railbench-0.5.3-mac-*.zip` | Baut beide macOS-Architekturen |
+| **macOS DMG (Apple Silicon)** | ARM64 | `npm run dist:mac:dmg:arm64` | `scripts/build-macos.sh arm64 dmg` | `release/railbench-0.5.3-mac-arm64.dmg` | DMG-Installer für Apple Silicon |
+| **macOS DMG (Intel)** | x86_64 | `npm run dist:mac:dmg:x64` | `scripts/build-macos.sh x64 dmg` | `release/railbench-0.5.3-mac-x64.dmg` | DMG-Installer für Intel Macs |
+| **macOS DMG (Alle)** | x64 + arm64 | `npm run dist:mac:dmg:all` | `scripts/build-macos.sh all dmg` | `release/railbench-0.5.3-mac-*.dmg` | Baut beide DMG-Installer |
 
 ---
 
@@ -198,8 +200,12 @@ Direkt auf macOS können sowohl `.zip` als auch `.dmg` (Disk Image Installer mit
 # Automatisches Skript (erkennt macOS und baut DMG + ZIP für beide Architekturen):
 ./scripts/build-macos.sh all
 
-# Oder per npm:
-npm run dist:mac:dmg
+# Alternativ gezielt nur DMG bauen:
+./scripts/build-macos.sh all dmg
+# oder per npm:
+npm run dist:mac:dmg:all
+npm run dist:mac:dmg:arm64
+npm run dist:mac:dmg:x64
 ```
 
 ### C. macOS Sicherheit & Gatekeeper

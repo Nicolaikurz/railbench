@@ -31,10 +31,17 @@
     "dist:win:portable:arm64": "npm run build:all && electron-builder --win portable --arm64",
     "dist:win:portable:all": "npm run build:all && electron-builder --win portable --x64 --arm64",
     "dist:mac": "npm run dist:mac:zip:all",
+    "dist:mac:zip": "npm run dist:mac:zip:all",
     "dist:mac:zip:x64": "npm run build:all && electron-builder --mac zip --x64",
     "dist:mac:zip:arm64": "npm run build:all && electron-builder --mac zip --arm64",
     "dist:mac:zip:all": "npm run build:all && electron-builder --mac zip --x64 --arm64",
-    "dist:mac:dmg": "npm run build:all && electron-builder --mac dmg",
+    "dist:mac:dmg": "npm run dist:mac:dmg:all",
+    "dist:mac:dmg:x64": "npm run build:all && electron-builder --mac dmg --x64",
+    "dist:mac:dmg:arm64": "npm run build:all && electron-builder --mac dmg --arm64",
+    "dist:mac:dmg:all": "npm run build:all && electron-builder --mac dmg --x64 --arm64",
+    "dist:mac:script": "bash scripts/build-macos.sh all",
+    "dist:mac:script:dmg": "bash scripts/build-macos.sh all dmg",
+    "dist:mac:script:zip": "bash scripts/build-macos.sh all zip",
     "dist:all": "npm run dist:win:portable:all && npm run dist:linux:appimage:all && npm run dist:mac:zip:all"
   },
   "dependencies": {
@@ -92,7 +99,21 @@
       "artifactName": "${productName}-${version}-${arch}.AppImage"
     },
     "dmg": {
-      "artifactName": "${productName}-${version}-mac-${arch}.dmg"
+      "artifactName": "${productName}-${version}-mac-${arch}.dmg",
+      "backgroundColor": "#1a1e24",
+      "contents": [
+        {
+          "x": 130,
+          "y": 170,
+          "type": "file"
+        },
+        {
+          "x": 410,
+          "y": 170,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
     },
     "nsis": {
       "oneClick": false,

@@ -130,21 +130,27 @@ export class Viewer3D {
     this.camera.position.set(0, 1600, 2200);
 
     // 3. WebGL Renderer
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
-    this.renderer.setSize(width, height);
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    this.container.appendChild(this.renderer.domElement);
+    try {
+      this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "default" });
+      this.renderer.setSize(width, height);
+      this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      this.renderer.shadowMap.enabled = true;
+      this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      this.container.appendChild(this.renderer.domElement);
 
-    // 4. Orbit Controls
-    this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-    this.controls.enableDamping = true;
-    this.controls.dampingFactor = 0.08;
-    this.controls.maxPolarAngle = Math.PI / 2 - 0.02; // Nicht unter den Tisch blicken
-    this.controls.minDistance = 80;
-    this.controls.maxDistance = 65000;
-    this.controls.target.set(0, 0, 0);
+      // 4. Orbit Controls
+      this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+      this.controls.enableDamping = true;
+      this.controls.dampingFactor = 0.08;
+      this.controls.maxPolarAngle = Math.PI / 2 - 0.02; // Nicht unter den Tisch blicken
+      this.controls.minDistance = 80;
+      this.controls.maxDistance = 65000;
+      this.controls.target.set(0, 0, 0);
+    } catch (err) {
+      console.warn("[Viewer3D] WebGL context initialization failed:", err);
+      this.renderer = null as any;
+      this.controls = null as any;
+    }
 
     // 5. Lighting
     this.setupLighting();
@@ -375,7 +381,15 @@ export class Viewer3D {
     this.container.appendChild(overlay);
   }
 
+  isSupported(): boolean {
+    return Boolean(this.renderer && this.controls);
+  }
+
   show(onClose?: () => void) {
+    if (!this.isSupported()) {
+      onClose?.();
+      return;
+    }
     this.isVisible = true;
     this.container.style.display = "block";
     const isDark = this.getIsDark();
@@ -627,8 +641,10 @@ export class Viewer3D {
       if (this.sunCorona) this.sunCorona.quaternion.copy(this.camera.quaternion);
       if (this.moonGlow) this.moonGlow.quaternion.copy(this.camera.quaternion);
 
-      this.controls.update();
-      this.renderer.render(this.scene, this.camera);
+      if (this.controls) this.controls.update();
+      if (this.renderer && this.scene && this.camera) {
+        this.renderer.render(this.scene, this.camera);
+      }
     };
     animate();
   }
@@ -641,6 +657,7 @@ export class Viewer3D {
   }
 
   private onResize() {
+    if (!this.container || !this.renderer || !this.camera) return;
     const width = this.container.clientWidth;
     const height = this.container.clientHeight;
     if (width === 0 || height === 0) return;
@@ -801,9 +818,9 @@ export class Viewer3D {
 
   /** Fokussiert die 3D-Kamera auf bestimmte Weltkoordinaten (z.B. Kurzschluss-Stelle). */
   focusOnPoint(x: number, z: number, y = 50) {
-    this.controls.target.set(x, y, z);
-    this.camera.position.set(x, y + 500, z + 700);
-    this.controls.update();
+    if (this.controls) this.controls.target.set(x, y, z);
+    if (this.camera) this.camera.position.set(x, y + 500, z + 700);
+    if (this.controls) this.controls.update();
   }
 
   /**
@@ -2390,9 +2407,11 @@ export class Viewer3D {
   }
 
   resetCamera() {
-    this.camera.position.set(0, 1800, 2400);
-    this.controls.target.set(0, 50, 0);
-    this.controls.update();
+    if (this.camera) this.camera.position.set(0, 1800, 2400);
+    if (this.controls) {
+      this.controls.target.set(0, 50, 0);
+      this.controls.update();
+    }
   }
 
   /**

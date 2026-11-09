@@ -265,9 +265,11 @@ Packaging for Apple Silicon (M1-M4) and Intel Macs.
   npm run dist:mac:zip:all
   # or ./scripts/build-macos.sh all
   ```
-* **DMG Installer (native macOS only)**:
+* **DMG Installer (native macOS)**:
   ```bash
   npm run dist:mac:dmg
+  # or ./scripts/build-macos.sh all dmg
+  # or per architecture: npm run dist:mac:dmg:arm64 / npm run dist:mac:dmg:x64
   ```
 
 ### 4. Linux Flatpak (`.flatpak`)
