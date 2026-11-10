@@ -2093,6 +2093,7 @@ export class Sidebar {
             <option value="plywood" ${bb.style === "plywood" ? "selected" : ""}>${isDe ? "Kiefer" : "Multiplex Pine"}</option>
             <option value="slate" ${bb.style === "slate" ? "selected" : ""}>${isDe ? "Schiefergrau" : "Slate Anthracite"}</option>
             <option value="white" ${bb.style === "white" ? "selected" : ""}>${isDe ? "Weiß" : "Blueprint White"}</option>
+            <option value="grass" ${bb.style === "grass" ? "selected" : ""}>${isDe ? "Gras / Wiese" : "Grass / Meadow"}</option>
           </select>
         </div>
       </div>

@@ -542,12 +542,16 @@ async function main() {
     }
 
     if (powerSimEnabled) {
-      currentSimulation = simulatePowerDrop(layout, catalog);
+      if (dirty || !currentSimulation) {
+        currentSimulation = simulatePowerDrop(layout, catalog);
+      }
     } else {
       currentSimulation = undefined;
     }
 
-    currentShortCircuit = detectShortCircuit(layout, catalog);
+    if (dirty || !currentShortCircuit) {
+      currentShortCircuit = detectShortCircuit(layout, catalog);
+    }
 
     const selectedIds = new Set(selection.all());
     const selectedPiece = layout.pieces.find((p) => selectedIds.has(p.id));

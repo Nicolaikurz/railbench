@@ -15,10 +15,21 @@ interface StyleColorConfig {
   highlightColor: number;
   grainColor: number;
   hasGrain: boolean;
+  isGrass?: boolean;
 }
 
 function getStyleColors(style: BaseboardStyle): StyleColorConfig {
   switch (style) {
+    case "grass":
+    case "gras" as any:
+      return {
+        surfaceColor: 0x4d7c0f,
+        edgeColor: 0x365314,
+        highlightColor: 0xa3e635,
+        grainColor: 0x3f6212,
+        hasGrain: false,
+        isGrass: true,
+      };
     case "dark-wood":
       return {
         surfaceColor: 0x4a2e1b,
@@ -113,8 +124,27 @@ export function createBaseboardGraphics(
   }
   g.fill({ color: styleConfig.surfaceColor });
 
-  // Holzmaserung & Dielenlinien
-  if (styleConfig.hasGrain) {
+  // Gras- / Wiesenstruktur oder Holzmaserung
+  if (styleConfig.isGrass) {
+    const step = 70;
+    for (let gy = y + 25; gy < y + depth - 20; gy += step) {
+      const offsetX = ((gy - y) % (step * 2) === 0) ? 0 : step / 2;
+      for (let gx = x + 25 + offsetX; gx < x + width - 20; gx += step) {
+        g.moveTo(gx - 3, gy + 3).lineTo(gx - 4, gy - 4);
+        g.moveTo(gx, gy + 3).lineTo(gx, gy - 6);
+        g.moveTo(gx + 3, gy + 3).lineTo(gx + 4, gy - 4);
+      }
+    }
+    g.stroke({ width: 0.9, color: styleConfig.highlightColor, alpha: 0.35 });
+
+    for (let gy = y + 55; gy < y + depth - 30; gy += step) {
+      const offsetX = ((gy - y) % (step * 2) === 0) ? step / 2 : 0;
+      for (let gx = x + 40 + offsetX; gx < x + width - 30; gx += step) {
+        g.circle(gx, gy, 1.8);
+      }
+    }
+    g.fill({ color: styleConfig.grainColor, alpha: 0.25 });
+  } else if (styleConfig.hasGrain) {
     const plankHeight = 80; // mm
     const startY = y;
     const endY = y + depth;

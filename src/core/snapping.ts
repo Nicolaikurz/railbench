@@ -83,8 +83,31 @@ export function getConnectorSnapStatus(
   const h = getPieceConnectorHeight(piece, connectorIndex, layers);
 
   // 1. Prüfen, ob zwei Gleise hier verbunden sind (gleiche Höhe, passende Position & Winkel)
+  // Schneller O(1)-Check, falls der Connector bereits mit einem Ziel verknüpft ist
+  if (conn.connectedTo) {
+    const targetPieceId = conn.connectedTo.pieceId;
+    const targetConnectorIndex = conn.connectedTo.connectorIndex;
+    const other = allPieces.find((p) => p.id === targetPieceId);
+    if (other && targetConnectorIndex < other.connectors.length) {
+      const otherConn = other.connectors[targetConnectorIndex]!;
+      const otherH = getPieceConnectorHeight(other, targetConnectorIndex, layers);
+      if (areConnectorsConnected(conn, otherConn, h, otherH, distTolerance, angleTolerance, heightTolerance)) {
+        return {
+          status: "connected",
+          color: "grey",
+          height: h,
+          connectedTo: conn.connectedTo,
+        };
+      }
+    }
+  }
+
+  const maxReach = 1200;
   for (const other of allPieces) {
     if (other.id === piece.id) continue;
+    if (Math.abs(other.transform.x - conn.x) > maxReach || Math.abs(other.transform.y - conn.y) > maxReach) {
+      continue;
+    }
     for (let oi = 0; oi < other.connectors.length; oi++) {
       const otherConn = other.connectors[oi]!;
       const otherH = getPieceConnectorHeight(other, oi, layers);
@@ -102,6 +125,9 @@ export function getConnectorSnapStatus(
   // 2. Prüfen, ob ein anderes Gleis ÜBER diesem Anschlusspunkt liegt (Gleis liegt höher)
   for (const other of allPieces) {
     if (other.id === piece.id) continue;
+    if (Math.abs(other.transform.x - conn.x) > maxReach || Math.abs(other.transform.y - conn.y) > maxReach) {
+      continue;
+    }
     const otherLayer = layers?.find((l) => l.id === other.layerId);
     const otherBaseH = otherLayer?.heightMm ?? 0;
     const otherStartH = otherBaseH + (other.elevation?.start ?? 0);
@@ -159,6 +185,7 @@ export function updatePieceConnections(
   angleTolerance = 35.0,
   heightTolerance = 1.0,
 ): void {
+  const maxReach = 1200;
   for (let i = 0; i < pieces.length; i++) {
     const p1 = pieces[i]!;
     for (let c1 = 0; c1 < p1.connectors.length; c1++) {
@@ -166,19 +193,38 @@ export function updatePieceConnections(
       const h1 = getPieceConnectorHeight(p1, c1, layers);
       let matched = false;
 
-      for (let j = 0; j < pieces.length; j++) {
-        if (i === j) continue;
-        const p2 = pieces[j]!;
-        for (let c2 = 0; c2 < p2.connectors.length; c2++) {
-          const conn2 = p2.connectors[c2]!;
-          const h2 = getPieceConnectorHeight(p2, c2, layers);
+      // Schneller O(1)-Check, falls die bestehende Verbindung noch exakt passt
+      if (conn1.connectedTo) {
+        const targetId = conn1.connectedTo.pieceId;
+        const targetIdx = conn1.connectedTo.connectorIndex;
+        const p2 = pieces.find((p) => p.id === targetId);
+        if (p2 && targetIdx < p2.connectors.length) {
+          const conn2 = p2.connectors[targetIdx]!;
+          const h2 = getPieceConnectorHeight(p2, targetIdx, layers);
           if (areConnectorsConnected(conn1, conn2, h1, h2, distTolerance, angleTolerance, heightTolerance)) {
-            conn1.connectedTo = { pieceId: p2.id, connectorIndex: c2 };
             matched = true;
-            break;
           }
         }
-        if (matched) break;
+      }
+
+      if (!matched) {
+        for (let j = 0; j < pieces.length; j++) {
+          if (i === j) continue;
+          const p2 = pieces[j]!;
+          if (Math.abs(p2.transform.x - conn1.x) > maxReach || Math.abs(p2.transform.y - conn1.y) > maxReach) {
+            continue;
+          }
+          for (let c2 = 0; c2 < p2.connectors.length; c2++) {
+            const conn2 = p2.connectors[c2]!;
+            const h2 = getPieceConnectorHeight(p2, c2, layers);
+            if (areConnectorsConnected(conn1, conn2, h1, h2, distTolerance, angleTolerance, heightTolerance)) {
+              conn1.connectedTo = { pieceId: p2.id, connectorIndex: c2 };
+              matched = true;
+              break;
+            }
+          }
+          if (matched) break;
+        }
       }
 
       if (!matched && conn1.connectedTo) {
@@ -358,6 +404,9 @@ export function findBestSnapForPiece(
 
     for (const piece of pieces) {
       if (ignoreSet.has(piece.id)) continue;
+      if (Math.abs(piece.transform.x - movingWorldPos.x) > 1200 || Math.abs(piece.transform.y - movingWorldPos.y) > 1200) {
+        continue;
+      }
 
       // Straßen nur an Straßen, Gleise nur an Gleise snappen
       const targetEntry = catalogRegistry.findEntry(piece.catalogId);

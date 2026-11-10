@@ -331,7 +331,15 @@ export class CollabClient {
 
   broadcastSelection(selectedIds: string[]) {
     if (this.status !== "connected") return;
-    this.currentUser.selectedIds = selectedIds;
+    const current = this.currentUser.selectedIds;
+    if (
+      current &&
+      current.length === selectedIds.length &&
+      current.every((id, i) => id === selectedIds[i])
+    ) {
+      return;
+    }
+    this.currentUser.selectedIds = [...selectedIds];
     this.send({
       type: "selection",
       selectedIds,

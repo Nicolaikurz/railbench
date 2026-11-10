@@ -52,23 +52,51 @@ export function createModel2DGraphics(model: Model3D, isSelected: boolean): Cont
   }
 
   // 2. Grundriss (Footprint) zeichnen
-  g.roundRect(-halfW, -halfD, w, d, Math.min(6, Math.min(w, d) / 4));
-  g.fill({ color: fillColor, alpha: isSelected ? 0.45 : 0.25 });
-  g.stroke({
-    width: isSelected ? 2.5 : 1.5,
-    color: isSelected ? 0x38bdf8 : strokeColor,
-    alpha: 0.95,
-  });
+  const isTrainhall = model.builtinId === "turntable-trainhall";
+  if (isTrainhall) {
+    const fw = w * 0.38;
+    g.poly([
+      -fw / 2, -halfD,
+      fw / 2, -halfD,
+      halfW, halfD,
+      -halfW, halfD,
+    ]);
+    g.fill({ color: fillColor, alpha: isSelected ? 0.45 : 0.25 });
+    g.stroke({
+      width: isSelected ? 2.5 : 1.5,
+      color: isSelected ? 0x38bdf8 : strokeColor,
+      alpha: 0.95,
+    });
 
-  // Diagonale Konstruktionslinie / Architekturgitter
-  if (w >= 30 && d >= 30) {
-    g.moveTo(-halfW + 4, -halfD + 4);
-    g.lineTo(halfW - 4, halfD - 4);
-    g.stroke({ width: 0.8, color: strokeColor, alpha: 0.25 });
+    // 3 Gleisachsen im Ringlokschuppen
+    for (const st of [-1, 0, 1]) {
+      const xFront = (fw * 0.32) * st;
+      const xRear = (halfW * 0.65) * st;
+      g.moveTo(xFront, -halfD);
+      g.lineTo(xRear, halfD - 6);
+      g.stroke({ width: 1.2, color: strokeColor, alpha: 0.6 });
+      g.circle(xFront, -halfD, 3);
+      g.fill({ color: 0x1e293b });
+    }
+  } else {
+    g.roundRect(-halfW, -halfD, w, d, Math.min(6, Math.min(w, d) / 4));
+    g.fill({ color: fillColor, alpha: isSelected ? 0.45 : 0.25 });
+    g.stroke({
+      width: isSelected ? 2.5 : 1.5,
+      color: isSelected ? 0x38bdf8 : strokeColor,
+      alpha: 0.95,
+    });
 
-    g.moveTo(halfW - 4, -halfD + 4);
-    g.lineTo(-halfW + 4, halfD - 4);
-    g.stroke({ width: 0.8, color: strokeColor, alpha: 0.25 });
+    // Diagonale Konstruktionslinie / Architekturgitter
+    if (w >= 30 && d >= 30) {
+      g.moveTo(-halfW + 4, -halfD + 4);
+      g.lineTo(halfW - 4, halfD - 4);
+      g.stroke({ width: 0.8, color: strokeColor, alpha: 0.25 });
+
+      g.moveTo(halfW - 4, -halfD + 4);
+      g.lineTo(-halfW + 4, halfD - 4);
+      g.stroke({ width: 0.8, color: strokeColor, alpha: 0.25 });
+    }
   }
 
   // 3. Wenn selektiert: Rotations-Griff zeichnen (oben)

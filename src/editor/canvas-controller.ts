@@ -5,16 +5,10 @@ import { findBestSnapForPiece, updatePieceConnections, type BestPieceSnap } from
 import { snapBaseboard, type BaseboardSnapGuide } from "@/core/baseboard-snapping";
 import type { BaseboardConfig } from "@/core/types";
 import {
-  getBaseboards,
-  getBaseboardBounds,
-  isPointInsideBaseboard,
-  isPointNearBaseboardEdge,
-  isPointInBaseboardHeader,
+  getBaseboards, getBaseboardBounds, isPointInsideBaseboard, isPointNearBaseboardEdge, isPointInBaseboardHeader,
 } from "@/core/layout";
-import {
-  isPointInsideModel,
-  getModelRotationHandleWorld,
-} from "@/core/models-3d";
+import { isPointInsideModel, getModelRotationHandleWorld } from "@/core/models-3d";
+import { snapModelToTurntable } from "@/core/turntable-snap";
 import {
   dist,
   normAngle,
@@ -641,24 +635,25 @@ export class CanvasController {
 
         for (const [id, origT] of this.draggedPiecesMap.entries()) {
           const piece = layout.pieces.find((p) => p.id === id);
-          if (!piece) continue;
-          const entry = this.deps.getCatalogEntryForPiece(piece);
-          if (!entry) continue;
-
-          const candT: Transform = {
-            x: origT.x + dx,
-            y: origT.y + dy,
-            rotation: origT.rotation,
-          };
-
-          const snap = findBestSnapForPiece(entry, candT, otherPieces, undefined, 45, 60, ignoreConn, piece, layout.layers);
-          if (snap && snap.dist < bestDist) {
-            bestDist = snap.dist;
-            groupSnap = {
-              snappedTransform: snap.snappedTransform,
-              sourceId: id,
-              origTransform: origT,
-            };
+          if (piece) {
+            const entry = this.deps.getCatalogEntryForPiece(piece);
+            if (!entry) continue;
+            const candT: Transform = { x: origT.x + dx, y: origT.y + dy, rotation: origT.rotation };
+            const snap = findBestSnapForPiece(entry, candT, otherPieces, undefined, 45, 60, ignoreConn, piece, layout.layers);
+            if (snap && snap.dist < bestDist) {
+              bestDist = snap.dist;
+              groupSnap = { snappedTransform: snap.snappedTransform, sourceId: id, origTransform: origT };
+            }
+          } else {
+            const m = layout.models?.find((x) => x.id === id);
+            if (m && m.builtinId === "turntable-trainhall") {
+              const candT: Transform = { x: origT.x + dx, y: origT.y + dy, rotation: origT.rotation };
+              const snap = snapModelToTurntable(candT, layout.pieces, (p) => this.deps.getCatalogEntryForPiece(p));
+              if (snap && snap.dist < bestDist) {
+                bestDist = snap.dist;
+                groupSnap = { snappedTransform: snap.snappedTransform, sourceId: id, origTransform: origT };
+              }
+            }
           }
         }
       }

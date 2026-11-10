@@ -2,6 +2,7 @@ import type { Layout, TrackPiece, Model3D, Transform } from "@/core/types";
 import { ensureDefaultLayers } from "@/core/layout";
 import { computeWorldConnectors, getLocalConnectors, type Catalog, type CatalogEntry } from "@/catalog/catalog";
 import { findBestSnapForPiece, updatePieceConnections } from "@/core/snapping";
+import { snapModelToTurntable } from "@/core/turntable-snap";
 import { cutFlexTrack, bendFlexTrack } from "@/core/flextrack";
 import {
   AddPieceCommand,
@@ -259,6 +260,10 @@ export class TrackOperations {
       m.transform = { x: Math.round(center.x), y: Math.round(center.y), rotation: 0 };
     }
     if (!m.layerId) m.layerId = layout.activeLayerId || layout.layers?.[0]?.id;
+    if (m.builtinId === "turntable-trainhall" && this.ctx.isSnappingEnabled()) {
+      const ttSnap = snapModelToTurntable(m.transform, layout.pieces, (p) => this.ctx.getCatalogEntry(p));
+      if (ttSnap) m.transform = ttSnap.snappedTransform;
+    }
     history.run(new AddModelCommand(m));
     selection.set(m.id);
     this.ctx.sync(true);

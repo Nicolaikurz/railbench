@@ -2,10 +2,10 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import type { Layout, TrackPiece, Layer, BaseboardConfig, Model3D, ColorMode } from "@/core/types";
-import { getBaseboardPolygon, getBaseboardBounds, getBaseboards, computeBaseboardLegPositions } from "@/core/layout";
+import { getBaseboardPolygon, getBaseboardBounds, getBaseboards, computeBaseboardLegPositions, isPointInsideBaseboard } from "@/core/layout";
 import type { Catalog, CatalogEntry } from "@/catalog/catalog";
 import { catalogRegistry } from "@/catalog/catalog";
-import { deg2rad, getPieceLocalCenter } from "@/core/geometry";
+import { deg2rad, getPieceLocalCenter, transformPoint } from "@/core/geometry";
 import { getTrackBlueprintColor } from "@/render/blueprint-colors";
 import { createBuiltinModel3DMesh } from "@/render/builtin-models-3d";
 import { BUILTIN_MODELS } from "@/core/models-3d";
@@ -701,7 +701,7 @@ export class Viewer3D {
     const baseboards = getBaseboards(layout);
     for (const bb of baseboards) {
       if (bb.enabled) {
-        this.buildBaseboard3D(bb);
+        this.buildBaseboard3D(bb, layout, catalog);
       }
     }
 
@@ -922,17 +922,81 @@ export class Viewer3D {
     }
   }
 
-  private buildBaseboard3D(config: BaseboardConfig) {
+  private buildBaseboard3D(config: BaseboardConfig, layout?: Layout, catalog?: Catalog) {
     const polygon = getBaseboardPolygon(config);
     if (polygon.length < 3) return;
 
-    // Shape im 2D-Raum (X, Y) erstellen
+    // Äußere Kontur prüfen: Three.js ExtrudeGeometry verlangt CCW für die Außenkontur
+    let outerPts = polygon.map((p) => new THREE.Vector2(p.x, p.y));
+    if (THREE.ShapeUtils.isClockWise(outerPts)) {
+      outerPts = outerPts.reverse();
+    }
+
     const shape = new THREE.Shape();
-    shape.moveTo(polygon[0]!.x, polygon[0]!.y);
-    for (let i = 1; i < polygon.length; i++) {
-      shape.lineTo(polygon[i]!.x, polygon[i]!.y);
+    shape.moveTo(outerPts[0]!.x, outerPts[0]!.y);
+    for (let i = 1; i < outerPts.length; i++) {
+      shape.lineTo(outerPts[i]!.x, outerPts[i]!.y);
     }
     shape.closePath();
+
+    // Vertiefungen / Ausschnitte für Drehscheiben und Schiebebühnen in die Tischplatte schneiden
+    if (layout?.pieces) {
+      const entryMap = new Map<string, CatalogEntry>();
+      if (catalog?.entries) {
+        for (const e of catalog.entries) entryMap.set(e.id, e);
+      }
+
+      for (const piece of layout.pieces) {
+        const startElev = piece.elevation?.start ?? 0;
+        const endElev = piece.elevation?.end ?? 0;
+        if (startElev > 2 || endElev > 2) continue;
+
+        const entry = entryMap.get(piece.catalogId) ?? catalogRegistry.findEntry(piece.catalogId);
+        if (!entry) continue;
+
+        if (entry.kind === "turntable") {
+          const pt = { x: piece.transform.x, y: piece.transform.y };
+          if (!isPointInsideBaseboard(pt, config)) continue;
+
+          // Exakte Grubenöffnung für die Drehscheibe ausschneiden (Radius ~ 140 mm)
+          const pitR = 140;
+          const holePath = new THREE.Path();
+          // Im Uhrzeigersinn (clockwise = true) für inneres Loch
+          holePath.absarc(pt.x, pt.y, pitR, 0, Math.PI * 2, true);
+          shape.holes.push(holePath);
+        } else if (entry.kind === "transfer-table") {
+          const l = entry.length ?? 360;
+          const center = transformPoint({ x: l / 2, y: 154.8 }, piece.transform);
+          if (!isPointInsideBaseboard(center, config)) continue;
+
+          // Exakte Grubenöffnung für die Schiebebühne ausschneiden
+          const pLeft = 36;
+          const pRight = l - 36;
+          const pTop = -49.2;
+          const pBottom = 358.8;
+
+          const corners = [
+            transformPoint({ x: pLeft, y: pTop }, piece.transform),
+            transformPoint({ x: pRight, y: pTop }, piece.transform),
+            transformPoint({ x: pRight, y: pBottom }, piece.transform),
+            transformPoint({ x: pLeft, y: pBottom }, piece.transform),
+          ];
+
+          let holeVecs = corners.map((c) => new THREE.Vector2(c.x, c.y));
+          if (!THREE.ShapeUtils.isClockWise(holeVecs)) {
+            holeVecs = holeVecs.reverse();
+          }
+
+          const holePath = new THREE.Path();
+          holePath.moveTo(holeVecs[0]!.x, holeVecs[0]!.y);
+          for (let i = 1; i < holeVecs.length; i++) {
+            holePath.lineTo(holeVecs[i]!.x, holeVecs[i]!.y);
+          }
+          holePath.closePath();
+          shape.holes.push(holePath);
+        }
+      }
+    }
 
     // Extrusion (Tischplatte mit 35 mm Stärke und gefaster Kante)
     const bevelThickness = 2.5;
@@ -952,10 +1016,11 @@ export class Viewer3D {
     geometry.translate(0, -bevelThickness, 0);
 
     const woodColor = this.getStyleColor(config.style);
+    const isGrass = config.style === "grass";
     const material = new THREE.MeshStandardMaterial({
       color: woodColor,
-      roughness: 0.65,
-      metalness: 0.05,
+      roughness: isGrass ? 0.9 : 0.65,
+      metalness: isGrass ? 0.02 : 0.05,
     });
 
     const tableMesh = new THREE.Mesh(geometry, material);
@@ -2583,6 +2648,7 @@ export class Viewer3D {
 
   private getStyleColor(style: BaseboardConfig["style"]): number {
     switch (style) {
+      case "grass": return 0x4d7c0f;
       case "dark-wood": return 0x4a2e1b;
       case "plywood": return 0xecdcb9;
       case "slate": return 0x27272a;

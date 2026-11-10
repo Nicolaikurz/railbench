@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { snapBaseboard } from "@/core/baseboard-snapping";
+import { createBaseboardGraphics } from "@/render/baseboard-sprite";
 import {
   createDefaultBaseboard,
   getBaseboardBounds,
@@ -237,6 +238,20 @@ describe("Baseboard Free Movement & Snapping", () => {
         expect(isPointInsideBaseboard(leg, table)).toBe(true);
       }
     }
+  });
+
+  it("supports grass surface style on baseboard", () => {
+    const table = createDefaultBaseboard({
+      id: "board-grass",
+      width: 1500,
+      depth: 1000,
+      style: "grass",
+      showDimensions: false,
+    });
+    expect(table.style).toBe("grass");
+    const container = createBaseboardGraphics(table);
+    expect(container).toBeDefined();
+    expect(container.children.length).toBeGreaterThan(0);
   });
 });
 

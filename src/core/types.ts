@@ -44,7 +44,7 @@ export interface Layer {
   heightMm?: number;
 }
 
-export type BaseboardStyle = "wood" | "dark-wood" | "plywood" | "slate" | "white";
+export type BaseboardStyle = "wood" | "dark-wood" | "plywood" | "slate" | "white" | "grass";
 export type BaseboardShape = "rect" | "l-shape" | "u-shape" | "t-shape";
 
 export interface BaseboardConfig {

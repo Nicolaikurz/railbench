@@ -287,6 +287,15 @@ export function distanceToTrackPiece(
     return d <= outerR ? 0 : d - outerR;
   }
 
+  if (kind === "transfer-table") {
+    const l = entry.length ?? 360;
+    const topY = -55.2;
+    const plateH = 420;
+    const clampedX = Math.max(0, Math.min(local.x, l));
+    const clampedY = Math.max(topY, Math.min(local.y, topY + plateH));
+    return Math.hypot(local.x - clampedX, local.y - clampedY);
+  }
+
   return dist(local, { x: 0, y: 0 });
 }
 
@@ -355,7 +364,7 @@ export function getPieceLocalCenter(entry: CatalogEntry): Vec2 {
 export function getPieceRotationHandleWorld(
   entry: CatalogEntry,
   transform: Transform,
-  stemOffset = entry.kind === "turntable" ? 220 : entry.kind === "dkw" ? 62 : entry.isRoad ? 50 : 48,
+  stemOffset = entry.kind === "turntable" ? 220 : entry.kind === "transfer-table" ? 240 : entry.kind === "dkw" ? 62 : entry.isRoad ? 50 : 48,
 ): Vec2 {
   const center = getPieceLocalCenter(entry);
   // Senkrecht zur Fahrtrichtung nach oben (negatives y im lokalen System)
@@ -540,6 +549,20 @@ export function isPieceInSelectionBox(
       const ang = Math.PI / 2 - deg2rad(a2 * t);
       const pt = transformPoint({ x: lead + r2 * Math.cos(ang), y: -r2 + r2 * Math.sin(ang) }, piece.transform);
       if (isPointInside(pt)) return true;
+    }
+  } else if (kind === "transfer-table") {
+    const l = entry.length ?? 360;
+    const topY = -55.2;
+    const plateH = 420;
+    const pts = [
+      { x: 0, y: topY },
+      { x: l, y: topY },
+      { x: l, y: topY + plateH },
+      { x: 0, y: topY + plateH },
+      { x: l / 2, y: topY + plateH / 2 },
+    ];
+    for (const p of pts) {
+      if (isPointInside(transformPoint(p, piece.transform))) return true;
     }
   }
 
