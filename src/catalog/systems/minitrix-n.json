@@ -92,7 +92,7 @@
     {
       "id": "14901",
       "name": "Flexgleis 730 mm",
-      "kind": "straight",
+      "kind": "flex",
       "category": "Geraden",
       "description": "Flexibles Schienenelement, Länge 730 mm",
       "length": 730,

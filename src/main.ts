@@ -38,6 +38,7 @@ import { CanvasController } from "@/editor/canvas-controller";
 import { initDemoTracks, generateStressTracks } from "@/editor/demo-tracks";
 import { showWelcomeDialog, type StartupAction } from "@/ui/welcome-dialog";
 import { getFullAppTitle } from "@/version";
+import { getEffectiveFlexEntry } from "@/core/flextrack";
 
 async function main() {
   document.title = `${getFullAppTitle()} – Model Railway Track Planner`;
@@ -119,20 +120,19 @@ async function main() {
     if (saveSettingsTimeout) clearTimeout(saveSettingsTimeout);
     saveSettingsTimeout = setTimeout(saveSettingsState, 350);
   }
-
   const handleBeforeUnload = () => {
     saveSettingsState();
     planManager.saveToLocalStorage(layout);
   };
   window.addEventListener("beforeunload", handleBeforeUnload);
   window.addEventListener("pagehide", handleBeforeUnload);
-
   function getActiveLayerId(): string {
     return layout.activeLayerId || layout.layers?.[0]?.id || "layer-1";
   }
 
   function getCatalogEntryForPiece(piece: TrackPiece): CatalogEntry | undefined {
-    return catalog.entries.find((e) => e.id === piece.catalogId) ?? catalogRegistry.findEntry(piece.catalogId);
+    const raw = catalog.entries.find((e) => e.id === piece.catalogId) ?? catalogRegistry.findEntry(piece.catalogId);
+    return raw ? getEffectiveFlexEntry(raw, piece) : undefined;
   }
 
   function toggleSelectionLock(forcedState?: boolean) {
@@ -198,7 +198,6 @@ async function main() {
   const canvasHost = document.getElementById("canvas-host")!;
   const renderer = new Renderer();
   await renderer.init(canvasHost);
-
   ruler = new Ruler({
     host: canvasHost,
     world: renderer.world,
@@ -210,7 +209,6 @@ async function main() {
     },
     visible: savedSettings.rulerVisible ?? true,
   });
-
   const collabOverlay = new CollabOverlay(canvasHost, renderer);
   const collabClient = new CollabClient();
   let isApplyingRemote = false;
@@ -218,7 +216,6 @@ async function main() {
   function showToast(msg: string, icon = "ℹ️") {
     const existing = document.getElementById("app-global-toast");
     if (existing) existing.remove();
-
     const toast = document.createElement("div");
     toast.id = "app-global-toast";
     toast.className = "app-global-toast";
@@ -514,6 +511,7 @@ async function main() {
   const selectionBar = new SelectionBar(canvasHost, {
     onApplyHeight: (h) => operations.applyHeightInput(h),
     onApplyAngle: (deg) => operations.applyAngleInput(deg),
+    onAdjustFlexTrack: (id, len, r, a) => operations.adjustFlexTrack(id, len, r, a),
     onSelectLayer: (layerId) => operations.moveSelectedToLayer(layerId, { start: 0, end: 0 }),
     onOpenHeightDialog: () => openHeightDialogForSelection(),
     onToggleFeeder: () => operations.toggleSelectedFeeder(),
@@ -525,8 +523,7 @@ async function main() {
     onToggleTurnoutLantern: () => operations.toggleSelectedTurnoutLantern(),
     onDelete: () => operations.deleteSelected(),
     getSelectedPieceIds: () => selection.all(),
-    getLayout: () => layout,
-    getCatalogEntry: getCatalogEntryForPiece,
+    getLayout: () => layout, getCatalogEntry: getCatalogEntryForPiece,
   });
 
   // Sync-Funktion für UI und Rendering

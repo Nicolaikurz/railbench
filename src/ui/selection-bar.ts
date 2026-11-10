@@ -2,12 +2,14 @@ import type { Layout, TrackPiece, Model3D } from "@/core/types";
 import type { CatalogEntry } from "@/catalog/catalog";
 import { isTurnoutEntry } from "@/core/simulation";
 import { getTranslations, onLanguageChange, getLanguage } from "@/i18n";
+import { isFlexTrack, getFlexTrackRampInfo } from "@/core/flextrack";
 
 export interface SelectionBarCallbacks {
   onApplyHeight: (targetHeightMm: number) => void;
   onApplyAngle: (targetAngleDeg: number) => void;
   onSelectLayer: (layerId: string) => void;
   onOpenHeightDialog: () => void;
+  onAdjustFlexTrack?: (pieceId: string, cutLength?: number, radius?: number, angle?: number) => void;
   onToggleFeeder: () => void;
   onToggleIsolator: () => void;
   onToggleCatenary: () => void;
@@ -166,6 +168,11 @@ export class SelectionBar {
   private selBarElevInput: HTMLInputElement;
   private selBarAngleLabel: HTMLElement | null;
   private selBarAngleInput: HTMLInputElement;
+  private selBarDivFlex: HTMLElement | null = null;
+  private selBarFlexGroup: HTMLElement | null = null;
+  private selBarFlexLenInput: HTMLInputElement | null = null;
+  private selBarFlexRadiusInput: HTMLInputElement | null = null;
+  private selBarFlexAngleInput: HTMLInputElement | null = null;
   private selBarBtnHeight: HTMLButtonElement;
   private selBarDivPower: HTMLElement | null = null;
   private selBarBtnFeeder: HTMLButtonElement;
@@ -207,6 +214,18 @@ export class SelectionBar {
         <input type="number" id="sel-bar-angle-input" class="sel-bar-angle-input" step="any" placeholder="0" title="${isDe ? "Drehwinkel in Grad (Enter zum Anwenden, ↑/↓ für ±7.5°)" : "Set exact rotation angle in degrees (Enter to apply, Up/Down for ±7.5°)"}" />
         <span class="sel-bar-unit">°</span>
       </div>
+      <span class="sel-bar-divider" id="sel-bar-div-flex" style="display:none"></span>
+      <div class="sel-bar-angle-group" id="sel-bar-flex-group" style="display:none">
+        <span class="sel-bar-angle-label" title="${isDe ? "Flexgleis Länge in mm zuschneiden" : "Cut flex track length in mm"}">✂ L:</span>
+        <input type="number" id="sel-bar-flex-len" class="sel-bar-angle-input" step="any" placeholder="900" style="width:58px !important" title="${isDe ? "Länge in mm zuschneiden" : "Cut length in mm"}" />
+        <span class="sel-bar-unit">mm</span>
+        <span class="sel-bar-angle-label" title="${isDe ? "Bogenradius in mm (leer = gerade)" : "Curve radius in mm (empty = straight)"}">R:</span>
+        <input type="number" id="sel-bar-flex-radius" class="sel-bar-angle-input" step="any" placeholder="-" style="width:52px !important" title="${isDe ? "Bogenradius in mm" : "Radius in mm"}" />
+        <span class="sel-bar-unit">mm</span>
+        <span class="sel-bar-angle-label" title="${isDe ? "Bogenwinkel in Grad (+ links, - rechts)" : "Arc angle (+ left, - right)"}">W:</span>
+        <input type="number" id="sel-bar-flex-angle" class="sel-bar-angle-input" step="any" placeholder="0" style="width:48px !important" title="${isDe ? "Bogenwinkel in Grad" : "Angle in degrees"}" />
+        <span class="sel-bar-unit">°</span>
+      </div>
       <span class="sel-bar-divider" id="sel-bar-div-power"></span>
       <button id="sel-bar-btn-feeder" class="sel-bar-btn" title="Gleis-Einspeisung an/aus (F)">⚡</button>
       <button id="sel-bar-btn-isolator" class="sel-bar-btn" title="${initialSelT.isolatorInactiveTitle}">⊘</button>
@@ -231,6 +250,11 @@ export class SelectionBar {
     this.selBarElevInput = this.container.querySelector("#sel-bar-elev-input") as HTMLInputElement;
     this.selBarAngleLabel = this.container.querySelector("#sel-bar-angle-lbl") as HTMLElement | null;
     this.selBarAngleInput = this.container.querySelector("#sel-bar-angle-input") as HTMLInputElement;
+    this.selBarDivFlex = this.container.querySelector("#sel-bar-div-flex") as HTMLElement | null;
+    this.selBarFlexGroup = this.container.querySelector("#sel-bar-flex-group") as HTMLElement | null;
+    this.selBarFlexLenInput = this.container.querySelector("#sel-bar-flex-len") as HTMLInputElement | null;
+    this.selBarFlexRadiusInput = this.container.querySelector("#sel-bar-flex-radius") as HTMLInputElement | null;
+    this.selBarFlexAngleInput = this.container.querySelector("#sel-bar-flex-angle") as HTMLInputElement | null;
     this.selBarBtnHeight = this.container.querySelector("#sel-bar-btn-height") as HTMLButtonElement;
     this.selBarDivPower = this.container.querySelector("#sel-bar-div-power") as HTMLElement | null;
     this.selBarBtnFeeder = this.container.querySelector("#sel-bar-btn-feeder") as HTMLButtonElement;
@@ -305,6 +329,42 @@ export class SelectionBar {
         this.selBarAngleInput.value = (Math.round((cur - step) * 10) / 10).toString();
         handleApplyAngle();
       }
+    });
+
+    const handleApplyFlex = () => {
+      const selectedIds = this.callbacks.getSelectedPieceIds();
+      if (selectedIds.length !== 1) return;
+      const pieceId = selectedIds[0]!;
+      const piece = this.callbacks.getLayout().pieces.find((p) => p.id === pieceId);
+      const entry = piece ? this.callbacks.getCatalogEntry(piece) : undefined;
+      const maxLen = entry?.length ?? 900;
+
+      let len = this.selBarFlexLenInput ? parseFloat(this.selBarFlexLenInput.value) : undefined;
+      if (len !== undefined && !isNaN(len)) {
+        if (len > maxLen) {
+          len = maxLen;
+          if (this.selBarFlexLenInput) this.selBarFlexLenInput.value = String(maxLen);
+        } else if (len < 15) {
+          len = 15;
+          if (this.selBarFlexLenInput) this.selBarFlexLenInput.value = "15";
+        }
+      }
+      const r = this.selBarFlexRadiusInput && this.selBarFlexRadiusInput.value ? parseFloat(this.selBarFlexRadiusInput.value) : undefined;
+      const a = this.selBarFlexAngleInput && this.selBarFlexAngleInput.value ? parseFloat(this.selBarFlexAngleInput.value) : undefined;
+      this.callbacks.onAdjustFlexTrack?.(pieceId, isNaN(len as any) ? undefined : len, isNaN(r as any) ? undefined : r, isNaN(a as any) ? undefined : a);
+    };
+
+    [this.selBarFlexLenInput, this.selBarFlexRadiusInput, this.selBarFlexAngleInput].forEach((inp) => {
+      inp?.addEventListener("change", handleApplyFlex);
+      inp?.addEventListener("keydown", (e: KeyboardEvent) => {
+        if (e.key === "Enter") {
+          handleApplyFlex();
+          inp.blur();
+        } else if (e.key === "Escape") {
+          this.update();
+          inp.blur();
+        }
+      });
     });
 
     this.selBarLayerSelect.addEventListener("change", () => {
@@ -419,6 +479,8 @@ export class SelectionBar {
       if (this.selBarDivTurnout) this.selBarDivTurnout.style.display = "none";
       this.selBarBtnDecoder.style.display = "none";
       this.selBarBtnLantern.style.display = "none";
+      if (this.selBarDivFlex) this.selBarDivFlex.style.display = "none";
+      if (this.selBarFlexGroup) this.selBarFlexGroup.style.display = "none";
 
       const mLayer = layers.find((l) => l.id === firstModel.layerId) || layers[0];
       const modelLayerExists = layers.some((l) => l.id === firstModel.layerId);
@@ -580,6 +642,31 @@ export class SelectionBar {
     const activeAngle = firstPiece ? firstPiece.transform.rotation : 0;
     if (document.activeElement !== this.selBarAngleInput) {
       this.selBarAngleInput.value = (Math.round(activeAngle * 100) / 100).toString();
+    }
+
+    const firstPieceEntry = firstPiece ? this.callbacks.getCatalogEntry(firstPiece) : undefined;
+    const isSingleFlex = selectedPieces.length === 1 && firstPiece && isFlexTrack(firstPieceEntry, firstPiece);
+
+    if (isSingleFlex && firstPiece) {
+      if (this.selBarDivFlex) this.selBarDivFlex.style.display = "";
+      if (this.selBarFlexGroup) this.selBarFlexGroup.style.display = "";
+      const maxLen = firstPieceEntry?.length ?? 900;
+      if (this.selBarFlexLenInput) {
+        this.selBarFlexLenInput.max = String(maxLen);
+        this.selBarFlexLenInput.min = "15";
+        if (document.activeElement !== this.selBarFlexLenInput) {
+          this.selBarFlexLenInput.value = String(firstPiece.customLength ?? maxLen);
+        }
+      }
+      if (document.activeElement !== this.selBarFlexRadiusInput && this.selBarFlexRadiusInput) {
+        this.selBarFlexRadiusInput.value = firstPiece.customRadius !== undefined ? String(firstPiece.customRadius) : "";
+      }
+      if (document.activeElement !== this.selBarFlexAngleInput && this.selBarFlexAngleInput) {
+        this.selBarFlexAngleInput.value = firstPiece.customAngle !== undefined ? String(firstPiece.customAngle) : "";
+      }
+    } else {
+      if (this.selBarDivFlex) this.selBarDivFlex.style.display = "none";
+      if (this.selBarFlexGroup) this.selBarFlexGroup.style.display = "none";
     }
   }
 

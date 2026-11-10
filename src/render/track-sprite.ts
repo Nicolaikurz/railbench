@@ -2,8 +2,9 @@ import { Container, Graphics, Text, TextStyle } from "pixi.js";
 import type { TrackPiece, ColorMode } from "@/core/types";
 import { Catalog, getLocalConnectors, type CatalogEntry } from "@/catalog/catalog";
 import type { PiecePowerResult } from "@/core/simulation";
-import { deg2rad, getPieceLocalCenter } from "@/core/geometry";
+import { deg2rad, getPieceLocalCenter, getUprightTextRotation } from "@/core/geometry";
 import { getTrackBlueprintColor, type BlueprintColor } from "./blueprint-colors";
+import { getEffectiveFlexEntry } from "@/core/flextrack";
 
 export interface RenderOptions {
   isSelected?: boolean;
@@ -30,10 +31,11 @@ export interface RenderOptions {
  */
 export function createTrackGraphics(
   piece: TrackPiece,
-  entry: CatalogEntry,
+  rawEntry: CatalogEntry,
   catalog?: Catalog, // <-- Hier den Katalog des Gleises übergeben
   options: RenderOptions = {},
 ): Container {
+  const entry = getEffectiveFlexEntry(rawEntry, piece);
   const container = new Container();
   container.label = `track-${piece.id}`;
   container.position.set(piece.transform.x, piece.transform.y);
@@ -264,14 +266,11 @@ function drawTrackNumberLabel(
 ) {
   const center = getPieceLocalCenter(entry);
   const labelCont = new Container();
-  const yOffset = entry.kind === "turntable" ? -55 : entry.kind === "transfer-table" ? -70 : hasVoltageLabel ? -10 : 0;
-  labelCont.position.set(center.x, center.y + yOffset);
+  labelCont.position.set(center.x, center.y);
+  // Stets horizontal und lesbar (kein Kopfstand bei gedrehten Gleisen per Gegen-Rotation)
+  labelCont.rotation = getUprightTextRotation(pieceRotation);
 
-  // Verhindern, dass Schrift kopfüber steht, wenn das Gleis gedreht ist
-  const normRot = ((pieceRotation % 360) + 360) % 360;
-  if (normRot > 90 && normRot <= 270) {
-    labelCont.rotation = Math.PI;
-  }
+  const yOffset = entry.kind === "turntable" ? -55 : entry.kind === "transfer-table" ? -70 : hasVoltageLabel ? -9 : 0;
 
   const text = new Text({
     text: entry.id,
@@ -285,18 +284,30 @@ function drawTrackNumberLabel(
     }),
   });
   text.anchor.set(0.5);
+  text.position.set(0, yOffset);
 
   const padX = 5;
   const padY = 2.5;
-  const bgW = text.width + padX * 2;
-  const bgH = text.height + padY * 2;
+  let textW = 32;
+  let textH = 11;
+  try {
+    if (typeof document !== "undefined") {
+      textW = text.width || 32;
+      textH = text.height || 11;
+    }
+  } catch {
+    textW = 32;
+    textH = 11;
+  }
+  const bgW = textW + padX * 2;
+  const bgH = textH + padY * 2;
 
   const bg = new Graphics();
   // Schatten
-  bg.roundRect(-bgW / 2 + 0.5, -bgH / 2 + 1, bgW, bgH, 3);
+  bg.roundRect(-bgW / 2 + 0.5, -bgH / 2 + 1 + yOffset, bgW, bgH, 3);
   bg.fill({ color: 0x000000, alpha: 0.55 });
   // Hintergrund-Badge mit Farbkontur passend zum Bauplan-Farbcode
-  bg.roundRect(-bgW / 2, -bgH / 2, bgW, bgH, 3);
+  bg.roundRect(-bgW / 2, -bgH / 2 + yOffset, bgW, bgH, 3);
   bg.fill({ color: 0x0f172a, alpha: 0.95 });
   bg.stroke({ width: 1.2, color: bpColor ? bpColor.hex : 0x38bdf8, alpha: 1.0 });
 
@@ -314,14 +325,9 @@ function drawVoltageBadge(
 ) {
   const center = getPieceLocalCenter(entry);
   const badgeCont = new Container();
-  const yOffset = hasNumberLabel ? 10 : 0;
-  badgeCont.position.set(center.x, center.y + yOffset);
-
-  // Verhindern, dass Schrift kopfüber steht
-  const normRot = ((pieceRotation % 360) + 360) % 360;
-  if (normRot > 90 && normRot <= 270) {
-    badgeCont.rotation = Math.PI;
-  }
+  badgeCont.position.set(center.x, center.y);
+  badgeCont.rotation = getUprightTextRotation(pieceRotation);
+  const yOffset = hasNumberLabel ? 9 : 0;
 
   const isShort = Boolean(powerResult.isShortCircuit);
   const isDisc = powerResult.status === "disconnected";
@@ -373,6 +379,7 @@ function drawVoltageBadge(
     }),
   });
   text.anchor.set(0.5);
+  text.position.set(0, yOffset);
 
   const padX = 5;
   const padY = 2;
@@ -381,10 +388,10 @@ function drawVoltageBadge(
 
   const bg = new Graphics();
   // Schatten
-  bg.roundRect(-bgW / 2 + 0.5, -bgH / 2 + 1, bgW, bgH, 3);
+  bg.roundRect(-bgW / 2 + 0.5, -bgH / 2 + 1 + yOffset, bgW, bgH, 3);
   bg.fill({ color: 0x000000, alpha: 0.55 });
   // Badge Hintergrund & Rahmen
-  bg.roundRect(-bgW / 2, -bgH / 2, bgW, bgH, 3);
+  bg.roundRect(-bgW / 2, -bgH / 2 + yOffset, bgW, bgH, 3);
   bg.fill({ color: bgColor, alpha: 0.95 });
   bg.stroke({ width: 1.2, color: strokeColor, alpha: 1.0 });
 
@@ -396,7 +403,7 @@ function drawVoltageBadge(
 function getPieceRunningLength(entry: CatalogEntry): number {
   if (entry.length) return entry.length;
   if (entry.radius && entry.angle) {
-    return (2 * Math.PI * entry.radius * entry.angle) / 360;
+    return (2 * Math.PI * entry.radius * Math.abs(entry.angle)) / 360;
   }
   return 188.3;
 }
@@ -408,7 +415,7 @@ function drawElevationShadow(g: Graphics, entry: CatalogEntry, ballastWidth: num
   const shadowAlpha = Math.min(0.4, 0.12 + elevation * 0.003);
   const shadowColor = 0x000000;
 
-  if (kind === "straight" || kind === "accessory") {
+  if (kind === "straight" || kind === "accessory" || kind === "flex") {
     const l = entry.length ?? 188.3;
     g.rect(shadowDist * 0.5, -ballastHalf + shadowDist, l, ballastWidth);
     g.fill({ color: shadowColor, alpha: shadowAlpha });
@@ -434,6 +441,21 @@ function drawElevationShadow(g: Graphics, entry: CatalogEntry, ballastWidth: num
   if (kind === "curve") {
     const r = entry.radius ?? 437.5;
     const a = entry.angle ?? 30;
+    if (a < 0) {
+      drawArcStroke(
+        g,
+        shadowDist * 0.5,
+        -r + shadowDist,
+        r,
+        Math.PI / 2,
+        Math.PI / 2 - deg2rad(Math.abs(a)),
+        ballastWidth,
+        shadowColor,
+        true,
+        shadowAlpha,
+      );
+      return;
+    }
     drawArcStroke(
       g,
       shadowDist * 0.5,
@@ -485,13 +507,15 @@ function drawRampChevrons(
   if (kind === "curve") {
     const r = entry.radius ?? 437.5;
     const a = entry.angle ?? 30;
-    const rad = deg2rad(a);
+    const absA = Math.abs(a);
+    const rad = deg2rad(absA);
     const fractions = [0.25, 0.5, 0.75];
     for (const u of fractions) {
       const phi = u * rad;
       const cx = r * Math.sin(phi);
-      const cy = r * (1 - Math.cos(phi));
-      const tangentAngle = climbingForward ? phi : phi + Math.PI;
+      const cy = a < 0 ? -r * (1 - Math.cos(phi)) : r * (1 - Math.cos(phi));
+      const baseTangent = a < 0 ? -phi : phi;
+      const tangentAngle = climbingForward ? baseTangent : baseTangent + Math.PI;
       drawChevron(g, cx, cy, tangentAngle, 6.5, chevronColor);
     }
     return;
@@ -517,20 +541,16 @@ function drawRampBadge(
 ) {
   const center = getPieceLocalCenter(entry);
   const badgeCont = new Container();
+  badgeCont.position.set(center.x, center.y);
+  badgeCont.rotation = getUprightTextRotation(pieceRotation);
 
   let yOffset = 0;
   if (hasNumberLabel && hasVoltageLabel) {
-    yOffset = 20;
+    yOffset = 18;
   } else if (hasNumberLabel && !hasVoltageLabel) {
-    yOffset = 11;
+    yOffset = 10;
   } else if (!hasNumberLabel && hasVoltageLabel) {
-    yOffset = -11;
-  }
-  badgeCont.position.set(center.x, center.y + yOffset);
-
-  const normRot = ((pieceRotation % 360) + 360) % 360;
-  if (normRot > 90 && normRot <= 270) {
-    badgeCont.rotation = Math.PI;
+    yOffset = -10;
   }
 
   const deltaH = endElev - startElev;
@@ -561,6 +581,7 @@ function drawRampBadge(
     }),
   });
   text.anchor.set(0.5);
+  text.position.set(0, yOffset);
 
   const padX = 4;
   const padY = 2;
@@ -569,10 +590,10 @@ function drawRampBadge(
 
   const bg = new Graphics();
   // Schatten
-  bg.roundRect(-bgW / 2 + 0.5, -bgH / 2 + 1, bgW, bgH, 3);
+  bg.roundRect(-bgW / 2 + 0.5, -bgH / 2 + 1 + yOffset, bgW, bgH, 3);
   bg.fill({ color: 0x000000, alpha: 0.55 });
   // Hintergrund-Kapsel
-  bg.roundRect(-bgW / 2, -bgH / 2, bgW, bgH, 3);
+  bg.roundRect(-bgW / 2, -bgH / 2 + yOffset, bgW, bgH, 3);
   bg.fill({ color: 0x0f172a, alpha: 0.92 });
   bg.stroke({ width: 1.1, color: strokeColor, alpha: 0.95 });
 
@@ -587,7 +608,7 @@ function drawSelectionContour(g: Graphics, entry: CatalogEntry, contourWidth = 4
   const glowAlpha = 0.5;
   const contourHalf = contourWidth / 2;
 
-  if (kind === "straight" || kind === "accessory") {
+  if (kind === "straight" || kind === "accessory" || kind === "flex") {
     const l = entry.length ?? 188.3;
     g.rect(-4, -contourHalf, l + 8, contourWidth);
     g.stroke({ width: 3.5, color: glowColor, alpha: 0.9, join: "miter" });
@@ -616,6 +637,10 @@ function drawSelectionContour(g: Graphics, entry: CatalogEntry, contourWidth = 4
   if (kind === "curve") {
     const r = entry.radius ?? 437.5;
     const a = entry.angle ?? 30;
+    if (a < 0) {
+      drawArcStroke(g, 0, -r, r, Math.PI / 2, Math.PI / 2 - deg2rad(Math.abs(a)), contourWidth, glowColor, true, glowAlpha);
+      return;
+    }
     drawArcStroke(g, 0, r, r, -Math.PI / 2, -Math.PI / 2 + deg2rad(a), contourWidth, glowColor, false, glowAlpha);
     return;
   }
@@ -857,6 +882,7 @@ function drawSelectionGizmo(container: Container, entry: CatalogEntry) {
   });
   rotText.anchor.set(0.5);
   rotText.position.set(handlePos.x, handlePos.y);
+  rotText.rotation = -container.rotation;
 
   gizmo.addChild(g);
   gizmo.addChild(rotText);
@@ -867,7 +893,7 @@ function drawBallast(g: Graphics, entry: CatalogEntry, color: number, ballastWid
   const kind = entry.kind;
   const ballastHalf = ballastWidth / 2;
 
-  if (kind === "straight" || kind === "accessory") {
+  if (kind === "straight" || kind === "accessory" || kind === "flex") {
     const l = entry.length ?? 188.3;
     g.rect(0, -ballastHalf, l, ballastWidth);
     g.fill({ color, alpha: 0.95 });
@@ -933,6 +959,10 @@ function drawBallast(g: Graphics, entry: CatalogEntry, color: number, ballastWid
   if (kind === "curve") {
     const r = entry.radius ?? 437.5;
     const a = entry.angle ?? 30;
+    if (a < 0) {
+      drawArcStroke(g, 0, -r, r, Math.PI / 2, Math.PI / 2 - deg2rad(Math.abs(a)), ballastWidth, color, true);
+      return;
+    }
     drawArcStroke(g, 0, r, r, -Math.PI / 2, -Math.PI / 2 + deg2rad(a), ballastWidth, color);
     return;
   }
@@ -1077,7 +1107,7 @@ function drawBallast(g: Graphics, entry: CatalogEntry, color: number, ballastWid
 function drawTies(g: Graphics, entry: CatalogEntry, color: number, tieLenHalf = 13, tieWidth = 2.6, tieSpacing = 6.5) {
   const kind = entry.kind;
 
-  if (kind === "straight" || kind === "accessory") {
+  if (kind === "straight" || kind === "accessory" || kind === "flex") {
     const l = entry.length ?? 188.3;
     for (let x = 4; x <= l - 4; x += tieSpacing) {
       g.moveTo(x, -tieLenHalf);
@@ -1146,14 +1176,25 @@ function drawTies(g: Graphics, entry: CatalogEntry, color: number, tieLenHalf = 
   if (kind === "curve") {
     const r = entry.radius ?? 437.5;
     const a = entry.angle ?? 30;
-    const totalRad = deg2rad(a);
+    const absA = Math.abs(a);
+    const totalRad = deg2rad(absA);
     const stepRad = deg2rad(1.2 * (tieSpacing / 6.5));
-    for (let ang = stepRad / 2; ang < totalRad; ang += stepRad) {
-      const curAng = -Math.PI / 2 + ang;
-      const cos = Math.cos(curAng);
-      const sin = Math.sin(curAng);
-      g.moveTo((r - tieLenHalf) * cos, r + (r - tieLenHalf) * sin);
-      g.lineTo((r + tieLenHalf) * cos, r + (r + tieLenHalf) * sin);
+    if (a < 0) {
+      for (let ang = stepRad / 2; ang < totalRad; ang += stepRad) {
+        const curAng = Math.PI / 2 - ang;
+        const cos = Math.cos(curAng);
+        const sin = Math.sin(curAng);
+        g.moveTo((r - tieLenHalf) * cos, -r + (r - tieLenHalf) * sin);
+        g.lineTo((r + tieLenHalf) * cos, -r + (r + tieLenHalf) * sin);
+      }
+    } else {
+      for (let ang = stepRad / 2; ang < totalRad; ang += stepRad) {
+        const curAng = -Math.PI / 2 + ang;
+        const cos = Math.cos(curAng);
+        const sin = Math.sin(curAng);
+        g.moveTo((r - tieLenHalf) * cos, r + (r - tieLenHalf) * sin);
+        g.lineTo((r + tieLenHalf) * cos, r + (r + tieLenHalf) * sin);
+      }
     }
     g.stroke({ width: tieWidth, color, cap: "butt" });
     return;
@@ -1396,7 +1437,7 @@ function drawRails(g: Graphics, entry: CatalogEntry, color: number, gaugeHalf: n
   const kind = entry.kind;
   const railWidth = Math.max(1.1, gaugeHalf * 0.22);
 
-  if (kind === "straight" || kind === "accessory") {
+  if (kind === "straight" || kind === "accessory" || kind === "flex") {
     const l = entry.length ?? 188.3;
     g.moveTo(0, -gaugeHalf).lineTo(l, -gaugeHalf);
     g.moveTo(0, gaugeHalf).lineTo(l, gaugeHalf);
@@ -1511,6 +1552,12 @@ function drawRails(g: Graphics, entry: CatalogEntry, color: number, gaugeHalf: n
   if (kind === "curve") {
     const r = entry.radius ?? 437.5;
     const a = entry.angle ?? 30;
+    if (a < 0) {
+      const end = Math.PI / 2 - deg2rad(Math.abs(a));
+      drawArcStroke(g, 0, -r, r - gaugeHalf, Math.PI / 2, end, railWidth, color, true);
+      drawArcStroke(g, 0, -r, r + gaugeHalf, Math.PI / 2, end, railWidth, color, true);
+      return;
+    }
     const end = -Math.PI / 2 + deg2rad(a);
     drawArcStroke(g, 0, r, r - gaugeHalf, -Math.PI / 2, end, railWidth, color);
     drawArcStroke(g, 0, r, r + gaugeHalf, -Math.PI / 2, end, railWidth, color);
@@ -1704,7 +1751,7 @@ function drawRails(g: Graphics, entry: CatalogEntry, color: number, gaugeHalf: n
 function drawTrackCenterline(g: Graphics, entry: CatalogEntry, color: number, width: number, alpha: number) {
   const kind = entry.kind;
 
-  if (kind === "straight" || kind === "accessory") {
+  if (kind === "straight" || kind === "accessory" || kind === "flex") {
     const l = entry.length ?? 188.3;
     g.moveTo(0, 0).lineTo(l, 0);
     g.stroke({ width, color, alpha, cap: "butt", join: "miter" });
@@ -1740,6 +1787,10 @@ function drawTrackCenterline(g: Graphics, entry: CatalogEntry, color: number, wi
   if (kind === "curve") {
     const r = entry.radius ?? 437.5;
     const a = entry.angle ?? 30;
+    if (a < 0) {
+      drawArcStroke(g, 0, -r, r, Math.PI / 2, Math.PI / 2 - deg2rad(Math.abs(a)), width, color, true, alpha);
+      return;
+    }
     drawArcStroke(g, 0, r, r, -Math.PI / 2, -Math.PI / 2 + deg2rad(a), width, color, false, alpha);
     return;
   }
@@ -1869,6 +1920,7 @@ function drawArcStroke(
 function drawPowerFeederMarker(parent: Container) {
   const marker = new Container();
   marker.position.set(20, -25);
+  marker.rotation = -parent.rotation;
 
   const bg = new Graphics();
   bg.circle(0, 0, 11);
@@ -1915,6 +1967,7 @@ function drawIsolatorMarker(parent: Container, entry: CatalogEntry, isoIdx = 0) 
   const badgeX = cx + perpX * 24;
   const badgeY = cy + perpY * 24;
   marker.position.set(badgeX, badgeY);
+  marker.rotation = -parent.rotation;
 
   const bg = new Graphics();
   bg.circle(1, 1, 11);
@@ -2014,7 +2067,7 @@ function drawCatenary2D(parent: Container, entry: CatalogEntry, powerResult?: Pi
 
   const kind = entry.kind;
   if (kind === "turntable" || kind === "transfer-table") return;
-  if (kind === "straight" || kind === "accessory") {
+  if (kind === "straight" || kind === "accessory" || kind === "flex") {
     const l = entry.length ?? 188.3;
     drawMast(0, 0, 0, 1);
     if (l >= 150) {
@@ -2023,11 +2076,12 @@ function drawCatenary2D(parent: Container, entry: CatalogEntry, powerResult?: Pi
   } else if (kind === "curve") {
     const r = entry.radius ?? 437.5;
     const a = entry.angle ?? 30;
-    const rad = deg2rad(a);
+    const absA = Math.abs(a);
+    const rad = deg2rad(absA);
     drawMast(0, 0, 0, 1);
     const endX = r * Math.sin(rad);
-    const endY = r * (1 - Math.cos(rad));
-    drawMast(endX, endY, rad, 1);
+    const endY = a < 0 ? -r * (1 - Math.cos(rad)) : r * (1 - Math.cos(rad));
+    drawMast(endX, endY, a < 0 ? -rad : rad, a < 0 ? -1 : 1);
   } else {
     drawMast(0, 0, 0, 1);
   }
@@ -2039,6 +2093,7 @@ function drawCatenaryPowerFeederMarker(parent: Container, _entry: CatalogEntry) 
   const marker = new Container();
   // Platzierung auf der Mast-Seite bei y = +26
   marker.position.set(16, 26);
+  marker.rotation = -parent.rotation;
 
   const g = new Graphics();
   // Zuleitungskabel von der Plakette zum Mast/Fahrdraht
@@ -2112,6 +2167,7 @@ function drawCatenaryIsolatorMarker(parent: Container, entry: CatalogEntry, isoI
   const badgeX = cx - perpX * badgeDist;
   const badgeY = cy - perpY * badgeDist;
   marker.position.set(badgeX, badgeY);
+  marker.rotation = -parent.rotation;
 
   const bg = new Graphics();
   bg.circle(1, 1, 11);

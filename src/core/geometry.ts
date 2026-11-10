@@ -5,6 +5,16 @@ export const deg2rad = (d: number) => (d * Math.PI) / 180;
 export const rad2deg = (r: number) => (r * 180) / Math.PI;
 export const normAngle = (a: number) => ((a % 360) + 360) % 360;
 
+/**
+ * Berechnet den Gegen-Rotationswinkel (in Radiant) per Vektor-Winkelberechnung,
+ * um Beschriftungen (z. B. Gleis-Artikelnummern, Gebäudenamen, Plaketten) innerhalb
+ * eines rotierten Canvas/SVG-Containers stets horizontal und von links nach rechts
+ * lesbar (0° im Weltkoordinatensystem, kein Kopfstand) darzustellen.
+ */
+export function getUprightTextRotation(containerRotationDeg: number): number {
+  return -deg2rad(normAngle(containerRotationDeg));
+}
+
 export function rotate(p: Vec2, deg: number): Vec2 {
   const r = deg2rad(deg);
   return {
@@ -147,14 +157,17 @@ export function distanceToTrackPiece(
     }
   }
 
-  if (kind === "straight" || kind === "accessory") {
-    const l = entry.length ?? 188.3;
+  if (kind === "straight" || kind === "accessory" || kind === "flex") {
+    const l = entry.length ?? (kind === "flex" ? 900 : 188.3);
     return distToSegment(local, { x: 0, y: 0 }, { x: l, y: 0 });
   }
 
   if (kind === "curve") {
     const r = entry.radius ?? 437.5;
     const a = entry.angle ?? 30;
+    if (a < 0) {
+      return distToArc(local, 0, -r, r, Math.PI / 2, Math.PI / 2 - deg2rad(Math.abs(a)), true);
+    }
     const rad = deg2rad(a);
     return distToArc(local, 0, r, r, -Math.PI / 2, -Math.PI / 2 + rad, false);
   }
@@ -315,17 +328,17 @@ export function getPieceLocalCenter(entry: CatalogEntry): Vec2 {
       y: -r * (1 - Math.cos(halfRad)),
     };
   }
-  if (kind === "straight" || kind === "accessory" || kind === "turnout-left" || kind === "turnout-right" || kind === "three-way" || kind === "dkw") {
-    const l = entry.length ?? 188.3;
+  if (kind === "straight" || kind === "accessory" || kind === "flex" || kind === "turnout-left" || kind === "turnout-right" || kind === "three-way" || kind === "dkw") {
+    const l = entry.length ?? (kind === "flex" ? 900 : 188.3);
     return { x: l / 2, y: 0 };
   }
   if (kind === "curve") {
     const r = entry.radius ?? 437.5;
     const a = entry.angle ?? 30;
-    const halfRad = deg2rad(a / 2);
+    const halfRad = deg2rad(Math.abs(a) / 2);
     return {
       x: r * Math.sin(halfRad),
-      y: r * (1 - Math.cos(halfRad)),
+      y: a < 0 ? -r * (1 - Math.cos(halfRad)) : r * (1 - Math.cos(halfRad)),
     };
   }
   if (kind === "crossing" || kind === "turntable") {

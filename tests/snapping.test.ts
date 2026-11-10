@@ -221,8 +221,14 @@ describe("findSnap", () => {
     expect(connectors[2]!.angle).toBeCloseTo(30, 1);
   });
 
-  it("umfasst das vollständige Märklin C-Gleis Sortiment mit 48 Gleisen", () => {
-    expect(maerklinCCatalog.entries.length).toBe(48);
+  it("umfasst das vollständige Märklin C-Gleis Sortiment mit 49 Gleisen", () => {
+    expect(maerklinCCatalog.entries.length).toBe(49);
+
+    // Überprüfe Flexgleis 24900
+    const flexTrack = maerklinCCatalog.entries.find((e) => e.id === "24900");
+    expect(flexTrack).toBeDefined();
+    expect(flexTrack?.kind).toBe("flex");
+    expect(flexTrack?.length).toBe(900.0);
 
     // Überprüfe wichtige Neuzugänge
     const track360 = maerklinCCatalog.entries.find((e) => e.id === "24360");

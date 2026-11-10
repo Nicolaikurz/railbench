@@ -1,6 +1,6 @@
 import { Container, Graphics, Text, TextStyle } from "pixi.js";
 import type { Model3D } from "@/core/types";
-import { deg2rad } from "@/core/geometry";
+import { deg2rad, getUprightTextRotation } from "@/core/geometry";
 import { findBuiltinModelDef } from "@/core/models-3d";
 
 export function createModel2DGraphics(model: Model3D, isSelected: boolean): Container {
@@ -92,8 +92,19 @@ export function createModel2DGraphics(model: Model3D, isSelected: boolean): Cont
 
   container.addChild(g);
 
-  // 4. Text-Beschriftung im Modell-Zentrum
+  // 4. Text-Beschriftung im Modell-Zentrum (stets horizontal und aufrecht per Gegen-Rotation)
   if (w >= 35 && d >= 22) {
+    const rot = model.transform.rotation ?? 0;
+    const rad = deg2rad(rot);
+    const cosA = Math.abs(Math.cos(rad));
+    const sinA = Math.abs(Math.sin(rad));
+    // Verfügbare horizontale Spannweite im gedrehten Gebäudekörper
+    const maxHorizWidth = Math.min(
+      cosA > 0.001 ? w / cosA : Infinity,
+      sinA > 0.001 ? d / sinA : Infinity,
+    );
+    const wrapWidth = Math.max(28, Math.min(maxHorizWidth - 8, Math.max(w, d)));
+
     const style = new TextStyle({
       fontFamily: "system-ui, -apple-system, sans-serif",
       fontSize: Math.min(11, Math.max(8, Math.min(w / 10, d / 3))),
@@ -107,15 +118,44 @@ export function createModel2DGraphics(model: Model3D, isSelected: boolean): Cont
       },
       align: "center",
       wordWrap: true,
-      wordWrapWidth: Math.max(30, w - 8),
+      wordWrapWidth: wrapWidth,
     });
+
+    const labelCont = new Container();
+    labelCont.rotation = getUprightTextRotation(rot);
 
     const labelText = new Text({
       text: `${icon} ${model.name}`,
       style,
     });
     labelText.anchor.set(0.5, 0.5);
-    container.addChild(labelText);
+
+    // Dezentes dunkles Hintergrund-Badge für saubere Lesbarkeit auf allen Modellfarben
+    const padX = 5;
+    const padY = 2.5;
+    let textW = 40;
+    let textH = 12;
+    try {
+      if (typeof document !== "undefined") {
+        textW = labelText.width || 40;
+        textH = labelText.height || 12;
+      }
+    } catch {
+      textW = 40;
+      textH = 12;
+    }
+    const bgW = textW + padX * 2;
+    const bgH = textH + padY * 2;
+    const bg = new Graphics();
+    bg.roundRect(-bgW / 2 + 0.5, -bgH / 2 + 1, bgW, bgH, 3);
+    bg.fill({ color: 0x000000, alpha: 0.5 });
+    bg.roundRect(-bgW / 2, -bgH / 2, bgW, bgH, 3);
+    bg.fill({ color: 0x0f172a, alpha: 0.8 });
+    bg.stroke({ width: 1, color: isSelected ? 0x38bdf8 : 0x475569, alpha: 0.85 });
+
+    labelCont.addChild(bg);
+    labelCont.addChild(labelText);
+    container.addChild(labelCont);
   }
 
   return container;

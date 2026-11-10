@@ -111,7 +111,7 @@
       "id": "2205",
       "name": "Flexgleis (900,0 mm)",
       "nameEn": "Flex Track (900.0 mm)",
-      "kind": "straight",
+      "kind": "flex",
       "category": "Geraden",
       "description": "Flexibel biegbares Schwellengleis (900,0 mm)",
       "descriptionEn": "Flexible track section for custom curve radiuses (900.0 mm)",

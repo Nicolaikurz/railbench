@@ -69,8 +69,24 @@ export function getLocalConnectors(entry?: CatalogEntry | null): LocalConnector[
     return connectors;
   }
 
-  if (kind === "straight" || kind === "accessory") {
-    const l = entry.length ?? 188.3;
+  if (kind === "straight" || kind === "accessory" || kind === "flex") {
+    if (kind === "flex" && entry.radius && entry.angle && Math.abs(entry.angle) > 0.1) {
+      const r = entry.radius;
+      const a = entry.angle;
+      if (a < 0) {
+        const rad = deg2rad(Math.abs(a));
+        return [
+          { x: 0, y: 0, angle: 180 },
+          { x: r * Math.sin(rad), y: -r * (1 - Math.cos(rad)), angle: normAngle(a) },
+        ];
+      }
+      const rad = deg2rad(a);
+      return [
+        { x: 0, y: 0, angle: 180 },
+        { x: r * Math.sin(rad), y: r * (1 - Math.cos(rad)), angle: normAngle(a) },
+      ];
+    }
+    const l = entry.length ?? (kind === "flex" ? 900 : 188.3);
     return [
       { x: 0, y: 0, angle: 180 },
       { x: l, y: 0, angle: 0 },
@@ -80,6 +96,13 @@ export function getLocalConnectors(entry?: CatalogEntry | null): LocalConnector[
   if (kind === "curve") {
     const r = entry.radius ?? 437.5;
     const a = entry.angle ?? 30;
+    if (a < 0) {
+      const rad = deg2rad(Math.abs(a));
+      return [
+        { x: 0, y: 0, angle: 180 },
+        { x: r * Math.sin(rad), y: -r * (1 - Math.cos(rad)), angle: normAngle(a) },
+      ];
+    }
     const rad = deg2rad(a);
     // Standardbogen biegt nach links (positiver y-Bereich):
     const ex = r * Math.sin(rad);
@@ -229,8 +252,24 @@ export function getLocalConnectors(entry?: CatalogEntry | null): LocalConnector[
 }
 
 /** Transformiert die lokalen Connectors in Weltkoordinaten basierend auf der Position und Rotation des Gleisstücks. */
-export function computeWorldConnectors(entry: CatalogEntry | undefined | null, transform: Transform): Connector[] {
-  const locals = getLocalConnectors(entry);
+export function computeWorldConnectors(
+  entry: CatalogEntry | undefined | null,
+  transform: Transform,
+  piece?: { customLength?: number; customRadius?: number; customAngle?: number },
+): Connector[] {
+  if (!entry) return [];
+  let effectiveEntry = entry;
+  if (piece && (piece.customLength !== undefined || piece.customRadius !== undefined || piece.customAngle !== undefined)) {
+    const isCurved = Boolean(piece.customRadius && piece.customAngle && Math.abs(piece.customAngle) > 0.1);
+    effectiveEntry = {
+      ...entry,
+      length: piece.customLength ?? entry.length,
+      radius: piece.customRadius ?? entry.radius,
+      angle: piece.customAngle ?? entry.angle,
+      kind: isCurved ? "curve" : entry.kind === "flex" ? "straight" : entry.kind,
+    };
+  }
+  const locals = getLocalConnectors(effectiveEntry);
   if (!transform) return [];
   return locals.map((lc) => {
     const wp = transformPoint(lc, transform);

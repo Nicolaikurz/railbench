@@ -1,6 +1,7 @@
 import type { Layout, TrackPiece, Model3D, Transform } from "@/core/types";
 import { computeWorldConnectors, type Catalog, type CatalogEntry } from "@/catalog/catalog";
-import { findBestSnapForPiece } from "@/core/snapping";
+import { findBestSnapForPiece, updatePieceConnections } from "@/core/snapping";
+import { cutFlexTrack, bendFlexTrack } from "@/core/flextrack";
 import {
   AddPieceCommand,
   AddPiecesCommand,
@@ -539,5 +540,22 @@ export class TrackOperations {
   public async triggerSavePlanAs(format: PlanFormat = "railbench"): Promise<void> {
     await this.ctx.getPlanManager().savePlanAs(this.ctx.getLayout(), format);
     this.ctx.sync(false);
+  }
+
+  public adjustFlexTrack(pieceId: string, cutLength?: number, radius?: number, angle?: number): void {
+    const layout = this.ctx.getLayout();
+    const piece = layout.pieces.find((p) => p.id === pieceId);
+    if (!piece || !this.ctx.isPieceInteractive(piece)) return;
+    const entry = this.ctx.getCatalogEntry(piece);
+    if (!entry) return;
+
+    if (cutLength !== undefined && cutLength > 0) {
+      cutFlexTrack(piece, entry, cutLength);
+    }
+    if (radius !== undefined || angle !== undefined) {
+      bendFlexTrack(piece, entry, radius, angle);
+    }
+    updatePieceConnections(layout.pieces, layout.layers);
+    this.ctx.sync(true);
   }
 }

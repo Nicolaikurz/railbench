@@ -56,7 +56,7 @@
     {
       "id": "72190",
       "name": "Flexgleis 640 mm",
-      "kind": "straight",
+      "kind": "flex",
       "category": "Geraden",
       "description": "Flexgleis, Länge 640 mm",
       "length": 640,

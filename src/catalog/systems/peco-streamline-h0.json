@@ -11,7 +11,7 @@
     {
       "id": "SL-900",
       "name": "Flexgleis Holzschwellen 914 mm",
-      "kind": "straight",
+      "kind": "flex",
       "category": "Geraden",
       "description": "Standard-Flexgleis Code 100 (36 Zoll), Länge 914 mm",
       "length": 914,
@@ -20,7 +20,7 @@
     {
       "id": "SL-902",
       "name": "Flexgleis Betonschwellen 914 mm",
-      "kind": "straight",
+      "kind": "flex",
       "category": "Geraden",
       "description": "Flexgleis Code 100 mit modernen Betonschwellen, Länge 914 mm",
       "length": 914,

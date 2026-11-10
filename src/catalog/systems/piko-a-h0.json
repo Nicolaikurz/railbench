@@ -56,7 +56,7 @@
     {
       "id": "55205",
       "name": "Gerades Gleis G940 (Flexgleis)",
-      "kind": "straight",
+      "kind": "flex",
       "category": "Geraden",
       "description": "Flexgleis G940, Länge 940 mm",
       "length": 940,

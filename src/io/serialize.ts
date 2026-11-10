@@ -59,7 +59,10 @@ export function toXML(layout: Layout): string {
     const lant = p.hasLantern ? ` hasLantern="true"` : "";
     const dec = p.hasDecoder ? ` hasDecoder="true"` : "";
     const tMa = p.turnoutCurrentMa !== undefined ? ` turnoutCurrentMa="${p.turnoutCurrentMa}"` : "";
-    xml += `    <piece id="${p.id}" catalogId="${p.catalogId}" x="${p.transform.x.toFixed(2)}" y="${p.transform.y.toFixed(2)}" rotation="${p.transform.rotation.toFixed(2)}"${lay}${elev}${pf}${iso}${isoIdx}${cat}${catPf}${catIso}${catIsoIdx}${lant}${dec}${tMa}${name}/>\n`;
+    const cLen = p.customLength !== undefined ? ` customLength="${p.customLength.toFixed(1)}"` : "";
+    const cRad = p.customRadius !== undefined ? ` customRadius="${p.customRadius.toFixed(1)}"` : "";
+    const cAng = p.customAngle !== undefined ? ` customAngle="${p.customAngle.toFixed(2)}"` : "";
+    xml += `    <piece id="${p.id}" catalogId="${p.catalogId}" x="${p.transform.x.toFixed(2)}" y="${p.transform.y.toFixed(2)}" rotation="${p.transform.rotation.toFixed(2)}"${lay}${elev}${cLen}${cRad}${cAng}${pf}${iso}${isoIdx}${cat}${catPf}${catIso}${catIsoIdx}${lant}${dec}${tMa}${name}/>\n`;
   }
   xml += `  </pieces>\n`;
 
@@ -201,12 +204,15 @@ export function fromXML(xmlStr: string): Layout {
       elevStart !== null && elevEnd !== null
         ? { start: parseFloat(elevStart), end: parseFloat(elevEnd) }
         : undefined;
+    const customLength = node.hasAttribute("customLength") ? parseFloat(node.getAttribute("customLength")!) : undefined;
+    const customRadius = node.hasAttribute("customRadius") ? parseFloat(node.getAttribute("customRadius")!) : undefined;
+    const customAngle = node.hasAttribute("customAngle") ? parseFloat(node.getAttribute("customAngle")!) : undefined;
 
     const transform = { x, y, rotation };
     const entry =
       entryMap.get(catalogId) ||
       catalogRegistry.findEntry(catalogId) || { id: catalogId, name: catalogId, kind: "straight", length: 188.3 };
-    const connectors = computeWorldConnectors(entry, transform);
+    const connectors = computeWorldConnectors(entry, transform, { customLength, customRadius, customAngle });
 
     pieces.push({
       id,
@@ -214,6 +220,9 @@ export function fromXML(xmlStr: string): Layout {
       transform,
       connectors,
       elevation,
+      customLength,
+      customRadius,
+      customAngle,
       powerFeed,
       isIsolator,
       isolatedConnectorIndex,

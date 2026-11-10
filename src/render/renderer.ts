@@ -9,6 +9,7 @@ import { createModel2DGraphics } from "./model-sprite";
 import { getBaseboards } from "@/core/layout";
 import type { BaseboardSnapGuide } from "@/core/baseboard-snapping";
 import { getConnectorSnapStatus } from "@/core/snapping";
+import { isFlexTrack } from "@/core/flextrack";
 
 export interface MeasureState {
   start: { x: number; y: number } | null;
@@ -260,6 +261,27 @@ export class Renderer {
       ov.stroke({ width: 2.5, color, alpha: 0.9 });
       ov.circle(pt.x, pt.y, 4);
       ov.fill({ color });
+    }
+
+    // Interaktiver Flexgleis-Ziehgriff für markierte Flexgleise ("tack the open snappoint")
+    for (const piece of layout.pieces) {
+      if (selectedIds.has(piece.id)) {
+        const rawEntry = entryMap.get(piece.catalogId) ?? catalogRegistry.findEntry(piece.catalogId);
+        if (isFlexTrack(rawEntry, piece)) {
+          for (let ci = 0; ci < piece.connectors.length; ci++) {
+            const flexConn = piece.connectors[ci];
+            if (!flexConn || flexConn.connectedTo) continue;
+            ov.circle(flexConn.x, flexConn.y, 9);
+            ov.stroke({ width: 2.5, color: 0x06b6d4, alpha: 0.95 });
+            ov.circle(flexConn.x, flexConn.y, 6.5);
+            ov.fill({ color: 0x0891b2, alpha: 0.9 });
+            ov.circle(flexConn.x, flexConn.y, 2.8);
+            ov.fill({ color: 0xffffff });
+            ov.circle(flexConn.x, flexConn.y, 12);
+            ov.stroke({ width: 1, color: 0x38bdf8, alpha: 0.5 });
+          }
+        }
+      }
     }
 
     // Auswahlrahmen (Marquee Box bei Rechtsklick-Drag)

@@ -63,6 +63,17 @@
       "gauge": 16.5
     },
     {
+      "id": "24900",
+      "name": "C-Gleis Flexgleis / Anpassungsgleis (900,0 mm)",
+      "nameEn": "C-Track Flex Track / Adaptor (900.0 mm)",
+      "kind": "flex",
+      "category": "Geraden",
+      "description": "Flexibles Gleis / Anpassungsgleis für individuelle Längen, Kurvenradien und Rampen (900,0 mm)",
+      "descriptionEn": "Flexible track section / adaptor track for custom lengths, curve radiuses and ramps (900.0 mm)",
+      "length": 900,
+      "gauge": 16.5
+    },
+    {
       "id": "24229",
       "name": "Gerades Gleis 229,3 mm",
       "kind": "straight",

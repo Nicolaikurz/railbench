@@ -65,7 +65,7 @@
     {
       "id": "85100",
       "name": "Flexgleis Holzschwellen 890 mm",
-      "kind": "straight",
+      "kind": "flex",
       "category": "Geraden",
       "description": "Flexgleis mit Holzschwellenimitat, Länge 890 mm",
       "length": 890,
@@ -74,7 +74,7 @@
     {
       "id": "85101",
       "name": "Flexgleis Betonschwellen 890 mm",
-      "kind": "straight",
+      "kind": "flex",
       "category": "Geraden",
       "description": "Flexgleis mit Betonschwellenimitat, Länge 890 mm",
       "length": 890,
@@ -83,7 +83,7 @@
     {
       "id": "85102",
       "name": "Flexgleis Stahlschwellen 890 mm",
-      "kind": "straight",
+      "kind": "flex",
       "category": "Geraden",
       "description": "Flexgleis mit Stahlschwellenimitat, Länge 890 mm",
       "length": 890,

@@ -1,7 +1,7 @@
 import type { Layout, TrackPiece, Model3D, Transform, ColorMode } from "@/core/types";
 import type { Catalog, CatalogEntry } from "@/catalog/catalog";
 import { computeWorldConnectors } from "@/catalog/catalog";
-import { findBestSnapForPiece, type BestPieceSnap } from "@/core/snapping";
+import { findBestSnapForPiece, updatePieceConnections, type BestPieceSnap } from "@/core/snapping";
 import { snapBaseboard, type BaseboardSnapGuide } from "@/core/baseboard-snapping";
 import type { BaseboardConfig } from "@/core/types";
 import {
@@ -44,60 +44,29 @@ import type { PlanManager } from "@/io/plan-manager";
 import type { TrackOperations } from "./track-operations";
 import { handleCanvasDrop } from "./canvas-drop-handler";
 import { KeyboardController, type KeyboardControllerDeps } from "./keyboard-controller";
+import { isFlexTrack, adjustFlexTrackOpenConnector, flipFlexTrackPiece } from "@/core/flextrack";
 
 export interface CanvasControllerDeps {
   canvas: HTMLCanvasElement;
   renderer: Renderer;
-  getLayout: () => Layout;
-  getCatalog: () => Catalog;
-  getSelection: () => Selection;
-  getHistory: () => History;
-  getOperations: () => TrackOperations;
-  getCollabClient: () => CollabClient;
-  getSidebar: () => Sidebar | null;
-  getPerfMonitor: () => PerfMonitor;
-  getRuler: () => Ruler;
-  getPlanManager: () => PlanManager;
-  is3DMode: () => boolean;
-  toggle3D: (force?: boolean) => void;
-  isMeasureToolActive: () => boolean;
-  toggleMeasureTool: (force?: boolean) => void;
+  getLayout: () => Layout; getCatalog: () => Catalog; getSelection: () => Selection;
+  getHistory: () => History; getOperations: () => TrackOperations; getCollabClient: () => CollabClient;
+  getSidebar: () => Sidebar | null; getPerfMonitor: () => PerfMonitor; getRuler: () => Ruler;
+  getPlanManager: () => PlanManager; is3DMode: () => boolean; toggle3D: (force?: boolean) => void;
+  isMeasureToolActive: () => boolean; toggleMeasureTool: (force?: boolean) => void;
   findMeasureSnapPoint: (pos: { x: number; y: number }, snapDist?: number, forceNoSnap?: boolean) => { x: number; y: number } | null;
   updateMeasureHud: (updateInputs?: boolean) => void;
-  getMeasureState: () => {
-    start: { x: number; y: number } | null;
-    current: { x: number; y: number } | null;
-    locked: boolean;
-    snapPoint: { x: number; y: number } | null;
-    snapEnabled: boolean;
-    draggingPoint: "A" | "B" | null;
-  };
-  setMeasureState: (update: Partial<{
-    start: { x: number; y: number } | null;
-    current: { x: number; y: number } | null;
-    locked: boolean;
-    snapPoint: { x: number; y: number } | null;
-    draggingPoint: "A" | "B" | null;
-  }>) => void;
-  isSnappingEnabled: () => boolean;
-  setSnappingEnabled: (val: boolean) => void;
-  toggleSelectionLock?: () => void;
-  getColorMode: () => ColorMode;
-  cycleColorMode: (target?: ColorMode) => void;
-  isTrackLabelsEnabled: () => boolean;
-  setTrackLabelsEnabled: (val: boolean) => void;
-  isPowerSimEnabled: () => boolean;
-  setPowerSimEnabled: (val: boolean) => void;
-  toggleRightSidebar: () => void;
-  openHeightDialogForSelection: () => void;
-  openHelpDialog: (tab?: any) => void;
-  openPrintDialog: () => void;
-  isPieceInteractive: (piece: TrackPiece) => boolean;
-  isModelInteractive: (model: Model3D) => boolean;
+  getMeasureState: () => { start: { x: number; y: number } | null; current: { x: number; y: number } | null; locked: boolean; snapPoint: { x: number; y: number } | null; snapEnabled: boolean; draggingPoint: "A" | "B" | null; };
+  setMeasureState: (update: Partial<{ start: { x: number; y: number } | null; current: { x: number; y: number } | null; locked: boolean; snapPoint: { x: number; y: number } | null; draggingPoint: "A" | "B" | null; }>) => void;
+  isSnappingEnabled: () => boolean; setSnappingEnabled: (val: boolean) => void; toggleSelectionLock?: () => void;
+  getColorMode: () => ColorMode; cycleColorMode: (target?: ColorMode) => void;
+  isTrackLabelsEnabled: () => boolean; setTrackLabelsEnabled: (val: boolean) => void;
+  isPowerSimEnabled: () => boolean; setPowerSimEnabled: (val: boolean) => void;
+  toggleRightSidebar: () => void; openHeightDialogForSelection: () => void;
+  openHelpDialog: (tab?: any) => void; openPrintDialog: () => void;
+  isPieceInteractive: (piece: TrackPiece) => boolean; isModelInteractive: (model: Model3D) => boolean;
   getCatalogEntryForPiece: (piece: TrackPiece) => CatalogEntry | undefined;
-  sync: (dirty?: boolean) => void;
-  saveSettingsState: () => void;
-  showToast: (msg: string, icon?: string) => void;
+  sync: (dirty?: boolean) => void; saveSettingsState: () => void; showToast: (msg: string, icon?: string) => void;
   getCurrentSimulation: () => any;
   setSelectionBox: (box: { start: { x: number; y: number }; end: { x: number; y: number } } | null) => void;
   setDraggingBaseboardState: (isDragging: boolean, activeBoard: BaseboardConfig | null, guides: BaseboardSnapGuide[]) => void;
@@ -105,54 +74,32 @@ export interface CanvasControllerDeps {
 
 export class CanvasController {
   private deps: CanvasControllerDeps;
-
-  // Drag & Rotate State
-  private isDraggingPiece = false;
-  private isRotatingPiece = false;
-  private isRotatingModel = false;
-  private isBoxSelecting = false;
-  private boxStartWorld = { x: 0, y: 0 };
+  private isDraggingPiece = false; private isRotatingPiece = false; private isRotatingModel = false;
+  private isBoxSelecting = false; private boxStartWorld = { x: 0, y: 0 };
   private initialBoxSelection = new Set<string>();
-  private activePiece: TrackPiece | null = null;
-  private activeModel: Model3D | null = null;
-  private dragStartWorld = { x: 0, y: 0 };
-  private originalTransform: Transform = { x: 0, y: 0, rotation: 0 };
+  private activePiece: TrackPiece | null = null; private activeModel: Model3D | null = null;
+  private dragStartWorld = { x: 0, y: 0 }; private originalTransform: Transform = { x: 0, y: 0, rotation: 0 };
   private draggedPiecesMap = new Map<string, Transform>();
   private draggedInitialConnections: { pieceId: string; connectorIndex: number }[] = [];
-  private pieceCenterWorld = { x: 0, y: 0 };
-  private pendingSingleSelect: string | null = null;
-  private hasDragMoved = false;
-
-  // Baseboard Drag State
-  private isDraggingBaseboard = false;
-  private activeBaseboard: BaseboardConfig | null = null;
+  private pieceCenterWorld = { x: 0, y: 0 }; private pendingSingleSelect: string | null = null; private hasDragMoved = false;
+  private isDraggingBaseboard = false; private activeBaseboard: BaseboardConfig | null = null;
   private baseboardDragStartWorld = { x: 0, y: 0 };
   private baseboardOriginalPos = { positionMode: "custom" as const, customX: 0, customY: 0 };
   private activeBaseboardSnapGuides: BaseboardSnapGuide[] = [];
   private baseboardInitialTrackTransforms = new Map<string, Transform>();
-
-  // Event handler references for cleanup
-  private handleDragOver: (e: DragEvent) => void;
-  private handleDrop: (e: DragEvent) => Promise<void>;
-  private handleContextMenu: (e: MouseEvent) => void;
-  private handlePointerDown: (e: PointerEvent) => void;
-  private handlePointerMove: (e: PointerEvent) => void;
-  private handlePointerUp: (e: PointerEvent) => void;
-  private handleWheel: (e: WheelEvent) => void;
+  private isAdjustingFlex = false; private activeFlexPiece: TrackPiece | null = null; private activeFlexEntry: CatalogEntry | null = null;
+  private handleDragOver = (e: DragEvent) => this.onDragOver(e);
+  private handleDrop = (e: DragEvent) => this.onDrop(e);
+  private handleContextMenu = (e: MouseEvent) => e.preventDefault();
+  private handlePointerDown = (e: PointerEvent) => this.onPointerDown(e);
+  private handlePointerMove = (e: PointerEvent) => this.onPointerMove(e);
+  private handlePointerUp = (e: PointerEvent) => this.onPointerUp(e);
+  private handleWheel = (e: WheelEvent) => this.onWheel(e);
   private keyboardController: KeyboardController;
 
   constructor(deps: CanvasControllerDeps) {
     this.deps = deps;
-
-    this.handleDragOver = this.onDragOver.bind(this);
-    this.handleDrop = this.onDrop.bind(this);
-    this.handleContextMenu = (e) => e.preventDefault();
-    this.handlePointerDown = this.onPointerDown.bind(this);
-    this.handlePointerMove = this.onPointerMove.bind(this);
-    this.handlePointerUp = this.onPointerUp.bind(this);
-    this.handleWheel = this.onWheel.bind(this);
     this.keyboardController = new KeyboardController(deps);
-
     this.attach();
   }
 
@@ -178,18 +125,13 @@ export class CanvasController {
     canvas.removeEventListener("wheel", this.handleWheel);
     this.keyboardController.destroy();
   }
-
   private onDragOver(e: DragEvent): void {
     e.preventDefault();
-    if (e.dataTransfer) {
-      e.dataTransfer.dropEffect = "copy";
-    }
+    if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
   }
-
   private async onDrop(e: DragEvent): Promise<void> {
     await handleCanvasDrop(e, this.deps.renderer, this.deps.getOperations(), this.deps.sync);
   }
-
   private onPointerDown(e: PointerEvent): void {
     const { renderer, canvas } = this.deps;
     const layout = this.deps.getLayout();
@@ -244,6 +186,10 @@ export class CanvasController {
     const selectedIds = selection.all();
     const scale = renderer.world.scale.x || 1;
     const handleHitRadius = Math.max(24, 20 / scale);
+
+    if (!isMultiSelect && this.checkFlexHandleHit(wPos, handleHitRadius)) {
+      return;
+    }
 
     if (selectedIds.length > 0 && !isMultiSelect) {
       let clickedHandle = false;
@@ -328,27 +274,7 @@ export class CanvasController {
       this.activeModel = hitModel;
       this.dragStartWorld = { ...wPos };
       this.originalTransform = { ...hitModel.transform };
-
-      this.draggedPiecesMap.clear();
-      for (const id of selection.all()) {
-        const p = layout.pieces.find((x) => x.id === id);
-        if (p && this.deps.isPieceInteractive(p)) this.draggedPiecesMap.set(p.id, { ...p.transform });
-        const m = layout.models?.find((x) => x.id === id);
-        if (m && this.deps.isModelInteractive(m)) this.draggedPiecesMap.set(m.id, { ...m.transform });
-      }
-
-      this.draggedInitialConnections = [];
-      for (const [id] of this.draggedPiecesMap.entries()) {
-        const p = layout.pieces.find((x) => x.id === id);
-        if (p) {
-          for (const c of p.connectors) {
-            if (c.connectedTo && !this.draggedPiecesMap.has(c.connectedTo.pieceId)) {
-              this.draggedInitialConnections.push({ pieceId: c.connectedTo.pieceId, connectorIndex: c.connectedTo.connectorIndex });
-            }
-          }
-        }
-      }
-
+      this.populateDraggedPiecesMap(layout, selection);
       canvas.style.cursor = "move";
       this.deps.sync();
       return;
@@ -396,27 +322,7 @@ export class CanvasController {
       this.activeModel = null;
       this.dragStartWorld = { ...wPos };
       this.originalTransform = { ...hit.transform };
-
-      this.draggedPiecesMap.clear();
-      for (const id of selection.all()) {
-        const p = layout.pieces.find((x) => x.id === id);
-        if (p && this.deps.isPieceInteractive(p)) this.draggedPiecesMap.set(p.id, { ...p.transform });
-        const m = layout.models?.find((x) => x.id === id);
-        if (m && this.deps.isModelInteractive(m)) this.draggedPiecesMap.set(m.id, { ...m.transform });
-      }
-
-      this.draggedInitialConnections = [];
-      for (const [id] of this.draggedPiecesMap.entries()) {
-        const p = layout.pieces.find((x) => x.id === id);
-        if (p) {
-          for (const c of p.connectors) {
-            if (c.connectedTo && !this.draggedPiecesMap.has(c.connectedTo.pieceId)) {
-              this.draggedInitialConnections.push({ pieceId: c.connectedTo.pieceId, connectorIndex: c.connectedTo.connectorIndex });
-            }
-          }
-        }
-      }
-
+      this.populateDraggedPiecesMap(layout, selection);
       canvas.style.cursor = "move";
       this.deps.sync();
     } else {
@@ -515,6 +421,20 @@ export class CanvasController {
       }
 
       this.deps.sync();
+      return;
+    }
+
+    if (this.isAdjustingFlex && this.activeFlexPiece && this.activeFlexEntry) {
+      adjustFlexTrackOpenConnector(
+        this.activeFlexPiece,
+        this.activeFlexEntry,
+        currentWPos,
+        layout.pieces,
+        layout.layers,
+        this.deps.isSnappingEnabled() ? 25 : 0,
+      );
+      canvas.style.cursor = "crosshair";
+      this.deps.sync(false);
       return;
     }
 
@@ -782,10 +702,15 @@ export class CanvasController {
       return;
     }
 
-    if (!this.isDraggingPiece && !this.isRotatingPiece && !this.isRotatingModel && !this.isBoxSelecting && !this.isDraggingBaseboard) {
+    if (!this.isDraggingPiece && !this.isRotatingPiece && !this.isRotatingModel && !this.isBoxSelecting && !this.isDraggingBaseboard && !this.isAdjustingFlex) {
       const selectedIds = selection.all();
       const scale = renderer.world.scale.x || 1;
       const handleHitRadius = Math.max(24, 20 / scale);
+
+      if (this.isNearFlexHandle(currentWPos, handleHitRadius)) {
+        canvas.style.cursor = "crosshair";
+        return;
+      }
 
       for (const selId of selectedIds) {
         const selPiece = layout.pieces.find((p) => p.id === selId);
@@ -876,6 +801,16 @@ export class CanvasController {
       return;
     }
 
+    if (this.isAdjustingFlex) {
+      if (this.activeFlexPiece) updatePieceConnections(layout.pieces, layout.layers);
+      this.isAdjustingFlex = false;
+      this.activeFlexPiece = null;
+      this.activeFlexEntry = null;
+      canvas.style.cursor = "default";
+      this.deps.sync(true);
+      return;
+    }
+
     if (this.isBoxSelecting) {
       const currentWPos = renderer.screenToWorld(e.clientX, e.clientY);
       const distBox = Math.hypot(currentWPos.x - this.boxStartWorld.x, currentWPos.y - this.boxStartWorld.y);
@@ -903,20 +838,7 @@ export class CanvasController {
       canvas.style.cursor = "default";
       this.deps.sync();
     } else if (this.isRotatingPiece) {
-      let movedAny = false;
-      for (const [id, origT] of this.draggedPiecesMap.entries()) {
-        const p = layout.pieces.find((x) => x.id === id);
-        if (p && (p.transform.x !== origT.x || p.transform.y !== origT.y || p.transform.rotation !== origT.rotation)) {
-          history.run(new MovePieceCommand(p.id, origT, { ...p.transform }));
-          movedAny = true;
-        }
-        const m = layout.models?.find((x) => x.id === id);
-        if (m && (m.transform.x !== origT.x || m.transform.y !== origT.y || m.transform.rotation !== origT.rotation)) {
-          history.run(new MoveModelCommand(m.id, origT, { ...m.transform }));
-          movedAny = true;
-        }
-      }
-      if (movedAny) this.deps.sync(true);
+      if (this.commitMovedItems(layout, history)) this.deps.sync(true);
       this.isRotatingPiece = false;
       this.activePiece = null;
       this.draggedPiecesMap.clear();
@@ -926,22 +848,7 @@ export class CanvasController {
       if (!this.hasDragMoved && this.pendingSingleSelect) {
         selection.set(this.pendingSingleSelect);
       } else if (this.hasDragMoved) {
-        let movedAny = false;
-        for (const [id, origT] of this.draggedPiecesMap.entries()) {
-          const p = layout.pieces.find((x) => x.id === id);
-          if (p && (p.transform.x !== origT.x || p.transform.y !== origT.y || p.transform.rotation !== origT.rotation)) {
-            history.run(new MovePieceCommand(p.id, origT, { ...p.transform }));
-            movedAny = true;
-          }
-          const m = layout.models?.find((x) => x.id === id);
-          if (m && (m.transform.x !== origT.x || m.transform.y !== origT.y || m.transform.rotation !== origT.rotation)) {
-            history.run(new MoveModelCommand(m.id, origT, { ...m.transform }));
-            movedAny = true;
-          }
-        }
-        if (movedAny) {
-          this.deps.sync(true);
-        }
+        if (this.commitMovedItems(layout, history)) this.deps.sync(true);
       }
       this.isDraggingPiece = false;
       this.activePiece = null;
@@ -971,6 +878,98 @@ export class CanvasController {
       canvas.style.cursor = "default";
       this.deps.sync();
     }
+  }
+
+  private populateDraggedPiecesMap(layout: Layout, selection: Selection): void {
+    this.draggedPiecesMap.clear();
+    for (const id of selection.all()) {
+      const p = layout.pieces.find((x) => x.id === id);
+      if (p && this.deps.isPieceInteractive(p)) this.draggedPiecesMap.set(p.id, { ...p.transform });
+      const m = layout.models?.find((x) => x.id === id);
+      if (m && this.deps.isModelInteractive(m)) this.draggedPiecesMap.set(m.id, { ...m.transform });
+    }
+    this.draggedInitialConnections = [];
+    for (const [id] of this.draggedPiecesMap.entries()) {
+      const p = layout.pieces.find((x) => x.id === id);
+      if (p) {
+        for (const c of p.connectors) {
+          if (c.connectedTo && !this.draggedPiecesMap.has(c.connectedTo.pieceId)) {
+            this.draggedInitialConnections.push({ pieceId: c.connectedTo.pieceId, connectorIndex: c.connectedTo.connectorIndex });
+          }
+        }
+      }
+    }
+  }
+
+  private commitMovedItems(layout: Layout, history: History): boolean {
+    let movedAny = false;
+    for (const [id, origT] of this.draggedPiecesMap.entries()) {
+      const p = layout.pieces.find((x) => x.id === id);
+      if (p && (p.transform.x !== origT.x || p.transform.y !== origT.y || p.transform.rotation !== origT.rotation)) {
+        history.run(new MovePieceCommand(p.id, origT, { ...p.transform }));
+        movedAny = true;
+      }
+      const m = layout.models?.find((x) => x.id === id);
+      if (m && (m.transform.x !== origT.x || m.transform.y !== origT.y || m.transform.rotation !== origT.rotation)) {
+        history.run(new MoveModelCommand(m.id, origT, { ...m.transform }));
+        movedAny = true;
+      }
+    }
+    return movedAny;
+  }
+
+  private checkFlexHandleHit(wPos: { x: number; y: number }, hitRadius: number): boolean {
+    const layout = this.deps.getLayout();
+    const selection = this.deps.getSelection();
+    const selIds = selection.all();
+    const candidates = selIds.length === 1
+      ? [layout.pieces.find((p) => p.id === selIds[0])].filter(Boolean) as TrackPiece[]
+      : layout.pieces;
+
+    for (const p of candidates) {
+      if (!this.deps.isPieceInteractive(p)) continue;
+      const entry = this.deps.getCatalogEntryForPiece(p);
+      if (!entry || !isFlexTrack(entry, p)) continue;
+
+      if (p.connectors[1] && !p.connectors[1].connectedTo && dist(wPos, p.connectors[1]) <= hitRadius) {
+        selection.set(p.id);
+        this.isAdjustingFlex = true;
+        this.activeFlexPiece = p;
+        this.activeFlexEntry = entry;
+        this.deps.canvas.style.cursor = "crosshair";
+        this.deps.sync();
+        return true;
+      }
+      if (p.connectors[0] && !p.connectors[0].connectedTo && dist(wPos, p.connectors[0]) <= hitRadius) {
+        flipFlexTrackPiece(p, entry);
+        selection.set(p.id);
+        this.isAdjustingFlex = true;
+        this.activeFlexPiece = p;
+        this.activeFlexEntry = entry;
+        this.deps.canvas.style.cursor = "crosshair";
+        this.deps.sync();
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private isNearFlexHandle(wPos: { x: number; y: number }, hitRadius: number): boolean {
+    const layout = this.deps.getLayout();
+    const selIds = this.deps.getSelection().all();
+    const candidates = selIds.length === 1
+      ? [layout.pieces.find((p) => p.id === selIds[0])].filter(Boolean) as TrackPiece[]
+      : layout.pieces;
+
+    for (const p of candidates) {
+      if (!this.deps.isPieceInteractive(p)) continue;
+      const entry = this.deps.getCatalogEntryForPiece(p);
+      if (!entry || !isFlexTrack(entry, p)) continue;
+      for (const c of p.connectors) {
+        if (!c.connectedTo && dist(wPos, c) <= hitRadius) return true;
+      }
+    }
+    return false;
   }
 
   private onWheel(e: WheelEvent): void {

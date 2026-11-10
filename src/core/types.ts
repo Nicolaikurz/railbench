@@ -27,6 +27,9 @@ export interface TrackPiece {
   hasDecoder?: boolean;
   turnoutCurrentMa?: number;
   customName?: string;
+  customLength?: number;
+  customRadius?: number;
+  customAngle?: number;
   layerId?: string;
 }
 

@@ -12,6 +12,7 @@ import { BUILTIN_MODELS } from "@/core/models-3d";
 import { getScaleFactor, parseModelScale, type ModelScale } from "@/core/model-scale";
 import type { ShortCircuitDetectionResult } from "@/core/simulation";
 import { getTranslations, getLanguage } from "@/i18n";
+import { getEffectiveFlexEntry } from "@/core/flextrack";
 
 export type Viewer3DEnvironment = "landscape" | "hall" | "minimal";
 
@@ -742,6 +743,8 @@ export class Viewer3D {
         entry.isRoad = true;
       }
 
+      entry = getEffectiveFlexEntry(entry, piece);
+
       this.buildTrackPiece3D(piece, entry, startElev, endElev, colorMode, layer?.color);
 
       // Wood Plate (Trassenbrett)
@@ -1224,8 +1227,8 @@ export class Viewer3D {
     // =========================================================================
     // 1. GERADES GLEIS & ZUBEHÖR (PRELLBOCK)
     // =========================================================================
-    if (kind === "straight" || kind === "accessory") {
-      const len = entry.length ?? 188.3;
+    if (kind === "straight" || kind === "accessory" || kind === "flex") {
+      const len = entry.length ?? (kind === "flex" ? 900 : 188.3);
       const straightGroup = new THREE.Group();
       if (Math.abs(heightDiff) > 0.01) {
         straightGroup.rotation.z = Math.atan2(heightDiff, len);
@@ -1239,7 +1242,8 @@ export class Viewer3D {
     else if (kind === "curve") {
       const r = entry.radius ?? 437.5;
       const a = entry.angle ?? 30;
-      addCurvedSection(group, r, a, 1, 0, heightDiff);
+      const dir: 1 | -1 = a < 0 ? -1 : 1;
+      addCurvedSection(group, r, Math.abs(a), dir, 0, heightDiff);
     }
     // =========================================================================
     // 3. BOGENWEICHE (Curved Turnout Left / Right)
@@ -1741,8 +1745,8 @@ export class Viewer3D {
       metalness: 0.05,
     });
 
-    if (entry.kind === "straight" || entry.kind === "accessory") {
-      const len = entry.length ?? (isRoad ? 200 : 180);
+    if (entry.kind === "straight" || entry.kind === "accessory" || entry.kind === "flex") {
+      const len = entry.length ?? (entry.kind === "flex" ? 900 : isRoad ? 200 : 180);
       const geo = new THREE.BoxGeometry(len, thickness, plateWidth);
       const mesh = new THREE.Mesh(geo, woodPlateMat);
       mesh.position.set(len / 2, -thickness / 2, 0);
@@ -1754,16 +1758,22 @@ export class Viewer3D {
       group.add(mesh);
     } else if (entry.kind === "curve") {
       const r = entry.radius ?? 360;
-      const deg = entry.angle ?? 30;
+      const angleVal = entry.angle ?? 30;
+      const dir: 1 | -1 = angleVal < 0 ? -1 : 1;
+      const deg = Math.abs(angleVal);
       const rad = deg2rad(deg);
       const innerR = Math.max(10, r - plateWidth / 2);
       const outerR = r + plateWidth / 2;
       const segments = Math.max(8, Math.round(deg / 3));
 
-      const dir: 1 | -1 = 1;
       const curveShape = new THREE.Shape();
-      curveShape.absarc(0, 0, outerR, -Math.PI / 2, -Math.PI / 2 + rad, false);
-      curveShape.absarc(0, 0, innerR, -Math.PI / 2 + rad, -Math.PI / 2, true);
+      if (dir === 1) {
+        curveShape.absarc(0, 0, outerR, -Math.PI / 2, -Math.PI / 2 + rad, false);
+        curveShape.absarc(0, 0, innerR, -Math.PI / 2 + rad, -Math.PI / 2, true);
+      } else {
+        curveShape.absarc(0, 0, outerR, Math.PI / 2, Math.PI / 2 - rad, true);
+        curveShape.absarc(0, 0, innerR, Math.PI / 2 - rad, Math.PI / 2, false);
+      }
       curveShape.closePath();
 
       const extrudeSettings = { depth: thickness, bevelEnabled: false, curveSegments: segments };
