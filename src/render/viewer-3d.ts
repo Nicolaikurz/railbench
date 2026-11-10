@@ -1038,6 +1038,11 @@ export class Viewer3D {
       this.trackGroup.add(group);
       return;
     }
+    if (kind === "transfer-table") {
+      this.buildTransferTable3D(group, piece, entry, ballastColor);
+      this.trackGroup.add(group);
+      return;
+    }
 
     const gauge = entry.gauge ?? 16.5;
     const gaugeHalf = gauge / 2;
@@ -1781,6 +1786,16 @@ export class Viewer3D {
       mesh.castShadow = true;
       mesh.receiveShadow = true;
       group.add(mesh);
+    } else if (entry.kind === "transfer-table") {
+      const len = entry.length ?? 360;
+      const plateH = 420;
+      const topY = -55.2;
+      const geo = new THREE.BoxGeometry(len, thickness, plateH);
+      const mesh = new THREE.Mesh(geo, woodPlateMat);
+      mesh.position.set(len / 2, -thickness / 2, topY + plateH / 2);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      group.add(mesh);
     } else if (entry.kind?.includes("turnout") || entry.kind === "crossing") {
       const len = entry.length ?? 188.3;
       const mainGeo = new THREE.BoxGeometry(len, thickness, plateWidth);
@@ -2066,6 +2081,167 @@ export class Viewer3D {
         group.add(sRail);
       }
     }
+  }
+
+  private buildTransferTable3D(
+    group: THREE.Group,
+    _piece: TrackPiece,
+    entry: CatalogEntry,
+    ballastColor: number,
+  ) {
+    const l = entry.length ?? 360;
+    const plateD = 420;
+    const topZ = -55.2;
+    const centerZ = 154.8;
+    const pitLeft = 36;
+    const pitRight = l - 36;
+    const pitWidth = pitRight - pitLeft;
+    const pitD = plateD - 12;
+    const pitDepth = 8;
+    const gauge = entry.gauge ?? 16.5;
+    const gaugeHalf = gauge / 2;
+    const trackZs = [0, 77.4, 154.8, 232.2, 309.6];
+    const bridgeL = 288;
+    const bridgeW = 34;
+    const bridgeZ = 154.8;
+
+    const ballastMat = new THREE.MeshStandardMaterial({ color: ballastColor, roughness: 0.9 });
+    const concreteMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.85 });
+    const pitFloorMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.95 });
+    const steelMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.5, metalness: 0.7 });
+    const woodMat = new THREE.MeshStandardMaterial({ color: 0x451a03, roughness: 0.85 });
+    const railMat = new THREE.MeshStandardMaterial({ color: 0xd1d5db, metalness: 0.85, roughness: 0.25 });
+    const cabMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.6 });
+    const glassMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.2, metalness: 0.9 });
+
+    // 1. Grundplatte / Schotterrand (Links & Rechts)
+    const rimLeft = new THREE.Mesh(new THREE.BoxGeometry(pitLeft, 6, plateD), ballastMat);
+    rimLeft.position.set(pitLeft / 2, 3, centerZ);
+    rimLeft.receiveShadow = true;
+    group.add(rimLeft);
+
+    const rimRight = new THREE.Mesh(new THREE.BoxGeometry(l - pitRight, 6, plateD), ballastMat);
+    rimRight.position.set(l - (l - pitRight) / 2, 3, centerZ);
+    rimRight.receiveShadow = true;
+    group.add(rimRight);
+
+    // Quer-Abschlussränder oben und unten
+    const rimTop = new THREE.Mesh(new THREE.BoxGeometry(pitWidth, 6, 6), concreteMat);
+    rimTop.position.set(l / 2, 3, topZ + 3);
+    group.add(rimTop);
+
+    const rimBottom = new THREE.Mesh(new THREE.BoxGeometry(pitWidth, 6, 6), concreteMat);
+    rimBottom.position.set(l / 2, 3, topZ + plateD - 3);
+    group.add(rimBottom);
+
+    // 2. Grubenboden
+    const floorGeo = new THREE.BoxGeometry(pitWidth, 3, pitD);
+    const floorMesh = new THREE.Mesh(floorGeo, pitFloorMat);
+    floorMesh.position.set(l / 2, -pitDepth, centerZ);
+    floorMesh.receiveShadow = true;
+    group.add(floorMesh);
+
+    // 3. Querlaufschienen für die Schiebebühne in der Grube
+    for (const qx of [80, 180, 280]) {
+      const qRail = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.8, pitD - 12), railMat);
+      qRail.position.set(qx, -pitDepth + 2.4, centerZ);
+      group.add(qRail);
+    }
+
+    // 4. Schwellen & Schienen an den 10 Anschluss-Stutzen
+    for (const z of trackZs) {
+      // Schwellen links
+      for (let x = 8; x <= 28; x += 6.5) {
+        const tieL = new THREE.Mesh(new THREE.BoxGeometry(2.6, 2.2, gauge * 1.55), woodMat);
+        tieL.position.set(x, 6 + 1.1, z);
+        group.add(tieL);
+      }
+      // Schwellen rechts
+      for (let x = l - 28; x <= l - 8; x += 6.5) {
+        const tieR = new THREE.Mesh(new THREE.BoxGeometry(2.6, 2.2, gauge * 1.55), woodMat);
+        tieR.position.set(x, 6 + 1.1, z);
+        group.add(tieR);
+      }
+
+      // Schienen links
+      const railL1 = new THREE.Mesh(new THREE.BoxGeometry(pitLeft, 2.2, 1.2), railMat);
+      railL1.position.set(pitLeft / 2, 8.2, z - gaugeHalf);
+      group.add(railL1);
+      const railL2 = new THREE.Mesh(new THREE.BoxGeometry(pitLeft, 2.2, 1.2), railMat);
+      railL2.position.set(pitLeft / 2, 8.2, z + gaugeHalf);
+      group.add(railL2);
+
+      // Schienen rechts
+      const railR1 = new THREE.Mesh(new THREE.BoxGeometry(l - pitRight, 2.2, 1.2), railMat);
+      railR1.position.set(l - (l - pitRight) / 2, 8.2, z - gaugeHalf);
+      group.add(railR1);
+      const railR2 = new THREE.Mesh(new THREE.BoxGeometry(l - pitRight, 2.2, 1.2), railMat);
+      railR2.position.set(l - (l - pitRight) / 2, 8.2, z + gaugeHalf);
+      group.add(railR2);
+    }
+
+    // 5. Schiebebühne
+    // Seitliche Hauptträger
+    for (const zSide of [-14, 14]) {
+      const girder = new THREE.Mesh(new THREE.BoxGeometry(bridgeL - 4, 10, 2.5), steelMat);
+      girder.position.set(l / 2, -pitDepth / 2 + 1, bridgeZ + zSide);
+      group.add(girder);
+    }
+
+    // Bühnendeck
+    const deck = new THREE.Mesh(new THREE.BoxGeometry(bridgeL, 2.4, bridgeW), woodMat);
+    deck.position.set(l / 2, 6.2, bridgeZ);
+    deck.receiveShadow = true;
+    group.add(deck);
+
+    // Schwellen auf der Bühne
+    const tieCount = Math.floor(bridgeL / 6.5);
+    for (let i = 0; i <= tieCount; i++) {
+      const tie = new THREE.Mesh(new THREE.BoxGeometry(2.6, 1.6, gauge * 1.55), woodMat);
+      tie.position.set(pitLeft + 6 + i * 6.5, 7.6, bridgeZ);
+      group.add(tie);
+    }
+
+    // Schienen auf der Bühne
+    const rL = new THREE.Mesh(new THREE.BoxGeometry(bridgeL, 2.2, 1.2), railMat);
+    rL.position.set(l / 2, 8.5, bridgeZ - gaugeHalf);
+    group.add(rL);
+
+    const rR = new THREE.Mesh(new THREE.BoxGeometry(bridgeL, 2.2, 1.2), railMat);
+    rR.position.set(l / 2, 8.5, bridgeZ + gaugeHalf);
+    group.add(rR);
+
+    // Geländer
+    for (const zSide of [-bridgeW / 2 + 1, bridgeW / 2 - 1]) {
+      const railBar = new THREE.Mesh(new THREE.BoxGeometry(bridgeL - 10, 1.2, 1.2), steelMat);
+      railBar.position.set(l / 2, 15, bridgeZ + zSide);
+      group.add(railBar);
+
+      for (let x = pitLeft + 15; x <= pitRight - 15; x += 35) {
+        const post = new THREE.Mesh(new THREE.BoxGeometry(1.2, 8, 1.2), steelMat);
+        post.position.set(x, 11, bridgeZ + zSide);
+        group.add(post);
+      }
+    }
+
+    // Wärterhaus / Steuerstand auf der Bühne
+    const cabW = 34;
+    const cabD = 20;
+    const cabH = 24;
+    const cabX = pitLeft + 40;
+    const cabZ = bridgeZ + bridgeW / 2 + cabD / 2 - 2;
+
+    const cab = new THREE.Mesh(new THREE.BoxGeometry(cabW, cabH, cabD), cabMat);
+    cab.position.set(cabX, 16, cabZ);
+    group.add(cab);
+
+    const win = new THREE.Mesh(new THREE.BoxGeometry(cabW - 6, 8, cabD + 0.5), glassMat);
+    win.position.set(cabX, 19, cabZ);
+    group.add(win);
+
+    const cabRoof = new THREE.Mesh(new THREE.BoxGeometry(cabW + 4, 2.5, cabD + 4), steelMat);
+    cabRoof.position.set(cabX, 29, cabZ);
+    group.add(cabRoof);
   }
 
   private buildCatenary3D(group: THREE.Group, entry: CatalogEntry, startElev: number, endElev: number, piece?: TrackPiece) {

@@ -24,7 +24,7 @@ import { PlanManager } from "@/io/plan-manager";
 import { openPrintDialog } from "@/io/print";
 import { openChangeHeightDialog } from "@/ui/height-dialog";
 import { openHelpDialog, type HelpTab } from "@/ui/help-dialog";
-import { openPowerSettingsDialog } from "@/ui/power-dialog";
+import { openCatalogImportDialog } from "@/catalog/catalog-importer";
 import { openCollabDialog } from "@/ui/collab-dialog";
 import { CollabClient } from "@/collab/collab-client";
 import { CollabOverlay } from "@/collab/collab-overlay";
@@ -623,19 +623,28 @@ async function main() {
     }
   }
 
+  function triggerImportCatalog() {
+    openCatalogImportDialog({
+      onSuccess: (newCat) => {
+        catalog = newCat;
+        sidebar?.setCatalog(catalog);
+        if (layout.pieces.length === 0 && (newCat.scale === "H0" || newCat.scale === "N" || newCat.scale === "TT" || newCat.scale === "Z" || newCat.scale === "1")) {
+          layout.scale = newCat.scale;
+        }
+        sync(false);
+        saveSettingsState();
+      },
+      showToast,
+    });
+  }
+
   // Sidebar initialisieren
   const sidebarHost = document.getElementById("sidebar")!;
   sidebar = new Sidebar(sidebarHost, catalog, layout, {
-    onAddPiece: (entry) => {
-      operations.addPieceToLayout(entry);
-      sync(true);
-    },
-    onAddModel: (model) => {
-      operations.addModelToLayout(model);
-    },
-    onExportCSV: () => {
-      operations.triggerExportCSV();
-    },
+    onAddPiece: (entry) => { operations.addPieceToLayout(entry); sync(true); },
+    onAddModel: (model) => operations.addModelToLayout(model),
+    onExportCSV: () => operations.triggerExportCSV(),
+    onImportCatalog: () => triggerImportCatalog(),
     onSelectSystem: (systemId) => {
       const newCat = catalogRegistry.get(systemId);
       if (newCat) {
@@ -733,24 +742,11 @@ async function main() {
   // Toolbar initialisieren
   const toolbarHost = document.getElementById("toolbar")!;
   const toolbarEvents: ToolbarEvents = buildToolbarEvents({
-    getLayout: () => layout,
-    getCatalog: () => catalog,
-    getSelection: () => selection,
-    getHistory: () => history,
-    getOperations: () => operations,
-    getPlanManager: () => planManager,
-    getRenderer: () => renderer,
-    getRuler: () => ruler,
-    getViewer3D: () => viewer3D,
-    getSidebar: () => sidebar,
-    getPerfMonitor: () => perfMonitor,
-    getCurrentShortCircuit: () => currentShortCircuit,
-    is3DMode: () => is3DMode,
-    toggle3D,
-    toggleMeasureTool,
-    toggleRightSidebar,
-    saveSettingsState,
-    sync,
+    getLayout: () => layout, getCatalog: () => catalog, getSelection: () => selection,
+    getHistory: () => history, getOperations: () => operations, getPlanManager: () => planManager,
+    getRenderer: () => renderer, getRuler: () => ruler, getViewer3D: () => viewer3D,
+    getSidebar: () => sidebar, getPerfMonitor: () => perfMonitor, getCurrentShortCircuit: () => currentShortCircuit,
+    is3DMode: () => is3DMode, toggle3D, toggleMeasureTool, toggleRightSidebar, saveSettingsState, sync,
     isSnappingEnabled: () => snappingEnabled,
     setSnappingEnabled: (val) => { snappingEnabled = val; },
     toggleSelectionLock: () => toggleSelectionLock(),
@@ -762,6 +758,7 @@ async function main() {
     openHeightDialogForSelection,
     triggerCollabDialog,
     triggerWelcomeDialog: () => triggerWelcome(),
+    triggerImportCatalog,
     showToast,
   });
 

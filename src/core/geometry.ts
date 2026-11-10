@@ -331,6 +331,10 @@ export function getPieceLocalCenter(entry: CatalogEntry): Vec2 {
   if (kind === "crossing" || kind === "turntable") {
     return { x: 0, y: 0 };
   }
+  if (kind === "transfer-table") {
+    const l = entry.length ?? 360;
+    return { x: l / 2, y: 154.8 };
+  }
   return { x: 50, y: 0 };
 }
 

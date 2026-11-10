@@ -1,0 +1,172 @@
+{
+  "id": "peco-streamline-h0",
+  "name": "Peco Streamline H0 (Code 100)",
+  "manufacturer": "Peco",
+  "system": "Streamline Code 100",
+  "scale": "H0",
+  "gauge": 16.5,
+  "hasRoadbed": false,
+  "conductors": 2,
+  "entries": [
+    {
+      "id": "SL-900",
+      "name": "Flexgleis Holzschwellen 914 mm",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Standard-Flexgleis Code 100 (36 Zoll), Länge 914 mm",
+      "length": 914,
+      "gauge": 16.5
+    },
+    {
+      "id": "SL-902",
+      "name": "Flexgleis Betonschwellen 914 mm",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Flexgleis Code 100 mit modernen Betonschwellen, Länge 914 mm",
+      "length": 914,
+      "gauge": 16.5
+    },
+    {
+      "id": "SL-91",
+      "name": "Ausgleichsgerade kurz 41 mm",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Kurzes Passstück zur Gleisabstandsangleichung",
+      "length": 41,
+      "gauge": 16.5
+    },
+    {
+      "id": "SL-E91",
+      "name": "Weiche klein links (Small Radius)",
+      "kind": "turnout-left",
+      "category": "Weichen",
+      "description": "Länge 185 mm, Abzweig R610 / 12°",
+      "length": 185,
+      "branchRadius": 610,
+      "branchAngle": 12,
+      "gauge": 16.5
+    },
+    {
+      "id": "SL-E92",
+      "name": "Weiche klein rechts (Small Radius)",
+      "kind": "turnout-right",
+      "category": "Weichen",
+      "description": "Länge 185 mm, Abzweig R610 / 12°",
+      "length": 185,
+      "branchRadius": 610,
+      "branchAngle": 12,
+      "gauge": 16.5
+    },
+    {
+      "id": "SL-E95",
+      "name": "Weiche mittel links (Medium Radius)",
+      "kind": "turnout-left",
+      "category": "Weichen",
+      "description": "Länge 219 mm, Abzweig R914 / 12°",
+      "length": 219,
+      "branchRadius": 914,
+      "branchAngle": 12,
+      "gauge": 16.5
+    },
+    {
+      "id": "SL-E96",
+      "name": "Weiche mittel rechts (Medium Radius)",
+      "kind": "turnout-right",
+      "category": "Weichen",
+      "description": "Länge 219 mm, Abzweig R914 / 12°",
+      "length": 219,
+      "branchRadius": 914,
+      "branchAngle": 12,
+      "gauge": 16.5
+    },
+    {
+      "id": "SL-E88",
+      "name": "Weiche groß links (Large Radius)",
+      "kind": "turnout-left",
+      "category": "Weichen",
+      "description": "Länge 258 mm, Abzweig R1524 / 12°",
+      "length": 258,
+      "branchRadius": 1524,
+      "branchAngle": 12,
+      "gauge": 16.5
+    },
+    {
+      "id": "SL-E89",
+      "name": "Weiche groß rechts (Large Radius)",
+      "kind": "turnout-right",
+      "category": "Weichen",
+      "description": "Länge 258 mm, Abzweig R1524 / 12°",
+      "length": 258,
+      "branchRadius": 1524,
+      "branchAngle": 12,
+      "gauge": 16.5
+    },
+    {
+      "id": "SL-E86",
+      "name": "Bogenweiche groß links",
+      "kind": "curved-turnout-left",
+      "category": "Weichen",
+      "description": "Außenradius R1524 / Innenradius R762",
+      "radius": 762,
+      "angle": 12,
+      "branchRadius": 1524,
+      "branchAngle": 12,
+      "gauge": 16.5
+    },
+    {
+      "id": "SL-E87",
+      "name": "Bogenweiche groß rechts",
+      "kind": "curved-turnout-right",
+      "category": "Weichen",
+      "description": "Außenradius R1524 / Innenradius R762",
+      "radius": 762,
+      "angle": 12,
+      "branchRadius": 1524,
+      "branchAngle": 12,
+      "gauge": 16.5
+    },
+    {
+      "id": "SL-E99",
+      "name": "Dreiwegweiche (Medium)",
+      "kind": "three-way",
+      "category": "Weichen",
+      "description": "Länge 220 mm, Abzweige links/rechts R914 / 12°",
+      "length": 220,
+      "gauge": 16.5,
+      "branchRadius": 914,
+      "branchAngle": 12
+    },
+    {
+      "id": "SL-E90",
+      "name": "Doppelkreuzungsweiche DKW 12°",
+      "kind": "dkw",
+      "category": "Kreuzungen",
+      "description": "Länge 249 mm, Kreuzungswinkel 12°, Radius 914 mm",
+      "length": 249,
+      "angle": 12,
+      "branchRadius": 914,
+      "branchAngle": 12,
+      "gauge": 16.5
+    },
+    {
+      "id": "SL-93",
+      "name": "Kurze Kreuzung 24°",
+      "kind": "crossing",
+      "category": "Kreuzungen",
+      "description": "Länge 127 mm, Kreuzungswinkel 24°",
+      "length": 127,
+      "angle": 24,
+      "gauge": 16.5
+    },
+    {
+      "id": "SL-94",
+      "name": "Lange Kreuzung 12°",
+      "kind": "crossing",
+      "category": "Kreuzungen",
+      "description": "Länge 249 mm, Kreuzungswinkel 12°",
+      "length": 249,
+      "angle": 12,
+      "gauge": 16.5
+    }
+  ]
+}

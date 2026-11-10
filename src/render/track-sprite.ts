@@ -264,7 +264,7 @@ function drawTrackNumberLabel(
 ) {
   const center = getPieceLocalCenter(entry);
   const labelCont = new Container();
-  const yOffset = entry.kind === "turntable" ? -55 : hasVoltageLabel ? -10 : 0;
+  const yOffset = entry.kind === "turntable" ? -55 : entry.kind === "transfer-table" ? -70 : hasVoltageLabel ? -10 : 0;
   labelCont.position.set(center.x, center.y + yOffset);
 
   // Verhindern, dass Schrift kopfüber steht, wenn das Gleis gedreht ist
@@ -418,6 +418,15 @@ function drawElevationShadow(g: Graphics, entry: CatalogEntry, ballastWidth: num
   if (kind === "turntable") {
     const r = entry.radius ?? 189;
     g.circle(shadowDist * 0.5, shadowDist, r);
+    g.fill({ color: shadowColor, alpha: shadowAlpha });
+    return;
+  }
+
+  if (kind === "transfer-table") {
+    const l = entry.length ?? 360;
+    const plateH = 420;
+    const topY = -55.2;
+    g.rect(shadowDist * 0.5, topY + shadowDist, l, plateH);
     g.fill({ color: shadowColor, alpha: shadowAlpha });
     return;
   }
@@ -590,6 +599,16 @@ function drawSelectionContour(g: Graphics, entry: CatalogEntry, contourWidth = 4
     const r = (entry.radius ?? 189) + 4;
     g.circle(0, 0, r);
     g.stroke({ width: 3.5, color: glowColor, alpha: 0.9 });
+    g.fill({ color: glowColor, alpha: 0.15 });
+    return;
+  }
+
+  if (kind === "transfer-table") {
+    const l = entry.length ?? 360;
+    const plateH = 420;
+    const topY = -55.2;
+    g.rect(-4, topY - 4, l + 8, plateH + 8);
+    g.stroke({ width: 3.5, color: glowColor, alpha: 0.9, join: "miter" });
     g.fill({ color: glowColor, alpha: 0.15 });
     return;
   }
@@ -809,7 +828,7 @@ function drawSelectionGizmo(container: Container, entry: CatalogEntry) {
 
   const g = new Graphics();
   const center = getPieceLocalCenter(entry);
-  const stemOffset = entry.kind === "turntable" ? 220 : entry.kind === "dkw" ? 62 : entry.isRoad ? 50 : 48;
+  const stemOffset = entry.kind === "turntable" ? 220 : entry.kind === "transfer-table" ? 240 : entry.kind === "dkw" ? 62 : entry.isRoad ? 50 : 48;
   const handlePos = { x: center.x, y: center.y - stemOffset };
 
   // 1. Verbindungsschaft zum Drehgriff
@@ -882,6 +901,32 @@ function drawBallast(g: Graphics, entry: CatalogEntry, color: number, ballastWid
     g.fill({ color: 0x334155 });
     g.circle(0, 0, 6);
     g.fill({ color: 0x64748b });
+    return;
+  }
+
+  if (kind === "transfer-table") {
+    const l = entry.length ?? 360;
+    const plateH = 420;
+    const topY = -55.2;
+    const pitLeft = 36;
+    const pitRight = l - 36;
+    const pitWidth = pitRight - pitLeft;
+
+    // 1. Grundplatte
+    g.rect(0, topY, l, plateH);
+    g.fill({ color, alpha: 0.95 });
+    g.stroke({ width: 1.5, color: 0x6c655b, alpha: 0.8 });
+
+    // 2. Vertiefte Grube
+    g.rect(pitLeft, topY + 4, pitWidth, plateH - 8);
+    g.fill({ color: 0x1e293b, alpha: 0.98 });
+    g.stroke({ width: 2, color: 0x475569, alpha: 0.95 });
+
+    // 3. Quer-Laufschienen für die Bühne (quer zur Gleisrichtung, parallel zu Y)
+    for (const qx of [80, 180, 280]) {
+      g.moveTo(qx, topY + 6).lineTo(qx, topY + plateH - 6);
+      g.stroke({ width: 1.6, color: 0x94a3b8, alpha: 0.85 });
+    }
     return;
   }
 
@@ -1066,6 +1111,35 @@ function drawTies(g: Graphics, entry: CatalogEntry, color: number, tieLenHalf = 
         g.stroke({ width: tieWidth, color, cap: "round" });
       }
     }
+    return;
+  }
+
+  if (kind === "transfer-table") {
+    const l = entry.length ?? 360;
+    const trackYs = [0, 77.4, 154.8, 232.2, 309.6];
+
+    // Schwellen an den 10 Anschluss-Stümpfen links und rechts
+    for (const y of trackYs) {
+      // Links (x: 4 .. 32)
+      for (let x = 4; x <= 32; x += tieSpacing) {
+        g.moveTo(x, y - tieLenHalf);
+        g.lineTo(x, y + tieLenHalf);
+      }
+      // Rechts (x: l - 32 .. l - 4)
+      for (let x = l - 32; x <= l - 4; x += tieSpacing) {
+        g.moveTo(x, y - tieLenHalf);
+        g.lineTo(x, y + tieLenHalf);
+      }
+    }
+    g.stroke({ width: tieWidth, color, cap: "butt" });
+
+    // Schwellen auf der Schiebebühne (Mittelstellung y = 154.8)
+    const bridgeY = 154.8;
+    for (let x = 40; x <= l - 40; x += tieSpacing) {
+      g.moveTo(x, bridgeY - tieLenHalf);
+      g.lineTo(x, bridgeY + tieLenHalf);
+    }
+    g.stroke({ width: tieWidth, color, cap: "butt" });
     return;
   }
 
@@ -1396,6 +1470,44 @@ function drawRails(g: Graphics, entry: CatalogEntry, color: number, gaugeHalf: n
     return;
   }
 
+  if (kind === "transfer-table") {
+    const l = entry.length ?? 360;
+    const trackYs = [0, 77.4, 154.8, 232.2, 309.6];
+    const bridgeY = 154.8;
+
+    // 1. Schienen an den 10 Anschlussstutzen
+    for (const y of trackYs) {
+      // Links
+      g.moveTo(0, y - gaugeHalf).lineTo(36, y - gaugeHalf);
+      g.moveTo(0, y + gaugeHalf).lineTo(36, y + gaugeHalf);
+      // Rechts
+      g.moveTo(l - 36, y - gaugeHalf).lineTo(l, y - gaugeHalf);
+      g.moveTo(l - 36, y + gaugeHalf).lineTo(l, y + gaugeHalf);
+    }
+    g.stroke({ width: railWidth, color, cap: "butt", join: "miter" });
+
+    // 2. Schienen auf der Schiebebühne
+    g.moveTo(36, bridgeY - gaugeHalf).lineTo(l - 36, bridgeY - gaugeHalf);
+    g.moveTo(36, bridgeY + gaugeHalf).lineTo(l - 36, bridgeY + gaugeHalf);
+    g.stroke({ width: railWidth, color, cap: "butt", join: "miter" });
+
+    // 3. Bühnenkanten / Träger / Geländer
+    g.moveTo(36, bridgeY - 18).lineTo(l - 36, bridgeY - 18);
+    g.moveTo(36, bridgeY + 18).lineTo(l - 36, bridgeY + 18);
+    g.stroke({ width: 1.4, color: 0x475569 });
+
+    // Wärterhäuschen an der Schiebebühne (Bedienstand)
+    g.roundRect(50, bridgeY + 18, 34, 16, 2);
+    g.fill({ color: 0x0f172a });
+    g.roundRect(50, bridgeY + 18, 34, 16, 2);
+    g.stroke({ width: 1.2, color: 0x38bdf8 });
+
+    // Dach des Wärterhäuschens
+    g.rect(48, bridgeY + 17, 38, 4);
+    g.fill({ color: 0x334155 });
+    return;
+  }
+
   if (kind === "curve") {
     const r = entry.radius ?? 437.5;
     const a = entry.angle ?? 30;
@@ -1608,6 +1720,20 @@ function drawTrackCenterline(g: Graphics, entry: CatalogEntry, color: number, wi
       g.lineTo(189 * Math.cos(rad), 189 * Math.sin(rad));
       g.stroke({ width: width * 0.8, color, alpha: alpha * 0.7 });
     }
+    return;
+  }
+
+  if (kind === "transfer-table") {
+    const l = entry.length ?? 360;
+    const trackYs = [0, 77.4, 154.8, 232.2, 309.6];
+    for (const y of trackYs) {
+      g.moveTo(0, y).lineTo(36, y);
+      g.moveTo(l - 36, y).lineTo(l, y);
+      g.stroke({ width: width * 0.8, color, alpha: alpha * 0.7 });
+    }
+    // Mittellinie der Bühne
+    g.moveTo(36, 154.8).lineTo(l - 36, 154.8);
+    g.stroke({ width, color, alpha, cap: "butt" });
     return;
   }
 
@@ -1887,6 +2013,7 @@ function drawCatenary2D(parent: Container, entry: CatalogEntry, powerResult?: Pi
   };
 
   const kind = entry.kind;
+  if (kind === "turntable" || kind === "transfer-table") return;
   if (kind === "straight" || kind === "accessory") {
     const l = entry.length ?? 188.3;
     drawMast(0, 0, 0, 1);

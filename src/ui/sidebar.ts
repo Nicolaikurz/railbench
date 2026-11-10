@@ -43,6 +43,7 @@ export interface SidebarCallbacks {
   onAddPiece: (entry: CatalogEntry) => void;
   onAddModel?: (model: Model3D) => void;
   onExportCSV: () => void;
+  onImportCatalog?: () => void;
   onSelectSystem?: (system: string) => void;
   onSelectRoadScale?: (scale: ModelScale) => void;
   onLayerChange?: () => void;
@@ -347,6 +348,7 @@ export class Sidebar {
       this.activeTab = "roads";
     } else {
       this.catalog = catalog;
+      this.activeTab = "catalog";
     }
     this.render();
   }
@@ -524,6 +526,22 @@ export class Sidebar {
           });
           list.appendChild(item);
         }
+
+        const importItem = document.createElement("button");
+        importItem.type = "button";
+        importItem.className = "popover-item";
+        importItem.style.color = "var(--theme-accent, #38bdf8)";
+        importItem.style.fontWeight = "600";
+        importItem.style.borderTop = "1px solid rgba(255, 255, 255, 0.08)";
+        importItem.innerHTML = `<span>+ ${isDe ? "Katalog importieren (JSON)..." : "Import Catalog (JSON)..."}</span>`;
+        importItem.addEventListener("click", (e) => {
+          e.stopPropagation();
+          menuStep = "closed";
+          updatePopover();
+          this.callbacks.onImportCatalog?.();
+        });
+        list.appendChild(importItem);
+
         popover.appendChild(list);
       } else if (menuStep === "systems") {
         const header = document.createElement("div");
@@ -571,6 +589,22 @@ export class Sidebar {
           });
           list.appendChild(item);
         }
+
+        const importItem = document.createElement("button");
+        importItem.type = "button";
+        importItem.className = "popover-item";
+        importItem.style.color = "var(--theme-accent, #38bdf8)";
+        importItem.style.fontWeight = "600";
+        importItem.style.borderTop = "1px solid rgba(255, 255, 255, 0.08)";
+        importItem.innerHTML = `<span>+ ${isDe ? "Katalog importieren (JSON)..." : "Import Catalog (JSON)..."}</span>`;
+        importItem.addEventListener("click", (e) => {
+          e.stopPropagation();
+          menuStep = "closed";
+          updatePopover();
+          this.callbacks.onImportCatalog?.();
+        });
+        list.appendChild(importItem);
+
         popover.appendChild(list);
       }
     };

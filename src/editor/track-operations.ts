@@ -77,7 +77,8 @@ export class TrackOperations {
     }
 
     if (this.ctx.isSnappingEnabled() && layout.pieces.length > 0) {
-      const snap = findBestSnapForPiece(entry, targetTransform, layout.pieces, undefined, 60, 45);
+      const candidateLayer = { layerId: layout.activeLayerId ?? "layer-1" };
+      const snap = findBestSnapForPiece(entry, targetTransform, layout.pieces, undefined, 60, 45, undefined, candidateLayer, layout.layers);
       if (snap) {
         targetTransform = snap.snappedTransform;
       }

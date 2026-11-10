@@ -57,6 +57,18 @@ export function getLocalConnectors(entry?: CatalogEntry | null): LocalConnector[
 
   const kind = entry.kind;
 
+  if (kind === "transfer-table") {
+    const l = entry.length ?? 360;
+    const spacing = 77.4;
+    const count = 5;
+    const connectors: LocalConnector[] = [];
+    for (let i = 0; i < count; i++) {
+      connectors.push({ x: 0, y: i * spacing, angle: 180 });
+      connectors.push({ x: l, y: i * spacing, angle: 0 });
+    }
+    return connectors;
+  }
+
   if (kind === "straight" || kind === "accessory") {
     const l = entry.length ?? 188.3;
     return [

@@ -16,6 +16,7 @@ export const en: Translations = {
       savePlan: "Save",
       saveAs: "Save As...",
       importXml: "Import Layout XML...",
+      importCatalog: "Import Track Catalog (JSON)...",
       import3d: "Import 3D Model (.glb / .gltf)...",
       exportXml: "Export Layout as XML...",
       exportCsv: "Export Parts List (.csv)...",

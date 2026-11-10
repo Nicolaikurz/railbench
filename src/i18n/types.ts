@@ -16,6 +16,7 @@ export interface Translations {
       savePlan: string;
       saveAs: string;
       importXml: string;
+      importCatalog: string;
       import3d: string;
       exportXml: string;
       exportCsv: string;

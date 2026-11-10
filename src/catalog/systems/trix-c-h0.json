@@ -1,0 +1,661 @@
+{
+  "id": "trix-c-h0",
+  "name": "Trix H0 C-Gleis",
+  "manufacturer": "Trix",
+  "system": "C-Gleis",
+  "scale": "H0",
+  "gauge": 16.5,
+  "hasRoadbed": true,
+  "conductors": 2,
+  "entries": [
+    {
+      "id": "62064",
+      "name": "Gerades Gleis 64,3 mm",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Gerades Gleis 64,3 mm (z.B. Gegenbogen/Ergänzung)",
+      "length": 64.3,
+      "gauge": 16.5
+    },
+    {
+      "id": "62071",
+      "name": "Gerades Gleis 70,8 mm",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Gerades Gleis 70,8 mm (Ausgleichsstück für schlanke Weichen)",
+      "length": 70.8,
+      "gauge": 16.5
+    },
+    {
+      "id": "62077",
+      "name": "Gerades Gleis 77,5 mm",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Parallelkreis-Abstandsgleis 77,5 mm",
+      "length": 77.5,
+      "gauge": 16.5
+    },
+    {
+      "id": "62094",
+      "name": "Gerades Gleis 94,2 mm",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Halbes Standardgleis 94,2 mm",
+      "length": 94.2,
+      "gauge": 16.5
+    },
+    {
+      "id": "62172",
+      "name": "Gerades Gleis 171,7 mm",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Gerades Standardgleis 171,7 mm",
+      "length": 171.7,
+      "gauge": 16.5
+    },
+    {
+      "id": "62188",
+      "name": "Gerades Gleis 188,3 mm",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Basis-Standardgleis 188,3 mm",
+      "length": 188.3,
+      "gauge": 16.5
+    },
+    {
+      "id": "62229",
+      "name": "Gerades Gleis 229,3 mm",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Langes gerades Gleis 229,3 mm",
+      "length": 229.3,
+      "gauge": 16.5
+    },
+    {
+      "id": "62236",
+      "name": "Gerades Gleis 236,1 mm",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Länge passend zu schlanken Weichen 236,1 mm",
+      "length": 236.1,
+      "gauge": 16.5
+    },
+    {
+      "id": "62360",
+      "name": "Gerades Gleis 360,0 mm",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Großes gerades Gleis 360,0 mm (doppeltes Standardgleis)",
+      "length": 360,
+      "gauge": 16.5
+    },
+    {
+      "id": "62107",
+      "name": "Gebogenes Gleis R1 / 7,5°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R1 = 360 mm, Bogenwinkel 7,5°",
+      "radius": 360,
+      "angle": 7.5,
+      "gauge": 16.5
+    },
+    {
+      "id": "62115",
+      "name": "Gebogenes Gleis R1 / 15°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R1 = 360 mm, Bogenwinkel 15°",
+      "radius": 360,
+      "angle": 15,
+      "gauge": 16.5
+    },
+    {
+      "id": "62130",
+      "name": "Gebogenes Gleis R1 / 30°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R1 = 360 mm, Bogenwinkel 30° (12 Stück für Vollkreis)",
+      "radius": 360,
+      "angle": 30,
+      "gauge": 16.5
+    },
+    {
+      "id": "62206",
+      "name": "Gebogenes Gleis R2 / 5,7°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R2 = 437,5 mm, Ergänzungswinkel 5,7° für schlanke Weichen",
+      "radius": 437.5,
+      "angle": 5.7,
+      "gauge": 16.5
+    },
+    {
+      "id": "62207",
+      "name": "Gebogenes Gleis R2 / 7,5°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R2 = 437,5 mm, Bogenwinkel 7,5°",
+      "radius": 437.5,
+      "angle": 7.5,
+      "gauge": 16.5
+    },
+    {
+      "id": "62215",
+      "name": "Gebogenes Gleis R2 / 15°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R2 = 437,5 mm, Bogenwinkel 15°",
+      "radius": 437.5,
+      "angle": 15,
+      "gauge": 16.5
+    },
+    {
+      "id": "62224",
+      "name": "Gebogenes Gleis R2 / 24,3°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R2 = 437,5 mm, Gegenbogen für Standardweichen (24,3°)",
+      "radius": 437.5,
+      "angle": 24.3,
+      "gauge": 16.5
+    },
+    {
+      "id": "62230",
+      "name": "Gebogenes Gleis R2 / 30°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R2 = 437,5 mm, Bogenwinkel 30° (12 Stück für Parallelkreis)",
+      "radius": 437.5,
+      "angle": 30,
+      "gauge": 16.5
+    },
+    {
+      "id": "62315",
+      "name": "Gebogenes Gleis R3 / 15°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R3 = 515 mm, Bogenwinkel 15°",
+      "radius": 515,
+      "angle": 15,
+      "gauge": 16.5
+    },
+    {
+      "id": "62330",
+      "name": "Gebogenes Gleis R3 / 30°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R3 = 515 mm, Bogenwinkel 30° (Großer Parallelkreis)",
+      "radius": 515,
+      "angle": 30,
+      "gauge": 16.5
+    },
+    {
+      "id": "62430",
+      "name": "Gebogenes Gleis R4 / 30°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R4 = 579,3 mm, Bogenwinkel 30°",
+      "radius": 579.3,
+      "angle": 30,
+      "gauge": 16.5
+    },
+    {
+      "id": "62530",
+      "name": "Gebogenes Gleis R5 / 30°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R5 = 643,6 mm, Bogenwinkel 30°",
+      "radius": 643.6,
+      "angle": 30,
+      "gauge": 16.5
+    },
+    {
+      "id": "62912",
+      "name": "Gebogenes Gleis R9 / 12,1°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R9 = 1114,6 mm, Bogenwinkel 12,1° (Gegenbogen für schlanke Weichen)",
+      "radius": 1114.6,
+      "angle": 12.1,
+      "gauge": 16.5
+    },
+    {
+      "id": "62611",
+      "name": "Weiche links 188,3 mm",
+      "kind": "turnout-left",
+      "category": "Weichen",
+      "description": "Länge 188,3 mm, Abzweig R2 = 437,5 mm / 24,3° mit Handschalthebel",
+      "length": 188.3,
+      "branchRadius": 437.5,
+      "branchAngle": 24.3,
+      "gauge": 16.5
+    },
+    {
+      "id": "62612",
+      "name": "Weiche rechts 188,3 mm",
+      "kind": "turnout-right",
+      "category": "Weichen",
+      "description": "Länge 188,3 mm, Abzweig R2 = 437,5 mm / 24,3° mit Handschalthebel",
+      "length": 188.3,
+      "branchRadius": 437.5,
+      "branchAngle": 24.3,
+      "gauge": 16.5
+    },
+    {
+      "id": "62671",
+      "name": "Bogenweiche links R1",
+      "kind": "curved-turnout-left",
+      "category": "Weichen",
+      "description": "Innenbogen R1 = 360 mm / 30°, Außenbogen 30° im Parallelkreisabstand 77,5 mm",
+      "radius": 360,
+      "angle": 30,
+      "branchRadius": 360,
+      "branchAngle": 30,
+      "branchLength": 77.5,
+      "gauge": 16.5
+    },
+    {
+      "id": "62672",
+      "name": "Bogenweiche rechts R1",
+      "kind": "curved-turnout-right",
+      "category": "Weichen",
+      "description": "Innenbogen R1 = 360 mm / 30°, Außenbogen 30° im Parallelkreisabstand 77,5 mm",
+      "radius": 360,
+      "angle": 30,
+      "branchRadius": 360,
+      "branchAngle": 30,
+      "branchLength": 77.5,
+      "gauge": 16.5
+    },
+    {
+      "id": "62711",
+      "name": "Schlanke Weiche links 236,1 mm",
+      "kind": "turnout-left",
+      "category": "Weichen",
+      "description": "Länge 236,1 mm, schlanker Abzweig R = 1114,6 mm / 12,1°",
+      "length": 236.1,
+      "branchRadius": 1114.6,
+      "branchAngle": 12.1,
+      "gauge": 16.5
+    },
+    {
+      "id": "62712",
+      "name": "Schlanke Weiche rechts 236,1 mm",
+      "kind": "turnout-right",
+      "category": "Weichen",
+      "description": "Länge 236,1 mm, schlanker Abzweig R = 1114,6 mm / 12,1°",
+      "length": 236.1,
+      "branchRadius": 1114.6,
+      "branchAngle": 12.1,
+      "gauge": 16.5
+    },
+    {
+      "id": "62771",
+      "name": "Schlanke Bogenweiche links R3",
+      "kind": "curved-turnout-left",
+      "category": "Weichen",
+      "description": "Innenbogen R3 = 515 mm / 30°, Außenbogen 30° im Parallelabstand 64,3 mm",
+      "radius": 515,
+      "angle": 30,
+      "branchRadius": 515,
+      "branchAngle": 30,
+      "branchLength": 64.3,
+      "gauge": 16.5
+    },
+    {
+      "id": "62772",
+      "name": "Schlanke Bogenweiche rechts R3",
+      "kind": "curved-turnout-right",
+      "category": "Weichen",
+      "description": "Innenbogen R3 = 515 mm / 30°, Außenbogen 30° im Parallelabstand 64,3 mm",
+      "radius": 515,
+      "angle": 30,
+      "branchRadius": 515,
+      "branchAngle": 30,
+      "branchLength": 64.3,
+      "gauge": 16.5
+    },
+    {
+      "id": "62630",
+      "name": "Dreiweg-Weiche 188,3 mm",
+      "kind": "three-way",
+      "category": "Weichen",
+      "description": "Länge 188,3 mm, 2 symmetrische Abzweige R2 = 437,5 mm / 24,3°",
+      "length": 188.3,
+      "branchRadius": 437.5,
+      "branchAngle": 24.3,
+      "gauge": 16.5
+    },
+    {
+      "id": "62640",
+      "name": "Kreuzung 188,3 mm / 24,3°",
+      "kind": "crossing",
+      "category": "Kreuzungen",
+      "description": "Länge 188,3 mm, Kreuzungswinkel 24,3°",
+      "length": 188.3,
+      "angle": 24.3,
+      "gauge": 16.5
+    },
+    {
+      "id": "62649",
+      "name": "Kreuzung 103,3 mm / 48,6°",
+      "kind": "crossing",
+      "category": "Kreuzungen",
+      "description": "Länge 103,3 mm, Kreuzungswinkel 48,6° (z.B. für doppelten Gleiswechsel / Hosenträger)",
+      "length": 103.3,
+      "angle": 48.6,
+      "gauge": 16.5
+    },
+    {
+      "id": "62740",
+      "name": "Schlanke Kreuzung 236,1 mm / 12,1°",
+      "kind": "crossing",
+      "category": "Kreuzungen",
+      "description": "Länge 236,1 mm, Kreuzungswinkel 12,1° passend zu schlanken Weichen",
+      "length": 236.1,
+      "angle": 12.1,
+      "gauge": 16.5
+    },
+    {
+      "id": "62624",
+      "name": "Doppelkreuzungsweiche (DKW) 188,3 mm",
+      "kind": "dkw",
+      "category": "Kreuzungen",
+      "description": "Länge 188,3 mm, Kreuzungswinkel 24,3°, 2x Abzweig R2 / 24,3° mit elektrischem Antrieb",
+      "length": 188.3,
+      "angle": 24.3,
+      "branchRadius": 437.5,
+      "branchAngle": 24.3,
+      "gauge": 16.5
+    },
+    {
+      "id": "62720",
+      "name": "Schlanke DKW 236,1 mm",
+      "kind": "dkw",
+      "category": "Kreuzungen",
+      "description": "Länge 236,1 mm, Kreuzungswinkel 12,1°, schlanke Doppelkreuzungsweiche mit integriertem Antrieb",
+      "length": 236.1,
+      "angle": 12.1,
+      "branchRadius": 1114.6,
+      "branchAngle": 12.1,
+      "gauge": 16.5
+    },
+    {
+      "id": "62088",
+      "name": "Basis-Anschlussgleis 188,3 mm",
+      "kind": "straight",
+      "category": "Zubehör",
+      "description": "Gerades Gleis 188,3 mm mit Funkentstörung und Anschlussklemmen",
+      "length": 188.3,
+      "gauge": 16.5
+    },
+    {
+      "id": "62977",
+      "name": "Prellbock-Gleis 77,5 mm",
+      "kind": "straight",
+      "category": "Zubehör",
+      "description": "Gleisstück 77,5 mm mit fest montiertem Prellbock",
+      "length": 77.5,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        }
+      ],
+      "gauge": 16.5
+    },
+    {
+      "id": "62978",
+      "name": "Prellbock-Gleis beleuchtet 77,5 mm",
+      "kind": "straight",
+      "category": "Zubehör",
+      "description": "Gleisstück 77,5 mm mit beleuchtetem Sperrsignal und Prellbock",
+      "length": 77.5,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        }
+      ],
+      "gauge": 16.5
+    },
+    {
+      "id": "62001",
+      "name": "Böschungsendstück 16,5 mm",
+      "kind": "straight",
+      "category": "Zubehör",
+      "description": "Böschungsendstück 16,5 mm zum sauberen Abschluss offener Gleisenden",
+      "length": 16.5,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        }
+      ],
+      "gauge": 16.5
+    },
+    {
+      "id": "62997",
+      "name": "Entkupplungsgleis 94,2 mm",
+      "kind": "straight",
+      "category": "Zubehör",
+      "description": "Entkupplungsgleis 94,2 mm mit elektrischem Antrieb",
+      "length": 94.2,
+      "gauge": 16.5
+    },
+    {
+      "id": "62995",
+      "name": "Schaltgleis gerade 94,2 mm",
+      "kind": "straight",
+      "category": "Zubehör",
+      "description": "Schaltgleis 94,2 mm mit Schleiferkontakt",
+      "length": 94.2,
+      "gauge": 16.5
+    },
+    {
+      "id": "62994",
+      "name": "Kontaktgleissatz gerade 94,2 mm",
+      "kind": "straight",
+      "category": "Zubehör",
+      "description": "Kontaktgleissatz (2 Stück à 94,2 mm) für Gleisbesetztmeldung",
+      "length": 94.2,
+      "gauge": 16.5
+    },
+    {
+      "id": "62194",
+      "name": "Schaltgleis gebogen R1 / 15°",
+      "kind": "curve",
+      "category": "Zubehör",
+      "description": "Schaltgleis R1 = 360 mm / 15° mit Schleiferkontakt",
+      "radius": 360,
+      "angle": 15,
+      "gauge": 16.5
+    },
+    {
+      "id": "62294",
+      "name": "Schaltgleis gebogen R2 / 15°",
+      "kind": "curve",
+      "category": "Zubehör",
+      "description": "Schaltgleis R2 = 437,5 mm / 15° mit Schleiferkontakt",
+      "radius": 437.5,
+      "angle": 15,
+      "gauge": 16.5
+    },
+    {
+      "id": "62922",
+      "name": "Übergangsgleis K-Gleis 180 mm",
+      "kind": "straight",
+      "category": "Zubehör",
+      "description": "Übergangsgleis 180 mm von Trix C-Gleis auf Standard 2-Leiter-Gleise (NEM)",
+      "length": 180,
+      "gauge": 16.5
+    },
+    {
+      "id": "66862",
+      "name": "C-Gleis Drehscheibe",
+      "nameEn": "C Track Turntable",
+      "kind": "turntable",
+      "category": "Zubehör",
+      "description": "Trix C-Gleis Drehscheibe (DB-Einheitsbauart 23 m) mit 30 Gleisabgängen im 12°-Raster, Bühnenlänge 263 mm, Gesamtdurchmesser 378 mm",
+      "descriptionEn": "C Track Turntable (DB 23 m standard type) with 30 track exits at 12° increments, bridge length 263 mm, total diameter 378 mm",
+      "length": 378,
+      "radius": 189,
+      "localConnectors": [
+        {
+          "x": 189,
+          "y": 0,
+          "angle": 0
+        },
+        {
+          "x": 184.9,
+          "y": 39.3,
+          "angle": 12
+        },
+        {
+          "x": 172.7,
+          "y": 76.9,
+          "angle": 24
+        },
+        {
+          "x": 152.9,
+          "y": 111.1,
+          "angle": 36
+        },
+        {
+          "x": 126.5,
+          "y": 140.5,
+          "angle": 48
+        },
+        {
+          "x": 94.5,
+          "y": 163.7,
+          "angle": 60
+        },
+        {
+          "x": 58.4,
+          "y": 179.7,
+          "angle": 72
+        },
+        {
+          "x": 19.8,
+          "y": 188,
+          "angle": 84
+        },
+        {
+          "x": -19.8,
+          "y": 188,
+          "angle": 96
+        },
+        {
+          "x": -58.4,
+          "y": 179.7,
+          "angle": 108
+        },
+        {
+          "x": -94.5,
+          "y": 163.7,
+          "angle": 120
+        },
+        {
+          "x": -126.5,
+          "y": 140.5,
+          "angle": 132
+        },
+        {
+          "x": -152.9,
+          "y": 111.1,
+          "angle": 144
+        },
+        {
+          "x": -172.7,
+          "y": 76.9,
+          "angle": 156
+        },
+        {
+          "x": -184.9,
+          "y": 39.3,
+          "angle": 168
+        },
+        {
+          "x": -189,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": -184.9,
+          "y": -39.3,
+          "angle": 192
+        },
+        {
+          "x": -172.7,
+          "y": -76.9,
+          "angle": 204
+        },
+        {
+          "x": -152.9,
+          "y": -111.1,
+          "angle": 216
+        },
+        {
+          "x": -126.5,
+          "y": -140.5,
+          "angle": 228
+        },
+        {
+          "x": -94.5,
+          "y": -163.7,
+          "angle": 240
+        },
+        {
+          "x": -58.4,
+          "y": -179.7,
+          "angle": 252
+        },
+        {
+          "x": -19.8,
+          "y": -188,
+          "angle": 264
+        },
+        {
+          "x": 19.8,
+          "y": -188,
+          "angle": 276
+        },
+        {
+          "x": 58.4,
+          "y": -179.7,
+          "angle": 288
+        },
+        {
+          "x": 94.5,
+          "y": -163.7,
+          "angle": 300
+        },
+        {
+          "x": 126.5,
+          "y": -140.5,
+          "angle": 312
+        },
+        {
+          "x": 152.9,
+          "y": -111.1,
+          "angle": 324
+        },
+        {
+          "x": 172.7,
+          "y": -76.9,
+          "angle": 336
+        },
+        {
+          "x": 184.9,
+          "y": -39.3,
+          "angle": 348
+        }
+      ],
+      "gauge": 16.5
+    }
+  ]
+}

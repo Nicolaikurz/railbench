@@ -248,18 +248,43 @@ export function openFileDialog(accept: string, onContent: (content: string, file
   const input = document.createElement("input");
   input.type = "file";
   input.accept = accept;
-  input.style.display = "none";
+  input.style.position = "fixed";
+  input.style.left = "-9999px";
+  input.style.top = "-9999px";
+  input.style.opacity = "0";
+
+  let cleanedUp = false;
+  const cleanup = () => {
+    if (cleanedUp) return;
+    cleanedUp = true;
+    setTimeout(() => {
+      if (input.parentNode) {
+        input.parentNode.removeChild(input);
+      }
+    }, 1000);
+  };
+
   input.addEventListener("change", () => {
     const file = input.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const text = e.target?.result as string;
-      if (text) onContent(text, file.name);
-    };
-    reader.readAsText(file);
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const text = e.target?.result as string;
+        if (typeof text === "string") onContent(text, file.name);
+      };
+      reader.readAsText(file);
+    }
+    cleanup();
   });
+
   document.body.appendChild(input);
   input.click();
-  document.body.removeChild(input);
+
+  window.addEventListener(
+    "focus",
+    () => {
+      setTimeout(cleanup, 1000);
+    },
+    { once: true },
+  );
 }

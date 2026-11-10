@@ -49,6 +49,7 @@ export interface ToolbarFactoryDeps {
   openHeightDialogForSelection: () => void;
   triggerCollabDialog: () => void;
   triggerWelcomeDialog?: () => void;
+  triggerImportCatalog?: () => void;
   showToast: (msg: string, icon?: string) => void;
 }
 
@@ -214,6 +215,9 @@ export function buildToolbarEvents(deps: ToolbarFactoryDeps): ToolbarEvents {
     onToggle3D: () => deps.toggle3D(),
     onImportModel: () => {
       deps.getSidebar()?.setActiveTab("models");
+    },
+    onImportCatalog: () => {
+      deps.triggerImportCatalog?.();
     },
     onToggleTheme: () => {
       themeManager.cycle();

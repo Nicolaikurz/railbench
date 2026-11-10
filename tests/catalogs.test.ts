@@ -63,6 +63,25 @@ describe("Märklin M-Gleis & K-Gleis Catalogs", () => {
     expect(t5207).toBeDefined();
     expect(t5207?.length).toBe(180.0);
     expect(t5207?.kind).toBe("dkw");
+
+    // 72941 Schiebebühne
+    const t72941 = catalogRegistry.findEntry("72941");
+    expect(t72941).toBeDefined();
+    expect(t72941?.name).toContain("72941");
+    expect(t72941?.kind).toBe("transfer-table");
+    expect(t72941?.length).toBe(360);
+    expect(t72941?.gauge).toBe(16.5);
+    expect(t72941?.localConnectors).toHaveLength(10);
+    const leftConnectors = t72941?.localConnectors?.filter((c) => c.x === 0);
+    const rightConnectors = t72941?.localConnectors?.filter((c) => c.x === 360);
+    expect(leftConnectors).toHaveLength(5);
+    expect(rightConnectors).toHaveLength(5);
+    expect(leftConnectors?.map((c) => c.y)).toEqual([0, 77.4, 154.8, 232.2, 309.6]);
+    expect(rightConnectors?.map((c) => c.y)).toEqual([0, 77.4, 154.8, 232.2, 309.6]);
+    const worldConnectors = computeWorldConnectors(t72941, { x: 100, y: 200, rotation: 0 });
+    expect(worldConnectors).toHaveLength(10);
+    expect(worldConnectors[0]).toEqual({ x: 100, y: 200, angle: 180 });
+    expect(worldConnectors[5]).toEqual({ x: 460, y: 200, angle: 0 });
   });
 
   it("finds specific K-Gleis entries and verifies geometry", () => {
@@ -308,6 +327,145 @@ describe("Generic Streets Catalog (H0 Roads)", () => {
     expect(c110?.radius).toBe(110);
     expect(c110?.angle).toBe(90);
     expect(c110?.roadWidth).toBe(35);
+  });
+
+  it("verifies that every entry in every catalog has a valid track gauge", () => {
+    const all = catalogRegistry.getAll();
+    expect(all.length).toBeGreaterThanOrEqual(20);
+
+    for (const cat of all) {
+      expect(cat.gauge).toBeGreaterThan(0);
+      for (const entry of cat.entries) {
+        expect(entry.gauge).toBeDefined();
+        expect(entry.gauge).toBe(cat.gauge);
+      }
+    }
+  });
+
+  it("imports a custom track catalog from JSON and verifies rendering parameters and connectors", () => {
+    const customJson = JSON.stringify({
+      id: "custom-garden-g",
+      name: "Gartenbahn G Custom",
+      manufacturer: "Eigenbau",
+      system: "Spur G",
+      scale: "G",
+      gauge: 45.0,
+      hasRoadbed: false,
+      entries: [
+        {
+          id: "G-S300",
+          name: "Gerade 300 mm",
+          kind: "straight",
+          length: 300,
+          gauge: 45.0,
+        },
+        {
+          id: "G-R600",
+          name: "Bogen R600 30°",
+          kind: "curve",
+          radius: 600,
+          angle: 30,
+        },
+        {
+          id: "G-WL600",
+          name: "Weiche links R600 30°",
+          kind: "turnout-left",
+          length: 300,
+          branchRadius: 600,
+          branchAngle: 30,
+        },
+      ],
+    });
+
+    const imported = catalogRegistry.loadFromJSON(customJson);
+    expect(imported).toBeDefined();
+    expect(imported.id).toBe("custom-garden-g");
+    expect(imported.gauge).toBe(45.0);
+    expect(imported.isCustom).toBe(true);
+    expect(imported.entries.length).toBe(3);
+
+    // Verify gauge was propagated to all items
+    for (const item of imported.entries) {
+      expect(item.gauge).toBe(45.0);
+    }
+
+    // Verify findEntry works
+    const foundStraight = catalogRegistry.findEntry("G-S300");
+    expect(foundStraight).toBeDefined();
+    expect(foundStraight?.gauge).toBe(45.0);
+    expect(foundStraight?.length).toBe(300);
+
+    // Verify connectors calculation for custom turnout
+    const foundTurnout = catalogRegistry.findEntry("G-WL600")!;
+    expect(foundTurnout).toBeDefined();
+    const connectors = computeWorldConnectors(foundTurnout, { x: 0, y: 0, rotation: 0 });
+    expect(connectors.length).toBe(3);
+    expect(connectors[0]?.angle).toBe(180);
+    expect(connectors[1]?.x).toBe(300);
+    expect(connectors[1]?.angle).toBe(0);
+    expect(connectors[2]?.angle).toBe(30);
+  });
+
+  it("imports a flat list of tracks as JSON and auto-wraps it into a valid catalog", () => {
+    const flatListJson = JSON.stringify([
+      { id: "FLAT-1", name: "Short piece", kind: "straight", length: 50 },
+      { id: "FLAT-2", name: "Curve piece", kind: "curve", radius: 400, angle: 45 },
+    ]);
+
+    const imported = catalogRegistry.loadFromJSON(flatListJson);
+    expect(imported.entries.length).toBe(2);
+    expect(imported.gauge).toBe(16.5);
+    expect(imported.entries[0]?.gauge).toBe(16.5);
+    expect(imported.entries[1]?.gauge).toBe(16.5);
+    expect(imported.isCustom).toBe(true);
+  });
+
+  it("handles German aliases, string numbers with commas, and UTF-8 BOM", () => {
+    const germanJson = `\uFEFF{
+      "hersteller": "Musterbahn",
+      "name": "Musterbahn Gleise",
+      "spurweite": "16,5",
+      "gleise": [
+        { "artnr": "M-101", "bezeichnung": "Gerade 200", "typ": "gerade", "laenge": "200,5" },
+        { "artnr": "M-102", "bezeichnung": "Kurve R400", "typ": "kurve", "radius": "400", "winkel": "30" },
+        { "artnr": "M-103", "bezeichnung": "Weiche links", "typ": "weiche links", "laenge": "200", "abzweigradius": "400", "abzweigwinkel": "30" }
+      ]
+    }`;
+
+    const imported = catalogRegistry.loadFromJSON(germanJson);
+    expect(imported.manufacturer).toBe("Musterbahn");
+    expect(imported.gauge).toBe(16.5);
+    expect(imported.entries.length).toBe(3);
+
+    const s = imported.entries[0]!;
+    expect(s.id).toBe("M-101");
+    expect(s.kind).toBe("straight");
+    expect(s.length).toBe(200.5);
+    expect(s.gauge).toBe(16.5);
+
+    const c = imported.entries[1]!;
+    expect(c.id).toBe("M-102");
+    expect(c.kind).toBe("curve");
+    expect(c.radius).toBe(400);
+    expect(c.angle).toBe(30);
+
+    const w = imported.entries[2]!;
+    expect(w.id).toBe("M-103");
+    expect(w.kind).toBe("turnout-left");
+    expect(w.branchRadius).toBe(400);
+    expect(w.branchAngle).toBe(30);
+  });
+
+  it("detects layout plans and throws a descriptive error", () => {
+    const layoutJson = JSON.stringify({
+      name: "Mein Layout",
+      version: 1,
+      pieces: [
+        { id: "p1", catalogId: "24188" }
+      ]
+    });
+
+    expect(() => catalogRegistry.loadFromJSON(layoutJson)).toThrow(/Gleisplan/);
   });
 });
 

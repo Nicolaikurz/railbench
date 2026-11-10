@@ -12,6 +12,7 @@ export type TrackKind =
   | "crossing"
   | "flex"
   | "turntable"
+  | "transfer-table"
   | "feeder"
   | "buffer-stop"
   | "dkw"
@@ -55,6 +56,7 @@ export interface Catalog {
   hasRoadbed?: boolean; // Bettungsgleis (true) oder Schwellengleis (false)
   conductors?: number; // Leiter-Anzahl: 2 oder 3 Leiter
   isRoadSystem?: boolean; // Kennzeichnung als Straßensystem
+  isCustom?: boolean; // Benutzerdefiniert importierter Katalog
   description?: string;
   entries: CatalogEntry[];
 }

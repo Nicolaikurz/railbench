@@ -16,6 +16,7 @@ export const de: Translations = {
       savePlan: "Speichern",
       saveAs: "Speichern unter...",
       importXml: "Gleisplan XML importieren...",
+      importCatalog: "Gleiskatalog importieren (JSON)...",
       import3d: "3D-Modell einfügen (.glb / .gltf)...",
       exportXml: "Gleisplan als XML exportieren...",
       exportCsv: "Stückliste exportieren (.csv)...",

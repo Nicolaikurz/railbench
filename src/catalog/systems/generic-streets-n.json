@@ -1,0 +1,348 @@
+{
+  "id": "generic-streets-n",
+  "name": "Straßensystem / Streets (N 1:160)",
+  "manufacturer": "Modellstraße",
+  "system": "Straßen / Roads",
+  "scale": "N",
+  "gauge": 9,
+  "isRoadSystem": true,
+  "hasRoadbed": false,
+  "description": "Modulares N-Straßensystem (1:160) mit 2-spurigen Fahrbahnen (Breite 35 mm), Kurven, T-Einmündungen, Kreuzungen und Wendeplatz. Ideal für Faller Car System N.",
+  "entries": [
+    {
+      "id": "ST-N-S110",
+      "name": "Gerade Straße 110 mm (N)",
+      "nameEn": "Straight Road 110 mm (N)",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "2-spurige N-Standard-Fahrbahn 110 mm mit Mittellinie und Randstreifen (Breite 35 mm)",
+      "descriptionEn": "2-lane N-scale standard road 110 mm with dashed center line (width 35 mm)",
+      "length": 110,
+      "isRoad": true,
+      "roadWidth": 35,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 110,
+          "y": 0,
+          "angle": 0
+        }
+      ],
+      "gauge": 9
+    },
+    {
+      "id": "ST-N-S055",
+      "name": "Gerade Straße 55 mm (N)",
+      "nameEn": "Straight Road 55 mm (N)",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "2-spurige N-Fahrbahn halbe Länge 55 mm (Breite 35 mm)",
+      "descriptionEn": "2-lane N road half length 55 mm (width 35 mm)",
+      "length": 55,
+      "isRoad": true,
+      "roadWidth": 35,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 55,
+          "y": 0,
+          "angle": 0
+        }
+      ],
+      "gauge": 9
+    },
+    {
+      "id": "ST-N-S025",
+      "name": "Gerade Straße 25 mm (N)",
+      "nameEn": "Short Straight Road 25 mm (N)",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Kurzes N-Ausgleichsstück 25 mm (Breite 35 mm)",
+      "descriptionEn": "Short compensation road piece 25 mm (width 35 mm)",
+      "length": 25,
+      "isRoad": true,
+      "roadWidth": 35,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 25,
+          "y": 0,
+          "angle": 0
+        }
+      ],
+      "gauge": 9
+    },
+    {
+      "id": "ST-N-C110-90",
+      "name": "Kurve 90° (R = 110 mm, N)",
+      "nameEn": "Curved Road 90° (R = 110 mm, N)",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "N-Standard-Rechtwinkelkurve 90°, Radius 110 mm (Breite 35 mm)",
+      "descriptionEn": "N standard 90° road curve, radius 110 mm (width 35 mm)",
+      "radius": 110,
+      "angle": 90,
+      "isRoad": true,
+      "roadWidth": 35,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 110,
+          "y": 110,
+          "angle": 90
+        }
+      ],
+      "gauge": 9
+    },
+    {
+      "id": "ST-N-C110-45",
+      "name": "Kurve 45° (R = 110 mm, N)",
+      "nameEn": "Curved Road 45° (R = 110 mm, N)",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "N-Bogen 45°, Radius 110 mm (Breite 35 mm)",
+      "descriptionEn": "N curve 45°, radius 110 mm (width 35 mm)",
+      "radius": 110,
+      "angle": 45,
+      "isRoad": true,
+      "roadWidth": 35,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 77.8,
+          "y": 32.2,
+          "angle": 45
+        }
+      ],
+      "gauge": 9
+    },
+    {
+      "id": "ST-N-C160-45",
+      "name": "Kurve 45° groß (R = 160 mm, N)",
+      "nameEn": "Wide Curved Road 45° (R = 160 mm, N)",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Großer weiter N-Bogen 45°, Radius 160 mm (Breite 35 mm)",
+      "descriptionEn": "Wide gentle N curve 45°, radius 160 mm (width 35 mm)",
+      "radius": 160,
+      "angle": 45,
+      "isRoad": true,
+      "roadWidth": 35,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 113.1,
+          "y": 46.9,
+          "angle": 45
+        }
+      ],
+      "gauge": 9
+    },
+    {
+      "id": "ST-N-TJ-90",
+      "name": "T-Kreuzung / Einmündung 90° (N)",
+      "nameEn": "T-Junction / 3-Way Intersection 90° (N)",
+      "kind": "turnout-left",
+      "category": "Weichen",
+      "description": "T-Einmündung Spur N: 110 mm Hauptstraße mit 90°-Abzweig in der Mitte",
+      "descriptionEn": "N-scale T-junction: 110 mm main road with perpendicular 90° side branch",
+      "length": 110,
+      "branchLength": 55,
+      "branchAngle": 90,
+      "isRoad": true,
+      "roadWidth": 35,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 110,
+          "y": 0,
+          "angle": 0
+        },
+        {
+          "x": 55,
+          "y": 55,
+          "angle": 90
+        }
+      ],
+      "gauge": 9
+    },
+    {
+      "id": "ST-N-X-90",
+      "name": "Straßenkreuzung 90° (N)",
+      "nameEn": "4-Way Crossroads 90° (N)",
+      "kind": "crossing",
+      "category": "Kreuzungen",
+      "description": "Rechtwinklige 4-Wege-Straßenkreuzung 110 mm × 110 mm (Breite 35 mm)",
+      "descriptionEn": "Right-angle 4-way N road intersection 110 mm × 110 mm (width 35 mm)",
+      "length": 110,
+      "angle": 90,
+      "isRoad": true,
+      "roadWidth": 35,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 110,
+          "y": 0,
+          "angle": 0
+        },
+        {
+          "x": 55,
+          "y": 55,
+          "angle": 90
+        },
+        {
+          "x": 55,
+          "y": -55,
+          "angle": 270
+        }
+      ],
+      "gauge": 9
+    },
+    {
+      "id": "ST-N-Y-45",
+      "name": "Y-Einmündung / Abzweig 45° (N)",
+      "nameEn": "Y-Junction / Branch 45° (N)",
+      "kind": "turnout-left",
+      "category": "Weichen",
+      "description": "N-Straßeneinmündung 110 mm mit 45° Abzweig (R = 110 mm, Breite 35 mm)",
+      "descriptionEn": "N road branch 110 mm with 45° junction (R = 110 mm, width 35 mm)",
+      "length": 110,
+      "branchRadius": 110,
+      "branchAngle": 45,
+      "isRoad": true,
+      "roadWidth": 35,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 110,
+          "y": 0,
+          "angle": 0
+        },
+        {
+          "x": 77.8,
+          "y": 32.2,
+          "angle": 45
+        }
+      ],
+      "gauge": 9
+    },
+    {
+      "id": "ST-N-LOOP",
+      "name": "Wendeplatz / Sackgasse (N)",
+      "nameEn": "Cul-de-sac / Turning Loop (N)",
+      "kind": "accessory",
+      "category": "Zubehör",
+      "description": "Straßenende Spur N mit rundem Wendehammer (Durchmesser 50 mm, Anschlussbreite 35 mm)",
+      "descriptionEn": "Dead end street N with round turning circle (diameter 50 mm, connection 35 mm)",
+      "length": 50,
+      "isRoad": true,
+      "roadWidth": 35,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        }
+      ],
+      "gauge": 9
+    },
+    {
+      "id": "ST-N-BUS",
+      "name": "Bushaltestelle / Parkbucht 110 mm (N)",
+      "nameEn": "Bus Stop / Parking Bay 110 mm (N)",
+      "kind": "straight",
+      "category": "Zubehör",
+      "description": "110 mm N-Fahrbahn mit seitlicher Parkbucht und Bus-Wartefläche (Breite 44 mm)",
+      "descriptionEn": "110 mm N road with side parking bay and bus passenger area (width 44 mm)",
+      "length": 110,
+      "isRoad": true,
+      "roadWidth": 35,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 110,
+          "y": 0,
+          "angle": 0
+        }
+      ],
+      "gauge": 9
+    },
+    {
+      "id": "ST-N-CROSS",
+      "name": "Bahnübergang 110 mm (N)",
+      "nameEn": "Level / Grade Crossing 110 mm (N)",
+      "kind": "straight",
+      "category": "Zubehör",
+      "description": "110 mm N-Straße mit Bahnübergang-Bohlenbelag für 9 mm Spurweite",
+      "descriptionEn": "110 mm N road with level crossing timber planks for 9 mm gauge",
+      "length": 110,
+      "isRoad": true,
+      "roadWidth": 35,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 110,
+          "y": 0,
+          "angle": 0
+        }
+      ],
+      "gauge": 9
+    }
+  ]
+}

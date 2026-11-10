@@ -313,6 +313,28 @@ ipcMain.handle("dialog:openPlan", async () => {
   };
 });
 
+ipcMain.handle("dialog:openCatalog", async () => {
+  if (!mainWindow) return null;
+  const res = await dialog.showOpenDialog(mainWindow, {
+    title: "Gleiskatalog importieren (JSON)",
+    filters: [
+      { name: "Gleiskatalog JSON (*.json)", extensions: ["json"] },
+      { name: "Alle Dateien (*.*)", extensions: ["*"] },
+    ],
+    properties: ["openFile"],
+  });
+
+  if (res.canceled || res.filePaths.length === 0) return null;
+
+  const filePath = res.filePaths[0]!;
+  const content = await fs.readFile(filePath, "utf-8");
+  return {
+    filePath,
+    content,
+    fileName: path.basename(filePath),
+  };
+});
+
 ipcMain.handle(
   "dialog:savePlanAs",
   async (_event, defaultName: string, content: string, format: "json" | "xml") => {

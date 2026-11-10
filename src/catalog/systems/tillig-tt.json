@@ -1,0 +1,391 @@
+{
+  "id": "tillig-tt",
+  "name": "Tillig TT Modellgleis",
+  "manufacturer": "Tillig",
+  "system": "Modellgleis",
+  "scale": "TT",
+  "gauge": 12,
+  "hasRoadbed": false,
+  "conductors": 2,
+  "entries": [
+    {
+      "id": "83101",
+      "name": "Gerades Gleis G1 (166 mm)",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Standardgerade G1, Länge 166 mm",
+      "length": 166,
+      "gauge": 12
+    },
+    {
+      "id": "83102",
+      "name": "Gerades Gleis G2 (83 mm)",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Halbe Gerade G2, Länge 83 mm",
+      "length": 83,
+      "gauge": 12
+    },
+    {
+      "id": "83103",
+      "name": "Gerades Gleis G3 (43 mm)",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Viertelgerade G3, Länge 43 mm",
+      "length": 43,
+      "gauge": 12
+    },
+    {
+      "id": "83104",
+      "name": "Gerades Gleis G4 (41,5 mm)",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Ausgleichsstück G4, Länge 41,5 mm",
+      "length": 41.5,
+      "gauge": 12
+    },
+    {
+      "id": "83105",
+      "name": "Gerades Gleis G5 (36,5 mm)",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Ausgleichsgerade G5 (zu EW1 für 43 mm Parallelabstand), Länge 36,5 mm",
+      "length": 36.5,
+      "gauge": 12
+    },
+    {
+      "id": "83106",
+      "name": "Gerades Gleis G6 (31,5 mm)",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Kurzgerade G6, Länge 31,5 mm",
+      "length": 31.5,
+      "gauge": 12
+    },
+    {
+      "id": "83500",
+      "name": "Flexgleis Holzschwellen (664 mm)",
+      "kind": "flex",
+      "category": "Geraden",
+      "description": "Flexgleis Holzschwellen, Länge 664 mm (4x G1)",
+      "length": 664,
+      "gauge": 12
+    },
+    {
+      "id": "83501",
+      "name": "Flexgleis Betonschwellen (664 mm)",
+      "kind": "flex",
+      "category": "Geraden",
+      "description": "Flexgleis Betonschwellen, Länge 664 mm",
+      "length": 664,
+      "gauge": 12
+    },
+    {
+      "id": "83502",
+      "name": "Flexgleis Stahlschwellen (664 mm)",
+      "kind": "flex",
+      "category": "Geraden",
+      "description": "Flexgleis Stahlschwellen, Länge 664 mm",
+      "length": 664,
+      "gauge": 12
+    },
+    {
+      "id": "83107",
+      "name": "Gebogenes Gleis R01 / 30°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Industriekreis R01 = 267 mm, Bogen 30°",
+      "radius": 267,
+      "angle": 30,
+      "gauge": 12
+    },
+    {
+      "id": "83108",
+      "name": "Gebogenes Gleis R02 / 15°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Industriekreis R02 = 267 mm, Bogen 15°",
+      "radius": 267,
+      "angle": 15,
+      "gauge": 12
+    },
+    {
+      "id": "83109",
+      "name": "Gebogenes Gleis R11 / 30°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R11 = 310 mm, Bogen 30° (12 Stück = 360°)",
+      "radius": 310,
+      "angle": 30,
+      "gauge": 12
+    },
+    {
+      "id": "83112",
+      "name": "Gebogenes Gleis R12 / 15°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R12 = 310 mm, Bogen 15°",
+      "radius": 310,
+      "angle": 15,
+      "gauge": 12
+    },
+    {
+      "id": "83110",
+      "name": "Gebogenes Gleis R21 / 30°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R21 = 353 mm, Bogen 30° (Standard-Parallelkreis zu R11)",
+      "radius": 353,
+      "angle": 30,
+      "gauge": 12
+    },
+    {
+      "id": "83113",
+      "name": "Gebogenes Gleis R22 / 15°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R22 = 353 mm, Bogen 15° (Gegenbogen zu EW1)",
+      "radius": 353,
+      "angle": 15,
+      "gauge": 12
+    },
+    {
+      "id": "83111",
+      "name": "Gebogenes Gleis R31 / 30°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R31 = 396 mm, Bogen 30° (Parallelkreis zu R21)",
+      "radius": 396,
+      "angle": 30,
+      "gauge": 12
+    },
+    {
+      "id": "83114",
+      "name": "Gebogenes Gleis R32 / 15°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R32 = 396 mm, Bogen 15°",
+      "radius": 396,
+      "angle": 15,
+      "gauge": 12
+    },
+    {
+      "id": "83321",
+      "name": "Weiche EW1 links 15°",
+      "kind": "turnout-left",
+      "category": "Weichen",
+      "description": "Länge 129,5 mm, Abzweig R = 353 mm / 15°",
+      "length": 129.5,
+      "branchRadius": 353,
+      "branchAngle": 15,
+      "gauge": 12
+    },
+    {
+      "id": "83322",
+      "name": "Weiche EW1 rechts 15°",
+      "kind": "turnout-right",
+      "category": "Weichen",
+      "description": "Länge 129,5 mm, Abzweig R = 353 mm / 15°",
+      "length": 129.5,
+      "branchRadius": 353,
+      "branchAngle": 15,
+      "gauge": 12
+    },
+    {
+      "id": "83323",
+      "name": "Modellweiche EW2 links 12°",
+      "kind": "turnout-left",
+      "category": "Weichen",
+      "description": "Länge 166 mm, Abzweig R = 631 mm / 12°, Federzungen & polarisierbares Herzstück",
+      "length": 166,
+      "branchRadius": 631,
+      "branchAngle": 12,
+      "gauge": 12
+    },
+    {
+      "id": "83324",
+      "name": "Modellweiche EW2 rechts 12°",
+      "kind": "turnout-right",
+      "category": "Weichen",
+      "description": "Länge 166 mm, Abzweig R = 631 mm / 12°, Federzungen & polarisierbares Herzstück",
+      "length": 166,
+      "branchRadius": 631,
+      "branchAngle": 12,
+      "gauge": 12
+    },
+    {
+      "id": "83341",
+      "name": "Modellweiche EW3 links 9°",
+      "kind": "turnout-left",
+      "category": "Weichen",
+      "description": "Länge 207 mm, Abzweig R = 984 mm / 9°, schlanke Weiche mit Federzungen",
+      "length": 207,
+      "branchRadius": 984,
+      "branchAngle": 9,
+      "gauge": 12
+    },
+    {
+      "id": "83342",
+      "name": "Modellweiche EW3 rechts 9°",
+      "kind": "turnout-right",
+      "category": "Weichen",
+      "description": "Länge 207 mm, Abzweig R = 984 mm / 9°, schlanke Weiche mit Federzungen",
+      "length": 207,
+      "branchRadius": 984,
+      "branchAngle": 9,
+      "gauge": 12
+    },
+    {
+      "id": "83361",
+      "name": "Innenbogenweiche IBW links",
+      "kind": "curved-turnout-left",
+      "category": "Weichen",
+      "description": "Stammbogen R = 310 mm / 30°, Abzweig R = 310 mm / 30°",
+      "radius": 310,
+      "angle": 30,
+      "branchRadius": 310,
+      "branchAngle": 30,
+      "gauge": 12
+    },
+    {
+      "id": "83362",
+      "name": "Innenbogenweiche IBW rechts",
+      "kind": "curved-turnout-right",
+      "category": "Weichen",
+      "description": "Stammbogen R = 310 mm / 30°, Abzweig R = 310 mm / 30°",
+      "radius": 310,
+      "angle": 30,
+      "branchRadius": 310,
+      "branchAngle": 30,
+      "gauge": 12
+    },
+    {
+      "id": "83391",
+      "name": "Dreiwegweiche DWW",
+      "kind": "three-way",
+      "category": "Weichen",
+      "description": "Länge 166 mm, symmetrisch, je R = 353 mm / 15° links & rechts",
+      "length": 166,
+      "branchRadius": 353,
+      "branchAngle": 15,
+      "gauge": 12
+    },
+    {
+      "id": "83300",
+      "name": "Doppelkreuzungsweiche DKW 15°",
+      "kind": "dkw",
+      "category": "Kreuzungen",
+      "description": "Länge 166 mm, Kreuzung 15°, 2x Abzweig R = 353 mm / 15° (innenliegende Zungen)",
+      "length": 166,
+      "angle": 15,
+      "branchRadius": 353,
+      "branchAngle": 15,
+      "gauge": 12
+    },
+    {
+      "id": "83380",
+      "name": "Doppelkreuzungsweiche Baeseler DKW 15°",
+      "kind": "dkw",
+      "category": "Kreuzungen",
+      "description": "Länge 166 mm, Kreuzung 15°, außenliegende Federzungen (Baeseler-Typ)",
+      "length": 166,
+      "angle": 15,
+      "branchRadius": 434,
+      "branchAngle": 15,
+      "gauge": 12
+    },
+    {
+      "id": "83170",
+      "name": "Kreuzung K1 (15°)",
+      "kind": "crossing",
+      "category": "Kreuzungen",
+      "description": "Länge 166 mm, Kreuzungswinkel 15°",
+      "length": 166,
+      "angle": 15,
+      "gauge": 12
+    },
+    {
+      "id": "83160",
+      "name": "Kreuzung K2 (30°)",
+      "kind": "crossing",
+      "category": "Kreuzungen",
+      "description": "Länge 166 mm, Kreuzungswinkel 30°",
+      "length": 166,
+      "angle": 30,
+      "gauge": 12
+    },
+    {
+      "id": "83150",
+      "name": "Prellbock-Gleis 43 mm",
+      "kind": "buffer-stop",
+      "category": "Zubehör",
+      "description": "Gleisstück G3 (43 mm) mit montiertem Prellbock",
+      "length": 43,
+      "gauge": 12
+    },
+    {
+      "id": "83151",
+      "name": "Prellbock Bausatz",
+      "kind": "buffer-stop",
+      "category": "Zubehör",
+      "description": "Prellbock zum Aufklemmen auf Modellgleis",
+      "length": 20,
+      "gauge": 12
+    },
+    {
+      "id": "83143",
+      "name": "Entkupplungsgleis elektrisch 41,5 mm",
+      "kind": "uncoupler",
+      "category": "Funktionsgleise",
+      "description": "Elektrisches Entkupplungsgleis auf G4-Basis (41,5 mm)",
+      "length": 41.5,
+      "gauge": 12
+    },
+    {
+      "id": "83144",
+      "name": "Entkupplungsgleis mechanisch 41,5 mm",
+      "kind": "uncoupler",
+      "category": "Funktionsgleise",
+      "description": "Handschaltbares Entkupplungsgleis auf G4-Basis (41,5 mm)",
+      "length": 41.5,
+      "gauge": 12
+    },
+    {
+      "id": "83141",
+      "name": "Anschlussgleis gerade 166 mm",
+      "kind": "feeder",
+      "category": "Anschluss",
+      "description": "Gleis G1 (166 mm) mit funkentstörter Stromeinspeisung",
+      "length": 166,
+      "gauge": 12
+    },
+    {
+      "id": "83142",
+      "name": "Anschlussgleis gebogen R11 / 30°",
+      "kind": "feeder",
+      "category": "Anschluss",
+      "description": "Bogeneinspeisung R11 (310 mm / 30°)",
+      "radius": 310,
+      "angle": 30,
+      "gauge": 12
+    },
+    {
+      "id": "83140",
+      "name": "Schaltgleis / Kontaktgleis 41,5 mm",
+      "kind": "uncoupler",
+      "category": "Funktionsgleise",
+      "description": "Schaltgleis mit Tastkontakt zur Zugbeeinflussung",
+      "length": 41.5,
+      "gauge": 12
+    },
+    {
+      "id": "83158",
+      "name": "Aufgleisgerät 166 mm",
+      "kind": "straight",
+      "category": "Zubehör",
+      "description": "Eingleisvorrichtung / Bahnübergangseinsatz 166 mm",
+      "length": 166,
+      "gauge": 12
+    }
+  ]
+}

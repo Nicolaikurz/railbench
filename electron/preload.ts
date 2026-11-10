@@ -4,6 +4,7 @@ export interface ElectronAPI {
   isElectron: boolean;
   platform: string;
   openPlan: () => Promise<{ filePath: string; content: string; fileName: string } | null>;
+  openCatalog?: () => Promise<{ filePath: string; content: string; fileName: string } | null>;
   savePlanAs: (
     defaultName: string,
     content: string,
@@ -66,6 +67,7 @@ const api: ElectronAPI = {
   platform: process.platform,
   setThemeSource: (source) => ipcRenderer.send("theme:setSource", source),
   openPlan: () => ipcRenderer.invoke("dialog:openPlan"),
+  openCatalog: () => ipcRenderer.invoke("dialog:openCatalog"),
   savePlanAs: (defaultName, content, format) =>
     ipcRenderer.invoke("dialog:savePlanAs", defaultName, content, format),
   saveDirect: (filePath, content) =>

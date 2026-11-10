@@ -36,6 +36,7 @@ export interface ToolbarEvents {
   onConfigureBaseboard?: () => void;
   onToggle3D?: () => void;
   onImportModel?: () => void;
+  onImportCatalog?: () => void;
   onToggleTheme: () => void;
   onSetTheme?: (theme: "system" | "light" | "dark") => void;
   onToggleMeasureTool?: () => void;
@@ -392,6 +393,7 @@ function createBrandMainMenu(t: any, events: ToolbarEvents): HTMLElement {
     { label: t.fileMenu.openPlan, shortcut: "Ctrl+O", onClick: events.onOpenPlan },
     { label: t.fileMenu.savePlan, shortcut: "Ctrl+S", onClick: events.onSavePlan },
     { label: t.fileMenu.saveAs, shortcut: "Ctrl+Shift+S", onClick: events.onSavePlanAs },
+    { label: t.fileMenu.importCatalog, onClick: () => events.onImportCatalog?.() },
     { label: t.fileMenu.import3d, onClick: events.onImportModel },
     { label: t.fileMenu.exportXml, onClick: events.onSaveXML },
     { label: t.fileMenu.exportCsv, shortcut: "Ctrl+E", onClick: events.onExportCSV },

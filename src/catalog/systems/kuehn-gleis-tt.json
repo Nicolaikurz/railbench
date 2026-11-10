@@ -1,0 +1,193 @@
+{
+  "id": "kuehn-gleis-tt",
+  "name": "Kühn TT Gleissystem (Roco)",
+  "manufacturer": "Kühn Modell (Roco)",
+  "system": "Kühn-Gleis",
+  "scale": "TT",
+  "gauge": 12,
+  "hasRoadbed": false,
+  "conductors": 2,
+  "entries": [
+    {
+      "id": "72110",
+      "name": "Gerades Gleis G128",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Grundgerade, Länge 128 mm",
+      "length": 128,
+      "gauge": 12
+    },
+    {
+      "id": "72120",
+      "name": "Gerades Gleis G121",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Gerades Gleis (Weichenlänge), Länge 121 mm",
+      "length": 121,
+      "gauge": 12
+    },
+    {
+      "id": "72130",
+      "name": "Gerades Gleis G64",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Halbes Gleis, Länge 64 mm",
+      "length": 64,
+      "gauge": 12
+    },
+    {
+      "id": "72140",
+      "name": "Gerades Gleis G60",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Ausgleichsgerade, Länge 60,5 mm",
+      "length": 60.5,
+      "gauge": 12
+    },
+    {
+      "id": "72150",
+      "name": "Gerades Gleis G44",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Kurzes Ausgleichsstück, Länge 44 mm",
+      "length": 44,
+      "gauge": 12
+    },
+    {
+      "id": "72190",
+      "name": "Flexgleis 640 mm",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Flexgleis, Länge 640 mm",
+      "length": 640,
+      "gauge": 12
+    },
+    {
+      "id": "72210",
+      "name": "Gebogenes Gleis R1 / 30°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R1 = 321 mm, Bogen 30°",
+      "radius": 321,
+      "angle": 30,
+      "gauge": 12
+    },
+    {
+      "id": "72220",
+      "name": "Gebogenes Gleis R2 / 30°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R2 = 365 mm, Bogen 30°",
+      "radius": 365,
+      "angle": 30,
+      "gauge": 12
+    },
+    {
+      "id": "72211",
+      "name": "Gebogenes Gleis R1 / 10°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Ausgleichsbogen R1 = 321 mm, Bogen 10°",
+      "radius": 321,
+      "angle": 10,
+      "gauge": 12
+    },
+    {
+      "id": "72221",
+      "name": "Gebogenes Gleis R2 / 10°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Ausgleichsbogen R2 = 365 mm, Bogen 10°",
+      "radius": 365,
+      "angle": 10,
+      "gauge": 12
+    },
+    {
+      "id": "72610",
+      "name": "Weiche WL10 links (10°)",
+      "kind": "turnout-left",
+      "category": "Weichen",
+      "description": "Länge 128 mm, Abzweig R700 / 10°",
+      "length": 128,
+      "branchRadius": 700,
+      "branchAngle": 10,
+      "gauge": 12
+    },
+    {
+      "id": "72620",
+      "name": "Weiche WR10 rechts (10°)",
+      "kind": "turnout-right",
+      "category": "Weichen",
+      "description": "Länge 128 mm, Abzweig R700 / 10°",
+      "length": 128,
+      "branchRadius": 700,
+      "branchAngle": 10,
+      "gauge": 12
+    },
+    {
+      "id": "72630",
+      "name": "Weiche WL20 links (14,04°)",
+      "kind": "turnout-left",
+      "category": "Weichen",
+      "description": "Länge 121 mm, Abzweig R365 / 14,04°",
+      "length": 121,
+      "branchRadius": 365,
+      "branchAngle": 14.04,
+      "gauge": 12
+    },
+    {
+      "id": "72640",
+      "name": "Weiche WR20 rechts (14,04°)",
+      "kind": "turnout-right",
+      "category": "Weichen",
+      "description": "Länge 121 mm, Abzweig R365 / 14,04°",
+      "length": 121,
+      "branchRadius": 365,
+      "branchAngle": 14.04,
+      "gauge": 12
+    },
+    {
+      "id": "72650",
+      "name": "Bogenweiche BWL links (R1/R2)",
+      "kind": "curved-turnout-left",
+      "category": "Weichen",
+      "description": "Stammbogen R2 / 30°, Abzweig R1 / 30°",
+      "radius": 365,
+      "angle": 30,
+      "branchRadius": 321,
+      "branchAngle": 30,
+      "gauge": 12
+    },
+    {
+      "id": "72660",
+      "name": "Bogenweiche BWR rechts (R1/R2)",
+      "kind": "curved-turnout-right",
+      "category": "Weichen",
+      "description": "Stammbogen R2 / 30°, Abzweig R1 / 30°",
+      "radius": 365,
+      "angle": 30,
+      "branchRadius": 321,
+      "branchAngle": 30,
+      "gauge": 12
+    },
+    {
+      "id": "72710",
+      "name": "Kreuzung K20 (20°)",
+      "kind": "crossing",
+      "category": "Kreuzungen",
+      "description": "Länge 128 mm, Kreuzungswinkel 20°",
+      "length": 128,
+      "angle": 20,
+      "gauge": 12
+    },
+    {
+      "id": "72810",
+      "name": "Prellbockgleis G64",
+      "kind": "straight",
+      "category": "Zubehör",
+      "description": "Gleis G64 (64 mm) mit montiertem Prellbock",
+      "length": 64,
+      "gauge": 12
+    }
+  ]
+}

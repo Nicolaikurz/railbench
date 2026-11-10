@@ -598,7 +598,7 @@ export class CanvasController {
           const candT = newTransforms.get(id);
           if (!candT) continue;
 
-          const snap = findBestSnapForPiece(pEntry, candT, otherPieces, undefined, 35, 30);
+          const snap = findBestSnapForPiece(pEntry, candT, otherPieces, undefined, 35, 30, undefined, p, layout.layers);
           if (snap && snap.dist < bestDist) {
             bestDist = snap.dist;
             bestSnap = { itemSnap: snap, origT: this.draggedPiecesMap.get(id)! };
@@ -727,7 +727,7 @@ export class CanvasController {
             rotation: origT.rotation,
           };
 
-          const snap = findBestSnapForPiece(entry, candT, otherPieces, undefined, 45, 60, ignoreConn);
+          const snap = findBestSnapForPiece(entry, candT, otherPieces, undefined, 45, 60, ignoreConn, piece, layout.layers);
           if (snap && snap.dist < bestDist) {
             bestDist = snap.dist;
             groupSnap = {

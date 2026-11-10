@@ -1,6 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { findSnap, findBestSnapForPiece } from "@/core/snapping";
-import type { TrackPiece } from "@/core/types";
+import {
+  findSnap,
+  findBestSnapForPiece,
+  areConnectorsConnected,
+  getConnectorSnapStatus,
+  findSnapAboveForPiece,
+  updatePieceConnections,
+  getPieceConnectorHeight,
+} from "@/core/snapping";
+import type { TrackPiece, Layer } from "@/core/types";
 import {
   distanceToTrackPiece,
   isPieceInSelectionBox,
@@ -718,5 +726,245 @@ describe("snap in place & center rotation", () => {
     // Ohne ignoreTargetConnectors: snap würde sofort wieder einrasten
     const snapNormal = findBestSnapForPiece(g188, candT, [fixedPiece], undefined, 45, 60);
     expect(snapNormal).not.toBeNull();
+  });
+
+  describe("Höhen-Snapping & Snap-Punkt-Farbstatus (grau, gelb, grün)", () => {
+    const layers: Layer[] = [
+      { id: "ground", name: "Grundebene", heightMm: 0, visible: true, locked: false },
+      { id: "bridge", name: "Brückenebene", heightMm: 80, visible: true, locked: false },
+    ];
+
+    it("areConnectorsConnected prüft Position, Gegenwinkel und gleiche Höhe", () => {
+      const c1 = { x: 188.3, y: 0, angle: 0 };
+      const c2 = { x: 188.3, y: 0, angle: 180 };
+
+      // Gleiche Höhe: verbunden
+      expect(areConnectorsConnected(c1, c2, 0, 0)).toBe(true);
+      expect(areConnectorsConnected(c1, c2, 80, 80)).toBe(true);
+
+      // Unterschiedliche Höhe: NICHT verbunden
+      expect(areConnectorsConnected(c1, c2, 0, 80)).toBe(false);
+      expect(areConnectorsConnected(c1, c2, 0, 1.5)).toBe(false);
+
+      // Falscher Winkel: NICHT verbunden
+      const cWrongAngle = { x: 188.3, y: 0, angle: 0 };
+      expect(areConnectorsConnected(c1, cWrongAngle, 0, 0)).toBe(false);
+
+      // Falsche Position: NICHT verbunden
+      const cFar = { x: 200, y: 0, angle: 180 };
+      expect(areConnectorsConnected(c1, cFar, 0, 0)).toBe(false);
+    });
+
+    it("färbt verbundene Gleise grau ('status: connected', 'color: grey')", () => {
+      const p1: TrackPiece = {
+        id: "p1",
+        catalogId: "24188",
+        transform: { x: 0, y: 0, rotation: 0 },
+        layerId: "ground",
+        connectors: [
+          { x: 0, y: 0, angle: 180 },
+          { x: 188.3, y: 0, angle: 0 },
+        ],
+      };
+      const p2: TrackPiece = {
+        id: "p2",
+        catalogId: "24188",
+        transform: { x: 188.3, y: 0, rotation: 0 },
+        layerId: "ground",
+        connectors: [
+          { x: 188.3, y: 0, angle: 180 },
+          { x: 376.6, y: 0, angle: 0 },
+        ],
+      };
+
+      const statusP1Conn1 = getConnectorSnapStatus(p1, 1, [p1, p2], layers);
+      expect(statusP1Conn1.status).toBe("connected");
+      expect(statusP1Conn1.color).toBe("grey");
+      expect(statusP1Conn1.connectedTo?.pieceId).toBe("p2");
+
+      const statusP2Conn0 = getConnectorSnapStatus(p2, 0, [p1, p2], layers);
+      expect(statusP2Conn0.status).toBe("connected");
+      expect(statusP2Conn0.color).toBe("grey");
+
+      // Freier äußerer Andockpunkt bleibt grün
+      const statusP1Conn0 = getConnectorSnapStatus(p1, 0, [p1, p2], layers);
+      expect(statusP1Conn0.status).toBe("free");
+      expect(statusP1Conn0.color).toBe("green");
+    });
+
+    it("stellt gelben Snap-Punkt dar, wenn ein Gleis über einem Andockpunkt liegt ('status: above', 'color: yellow')", () => {
+      // Unteres Gleis auf Grundebene (Höhe 0) mit Connector bei (188.3, 0)
+      const groundTrack: TrackPiece = {
+        id: "ground-track",
+        catalogId: "24188",
+        transform: { x: 0, y: 0, rotation: 0 },
+        layerId: "ground",
+        connectors: [
+          { x: 0, y: 0, angle: 180 },
+          { x: 188.3, y: 0, angle: 0 },
+        ],
+      };
+
+      // Brückengleis auf Brückenebene (Höhe 80), verläuft senkrecht über (188.3, 0)
+      const bridgeTrack: TrackPiece = {
+        id: "bridge-track",
+        catalogId: "24188",
+        transform: { x: 188.3, y: -94.15, rotation: 90 },
+        layerId: "bridge",
+        connectors: [
+          { x: 188.3, y: -94.15, angle: 270 },
+          { x: 188.3, y: 94.15, angle: 90 },
+        ],
+      };
+
+      const status = getConnectorSnapStatus(groundTrack, 1, [groundTrack, bridgeTrack], layers);
+      expect(status.status).toBe("above");
+      expect(status.color).toBe("yellow");
+      expect(status.abovePieceId).toBe("bridge-track");
+    });
+
+    it("verhindert Snapping bei unterschiedlicher Höhe ('connection should be on the same hight')", () => {
+      const fixedGroundTrack: TrackPiece = {
+        id: "fixed-ground",
+        catalogId: "24188",
+        transform: { x: 0, y: 0, rotation: 0 },
+        layerId: "ground",
+        connectors: [
+          { x: 0, y: 0, angle: 180 },
+          { x: 188.3, y: 0, angle: 0 },
+        ],
+      };
+
+      const bridgeCandidatePiece: TrackPiece = {
+        id: "moving-bridge",
+        catalogId: "24188",
+        transform: { x: 190, y: 2, rotation: 5 },
+        layerId: "bridge", // Höhe 80 mm!
+        connectors: [
+          { x: 190, y: 2, angle: 185 },
+          { x: 378.3, y: 2, angle: 5 },
+        ],
+      };
+
+      // Versuch, Brückengleis (80mm) an Erdgleis (0mm) zu snappen
+      const snapDifferentHeight = findBestSnapForPiece(
+        g188,
+        bridgeCandidatePiece.transform,
+        [fixedGroundTrack],
+        undefined,
+        45,
+        60,
+        undefined,
+        bridgeCandidatePiece,
+        layers,
+      );
+      // Darf NICHT einrasten!
+      expect(snapDifferentHeight).toBeNull();
+
+      // Gleicher Versuch mit einem Erdgleis (0mm an 0mm)
+      const groundCandidatePiece: TrackPiece = {
+        id: "moving-ground",
+        catalogId: "24188",
+        transform: { x: 190, y: 2, rotation: 5 },
+        layerId: "ground", // Höhe 0 mm!
+        connectors: [
+          { x: 190, y: 2, angle: 185 },
+          { x: 378.3, y: 2, angle: 5 },
+        ],
+      };
+      const snapSameHeight = findBestSnapForPiece(
+        g188,
+        groundCandidatePiece.transform,
+        [fixedGroundTrack],
+        undefined,
+        45,
+        60,
+        undefined,
+        groundCandidatePiece,
+        layers,
+      );
+      // Rastet erfolgreich ein!
+      expect(snapSameHeight).not.toBeNull();
+      expect(snapSameHeight!.snappedTransform.x).toBeCloseTo(188.3, 2);
+    });
+
+    it("findSnapAboveForPiece erkennt, wenn ein bewegtes Gleis über einem Andockpunkt liegt", () => {
+      const fixedGroundTrack: TrackPiece = {
+        id: "fixed-ground",
+        catalogId: "24188",
+        transform: { x: 0, y: 0, rotation: 0 },
+        layerId: "ground",
+        connectors: [
+          { x: 0, y: 0, angle: 180 },
+          { x: 188.3, y: 0, angle: 0 },
+        ],
+      };
+
+      const bridgeCandidatePiece: TrackPiece = {
+        id: "moving-bridge",
+        catalogId: "24188",
+        transform: { x: 190, y: 2, rotation: 0 },
+        layerId: "bridge", // Höhe 80 mm
+        connectors: [],
+      };
+
+      const snapAbove = findSnapAboveForPiece(
+        g188,
+        bridgeCandidatePiece.transform,
+        [fixedGroundTrack],
+        bridgeCandidatePiece,
+        layers,
+        35,
+      );
+
+      expect(snapAbove).not.toBeNull();
+      expect(snapAbove?.targetPieceId).toBe("fixed-ground");
+      expect(snapAbove?.targetConnectorIndex).toBe(1);
+      expect(snapAbove?.movingHeight).toBe(80);
+      expect(snapAbove?.targetHeight).toBe(0);
+    });
+
+    it("updatePieceConnections aktualisiert connectedTo für Gleise gleicher Höhe und ignoriert unterschiedliche Höhen", () => {
+      const p1: TrackPiece = {
+        id: "p1",
+        catalogId: "24188",
+        transform: { x: 0, y: 0, rotation: 0 },
+        layerId: "ground",
+        connectors: [
+          { x: 0, y: 0, angle: 180 },
+          { x: 188.3, y: 0, angle: 0 },
+        ],
+      };
+      const p2: TrackPiece = {
+        id: "p2",
+        catalogId: "24188",
+        transform: { x: 188.3, y: 0, rotation: 0 },
+        layerId: "ground",
+        connectors: [
+          { x: 188.3, y: 0, angle: 180 },
+          { x: 376.6, y: 0, angle: 0 },
+        ],
+      };
+      const pBridge: TrackPiece = {
+        id: "pBridge",
+        catalogId: "24188",
+        transform: { x: 376.6, y: 0, rotation: 0 },
+        layerId: "bridge", // 80 mm!
+        connectors: [
+          { x: 376.6, y: 0, angle: 180 },
+          { x: 564.9, y: 0, angle: 0 },
+        ],
+      };
+
+      updatePieceConnections([p1, p2, pBridge], layers);
+
+      // p1 und p2 sind verbunden (Höhe 0 == 0)
+      expect(p1.connectors[1]!.connectedTo).toEqual({ pieceId: "p2", connectorIndex: 0 });
+      expect(p2.connectors[0]!.connectedTo).toEqual({ pieceId: "p1", connectorIndex: 1 });
+
+      // p2 und pBridge sind NICHT verbunden (Höhe 0 != 80)
+      expect(p2.connectors[1]!.connectedTo).toBeUndefined();
+      expect(pBridge.connectors[0]!.connectedTo).toBeUndefined();
+    });
   });
 });

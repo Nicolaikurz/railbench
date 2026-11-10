@@ -1,0 +1,347 @@
+{
+  "id": "fleischmann-piccolo-n",
+  "name": "Fleischmann N Piccolo",
+  "manufacturer": "Fleischmann",
+  "system": "piccolo",
+  "scale": "N",
+  "gauge": 9,
+  "hasRoadbed": true,
+  "conductors": 2,
+  "entries": [
+    {
+      "id": "9100",
+      "name": "Gerades Gleis 222 mm",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Standardgerade 222 mm",
+      "length": 222,
+      "gauge": 9
+    },
+    {
+      "id": "9101",
+      "name": "Gerades Gleis 111 mm",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Halbe Standardgerade 111 mm",
+      "length": 111,
+      "gauge": 9
+    },
+    {
+      "id": "9102",
+      "name": "Gerades Gleis 57,5 mm",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Viertelgerade 57,5 mm",
+      "length": 57.5,
+      "gauge": 9
+    },
+    {
+      "id": "9103",
+      "name": "Gerades Gleis 55,5 mm",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Ausgleichsgerade 55,5 mm (halbe 111 mm)",
+      "length": 55.5,
+      "gauge": 9
+    },
+    {
+      "id": "9104",
+      "name": "Gerades Gleis 27,75 mm",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Ausgleichsstück kurz (1/4 von 111 mm)",
+      "length": 27.75,
+      "gauge": 9
+    },
+    {
+      "id": "9106",
+      "name": "Flexgleis 777 mm",
+      "kind": "flex",
+      "category": "Geraden",
+      "description": "Flexgleis 777 mm mit Schotterbett",
+      "length": 777,
+      "gauge": 9
+    },
+    {
+      "id": "9108",
+      "name": "Verstellbares Ausgleichsgleis 86–120 mm",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Teleskop-Ausgleichsgleis stufenlos 86 bis 120 mm",
+      "length": 111,
+      "gauge": 9
+    },
+    {
+      "id": "9120",
+      "name": "Gebogenes Gleis R1 / 45°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R1 = 192 mm, Bogen 45° (8 Stück = 360°)",
+      "radius": 192,
+      "angle": 45,
+      "gauge": 9
+    },
+    {
+      "id": "9122",
+      "name": "Gebogenes Gleis R1 / 15°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R1 = 192 mm, Bogen 15°",
+      "radius": 192,
+      "angle": 15,
+      "gauge": 9
+    },
+    {
+      "id": "9123",
+      "name": "Gebogenes Gleis R1 / 7,5°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R1 = 192 mm, Gegenbogen für Bogenweichen R1/R2",
+      "radius": 192,
+      "angle": 7.5,
+      "gauge": 9
+    },
+    {
+      "id": "9125",
+      "name": "Gebogenes Gleis R2 / 45°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R2 = 225,6 mm, Bogen 45° (Standard-Parallelkreis)",
+      "radius": 225.6,
+      "angle": 45,
+      "gauge": 9
+    },
+    {
+      "id": "9127",
+      "name": "Gebogenes Gleis R2 / 15°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R2 = 225.6 mm, Bogen 15°",
+      "radius": 225.6,
+      "angle": 15,
+      "gauge": 9
+    },
+    {
+      "id": "9128",
+      "name": "Gebogenes Gleis R2 / 7,5°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R2 = 225.6 mm, Gegenbogen für Bogenweichen R1/R2",
+      "radius": 225.6,
+      "angle": 7.5,
+      "gauge": 9
+    },
+    {
+      "id": "9130",
+      "name": "Gebogenes Gleis R3 / 30°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R3 = 396,4 mm, Bogen 30°",
+      "radius": 396.4,
+      "angle": 30,
+      "gauge": 9
+    },
+    {
+      "id": "9131",
+      "name": "Gebogenes Gleis R3 / 15°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R3 = 396,4 mm, Bogen 15°",
+      "radius": 396.4,
+      "angle": 15,
+      "gauge": 9
+    },
+    {
+      "id": "9135",
+      "name": "Gebogenes Gleis R4 / 30°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R4 = 430 mm, Bogen 30°",
+      "radius": 430,
+      "angle": 30,
+      "gauge": 9
+    },
+    {
+      "id": "9136",
+      "name": "Gebogenes Gleis R4 / 15°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R4 = 430 mm, Bogen 15° (Gegenbogen zu Weichen 9170/9171)",
+      "radius": 430,
+      "angle": 15,
+      "gauge": 9
+    },
+    {
+      "id": "9170",
+      "name": "Weiche links 15°",
+      "kind": "turnout-left",
+      "category": "Weichen",
+      "description": "Länge 111 mm, Abzweig R = 430 mm / 15°",
+      "length": 111,
+      "branchRadius": 430,
+      "branchAngle": 15,
+      "gauge": 9
+    },
+    {
+      "id": "9171",
+      "name": "Weiche rechts 15°",
+      "kind": "turnout-right",
+      "category": "Weichen",
+      "description": "Länge 111 mm, Abzweig R = 430 mm / 15°",
+      "length": 111,
+      "branchRadius": 430,
+      "branchAngle": 15,
+      "gauge": 9
+    },
+    {
+      "id": "9168",
+      "name": "Bogenweiche links R1/R2",
+      "kind": "curved-turnout-left",
+      "category": "Weichen",
+      "description": "Stamm R1 = 192 mm / 45°, Abzweig R2 = 225,6 mm / 37,5°",
+      "radius": 192,
+      "angle": 45,
+      "branchRadius": 225.6,
+      "branchAngle": 37.5,
+      "gauge": 9
+    },
+    {
+      "id": "9169",
+      "name": "Bogenweiche rechts R1/R2",
+      "kind": "curved-turnout-right",
+      "category": "Weichen",
+      "description": "Stamm R1 = 192 mm / 45°, Abzweig R2 = 225,6 mm / 37,5°",
+      "radius": 192,
+      "angle": 45,
+      "branchRadius": 225.6,
+      "branchAngle": 37.5,
+      "gauge": 9
+    },
+    {
+      "id": "9157",
+      "name": "Dreiwegweiche 15°",
+      "kind": "three-way",
+      "category": "Weichen",
+      "description": "Länge 111 mm, symmetrisch, je R = 430 mm / 15° links & rechts",
+      "length": 111,
+      "branchRadius": 430,
+      "branchAngle": 15,
+      "gauge": 9
+    },
+    {
+      "id": "9184",
+      "name": "Doppelkreuzungsweiche DKW 15°",
+      "kind": "dkw",
+      "category": "Kreuzungen",
+      "description": "Länge 111 mm, Kreuzung 15°, 2x Abzweig R = 430 mm / 15°",
+      "length": 111,
+      "angle": 15,
+      "branchRadius": 430,
+      "branchAngle": 15,
+      "gauge": 9
+    },
+    {
+      "id": "9161",
+      "name": "Kreuzung 15°",
+      "kind": "crossing",
+      "category": "Kreuzungen",
+      "description": "Länge 111 mm, Kreuzungswinkel 15°",
+      "length": 111,
+      "angle": 15,
+      "gauge": 9
+    },
+    {
+      "id": "9162",
+      "name": "Kreuzung 30°",
+      "kind": "crossing",
+      "category": "Kreuzungen",
+      "description": "Länge 111 mm, Kreuzungswinkel 30°",
+      "length": 111,
+      "angle": 30,
+      "gauge": 9
+    },
+    {
+      "id": "9163",
+      "name": "Kreuzung 15° (Gegenrichtung)",
+      "kind": "crossing",
+      "category": "Kreuzungen",
+      "description": "Länge 111 mm, Kreuzungswinkel 15° spiegelbildlich",
+      "length": 111,
+      "angle": 15,
+      "gauge": 9
+    },
+    {
+      "id": "9112",
+      "name": "Entkupplungsgleis elektrisch 55,5 mm",
+      "kind": "uncoupler",
+      "category": "Funktionsgleise",
+      "description": "Elektrisches Entkupplungsgleis 55,5 mm",
+      "length": 55.5,
+      "gauge": 9
+    },
+    {
+      "id": "9114",
+      "name": "Entkupplungsgleis manuell 55,5 mm",
+      "kind": "uncoupler",
+      "category": "Funktionsgleise",
+      "description": "Hand-Entkupplungsgleis 55,5 mm",
+      "length": 55.5,
+      "gauge": 9
+    },
+    {
+      "id": "9115",
+      "name": "Aufgleisgerät / Bahnübergang 111 mm",
+      "kind": "straight",
+      "category": "Funktionsgleise",
+      "description": "Aufgleiser mit Straßenübergang 111 mm",
+      "length": 111,
+      "gauge": 9
+    },
+    {
+      "id": "9116",
+      "name": "Prellbock-Gleis 57,5 mm",
+      "kind": "buffer-stop",
+      "category": "Zubehör",
+      "description": "Prellbockgleis 57,5 mm",
+      "length": 57.5,
+      "gauge": 9
+    },
+    {
+      "id": "9117",
+      "name": "Prellbock separat",
+      "kind": "buffer-stop",
+      "category": "Zubehör",
+      "description": "Prellbock zum Aufstecken auf Standardgleisende",
+      "length": 15,
+      "gauge": 9
+    },
+    {
+      "id": "9107",
+      "name": "Gerades Anschlussgleis 111 mm",
+      "kind": "feeder",
+      "category": "Anschluss",
+      "description": "2-poliges Einspeisungsgleis mit Entstörkondensator",
+      "length": 111,
+      "gauge": 9
+    },
+    {
+      "id": "9124",
+      "name": "Gebogenes Anschlussgleis R1 / 45°",
+      "kind": "feeder",
+      "category": "Anschluss",
+      "description": "Bogeneinspeisung R1 = 192 mm / 45°",
+      "radius": 192,
+      "angle": 45,
+      "gauge": 9
+    },
+    {
+      "id": "9139",
+      "name": "Trenngleis / Unterbrechergleis 55,5 mm",
+      "kind": "isolating",
+      "category": "Anschluss",
+      "description": "Einpolig unterbrochenes Ausgleichsstück für Signal-/Blockstrecken",
+      "length": 55.5,
+      "gauge": 9
+    }
+  ]
+}

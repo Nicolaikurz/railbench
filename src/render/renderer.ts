@@ -8,6 +8,7 @@ import { createBaseboardGraphics } from "./baseboard-sprite";
 import { createModel2DGraphics } from "./model-sprite";
 import { getBaseboards } from "@/core/layout";
 import type { BaseboardSnapGuide } from "@/core/baseboard-snapping";
+import { getConnectorSnapStatus } from "@/core/snapping";
 
 export interface MeasureState {
   start: { x: number; y: number } | null;
@@ -44,7 +45,7 @@ export interface RenderStateOptions {
   showTrackLabels?: boolean;
   showColorCode?: boolean;
   colorMode?: ColorMode;
-  snapPreviewTarget?: { x: number; y: number } | null;
+  snapPreviewTarget?: { x: number; y: number; isAbove?: boolean } | null;
   selectionBox?: { start: { x: number; y: number }; end: { x: number; y: number } } | null;
   activeBaseboardId?: string;
   isDraggingBaseboard?: boolean;
@@ -212,9 +213,33 @@ export class Renderer {
     this.overlayLayer.addChild(ov);
 
     if (options.showConnectors) {
+      const drawnConnected = new Set<string>();
       for (const piece of layout.pieces) {
-        for (const conn of piece.connectors) {
-          if (!conn.connectedTo) {
+        for (let cIdx = 0; cIdx < piece.connectors.length; cIdx++) {
+          const conn = piece.connectors[cIdx]!;
+          const info = getConnectorSnapStatus(piece, cIdx, layout.pieces, layout.layers);
+
+          if (info.status === "connected") {
+            // "if two tracks are connected color it grey"
+            const key = `${Math.round(conn.x * 2) / 2},${Math.round(conn.y * 2) / 2}`;
+            if (drawnConnected.has(key)) continue;
+            drawnConnected.add(key);
+
+            ov.circle(conn.x, conn.y, 4);
+            ov.fill({ color: 0x64748b, alpha: 0.9 });
+            ov.circle(conn.x, conn.y, 2);
+            ov.fill({ color: 0x94a3b8 });
+            ov.circle(conn.x, conn.y, 6.5);
+            ov.stroke({ width: 1, color: 0x475569, alpha: 0.6 });
+          } else if (info.status === "above") {
+            // "add yellow snap point if the track is above an snap point"
+            ov.circle(conn.x, conn.y, 5);
+            ov.fill({ color: 0xeab308, alpha: 0.95 });
+            ov.circle(conn.x, conn.y, 2.2);
+            ov.fill({ color: 0xfef08a });
+            ov.circle(conn.x, conn.y, 7.5);
+            ov.stroke({ width: 1.4, color: 0xfacc15, alpha: 0.8 });
+          } else {
             // Freier Andockpunkt: leuchtend grün
             ov.circle(conn.x, conn.y, 4.5);
             ov.fill({ color: 0x16a34a, alpha: 0.9 });
@@ -230,10 +255,11 @@ export class Renderer {
     // Falls gerade ein Snap-Ziel aktiv ist:
     if (options.snapPreviewTarget) {
       const pt = options.snapPreviewTarget;
+      const color = pt.isAbove ? 0xeab308 : 0xf59e0b;
       ov.circle(pt.x, pt.y, 10);
-      ov.stroke({ width: 2.5, color: 0xf59e0b, alpha: 0.9 });
+      ov.stroke({ width: 2.5, color, alpha: 0.9 });
       ov.circle(pt.x, pt.y, 4);
-      ov.fill({ color: 0xf59e0b });
+      ov.fill({ color });
     }
 
     // Auswahlrahmen (Marquee Box bei Rechtsklick-Drag)
