@@ -10,13 +10,13 @@
   "description": "Modulares Straßensystem mit 2-spurigen Fahrbahnen (Breite 44 mm), Kurven, T-Einmündungen, Kreuzungen und Wendeplatz für den Maßstab TT (1:120).",
   "entries": [
     {
-      "id": "ST-TT-S145",
-      "name": "Gerade Straße 145 mm",
-      "nameEn": "Straight Road 145 mm",
+      "id": "ST-TT-BUS",
+      "name": "Bushaltestelle / Parkbucht 145 mm",
+      "nameEn": "Bus Stop / Parking Bay 145 mm",
       "kind": "straight",
-      "category": "Geraden",
-      "description": "2-spurige Standard-Fahrbahn 145 mm mit Mittellinie und Randstreifen (Breite 44 mm)",
-      "descriptionEn": "2-lane standard road 145 mm with dashed center line and shoulder markings (width 44 mm)",
+      "category": "Zubehör",
+      "description": "145 mm Fahrbahn mit seitlicher Parkbucht und Bus-Wartefläche (Breite ca. 54 mm)",
+      "descriptionEn": "145 mm road with side parking bay and bus passenger area (width approx. 54 mm)",
       "length": 145,
       "isRoad": true,
       "roadWidth": 44,
@@ -29,6 +29,186 @@
         },
         {
           "x": 145,
+          "y": 0,
+          "angle": 0
+        }
+      ],
+      "gauge": 12
+    },
+    {
+      "id": "ST-TT-C145-45",
+      "name": "Kurve 45° (R = 145 mm)",
+      "nameEn": "Curved Road 45° (R = 145 mm)",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Bogen 45°, Radius 145 mm (Breite 44 mm)",
+      "descriptionEn": "Curve 45°, radius 145 mm (width 44 mm)",
+      "radius": 145,
+      "angle": 45,
+      "isRoad": true,
+      "roadWidth": 44,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 102.5,
+          "y": 42.5,
+          "angle": 45
+        }
+      ],
+      "gauge": 12
+    },
+    {
+      "id": "ST-TT-C145-90",
+      "name": "Kurve 90° (R = 145 mm)",
+      "nameEn": "Curved Road 90° (R = 145 mm)",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Standard-Rechtwinkelkurve 90°, Radius 145 mm (Breite 44 mm)",
+      "descriptionEn": "Standard 90° right-angle road curve, radius 145 mm (width 44 mm)",
+      "radius": 145,
+      "angle": 90,
+      "isRoad": true,
+      "roadWidth": 44,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 145,
+          "y": 145,
+          "angle": 90
+        }
+      ],
+      "gauge": 12
+    },
+    {
+      "id": "ST-TT-C218-45",
+      "name": "Kurve 45° groß (R = 217,5 mm)",
+      "nameEn": "Wide Curved Road 45° (R = 217.5 mm)",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Großer weiter Bogen 45°, Radius 217,5 mm (Breite 44 mm)",
+      "descriptionEn": "Wide gentle curve 45°, radius 217.5 mm (width 44 mm)",
+      "radius": 217.5,
+      "angle": 45,
+      "isRoad": true,
+      "roadWidth": 44,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 153.8,
+          "y": 63.7,
+          "angle": 45
+        }
+      ],
+      "gauge": 12
+    },
+    {
+      "id": "ST-TT-CROSS",
+      "name": "Bahnübergang 145 mm (Straße)",
+      "nameEn": "Level / Grade Crossing 145 mm (Road)",
+      "kind": "straight",
+      "category": "Zubehör",
+      "description": "145 mm Straße mit Holz-/Gummibohlen-Gleisüberfahrt und Vorwarnstreifen",
+      "descriptionEn": "145 mm road with timber/rubber rail crossing and warning stripes",
+      "length": 145,
+      "isRoad": true,
+      "roadWidth": 44,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 145,
+          "y": 0,
+          "angle": 0
+        }
+      ],
+      "gauge": 12
+    },
+    {
+      "id": "ST-TT-FLEX",
+      "name": "Flexstraße 600 mm (TT)",
+      "nameEn": "Flex Road 600 mm (TT)",
+      "kind": "flex",
+      "category": "Geraden",
+      "description": "2-spurige flexible TT-Fahrbahn bis 600 mm für individuelle Radien und Geraden (Breite 44 mm)",
+      "descriptionEn": "2-lane flexible TT roadway up to 600 mm for custom curve radii and straights (width 44 mm)",
+      "length": 600,
+      "isRoad": true,
+      "roadWidth": 44,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 600,
+          "y": 0,
+          "angle": 0
+        }
+      ],
+      "gauge": 12
+    },
+    {
+      "id": "ST-TT-LOOP",
+      "name": "Wendeplatz / Sackgasse (Wendehammer)",
+      "nameEn": "Cul-de-sac / Turning Loop",
+      "kind": "accessory",
+      "category": "Zubehör",
+      "description": "Straßenende mit rundem Wendehammer (Durchmesser 65 mm, Anschlussbreite 44 mm)",
+      "descriptionEn": "Dead end street with round turning circle (diameter 65 mm, connection 44 mm)",
+      "length": 65.25,
+      "isRoad": true,
+      "roadWidth": 44,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        }
+      ],
+      "gauge": 12
+    },
+    {
+      "id": "ST-TT-S036",
+      "name": "Gerade Straße 36 mm",
+      "nameEn": "Short Straight Road 36 mm",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Kurzes Ausgleichsstück 36 mm (Breite 44 mm)",
+      "descriptionEn": "Short compensation road piece 36 mm (width 44 mm)",
+      "length": 36.25,
+      "isRoad": true,
+      "roadWidth": 44,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 36.25,
           "y": 0,
           "angle": 0
         }
@@ -62,41 +242,14 @@
       "gauge": 12
     },
     {
-      "id": "ST-TT-S036",
-      "name": "Gerade Straße 36 mm",
-      "nameEn": "Short Straight Road 36 mm",
+      "id": "ST-TT-S145",
+      "name": "Gerade Straße 145 mm",
+      "nameEn": "Straight Road 145 mm",
       "kind": "straight",
       "category": "Geraden",
-      "description": "Kurzes Ausgleichsstück 36 mm (Breite 44 mm)",
-      "descriptionEn": "Short compensation road piece 36 mm (width 44 mm)",
-      "length": 36.25,
-      "isRoad": true,
-      "roadWidth": 44,
-      "hasRoadbed": false,
-      "localConnectors": [
-        {
-          "x": 0,
-          "y": 0,
-          "angle": 180
-        },
-        {
-          "x": 36.25,
-          "y": 0,
-          "angle": 0
-        }
-      ],
-      "gauge": 12
-    },
-    {
-      "id": "ST-TT-C145-90",
-      "name": "Kurve 90° (R = 145 mm)",
-      "nameEn": "Curved Road 90° (R = 145 mm)",
-      "kind": "curve",
-      "category": "Bögen",
-      "description": "Standard-Rechtwinkelkurve 90°, Radius 145 mm (Breite 44 mm)",
-      "descriptionEn": "Standard 90° right-angle road curve, radius 145 mm (width 44 mm)",
-      "radius": 145,
-      "angle": 90,
+      "description": "2-spurige Standard-Fahrbahn 145 mm mit Mittellinie und Randstreifen (Breite 44 mm)",
+      "descriptionEn": "2-lane standard road 145 mm with dashed center line and shoulder markings (width 44 mm)",
+      "length": 145,
       "isRoad": true,
       "roadWidth": 44,
       "hasRoadbed": false,
@@ -108,62 +261,8 @@
         },
         {
           "x": 145,
-          "y": 145,
-          "angle": 90
-        }
-      ],
-      "gauge": 12
-    },
-    {
-      "id": "ST-TT-C145-45",
-      "name": "Kurve 45° (R = 145 mm)",
-      "nameEn": "Curved Road 45° (R = 145 mm)",
-      "kind": "curve",
-      "category": "Bögen",
-      "description": "Bogen 45°, Radius 145 mm (Breite 44 mm)",
-      "descriptionEn": "Curve 45°, radius 145 mm (width 44 mm)",
-      "radius": 145,
-      "angle": 45,
-      "isRoad": true,
-      "roadWidth": 44,
-      "hasRoadbed": false,
-      "localConnectors": [
-        {
-          "x": 0,
           "y": 0,
-          "angle": 180
-        },
-        {
-          "x": 102.5,
-          "y": 42.5,
-          "angle": 45
-        }
-      ],
-      "gauge": 12
-    },
-    {
-      "id": "ST-TT-C218-45",
-      "name": "Kurve 45° groß (R = 217,5 mm)",
-      "nameEn": "Wide Curved Road 45° (R = 217.5 mm)",
-      "kind": "curve",
-      "category": "Bögen",
-      "description": "Großer weiter Bogen 45°, Radius 217,5 mm (Breite 44 mm)",
-      "descriptionEn": "Wide gentle curve 45°, radius 217.5 mm (width 44 mm)",
-      "radius": 217.5,
-      "angle": 45,
-      "isRoad": true,
-      "roadWidth": 44,
-      "hasRoadbed": false,
-      "localConnectors": [
-        {
-          "x": 0,
-          "y": 0,
-          "angle": 180
-        },
-        {
-          "x": 153.8,
-          "y": 63.7,
-          "angle": 45
+          "angle": 0
         }
       ],
       "gauge": 12
@@ -267,79 +366,6 @@
           "x": 102.5,
           "y": 42.5,
           "angle": 45
-        }
-      ],
-      "gauge": 12
-    },
-    {
-      "id": "ST-TT-LOOP",
-      "name": "Wendeplatz / Sackgasse (Wendehammer)",
-      "nameEn": "Cul-de-sac / Turning Loop",
-      "kind": "accessory",
-      "category": "Zubehör",
-      "description": "Straßenende mit rundem Wendehammer (Durchmesser 65 mm, Anschlussbreite 44 mm)",
-      "descriptionEn": "Dead end street with round turning circle (diameter 65 mm, connection 44 mm)",
-      "length": 65.25,
-      "isRoad": true,
-      "roadWidth": 44,
-      "hasRoadbed": false,
-      "localConnectors": [
-        {
-          "x": 0,
-          "y": 0,
-          "angle": 180
-        }
-      ],
-      "gauge": 12
-    },
-    {
-      "id": "ST-TT-BUS",
-      "name": "Bushaltestelle / Parkbucht 145 mm",
-      "nameEn": "Bus Stop / Parking Bay 145 mm",
-      "kind": "straight",
-      "category": "Zubehör",
-      "description": "145 mm Fahrbahn mit seitlicher Parkbucht und Bus-Wartefläche (Breite ca. 54 mm)",
-      "descriptionEn": "145 mm road with side parking bay and bus passenger area (width approx. 54 mm)",
-      "length": 145,
-      "isRoad": true,
-      "roadWidth": 44,
-      "hasRoadbed": false,
-      "localConnectors": [
-        {
-          "x": 0,
-          "y": 0,
-          "angle": 180
-        },
-        {
-          "x": 145,
-          "y": 0,
-          "angle": 0
-        }
-      ],
-      "gauge": 12
-    },
-    {
-      "id": "ST-TT-CROSS",
-      "name": "Bahnübergang 145 mm (Straße)",
-      "nameEn": "Level / Grade Crossing 145 mm (Road)",
-      "kind": "straight",
-      "category": "Zubehör",
-      "description": "145 mm Straße mit Holz-/Gummibohlen-Gleisüberfahrt und Vorwarnstreifen",
-      "descriptionEn": "145 mm road with timber/rubber rail crossing and warning stripes",
-      "length": 145,
-      "isRoad": true,
-      "roadWidth": 44,
-      "hasRoadbed": false,
-      "localConnectors": [
-        {
-          "x": 0,
-          "y": 0,
-          "angle": 180
-        },
-        {
-          "x": 145,
-          "y": 0,
-          "angle": 0
         }
       ],
       "gauge": 12

@@ -9,6 +9,15 @@
   "conductors": 2,
   "entries": [
     {
+      "id": "14901",
+      "name": "Flexgleis 730 mm",
+      "kind": "flex",
+      "category": "Geraden",
+      "description": "Flexibles Schienenelement, Länge 730 mm",
+      "length": 730,
+      "gauge": 9
+    },
+    {
       "id": "14902",
       "name": "Gerades Gleis 312,6 mm",
       "kind": "straight",
@@ -18,21 +27,21 @@
       "gauge": 9
     },
     {
-      "id": "14904",
-      "name": "Gerades Gleis 104,2 mm",
-      "kind": "straight",
-      "category": "Geraden",
-      "description": "Standard-Gerade, Länge 104,2 mm",
-      "length": 104.2,
-      "gauge": 9
-    },
-    {
       "id": "14903",
       "name": "Gerades Gleis 17,2 mm",
       "kind": "straight",
       "category": "Geraden",
       "description": "Ausgleichsstück, Länge 17,2 mm",
       "length": 17.2,
+      "gauge": 9
+    },
+    {
+      "id": "14904",
+      "name": "Gerades Gleis 104,2 mm",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Standard-Gerade, Länge 104,2 mm",
+      "length": 104.2,
       "gauge": 9
     },
     {
@@ -90,15 +99,6 @@
       "gauge": 9
     },
     {
-      "id": "14901",
-      "name": "Flexgleis 730 mm",
-      "kind": "flex",
-      "category": "Geraden",
-      "description": "Flexibles Schienenelement, Länge 730 mm",
-      "length": 730,
-      "gauge": 9
-    },
-    {
       "id": "14912",
       "name": "Gebogenes Gleis R1 / 30°",
       "kind": "curve",
@@ -126,6 +126,16 @@
       "description": "Ausgleichsbogen, Radius R1 = 194,6 mm, Bogen 6°",
       "radius": 194.6,
       "angle": 6,
+      "gauge": 9
+    },
+    {
+      "id": "14917",
+      "name": "Gebogenes Gleis R1 / 15°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R1 = 194,6 mm, Bogen 15°",
+      "radius": 194.6,
+      "angle": 15,
       "gauge": 9
     },
     {
@@ -179,13 +189,25 @@
       "gauge": 9
     },
     {
-      "id": "14917",
-      "name": "Gebogenes Gleis R1 / 15°",
-      "kind": "curve",
-      "category": "Bögen",
-      "description": "Radius R1 = 194,6 mm, Bogen 15°",
-      "radius": 194.6,
-      "angle": 15,
+      "id": "14934",
+      "name": "Weiche links 15° (Hand)",
+      "kind": "turnout-left",
+      "category": "Weichen",
+      "description": "Länge 112,6 mm, Abzweig R4 / 15°",
+      "length": 112.6,
+      "branchRadius": 362.6,
+      "branchAngle": 15,
+      "gauge": 9
+    },
+    {
+      "id": "14935",
+      "name": "Weiche rechts 15° (Hand)",
+      "kind": "turnout-right",
+      "category": "Weichen",
+      "description": "Länge 112,6 mm, Abzweig R4 / 15°",
+      "length": 112.6,
+      "branchRadius": 362.6,
+      "branchAngle": 15,
       "gauge": 9
     },
     {
@@ -208,28 +230,6 @@
       "length": 104.2,
       "branchRadius": 194.6,
       "branchAngle": 24,
-      "gauge": 9
-    },
-    {
-      "id": "14934",
-      "name": "Weiche links 15° (Hand)",
-      "kind": "turnout-left",
-      "category": "Weichen",
-      "description": "Länge 112,6 mm, Abzweig R4 / 15°",
-      "length": 112.6,
-      "branchRadius": 362.6,
-      "branchAngle": 15,
-      "gauge": 9
-    },
-    {
-      "id": "14935",
-      "name": "Weiche rechts 15° (Hand)",
-      "kind": "turnout-right",
-      "category": "Weichen",
-      "description": "Länge 112,6 mm, Abzweig R4 / 15°",
-      "length": 112.6,
-      "branchRadius": 362.6,
-      "branchAngle": 15,
       "gauge": 9
     },
     {
@@ -268,6 +268,26 @@
       "gauge": 9
     },
     {
+      "id": "14960",
+      "name": "Kreuzung 15°",
+      "kind": "crossing",
+      "category": "Kreuzungen",
+      "description": "Länge 112,6 mm, Kreuzungswinkel 15°",
+      "length": 112.6,
+      "angle": 15,
+      "gauge": 9
+    },
+    {
+      "id": "14961",
+      "name": "Kreuzung 30°",
+      "kind": "crossing",
+      "category": "Kreuzungen",
+      "description": "Länge 104,2 mm, Kreuzungswinkel 30°",
+      "length": 104.2,
+      "angle": 30,
+      "gauge": 9
+    },
+    {
       "id": "14964",
       "name": "Doppelkreuzungsweiche DKW 15°",
       "kind": "dkw",
@@ -292,32 +312,12 @@
       "gauge": 9
     },
     {
-      "id": "14960",
-      "name": "Kreuzung 15°",
-      "kind": "crossing",
-      "category": "Kreuzungen",
-      "description": "Länge 112,6 mm, Kreuzungswinkel 15°",
-      "length": 112.6,
-      "angle": 15,
-      "gauge": 9
-    },
-    {
-      "id": "14961",
-      "name": "Kreuzung 30°",
-      "kind": "crossing",
-      "category": "Kreuzungen",
-      "description": "Länge 104,2 mm, Kreuzungswinkel 30°",
-      "length": 104.2,
-      "angle": 30,
-      "gauge": 9
-    },
-    {
-      "id": "14991",
-      "name": "Prellbockgleis 50 mm",
+      "id": "14972",
+      "name": "Aufgleisungsgleis 104,2 mm",
       "kind": "straight",
       "category": "Zubehör",
-      "description": "Gerade 50 mm mit fest montiertem Prellbock",
-      "length": 50,
+      "description": "Gerades Gleis mit Aufgleisvorrichtung, Länge 104,2 mm",
+      "length": 104.2,
       "gauge": 9
     },
     {
@@ -326,15 +326,6 @@
       "kind": "straight",
       "category": "Zubehör",
       "description": "Elektrisches Entkupplungsgleis, Länge 104,2 mm",
-      "length": 104.2,
-      "gauge": 9
-    },
-    {
-      "id": "14972",
-      "name": "Aufgleisungsgleis 104,2 mm",
-      "kind": "straight",
-      "category": "Zubehör",
-      "description": "Gerades Gleis mit Aufgleisvorrichtung, Länge 104,2 mm",
       "length": 104.2,
       "gauge": 9
     },
@@ -348,6 +339,15 @@
       "gauge": 9
     },
     {
+      "id": "14981",
+      "name": "Unterbrechergleis 50,0 mm",
+      "kind": "straight",
+      "category": "Zubehör",
+      "description": "Gerades Gleis mit zweipoliger Trennstelle",
+      "length": 50,
+      "gauge": 9
+    },
+    {
       "id": "14984",
       "name": "Trenngleis 50,0 mm",
       "kind": "straight",
@@ -357,11 +357,11 @@
       "gauge": 9
     },
     {
-      "id": "14981",
-      "name": "Unterbrechergleis 50,0 mm",
+      "id": "14991",
+      "name": "Prellbockgleis 50 mm",
       "kind": "straight",
       "category": "Zubehör",
-      "description": "Gerades Gleis mit zweipoliger Trennstelle",
+      "description": "Gerade 50 mm mit fest montiertem Prellbock",
       "length": 50,
       "gauge": 9
     }

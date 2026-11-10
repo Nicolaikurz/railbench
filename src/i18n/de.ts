@@ -63,6 +63,9 @@ export const de: Translations = {
       themeStatusLight: "Hell",
       themeTooltip: "Design umschalten (System / Dunkel / Hell)",
       togglePerfMonitor: "Leistungsdaten (FPS / RAM)",
+      lockBars: "Leistengrößen sperren (Fixierung)",
+      unlockBars: "Leistengrößen entsperren",
+      resetUiSizes: "Fenstergrößen zurücksetzen (Toolbar / Sidebars)",
     },
     helpMenu: {
       helpGuide: "Handbuch & Erste Schritte...",

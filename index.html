@@ -99,8 +99,8 @@
 
       #app {
         display: grid;
-        grid-template-columns: 280px 1fr;
-        grid-template-rows: 42px 1fr;
+        grid-template-columns: var(--sidebar-width, 280px) 1fr;
+        grid-template-rows: var(--toolbar-height, 42px) 1fr;
         height: 100vh;
         width: 100vw;
         overflow: hidden;
@@ -108,6 +108,14 @@
       }
 
       /* --- TOOLBAR --- */
+      :root, #app {
+        --toolbar-height: 42px;
+        --tb-btn-height: clamp(24px, calc(var(--toolbar-height, 42px) - 12px), 52px);
+        --tb-icon-size: clamp(13px, calc(var(--tb-btn-height, 28px) * 0.52), 22px);
+        --tb-btn-font-size: clamp(10.5px, calc(var(--tb-btn-height, 28px) * 0.41), 15px);
+        --tb-btn-padding-x: clamp(5px, calc(var(--tb-btn-height, 28px) * 0.26), 12px);
+      }
+
       #toolbar {
         grid-column: 1 / 3;
         background: var(--bg-toolbar);
@@ -118,6 +126,9 @@
         padding: 0 10px;
         z-index: 100;
         overflow: visible;
+        position: relative;
+        height: var(--toolbar-height, 42px);
+        box-sizing: border-box;
       }
 
       #toolbar::-webkit-scrollbar {
@@ -157,14 +168,36 @@
       .brand-file {
         font-size: 11px;
         color: #94a3b8;
-        max-width: 120px;
+        max-width: 140px;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+        user-select: none;
+        transition: color 0.15s;
       }
       .brand-file.dirty {
         color: #f59e0b;
         font-weight: 600;
+        cursor: pointer;
+      }
+      .brand-file.dirty:hover {
+        color: #fbbf24;
+        text-decoration: underline;
+      }
+      #tb-save.has-unsaved {
+        position: relative;
+        color: #f59e0b;
+      }
+      #tb-save.has-unsaved::after {
+        content: "";
+        position: absolute;
+        top: 4px;
+        right: 4px;
+        width: 6px;
+        height: 6px;
+        background: #f59e0b;
+        border-radius: 50%;
+        box-shadow: 0 0 4px #f59e0b;
       }
 
       .brand-badge {
@@ -179,7 +212,7 @@
 
       .toolbar-divider {
         width: 1px;
-        height: 20px;
+        height: calc(var(--tb-btn-height, 28px) * 0.7);
         background: #334155;
         margin: 0 3px;
         flex-shrink: 0;
@@ -188,7 +221,7 @@
       .toolbar-group {
         display: flex;
         align-items: center;
-        gap: 3px;
+        gap: clamp(2px, calc(var(--tb-btn-height, 28px) * 0.12), 5px);
         flex-shrink: 0;
       }
 
@@ -488,16 +521,16 @@
         background: #334155;
         color: #e2e8f0;
         border: 1px solid #475569;
-        border-radius: 5px;
-        padding: 4px 8px;
-        font-size: 11.5px;
+        border-radius: clamp(4px, calc(var(--tb-btn-height, 28px) * 0.16), 8px);
+        padding: 0 var(--tb-btn-padding-x, 8px);
+        font-size: var(--tb-btn-font-size, 11.5px);
         font-weight: 500;
         cursor: pointer;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        gap: 4px;
-        height: 28px;
+        gap: clamp(3px, calc(var(--tb-btn-height, 28px) * 0.14), 7px);
+        height: var(--tb-btn-height, 28px);
         white-space: nowrap;
         flex-shrink: 0;
         box-sizing: border-box;
@@ -505,11 +538,10 @@
       }
 
       .toolbar-menu-group > .toolbar-dropdown > .dropdown-trigger {
-        width: 86px;
-        min-width: 86px;
-        max-width: 86px;
-        height: 28px;
-        padding: 4px 6px;
+        min-width: calc(var(--tb-btn-height, 28px) * 2.8);
+        height: var(--tb-btn-height, 28px);
+        padding: 0 var(--tb-btn-padding-x, 6px);
+        font-size: var(--tb-btn-font-size, 11.5px);
         justify-content: center;
         text-align: center;
         box-sizing: border-box;
@@ -517,11 +549,10 @@
       }
 
       .toolbar-toggle {
-        width: 86px;
-        min-width: 86px;
-        max-width: 86px;
-        height: 28px;
-        padding: 4px 6px;
+        min-width: calc(var(--tb-btn-height, 28px) * 2.8);
+        height: var(--tb-btn-height, 28px);
+        padding: 0 var(--tb-btn-padding-x, 6px);
+        font-size: var(--tb-btn-font-size, 11.5px);
         justify-content: center;
         text-align: center;
         box-sizing: border-box;
@@ -532,10 +563,10 @@
       }
 
       .toolbar-btn.btn-icon-only {
-        width: 28px;
-        min-width: 28px;
-        max-width: 28px;
-        height: 28px;
+        width: var(--tb-btn-height, 28px);
+        min-width: var(--tb-btn-height, 28px);
+        max-width: var(--tb-btn-height, 28px);
+        height: var(--tb-btn-height, 28px);
         padding: 0;
         display: inline-flex;
         align-items: center;
@@ -545,11 +576,11 @@
       }
 
       .tb-theme-btn {
-        width: 64px;
-        min-width: 64px;
-        max-width: 64px;
-        height: 28px;
-        padding: 4px 6px;
+        width: var(--tb-btn-height, 28px);
+        min-width: var(--tb-btn-height, 28px);
+        max-width: var(--tb-btn-height, 28px);
+        height: var(--tb-btn-height, 28px);
+        padding: 0;
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -560,11 +591,10 @@
       }
 
       .tb-lang-btn {
-        width: 38px;
-        min-width: 38px;
-        max-width: 38px;
-        height: 28px;
-        padding: 4px;
+        min-width: var(--tb-btn-height, 28px);
+        height: var(--tb-btn-height, 28px);
+        padding: 0 clamp(4px, calc(var(--tb-btn-height, 28px) * 0.18), 8px);
+        font-size: var(--tb-btn-font-size, 11px);
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -574,11 +604,9 @@
       }
 
       .tb-collab-btn {
-        width: 108px;
-        min-width: 108px;
-        max-width: 108px;
-        height: 28px;
-        padding: 4px 6px;
+        height: var(--tb-btn-height, 28px);
+        padding: 0 var(--tb-btn-padding-x, 6px);
+        font-size: var(--tb-btn-font-size, 11px);
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -600,12 +628,20 @@
         cursor: not-allowed;
       }
 
-      .tb-icon {
+      .tb-icon,
+      .tb-btn-icon {
         display: inline-flex;
         align-items: center;
         justify-content: center;
         line-height: 1;
-        font-size: 12px;
+      }
+
+      .toolbar-btn svg,
+      .dropdown-trigger svg,
+      .tb-icon svg,
+      .tb-btn-icon svg {
+        width: var(--tb-icon-size, 14px);
+        height: var(--tb-icon-size, 14px);
       }
 
       .tb-text-full {
@@ -617,8 +653,9 @@
       }
 
       .toolbar-dropdown > .dropdown-trigger {
-        min-width: 68px;
-        height: 28px;
+        min-width: calc(var(--tb-btn-height, 28px) * 2.4);
+        height: var(--tb-btn-height, 28px);
+        font-size: var(--tb-btn-font-size, 11.5px);
         justify-content: center;
         text-align: center;
         box-sizing: border-box;
@@ -701,23 +738,156 @@
         flex-direction: column;
         overflow: hidden;
         z-index: 10;
+        position: relative;
       }
 
       #right-sidebar {
         position: absolute;
-        top: 50px;
+        top: calc(var(--toolbar-height, 42px) + 8px);
         right: 14px;
-        width: 290px;
-        max-height: calc(100vh - 70px);
+        width: var(--right-sidebar-width, 290px);
+        max-height: calc(100vh - var(--toolbar-height, 42px) - 24px);
         background: var(--bg-card);
         border: 1px solid var(--border-main);
         border-radius: 10px;
         box-shadow: 0 14px 40px rgba(0, 0, 0, 0.4), 0 2px 10px rgba(0, 0, 0, 0.2);
         display: flex;
         flex-direction: column;
-        overflow: hidden;
+        overflow: visible;
         z-index: 200;
         backdrop-filter: blur(12px);
+      }
+
+      /* --- RESIZER SPLITTERS --- */
+      #sidebar-resizer.ui-resizer-v {
+        position: absolute;
+        top: var(--toolbar-height, 42px);
+        left: calc(var(--sidebar-width, 280px) - 4px);
+        width: 8px;
+        height: calc(100vh - var(--toolbar-height, 42px));
+        cursor: col-resize;
+        z-index: 105;
+        touch-action: none;
+        user-select: none;
+      }
+      #sidebar-resizer.ui-resizer-v::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 3px;
+        width: 2px;
+        height: 100%;
+        background: transparent;
+        transition: background 0.15s ease;
+      }
+      #sidebar-resizer.ui-resizer-v:hover::after,
+      #sidebar-resizer.ui-resizer-v.dragging::after {
+        background: var(--primary-color, #0284c7);
+      }
+
+      #toolbar-resizer.ui-resizer-h {
+        position: absolute;
+        top: calc(var(--toolbar-height, 42px) - 4px);
+        left: 0;
+        width: 100vw;
+        height: 8px;
+        cursor: row-resize;
+        z-index: 155;
+        touch-action: none;
+        user-select: none;
+      }
+      #toolbar-resizer.ui-resizer-h::after {
+        content: "";
+        position: absolute;
+        top: 3px;
+        left: 0;
+        width: 100%;
+        height: 2px;
+        background: transparent;
+        transition: background 0.15s ease;
+      }
+      #toolbar-resizer.ui-resizer-h:hover::after,
+      #toolbar-resizer.ui-resizer-h.dragging::after {
+        background: var(--primary-color, #0284c7);
+      }
+
+      .ui-resizer-right-left {
+        position: absolute;
+        top: 0;
+        left: -4px;
+        width: 8px;
+        height: 100%;
+        cursor: ew-resize;
+        z-index: 250;
+        touch-action: none;
+        user-select: none;
+      }
+      .ui-resizer-right-left::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 3px;
+        width: 2px;
+        height: 100%;
+        background: transparent;
+        transition: background 0.15s ease;
+      }
+      .ui-resizer-right-left:hover::after,
+      .ui-resizer-right-left.dragging::after {
+        background: var(--primary-color, #0284c7);
+      }
+
+      .ui-resizer-right-bottom {
+        position: absolute;
+        bottom: -4px;
+        left: 0;
+        width: 100%;
+        height: 8px;
+        cursor: ns-resize;
+        z-index: 250;
+        touch-action: none;
+        user-select: none;
+      }
+      .ui-resizer-right-bottom::after {
+        content: "";
+        position: absolute;
+        bottom: 3px;
+        left: 0;
+        width: 100%;
+        height: 2px;
+        background: transparent;
+        transition: background 0.15s ease;
+      }
+      .ui-resizer-right-bottom:hover::after,
+      .ui-resizer-right-bottom.dragging::after {
+        background: var(--primary-color, #0284c7);
+      }
+
+      .ui-resizer-right-corner {
+        position: absolute;
+        bottom: -4px;
+        left: -4px;
+        width: 14px;
+        height: 14px;
+        cursor: nesw-resize;
+        z-index: 260;
+        touch-action: none;
+        user-select: none;
+        border-bottom-left-radius: 8px;
+        transition: background 0.15s ease;
+      }
+      .ui-resizer-right-corner:hover,
+      .ui-resizer-right-corner.dragging {
+        background: var(--primary-color, #0284c7);
+      }
+
+      #app.bars-locked #sidebar-resizer,
+      #app.bars-locked #toolbar-resizer,
+      #app.bars-locked #right-sidebar-resizer-left,
+      #app.bars-locked #right-sidebar-resizer-bottom,
+      #app.bars-locked #right-sidebar-resizer-corner {
+        display: none !important;
+        pointer-events: none !important;
       }
 
       #app.right-collapsed #right-sidebar {
@@ -1121,6 +1291,8 @@
         border-radius: 6px;
         padding: 6px 8px;
         cursor: grab;
+        user-select: none;
+        -webkit-user-select: none;
         display: flex;
         flex-direction: column;
         gap: 2px;
@@ -1167,6 +1339,22 @@
         font-weight: 600;
       }
 
+      .card-body {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin: 2px 0;
+      }
+
+      .card-info {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+
       .card-name {
         font-size: 11px;
         color: var(--text-sub);
@@ -1177,6 +1365,30 @@
         font-size: 10.5px;
         color: var(--primary-color);
         font-weight: 600;
+      }
+
+      .card-preview {
+        width: 60px;
+        height: 40px;
+        min-width: 60px;
+        flex-shrink: 0;
+        border-radius: 4px;
+        background: var(--bg-surface, rgba(15, 23, 42, 0.45));
+        border: 1px solid var(--border-main, rgba(255, 255, 255, 0.08));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        box-sizing: border-box;
+        padding: 2px;
+        pointer-events: none;
+      }
+
+      .card-preview canvas {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        display: block;
       }
 
       .card-add-btn {

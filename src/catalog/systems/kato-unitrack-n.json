@@ -36,6 +36,15 @@
       "gauge": 9
     },
     {
+      "id": "20-021",
+      "name": "Aufgleis- und Bahnübergangsgleis S124",
+      "kind": "straight",
+      "category": "Zubehör",
+      "description": "Gerade 124 mm mit Aufgleisbereich",
+      "length": 124,
+      "gauge": 9
+    },
+    {
       "id": "20-030",
       "name": "Gerades Gleis S64",
       "kind": "straight",
@@ -54,21 +63,48 @@
       "gauge": 9
     },
     {
-      "id": "20-050",
-      "name": "Ausgleichsgleis-Set S29 / S45.5",
-      "kind": "straight",
-      "category": "Geraden",
-      "description": "Ausgleichsgleis S29 (29 mm)",
-      "length": 29,
-      "gauge": 9
-    },
-    {
       "id": "20-041",
       "name": "Vario-Gleis (ausziehbar)",
       "kind": "straight",
       "category": "Geraden",
       "description": "Teleskopgleis, variabel 78 mm bis 108 mm",
       "length": 78,
+      "gauge": 9
+    },
+    {
+      "id": "20-042",
+      "name": "Prellbockgleis 62 mm",
+      "kind": "straight",
+      "category": "Zubehör",
+      "description": "Gleis S62 mit integriertem Prellbock",
+      "length": 62,
+      "gauge": 9
+    },
+    {
+      "id": "20-043",
+      "name": "Prellbock beleuchtet 62 mm",
+      "kind": "straight",
+      "category": "Zubehör",
+      "description": "Gleis S62 mit rot beleuchtetem Prellbock",
+      "length": 62,
+      "gauge": 9
+    },
+    {
+      "id": "20-045",
+      "name": "Anschlussgleis S62",
+      "kind": "straight",
+      "category": "Zubehör",
+      "description": "Gerade 62 mm mit integriertem Zuleitungskabel",
+      "length": 62,
+      "gauge": 9
+    },
+    {
+      "id": "20-050",
+      "name": "Ausgleichsgleis-Set S29 / S45.5",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Ausgleichsgleis S29 (29 mm)",
+      "length": 29,
       "gauge": 9
     },
     {
@@ -164,6 +200,18 @@
       "gauge": 9
     },
     {
+      "id": "20-210",
+      "name": "Elektro-Doppelkreuzungsweiche WX310",
+      "kind": "dkw",
+      "category": "Kreuzungen",
+      "description": "Länge 174 mm, Kreuzungswinkel 15°",
+      "length": 174,
+      "angle": 15,
+      "branchRadius": 541,
+      "branchAngle": 15,
+      "gauge": 9
+    },
+    {
       "id": "20-220",
       "name": "Elektroweiche #4 links (15°)",
       "kind": "turnout-left",
@@ -186,18 +234,6 @@
       "gauge": 9
     },
     {
-      "id": "20-210",
-      "name": "Elektro-Doppelkreuzungsweiche WX310",
-      "kind": "dkw",
-      "category": "Kreuzungen",
-      "description": "Länge 174 mm, Kreuzungswinkel 15°",
-      "length": 174,
-      "angle": 15,
-      "branchRadius": 541,
-      "branchAngle": 15,
-      "gauge": 9
-    },
-    {
       "id": "20-300",
       "name": "Kreuzung X15L (15° links)",
       "kind": "crossing",
@@ -215,42 +251,6 @@
       "description": "Länge 124 mm, Kreuzungswinkel 90°",
       "length": 124,
       "angle": 90,
-      "gauge": 9
-    },
-    {
-      "id": "20-042",
-      "name": "Prellbockgleis 62 mm",
-      "kind": "straight",
-      "category": "Zubehör",
-      "description": "Gleis S62 mit integriertem Prellbock",
-      "length": 62,
-      "gauge": 9
-    },
-    {
-      "id": "20-043",
-      "name": "Prellbock beleuchtet 62 mm",
-      "kind": "straight",
-      "category": "Zubehör",
-      "description": "Gleis S62 mit rot beleuchtetem Prellbock",
-      "length": 62,
-      "gauge": 9
-    },
-    {
-      "id": "20-021",
-      "name": "Aufgleis- und Bahnübergangsgleis S124",
-      "kind": "straight",
-      "category": "Zubehör",
-      "description": "Gerade 124 mm mit Aufgleisbereich",
-      "length": 124,
-      "gauge": 9
-    },
-    {
-      "id": "20-045",
-      "name": "Anschlussgleis S62",
-      "kind": "straight",
-      "category": "Zubehör",
-      "description": "Gerade 62 mm mit integriertem Zuleitungskabel",
-      "length": 62,
       "gauge": 9
     }
   ]

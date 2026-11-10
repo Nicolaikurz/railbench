@@ -1,4 +1,4 @@
-import { catalogRegistry, type Catalog, type CatalogEntry } from "@/catalog/catalog";
+import { catalogRegistry, compareCatalogEntriesByNumber, type Catalog, type CatalogEntry } from "@/catalog/catalog";
 import type { Layout, Layer, BaseboardConfig, Model3D, ModelCategory } from "@/core/types";
 import { openLayerDialog } from "./layer-dialog";
 import type { SimulationSummary } from "@/core/simulation";
@@ -31,6 +31,7 @@ import {
 import { MODEL_SCALE_RATIOS, getScaleFactor, scaleDimensions, type ModelScale } from "@/core/model-scale";
 import {
   createPieceDragCanvas,
+  createCatalogThumbnail,
   createModelDragCanvas,
   createCustomModelDragCanvas,
   attachDragImage,
@@ -39,8 +40,32 @@ import {
 export type { ModelScale };
 export type SidebarTab = "catalog" | "roads" | "models" | "board" | "bom" | "layers";
 
+export function setupDoubleAction(
+  element: { addEventListener: (event: string, handler: (e: any) => void) => void },
+  onTrigger: () => void,
+  tapThresholdMs = 350
+): void {
+  let lastTap = 0;
+  element.addEventListener("pointerdown", (e: any) => {
+    if (e.pointerType === "touch") {
+      const now = Date.now();
+      if (now - lastTap < tapThresholdMs) {
+        e.preventDefault?.();
+        onTrigger();
+        lastTap = 0;
+        return;
+      }
+      lastTap = now;
+    }
+  });
+  element.addEventListener("dblclick", (e: any) => {
+    e.preventDefault?.();
+    onTrigger();
+  });
+}
+
 export interface SidebarCallbacks {
-  onAddPiece: (entry: CatalogEntry) => void;
+  onAddPiece?: (entry: CatalogEntry) => void;
   onAddModel?: (model: Model3D) => void;
   onExportCSV: () => void;
   onImportCatalog?: () => void;
@@ -50,6 +75,8 @@ export interface SidebarCallbacks {
   onMoveSelectedToLayer?: (layerId: string) => void;
   onToggleSelectionLock?: () => void;
   isSelectionLockDisabled?: () => boolean;
+  onToggleWoodPlate?: () => void;
+  isWoodPlateActive?: () => boolean;
   selectedPieceIds?: () => string[];
   onBaseboardChange?: () => void;
   getZoom?: () => number;
@@ -698,6 +725,8 @@ export class Sidebar {
       return matchCat && matchQuery;
     });
 
+    filtered.sort(compareCatalogEntriesByNumber);
+
     if (filtered.length === 0) {
       container.innerHTML = `<div class="empty-state">${
         isDe ? "Keine passenden Gleise gefunden." : "No matching tracks found."
@@ -732,6 +761,12 @@ export class Sidebar {
         card.classList.remove("dragging");
       });
 
+      card.title = isDe
+        ? "Doppelklick: An freies Gleisende anfügen / Ziehen: Frei platzieren"
+        : "Double-click: Attach to open snap point / Drag: Place freely";
+
+      setupDoubleAction(card, () => this.callbacks.onAddPiece?.(entry));
+
       let spec = "";
       if (entry.length) spec += `L: ${entry.length} mm `;
       if (entry.radius) spec += `R: ${entry.radius} mm `;
@@ -741,6 +776,7 @@ export class Sidebar {
       const displayName = getTrackDisplayName(entry, currentLang);
       const displayCategory = getTrackDisplayCategory(entry.category, currentLang);
       const displayDesc = getTrackDisplayDescription(entry, currentLang);
+      const thumb = createCatalogThumbnail(entry, false, undefined, this.catalog.gauge, 60, 40);
 
       card.innerHTML = `
         <div class="card-top">
@@ -750,20 +786,20 @@ export class Sidebar {
           </div>
           <span class="card-category-badge">${displayCategory}</span>
         </div>
-        <div class="card-name" title="${displayDesc}">${displayName}</div>
-        <div class="card-spec">${spec}</div>
+        <div class="card-body">
+          <div class="card-info">
+            <div class="card-name" title="${displayDesc}">${displayName}</div>
+            <div class="card-spec">${spec}</div>
+          </div>
+          <div class="card-preview" title="${displayName}"></div>
+        </div>
       `;
 
-      const addBtn = document.createElement("button");
-      addBtn.className = "card-add-btn";
-      addBtn.innerHTML = `+ ${t.catalog.addToPlan}`;
-      addBtn.title = isDe ? "Gleis in die Mitte des Plans einfügen" : "Place track in center of layout";
-      addBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        this.callbacks.onAddPiece(entry);
-      });
+      const previewContainer = card.querySelector(".card-preview");
+      if (previewContainer && thumb && typeof thumb.getContext === "function") {
+        previewContainer.appendChild(thumb);
+      }
 
-      card.appendChild(addBtn);
       container.appendChild(card);
     }
   }
@@ -940,6 +976,8 @@ export class Sidebar {
       return matchCat && matchQuery;
     });
 
+    filtered.sort(compareCatalogEntriesByNumber);
+
     if (filtered.length === 0) {
       container.innerHTML = `<div class="empty-state">${
         isDe ? "Keine passenden Straßen gefunden." : "No matching roads found."
@@ -972,6 +1010,12 @@ export class Sidebar {
         card.classList.remove("dragging");
       });
 
+      card.title = isDe
+        ? "Doppelklick: An freies Straßenende anfügen / Ziehen: Frei platzieren"
+        : "Double-click: Attach to open road snap point / Drag: Place freely";
+
+      setupDoubleAction(card, () => this.callbacks.onAddPiece?.(entry));
+
       let spec = "";
       if (entry.length) spec += `L: ${entry.length} mm `;
       if (entry.radius) spec += `R: ${entry.radius} mm `;
@@ -981,6 +1025,7 @@ export class Sidebar {
       const displayName = getTrackDisplayName(entry, currentLang);
       const displayCategory = getTrackDisplayCategory(entry.category, currentLang);
       const displayDesc = getTrackDisplayDescription(entry, currentLang);
+      const thumb = createCatalogThumbnail(entry, true, getRoadWidthMm(this.roadCatalog.scale), undefined, 60, 40);
 
       card.innerHTML = `
         <div class="card-top">
@@ -990,20 +1035,20 @@ export class Sidebar {
           </div>
           <span class="card-category-badge">${displayCategory}</span>
         </div>
-        <div class="card-name" title="${displayDesc}">${displayName}</div>
-        <div class="card-spec">${spec}</div>
+        <div class="card-body">
+          <div class="card-info">
+            <div class="card-name" title="${displayDesc}">${displayName}</div>
+            <div class="card-spec">${spec}</div>
+          </div>
+          <div class="card-preview" title="${displayName}"></div>
+        </div>
       `;
 
-      const addBtn = document.createElement("button");
-      addBtn.className = "card-add-btn";
-      addBtn.innerHTML = `+ ${t.catalog.addToPlan}`;
-      addBtn.title = isDe ? "Straße in die Mitte des Plans einfügen" : "Place road in center of layout";
-      addBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        this.callbacks.onAddPiece(entry);
-      });
+      const previewContainer = card.querySelector(".card-preview");
+      if (previewContainer && thumb && typeof thumb.getContext === "function") {
+        previewContainer.appendChild(thumb);
+      }
 
-      card.appendChild(addBtn);
       container.appendChild(card);
     }
   }
@@ -1408,6 +1453,27 @@ export class Sidebar {
       this.render();
     });
     lockBar.appendChild(lockBtn);
+
+    if (this.callbacks.onToggleWoodPlate) {
+      const isWoodOn = this.callbacks.isWoodPlateActive?.() ?? false;
+      const woodBtn = document.createElement("button");
+      woodBtn.className = `btn-pill ${isWoodOn ? "active" : ""}`;
+      woodBtn.style.cssText = isWoodOn
+        ? "background: rgba(2, 132, 199, 0.2); border: 1px solid #0284c7; color: #0284c7; font-weight: 600; padding: 4px 8px; font-size: 11px; cursor: pointer; border-radius: 6px;"
+        : "background: var(--bg-surface); border: 1px solid var(--border-color); color: var(--text-main); padding: 4px 8px; font-size: 11px; cursor: pointer; border-radius: 6px;";
+      woodBtn.innerHTML = isWoodOn
+        ? (isDe ? "🪵 Woodplatte an" : "🪵 Wood plate on")
+        : (isDe ? "🪵 Woodplatte aus" : "🪵 Wood plate off");
+      woodBtn.title = isDe
+        ? "Trassenbrett / Woodplatte unter Gleisen und Straßen ein- oder ausblenden"
+        : "Show or hide wood roadbed plate under tracks and roads";
+      woodBtn.addEventListener("click", () => {
+        this.callbacks.onToggleWoodPlate?.();
+        this.render();
+      });
+      lockBar.appendChild(woodBtn);
+    }
+
     header.appendChild(lockBar);
 
     // Orphaned items alert

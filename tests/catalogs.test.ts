@@ -30,6 +30,24 @@ describe("Märklin M-Gleis & K-Gleis Catalogs", () => {
     expect(kCat?.entries.length).toBeGreaterThan(25);
   });
 
+  it("sorts catalog entries in ascending numerical order", () => {
+    const cCat = catalogRegistry.get("maerklin-c-h0");
+    expect(cCat).toBeDefined();
+    for (let i = 0; i < cCat!.entries.length - 1; i++) {
+      const a = cCat!.entries[i]!.id;
+      const b = cCat!.entries[i + 1]!.id;
+      expect(a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" })).toBeLessThanOrEqual(0);
+    }
+
+    const kCat = catalogRegistry.get("maerklin-k-h0");
+    expect(kCat).toBeDefined();
+    for (let i = 0; i < kCat!.entries.length - 1; i++) {
+      const a = kCat!.entries[i]!.id;
+      const b = kCat!.entries[i + 1]!.id;
+      expect(a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" })).toBeLessThanOrEqual(0);
+    }
+  });
+
   it("finds specific M-Gleis entries and verifies geometry", () => {
     // 5106 standard straight (180 mm)
     const t5106 = catalogRegistry.findEntry("5106");
@@ -144,7 +162,7 @@ describe("Generic Streets Catalog (H0 Roads)", () => {
     expect(roadCat).toBeDefined();
     expect(roadCat?.isRoadSystem).toBe(true);
     expect(roadCat?.name).toContain("Straßensystem");
-    expect(roadCat?.entries.length).toBe(12);
+    expect(roadCat?.entries.length).toBe(13);
   });
 
   it("verifies standard road dimensions and properties", () => {
@@ -237,7 +255,7 @@ describe("Generic Streets Catalog (H0 Roads)", () => {
 
   it("ensures all street pieces are identified with isRoad in catalog lookup", () => {
     const ids = [
-      "ST-S200", "ST-S100", "ST-S050",
+      "ST-S200", "ST-S100", "ST-S050", "ST-FLEX",
       "ST-C200-90", "ST-C200-45", "ST-C300-45",
       "ST-TJ-90", "ST-X-90", "ST-Y-45",
       "ST-LOOP", "ST-BUS", "ST-CROSS"
@@ -247,6 +265,25 @@ describe("Generic Streets Catalog (H0 Roads)", () => {
       expect(entry, `Street entry ${id} should be found`).toBeDefined();
       expect(entry?.isRoad, `Street entry ${id} must have isRoad: true`).toBe(true);
       expect(entry?.roadWidth, `Street entry ${id} must have roadWidth 60`).toBe(60);
+    }
+  });
+
+  it("provides flex streets across H0, TT, N, Z scales", () => {
+    const scales = [
+      { id: "ST-FLEX", scale: "H0", len: 800, width: 60 },
+      { id: "ST-TT-FLEX", scale: "TT", len: 600, width: 44 },
+      { id: "ST-N-FLEX", scale: "N", len: 500, width: 35 },
+      { id: "ST-Z-FLEX", scale: "Z", len: 350, width: 24 },
+    ];
+    for (const s of scales) {
+      const entry = catalogRegistry.findEntry(s.id);
+      expect(entry, `Flex street ${s.id} should exist`).toBeDefined();
+      expect(entry?.kind).toBe("flex");
+      expect(entry?.isRoad).toBe(true);
+      expect(entry?.length).toBe(s.len);
+      expect(entry?.roadWidth).toBe(s.width);
+      expect(entry?.category).toBe("Geraden");
+      expect(entry?.localConnectors?.length).toBe(2);
     }
   });
 

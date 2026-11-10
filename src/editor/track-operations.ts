@@ -1,5 +1,6 @@
 import type { Layout, TrackPiece, Model3D, Transform } from "@/core/types";
-import { computeWorldConnectors, type Catalog, type CatalogEntry } from "@/catalog/catalog";
+import { ensureDefaultLayers } from "@/core/layout";
+import { computeWorldConnectors, getLocalConnectors, type Catalog, type CatalogEntry } from "@/catalog/catalog";
 import { findBestSnapForPiece, updatePieceConnections } from "@/core/snapping";
 import { cutFlexTrack, bendFlexTrack } from "@/core/flextrack";
 import {
@@ -23,6 +24,7 @@ import type { History } from "@/editor/commands";
 import type { Selection } from "@/editor/selection";
 import {
   normAngle,
+  rotate,
   rotateGroupAroundCentroid,
   type RotatableItem,
 } from "@/core/geometry";
@@ -56,6 +58,62 @@ interface TrackClipboardData {
 let trackClipboard: TrackClipboardData | null = null;
 let pasteOffsetCount = 1;
 
+/**
+ * Ermittelt, ob der Gleisverlauf an einem bestimmten Anschluss nach links oder rechts biegt.
+ */
+function detectTrackTurn(
+  anchorPiece: TrackPiece,
+  chosenIndex: number,
+  layoutPieces: TrackPiece[],
+  getCatalogEntry: (piece: TrackPiece) => CatalogEntry | undefined,
+  visited = new Set<string>()
+): "left" | "right" | "straight" {
+  if (visited.has(anchorPiece.id)) return "straight";
+  visited.add(anchorPiece.id);
+
+  const chosenConn = anchorPiece.connectors[chosenIndex];
+  if (!chosenConn) return "straight";
+
+  const incoming = anchorPiece.connectors
+    .map((c, index) => ({ c, index }))
+    .find((item) => item.index !== chosenIndex && Boolean(item.c.connectedTo));
+
+  if (incoming) {
+    const inDir = normAngle(incoming.c.angle + 180);
+    const outDir = chosenConn.angle;
+    let turnDelta = normAngle(outDir - inDir);
+    if (turnDelta > 180) turnDelta -= 360;
+
+    if (turnDelta > 1) return "left";
+    if (turnDelta < -1) return "right";
+
+    const prevPieceId = incoming.c.connectedTo?.pieceId;
+    const prevPiece = layoutPieces.find((p) => p.id === prevPieceId);
+    if (prevPiece) {
+      const prevConnectedIdx = prevPiece.connectors.findIndex(
+        (c) => c.connectedTo?.pieceId === anchorPiece.id
+      );
+      if (prevConnectedIdx >= 0) {
+        return detectTrackTurn(prevPiece, prevConnectedIdx, layoutPieces, getCatalogEntry, visited);
+      }
+    }
+    return "straight";
+  }
+
+  const anchorEntry = getCatalogEntry(anchorPiece);
+  if (anchorEntry?.kind === "curve") {
+    return chosenIndex === 1 ? "left" : "right";
+  }
+  if (anchorEntry?.kind === "turnout-right" || anchorEntry?.kind === "curved-turnout-right") {
+    if (chosenIndex === 2) return "right";
+  }
+  if (anchorEntry?.kind === "turnout-left" || anchorEntry?.kind === "curved-turnout-left") {
+    if (chosenIndex === 2) return "left";
+  }
+
+  return "straight";
+}
+
 export class TrackOperations {
   private ctx: EditorContext;
 
@@ -69,19 +127,102 @@ export class TrackOperations {
     const selection = this.ctx.getSelection();
 
     let targetTransform: Transform = { x: 0, y: 0, rotation: 0 };
+    let targetLayerId = layout.activeLayerId ?? "layer-1";
+    let targetElevation: { start: number; end: number } | undefined = undefined;
 
-    if (initialPos) {
-      targetTransform = { x: initialPos.x, y: initialPos.y, rotation: 0 };
-    } else if (layout.pieces.length > 0) {
-      const last = layout.pieces[layout.pieces.length - 1]!;
-      targetTransform = { x: last.transform.x + 190, y: last.transform.y, rotation: last.transform.rotation };
+    // 1. Identify anchor piece: selected piece ONLY
+    const selectedIds = selection.all();
+    let anchorPiece: TrackPiece | undefined = undefined;
+    if (selectedIds.length > 0) {
+      anchorPiece = layout.pieces.find((p) => p.id === selectedIds[selectedIds.length - 1]);
+      if (anchorPiece) {
+        const anchorEntry = this.ctx.getCatalogEntry(anchorPiece);
+        if (Boolean(anchorEntry?.isRoad) !== Boolean(entry.isRoad)) {
+          anchorPiece = undefined;
+        }
+      }
     }
 
-    if (this.ctx.isSnappingEnabled() && layout.pieces.length > 0) {
-      const candidateLayer = { layerId: layout.activeLayerId ?? "layer-1" };
-      const snap = findBestSnapForPiece(entry, targetTransform, layout.pieces, undefined, 60, 45, undefined, candidateLayer, layout.layers);
-      if (snap) {
-        targetTransform = snap.snappedTransform;
+    let snappedToAnchor = false;
+
+    if (anchorPiece && !initialPos) {
+      // Find open/empty connectors on the selected anchor piece only
+      const openConnectors = anchorPiece.connectors
+        .map((c, index) => ({ c, index }))
+        .filter((item) => !item.c.connectedTo);
+
+      if (openConnectors.length > 0) {
+        // Choose best connector: prefer exit/forward connectors (index > 0)
+        let chosen = openConnectors.find((item) => item.index > 0) ?? openConnectors[0]!;
+        if (entry.kind === "curve" && openConnectors.some((item) => item.index === 2)) {
+          chosen = openConnectors.find((item) => item.index === 2)!;
+        } else if (entry.kind === "straight" && openConnectors.some((item) => item.index === 1)) {
+          chosen = openConnectors.find((item) => item.index === 1)!;
+        }
+
+        const locals = getLocalConnectors(entry);
+        let movingLocal = locals[0] ?? { x: 0, y: 0, angle: 180 };
+
+        // Check the turn of the track: if turning right, use locals[1] to continue turning right
+        if (entry.kind === "curve" && locals.length >= 2) {
+          const trackTurn = detectTrackTurn(
+            anchorPiece,
+            chosen.index,
+            layout.pieces,
+            (p) => this.ctx.getCatalogEntry(p)
+          );
+          if (trackTurn === "right") {
+            movingLocal = locals[1]!;
+          } else {
+            movingLocal = locals[0]!;
+          }
+        }
+
+        // Calculate exact snapped transform
+        const snappedRotation = normAngle(chosen.c.angle + 180 - movingLocal.angle);
+        const rotatedOffset = rotate(movingLocal, snappedRotation);
+        targetTransform = {
+          x: chosen.c.x - rotatedOffset.x,
+          y: chosen.c.y - rotatedOffset.y,
+          rotation: snappedRotation,
+        };
+
+        targetLayerId = anchorPiece.layerId || targetLayerId;
+        if (anchorPiece.elevation) {
+          const elevVal = chosen.index === 0
+            ? (anchorPiece.elevation.start ?? 0)
+            : (anchorPiece.elevation.end ?? (anchorPiece.elevation.start ?? 0));
+          if (Math.abs(elevVal) > 0.01) {
+            targetElevation = { start: elevVal, end: elevVal };
+          }
+        }
+        snappedToAnchor = true;
+      }
+    }
+
+    if (!snappedToAnchor) {
+      if (initialPos) {
+        targetTransform = { x: initialPos.x, y: initialPos.y, rotation: 0 };
+        if (this.ctx.isSnappingEnabled() && layout.pieces.length > 0) {
+          const candidateLayer = { layerId: targetLayerId, elevation: targetElevation };
+          const snap = findBestSnapForPiece(entry, targetTransform, layout.pieces, undefined, 60, 45, undefined, candidateLayer, layout.layers);
+          if (snap) {
+            targetTransform = snap.snappedTransform;
+          }
+        }
+      } else if (anchorPiece) {
+        targetTransform = {
+          x: anchorPiece.transform.x + 200,
+          y: anchorPiece.transform.y + 100,
+          rotation: anchorPiece.transform.rotation,
+        };
+      } else if (layout.pieces.length > 0) {
+        const last = layout.pieces[layout.pieces.length - 1]!;
+        targetTransform = {
+          x: last.transform.x + 200,
+          y: last.transform.y + 100,
+          rotation: last.transform.rotation,
+        };
       }
     }
 
@@ -95,10 +236,12 @@ export class TrackOperations {
       transform: targetTransform,
       connectors,
       powerFeed: isFirst,
-      layerId: layout.activeLayerId ?? "layer-1",
+      layerId: targetLayerId,
+      elevation: targetElevation,
     };
 
     history.run(new AddPieceCommand(piece));
+    updatePieceConnections(layout.pieces, layout.layers);
     selection.set(id);
   }
 
@@ -520,8 +663,40 @@ export class TrackOperations {
     }
   }
 
+  public triggerNewPlan(): void {
+    const planManager = this.ctx.getPlanManager();
+    const planState = planManager.getState();
+    const layout = this.ctx.getLayout();
+    const hasUnsavedChanges = planState.isDirty && (layout.pieces.length > 0 || (layout.models && layout.models.length > 0));
+    if (hasUnsavedChanges) {
+      if (!confirm(getTranslations().dialogs.confirmNewPlan)) {
+        return;
+      }
+    }
+    layout.pieces = [];
+    layout.models = [];
+    ensureDefaultLayers(layout);
+    this.ctx.getSelection().clear();
+    const hist = this.ctx.getHistory();
+    if (hist && typeof (hist as any).clear === "function") {
+      (hist as any).clear();
+    }
+    const newName = getLanguage() === "de" ? "Neuer Plan.railbench" : "New Layout.railbench";
+    planManager.setPlanInfo(newName, null, "railbench");
+    this.ctx.getRenderer().resetView();
+    this.ctx.sync(false);
+  }
+
   public async triggerOpenPlan(): Promise<void> {
     const planManager = this.ctx.getPlanManager();
+    const planState = planManager.getState();
+    const layout = this.ctx.getLayout();
+    const hasUnsavedChanges = planState.isDirty && layout.pieces.length > 0;
+    if (hasUnsavedChanges) {
+      if (!confirm(getTranslations().dialogs.confirmNewPlan)) {
+        return;
+      }
+    }
     const result = await planManager.openPlan();
     if (result) {
       this.ctx.setLayout(result.layout);

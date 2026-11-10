@@ -41,6 +41,8 @@ export interface ToolbarEvents {
   onSetTheme?: (theme: "system" | "light" | "dark") => void;
   onToggleMeasureTool?: () => void;
   onToggleWoodPlate?: () => void;
+  onToggleLockBars?: () => void;
+  onResetUiSizes?: () => void;
   onToggleSnapping: () => void;
   onToggleSelectionLock?: () => void;
   onToggleColorCode: () => void;
@@ -81,6 +83,7 @@ export interface ToolbarState {
   themePref?: "system" | "light" | "dark";
   resolvedTheme?: "light" | "dark";
   rightSidebarCollapsed?: boolean;
+  barsLocked?: boolean;
   collabStatus?: "disconnected" | "connecting" | "connected";
   collabUsersCount?: number;
 }
@@ -304,6 +307,11 @@ export function createToolbar(host: HTMLElement, events: ToolbarEvents) {
   fileLabel.className = "brand-file";
   fileLabel.title = "Current layout plan";
   fileLabel.textContent = "Model Railway.railbench";
+  fileLabel.addEventListener("click", () => {
+    if (fileLabel.classList.contains("dirty")) {
+      events.onSavePlan();
+    }
+  });
 
   const countBadge = document.createElement("span");
   countBadge.id = "tb-piece-count";
@@ -353,7 +361,7 @@ function createBrandMainMenu(t: any, events: ToolbarEvents): HTMLElement {
   trigger.style.color = "#ffffff";
   trigger.style.padding = "0 8px";
   trigger.style.borderRadius = "4px";
-  trigger.style.height = "28px";
+  trigger.style.height = "var(--tb-btn-height, 28px)";
   trigger.style.cursor = "pointer";
 
   trigger.title = getFullAppTitle();
@@ -478,6 +486,8 @@ function createViewMenu(t: any, events: ToolbarEvents): HTMLElement {
       { label: t.viewMenu.themeLight, onClick: () => events.onSetTheme?.("light"), id: "item-theme-light" },
       { isDivider: true },
       { label: t.viewMenu.togglePerfMonitor, shortcut: "F3", onClick: events.onTogglePerfMonitor, id: "item-perf-monitor" },
+      { label: t.viewMenu.lockBars, onClick: () => events.onToggleLockBars?.(), id: "item-lock-bars" },
+      { label: t.viewMenu.resetUiSizes, onClick: () => events.onResetUiSizes?.(), id: "item-reset-ui-sizes" },
     ],
     "tb-view",
   );
@@ -672,9 +682,22 @@ export function updateToolbarState(state: ToolbarState) {
 
   const fileLabel = document.getElementById("tb-file-name");
   if (fileLabel && state.activeFileName) {
+    const isDe = getLanguage() === "de";
     const dirty = state.isDirty ? " ●" : "";
     fileLabel.textContent = `${state.activeFileName}${dirty}`;
     fileLabel.classList.toggle("dirty", !!state.isDirty);
+    fileLabel.title = state.isDirty
+      ? (isDe ? "Ungespeicherte Änderungen (Klicken zum Speichern, Strg+S)" : "Unsaved changes (Click to save, Ctrl+S)")
+      : (isDe ? "Alle Änderungen gespeichert" : "All changes saved");
+  }
+
+  const btnSave = document.getElementById("tb-save");
+  if (btnSave) {
+    const isDe = getLanguage() === "de";
+    btnSave.classList.toggle("has-unsaved", !!state.isDirty);
+    btnSave.title = state.isDirty
+      ? `${t.fileMenu.savePlan} ● (${isDe ? "ungespeichert" : "unsaved"}, Ctrl+S)`
+      : `${t.fileMenu.savePlan} (Ctrl+S)`;
   }
 
   const btnRightSidebar = document.getElementById("tb-right-sidebar-toggle");
@@ -695,6 +718,14 @@ export function updateToolbarState(state: ToolbarState) {
       btn3D.classList.remove("active");
       setBtnLabel(btn3D, ICONS.box3d, "3D", "3D");
       btn3D.title = t.toggles.toggle3dTitle;
+    }
+  }
+
+  const elLockBars = document.getElementById("item-lock-bars");
+  if (elLockBars && state.barsLocked !== undefined) {
+    const span = elLockBars.querySelector(".dropdown-item-left span:last-child");
+    if (span) {
+      span.textContent = `${state.barsLocked ? "✓ " : ""}${t.viewMenu.lockBars}`;
     }
   }
 

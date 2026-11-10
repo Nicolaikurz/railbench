@@ -73,12 +73,7 @@ export class KeyboardController {
       }
     } else if (ctrlOrMeta && (e.key.toLowerCase() === "n" || e.code === "KeyN")) {
       e.preventDefault();
-      if (confirm(getTranslations().dialogs.confirmNewPlan)) {
-        layout.pieces = [];
-        selection.clear();
-        this.deps.getPlanManager().setPlanInfo("New Layout.railbench", null, "railbench");
-        this.deps.sync(true);
-      }
+      ops.triggerNewPlan();
     } else if (ctrlOrMeta && (e.key.toLowerCase() === "o" || e.code === "KeyO")) {
       e.preventDefault();
       ops.triggerOpenPlan();

@@ -63,6 +63,9 @@ export interface Translations {
       themeStatusLight: string;
       themeTooltip: string;
       togglePerfMonitor: string;
+      lockBars: string;
+      unlockBars: string;
+      resetUiSizes: string;
     };
     helpMenu: {
       helpGuide: string;

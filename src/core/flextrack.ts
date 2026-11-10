@@ -59,6 +59,7 @@ export function getEffectiveFlexEntry(entry: CatalogEntry, piece?: TrackPiece | 
     const isCurved = Boolean(piece.customRadius && piece.customAngle && Math.abs(piece.customAngle) > 0.1);
     return {
       ...entry,
+      localConnectors: undefined,
       length: piece.customLength ?? entry.length,
       radius: piece.customRadius ?? entry.radius,
       angle: piece.customAngle ?? entry.angle,
@@ -89,9 +90,12 @@ export function findNearbyConnectorForFlex(
 ): { piece: TrackPiece; connectorIndex: number; connector: Connector } | null {
   let closest: { piece: TrackPiece; connectorIndex: number; connector: Connector } | null = null;
   let closestDist = snapRadius;
+  const isRoad = (cid: string) => cid.startsWith("road-") || cid.startsWith("ST-");
+  const pieceIsRoad = isRoad(piece.catalogId);
 
   for (const other of allPieces) {
     if (other.id === piece.id) continue;
+    if (isRoad(other.catalogId) !== pieceIsRoad) continue;
     for (let i = 0; i < other.connectors.length; i++) {
       const conn = other.connectors[i]!;
       if (conn.connectedTo && conn.connectedTo.pieceId !== piece.id) continue;

@@ -51,7 +51,7 @@ export function getLocalConnectors(entry?: CatalogEntry | null): LocalConnector[
     ];
   }
 
-  if (entry.localConnectors && entry.localConnectors.length > 0) {
+  if (entry.kind !== "flex" && entry.localConnectors && entry.localConnectors.length > 0) {
     return entry.localConnectors;
   }
 
@@ -263,6 +263,7 @@ export function computeWorldConnectors(
     const isCurved = Boolean(piece.customRadius && piece.customAngle && Math.abs(piece.customAngle) > 0.1);
     effectiveEntry = {
       ...entry,
+      localConnectors: undefined,
       length: piece.customLength ?? entry.length,
       radius: piece.customRadius ?? entry.radius,
       angle: piece.customAngle ?? entry.angle,

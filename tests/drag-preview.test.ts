@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   createPieceDragCanvas,
+  createCatalogThumbnail,
   createModelDragCanvas,
   createCustomModelDragCanvas,
   attachDragImage,
@@ -30,6 +31,9 @@ describe("Drag Preview Generator", () => {
       fillRect: vi.fn(),
       ellipse: vi.fn(),
       fillText: vi.fn(),
+      drawImage: vi.fn(),
+      imageSmoothingEnabled: true,
+      imageSmoothingQuality: "high",
       measureText: vi.fn(() => ({ width: 30 })),
       setLineDash: vi.fn(),
       lineWidth: 1,
@@ -291,5 +295,27 @@ describe("Drag Preview Generator", () => {
     expect(canvas.style.left).toBe("-9999px");
     expect(document.body.appendChild).toHaveBeenCalledWith(canvas);
     expect(mockDataTransfer.setDragImage).toHaveBeenCalledWith(canvas, 60, 40);
+  });
+
+  it("creates a scaled 2D catalog thumbnail for track entries and caches it", () => {
+    const entry: CatalogEntry = {
+      id: "24188",
+      name: "Straight Track 188.3mm",
+      category: "Straight",
+      kind: "straight",
+      description: "Standard straight track",
+      length: 188.3,
+    };
+
+    const thumb1 = createCatalogThumbnail(entry, false, undefined, 16.5, 60, 40);
+    expect(thumb1).toBeDefined();
+    expect(thumb1.style.width).toBe("60px");
+    expect(thumb1.style.height).toBe("40px");
+
+    // Second call should return cached clone
+    const thumb2 = createCatalogThumbnail(entry, false, undefined, 16.5, 60, 40);
+    expect(thumb2).toBeDefined();
+    expect(thumb2.style.width).toBe("60px");
+    expect(thumb2.style.height).toBe("40px");
   });
 });

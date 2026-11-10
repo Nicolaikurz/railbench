@@ -54,15 +54,6 @@
       "gauge": 6.5
     },
     {
-      "id": "8594",
-      "name": "Flexgleis 660 mm",
-      "kind": "flex",
-      "category": "Geraden",
-      "description": "Flexibles Gleis 660 mm ohne Schotterbett",
-      "length": 660,
-      "gauge": 6.5
-    },
-    {
       "id": "8510",
       "name": "Gebogenes Gleis R1 / 45°",
       "kind": "curve",
@@ -113,23 +104,25 @@
       "gauge": 6.5
     },
     {
-      "id": "8591",
-      "name": "Gebogenes Gleis R4 / 30°",
-      "kind": "curve",
-      "category": "Bögen",
-      "description": "Großer Kreis R = 490 mm, Bogen 30° (Gegenbogen zu Weichen 8565/8566)",
-      "radius": 490,
-      "angle": 30,
+      "id": "8559",
+      "name": "Kreuzung 45°",
+      "kind": "crossing",
+      "category": "Kreuzungen",
+      "description": "Länge 110 mm, Kreuzungswinkel 45°",
+      "length": 110,
+      "angle": 45,
       "gauge": 6.5
     },
     {
-      "id": "8592",
-      "name": "Gebogenes Gleis R4 / 13°",
-      "kind": "curve",
-      "category": "Bögen",
-      "description": "Großer Kreis R = 490 mm, Teilbogen 13° (Ausgleich zu Weichen 8565/8566)",
-      "radius": 490,
+      "id": "8560",
+      "name": "Doppelkreuzungsweiche DKW 13°",
+      "kind": "dkw",
+      "category": "Kreuzungen",
+      "description": "Länge 112,8 mm, Kreuzungswinkel 13° mit Doppelantrieb",
+      "length": 112.8,
       "angle": 13,
+      "branchRadius": 490,
+      "branchAngle": 13,
       "gauge": 6.5
     },
     {
@@ -201,46 +194,6 @@
       "gauge": 6.5
     },
     {
-      "id": "8560",
-      "name": "Doppelkreuzungsweiche DKW 13°",
-      "kind": "dkw",
-      "category": "Kreuzungen",
-      "description": "Länge 112,8 mm, Kreuzungswinkel 13° mit Doppelantrieb",
-      "length": 112.8,
-      "angle": 13,
-      "branchRadius": 490,
-      "branchAngle": 13,
-      "gauge": 6.5
-    },
-    {
-      "id": "8559",
-      "name": "Kreuzung 45°",
-      "kind": "crossing",
-      "category": "Kreuzungen",
-      "description": "Länge 110 mm, Kreuzungswinkel 45°",
-      "length": 110,
-      "angle": 45,
-      "gauge": 6.5
-    },
-    {
-      "id": "8597",
-      "name": "Entkupplungsgleis elektrisch 110 mm",
-      "kind": "uncoupler",
-      "category": "Funktionsgleise",
-      "description": "Elektrisches Entkupplungsgleis 110 mm mit E-Antrieb",
-      "length": 110,
-      "gauge": 6.5
-    },
-    {
-      "id": "8590",
-      "name": "Gerades Anschlussgleis 110 mm",
-      "kind": "feeder",
-      "category": "Anschluss",
-      "description": "2-poliges Einspeisungsgleis mit Anschlusskabeln und Entstörung",
-      "length": 110,
-      "gauge": 6.5
-    },
-    {
       "id": "8588",
       "name": "Trenn- / Unterbrechergleis 55 mm",
       "kind": "isolating",
@@ -256,6 +209,53 @@
       "category": "Funktionsgleise",
       "description": "Momentkontakt-Schaltgleis 55 mm (durch Lokrad ausgelöst)",
       "length": 55,
+      "gauge": 6.5
+    },
+    {
+      "id": "8590",
+      "name": "Gerades Anschlussgleis 110 mm",
+      "kind": "feeder",
+      "category": "Anschluss",
+      "description": "2-poliges Einspeisungsgleis mit Anschlusskabeln und Entstörung",
+      "length": 110,
+      "gauge": 6.5
+    },
+    {
+      "id": "8591",
+      "name": "Gebogenes Gleis R4 / 30°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Großer Kreis R = 490 mm, Bogen 30° (Gegenbogen zu Weichen 8565/8566)",
+      "radius": 490,
+      "angle": 30,
+      "gauge": 6.5
+    },
+    {
+      "id": "8592",
+      "name": "Gebogenes Gleis R4 / 13°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Großer Kreis R = 490 mm, Teilbogen 13° (Ausgleich zu Weichen 8565/8566)",
+      "radius": 490,
+      "angle": 13,
+      "gauge": 6.5
+    },
+    {
+      "id": "8594",
+      "name": "Flexgleis 660 mm",
+      "kind": "flex",
+      "category": "Geraden",
+      "description": "Flexibles Gleis 660 mm ohne Schotterbett",
+      "length": 660,
+      "gauge": 6.5
+    },
+    {
+      "id": "8597",
+      "name": "Entkupplungsgleis elektrisch 110 mm",
+      "kind": "uncoupler",
+      "category": "Funktionsgleise",
+      "description": "Elektrisches Entkupplungsgleis 110 mm mit E-Antrieb",
+      "length": 110,
       "gauge": 6.5
     },
     {

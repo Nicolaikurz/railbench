@@ -9,7 +9,17 @@ export interface PerfMonitorOptions {
 }
 
 export class PerfMonitor {
+  private host: HTMLElement;
   private container: HTMLElement;
+  private headerEl!: HTMLElement;
+  private closeBtnEl!: HTMLButtonElement;
+  private bodyEl!: HTMLElement;
+  private fpsValEl!: HTMLElement;
+  private cpuValEl!: HTMLElement;
+  private ramValEl!: HTMLElement;
+  private tracksValEl!: HTMLElement;
+  private gpuValEl!: HTMLElement;
+
   private isVisible = false;
   private animFrameId: number | null = null;
   private lastTime = performance.now();
@@ -22,7 +32,14 @@ export class PerfMonitor {
 
   private gpuInfo = { vendor: "Unknown", renderer: "WebGL" };
 
+  private isDragging = false;
+  private dragStartX = 0;
+  private dragStartY = 0;
+  private initialLeft = 0;
+  private initialTop = 0;
+
   constructor(options: PerfMonitorOptions) {
+    this.host = options.host;
     this.renderer = options.renderer;
     this.getLayout = options.getLayout;
     this.onGenerateStressTracks = options.onGenerateStressTracks;
@@ -48,21 +65,326 @@ export class PerfMonitor {
     this.container.style.display = "none";
     this.container.style.minWidth = "250px";
 
-    options.host.appendChild(this.container);
+    this.buildDom();
+    this.initDrag();
+    this.initSavedPosition();
+
+    this.host.appendChild(this.container);
 
     this.detectGpu();
 
-    const savedPref = localStorage.getItem("railbench_show_perf_monitor") === "true";
+    if (typeof window !== "undefined") {
+      window.addEventListener("resize", () => {
+        if (this.isVisible) {
+          this.clampPosition();
+        }
+      });
+    }
+
+    const savedPref = typeof localStorage !== "undefined" && localStorage.getItem("railbench_show_perf_monitor") === "true";
     if (savedPref) {
       this.show();
     }
   }
 
+  private buildDom(): void {
+    this.headerEl = document.createElement("div");
+    this.headerEl.className = "perf-monitor-header";
+    this.headerEl.style.display = "flex";
+    this.headerEl.style.alignItems = "center";
+    this.headerEl.style.justifyContent = "space-between";
+    this.headerEl.style.borderBottom = "1px solid rgba(51, 65, 85, 0.8)";
+    this.headerEl.style.paddingBottom = "6px";
+    this.headerEl.style.marginBottom = "8px";
+    this.headerEl.style.cursor = "grab";
+    this.headerEl.style.userSelect = "none";
+    this.headerEl.style.touchAction = "none";
+    this.headerEl.title = "Ziehen zum Verschieben (Doppelklick zum Zurücksetzen) / Drag to move (Double-click to reset)";
+
+    this.headerEl.innerHTML = `
+      <span style="font-weight: 700; color: #38bdf8; display: flex; align-items: center; gap: 6px; pointer-events: none;">
+        <span style="color: #64748b; font-size: 13px; line-height: 1;">⠿</span>
+        <span>⚡</span>
+        <span>HARDWARE MONITOR</span>
+      </span>
+      <button id="perf-close-btn" style="background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 13px; padding: 2px 5px; border-radius: 4px; line-height: 1; transition: all 0.15s;" title="Schließen (F3)">✕</button>
+    `;
+
+    this.closeBtnEl = this.headerEl.querySelector("#perf-close-btn") as HTMLButtonElement;
+    this.closeBtnEl.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this.hide();
+    });
+    this.closeBtnEl.addEventListener("mouseenter", () => {
+      this.closeBtnEl.style.color = "#f8fafc";
+      this.closeBtnEl.style.backgroundColor = "rgba(255, 255, 255, 0.1)";
+    });
+    this.closeBtnEl.addEventListener("mouseleave", () => {
+      this.closeBtnEl.style.color = "#94a3b8";
+      this.closeBtnEl.style.backgroundColor = "transparent";
+    });
+
+    this.bodyEl = document.createElement("div");
+    this.bodyEl.className = "perf-monitor-body";
+    this.bodyEl.style.display = "flex";
+    this.bodyEl.style.flexDirection = "column";
+    this.bodyEl.style.gap = "4px";
+
+    this.bodyEl.innerHTML = `
+      <div style="display: flex; justify-content: space-between;">
+        <span style="color: #94a3b8;">FPS:</span>
+        <span id="perf-fps-val" style="color: #10b981; font-weight: 700;">60 FPS <span style="font-size: 10px; color: #94a3b8;">(16.6 ms)</span></span>
+      </div>
+
+      <div style="display: flex; justify-content: space-between;">
+        <span style="color: #94a3b8;">CPU Frame Time:</span>
+        <span id="perf-cpu-val" style="color: #f8fafc; font-weight: 600;">0.0 ms</span>
+      </div>
+
+      <div style="display: flex; justify-content: space-between;">
+        <span style="color: #94a3b8;">RAM (JS Heap):</span>
+        <span id="perf-ram-val" style="color: #f8fafc; font-weight: 600;">--</span>
+      </div>
+
+      <div style="display: flex; justify-content: space-between;">
+        <span style="color: #94a3b8;">Gleise & Objekte:</span>
+        <span id="perf-tracks-val" style="color: #f8fafc; font-weight: 600;">0 Gleise, 0 3D</span>
+      </div>
+
+      <div style="border-top: 1px solid rgba(51, 65, 85, 0.6); margin-top: 4px; padding-top: 4px;">
+        <div style="color: #94a3b8; font-size: 10px; margin-bottom: 2px;">GPU VENDOR & ACCELERATION:</div>
+        <div id="perf-gpu-val" style="color: #38bdf8; font-size: 10.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+          WebGL Hardware Accelerated
+        </div>
+      </div>
+
+      ${
+        this.onGenerateStressTracks
+          ? `
+        <div style="border-top: 1px solid rgba(51, 65, 85, 0.6); margin-top: 6px; padding-top: 6px;">
+          <div style="color: #94a3b8; font-size: 10.5px; margin-bottom: 4px;">Stresstest (Auslastung prüfen):</div>
+          <div style="display: flex; gap: 4px;">
+            <button class="perf-stress-btn" data-count="500" style="flex: 1; background: #0284c7; color: white; border: none; border-radius: 4px; padding: 4px 6px; font-size: 10px; cursor: pointer; font-weight: 600;">+500</button>
+            <button class="perf-stress-btn" data-count="1000" style="flex: 1; background: #0369a1; color: white; border: none; border-radius: 4px; padding: 4px 6px; font-size: 10px; cursor: pointer; font-weight: 600;">+1000</button>
+          </div>
+        </div>
+      `
+          : ""
+      }
+    `;
+
+    this.fpsValEl = this.bodyEl.querySelector("#perf-fps-val") as HTMLElement;
+    this.cpuValEl = this.bodyEl.querySelector("#perf-cpu-val") as HTMLElement;
+    this.ramValEl = this.bodyEl.querySelector("#perf-ram-val") as HTMLElement;
+    this.tracksValEl = this.bodyEl.querySelector("#perf-tracks-val") as HTMLElement;
+    this.gpuValEl = this.bodyEl.querySelector("#perf-gpu-val") as HTMLElement;
+
+    if (this.onGenerateStressTracks) {
+      const stressBtns = this.bodyEl.querySelectorAll<HTMLButtonElement>(".perf-stress-btn");
+      stressBtns.forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const count = parseInt(btn.dataset.count || "500", 10);
+          this.onGenerateStressTracks?.(count);
+        });
+      });
+    }
+
+    this.container.appendChild(this.headerEl);
+    this.container.appendChild(this.bodyEl);
+  }
+
+  private initDrag(): void {
+    this.headerEl.addEventListener("pointerdown", this.onDragStart);
+    this.headerEl.addEventListener("dblclick", () => {
+      this.resetPosition();
+    });
+  }
+
+  private onDragStart = (e: PointerEvent): void => {
+    if ((e.target as HTMLElement)?.closest?.("#perf-close-btn")) {
+      return;
+    }
+    if (e.button !== 0) return;
+
+    e.preventDefault();
+    this.isDragging = true;
+    this.dragStartX = e.clientX;
+    this.dragStartY = e.clientY;
+
+    const hostRect = typeof this.host.getBoundingClientRect === "function"
+      ? this.host.getBoundingClientRect()
+      : { left: 0, top: 0, width: 0, height: 0 };
+    const containerRect = typeof this.container.getBoundingClientRect === "function"
+      ? this.container.getBoundingClientRect()
+      : { left: 0, top: 0, width: 0, height: 0 };
+
+    if (containerRect.width && hostRect.width) {
+      this.initialLeft = containerRect.left - hostRect.left;
+      this.initialTop = containerRect.top - hostRect.top;
+    } else {
+      this.initialLeft = parseFloat(this.container.style.left) || this.container.offsetLeft || 0;
+      this.initialTop = parseFloat(this.container.style.top) || this.container.offsetTop || 10;
+    }
+
+    this.container.style.right = "auto";
+    this.container.style.bottom = "auto";
+    this.container.style.left = `${Math.round(this.initialLeft)}px`;
+    this.container.style.top = `${Math.round(this.initialTop)}px`;
+
+    this.headerEl.style.cursor = "grabbing";
+    if (typeof document !== "undefined" && document.body) {
+      document.body.style.userSelect = "none";
+    }
+
+    if (typeof this.headerEl.setPointerCapture === "function") {
+      try {
+        this.headerEl.setPointerCapture(e.pointerId);
+      } catch {}
+    }
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("pointermove", this.onDragMove);
+      window.addEventListener("pointerup", this.onDragEnd);
+      window.addEventListener("pointercancel", this.onDragEnd);
+    }
+  };
+
+  private onDragMove = (e: PointerEvent): void => {
+    if (!this.isDragging) return;
+
+    const dx = e.clientX - this.dragStartX;
+    const dy = e.clientY - this.dragStartY;
+
+    let newLeft = this.initialLeft + dx;
+    let newTop = this.initialTop + dy;
+
+    const hostWidth = this.host?.clientWidth ?? 0;
+    const hostHeight = this.host?.clientHeight ?? 0;
+    const overlayWidth = this.container.offsetWidth || 250;
+    const overlayHeight = this.container.offsetHeight || 180;
+
+    if (hostWidth > 0 && hostWidth > overlayWidth) {
+      const maxLeft = hostWidth - overlayWidth;
+      newLeft = Math.max(0, Math.min(newLeft, maxLeft));
+    } else {
+      newLeft = Math.max(0, newLeft);
+    }
+
+    if (hostHeight > 0 && hostHeight > overlayHeight) {
+      const maxTop = hostHeight - overlayHeight;
+      newTop = Math.max(0, Math.min(newTop, maxTop));
+    } else {
+      newTop = Math.max(0, newTop);
+    }
+
+    this.container.style.left = `${Math.round(newLeft)}px`;
+    this.container.style.top = `${Math.round(newTop)}px`;
+  };
+
+  private onDragEnd = (e?: PointerEvent): void => {
+    if (!this.isDragging) return;
+    this.isDragging = false;
+    this.headerEl.style.cursor = "grab";
+    if (typeof document !== "undefined" && document.body) {
+      document.body.style.userSelect = "";
+    }
+
+    if (e && typeof this.headerEl.hasPointerCapture === "function") {
+      try {
+        if (this.headerEl.hasPointerCapture(e.pointerId)) {
+          this.headerEl.releasePointerCapture(e.pointerId);
+        }
+      } catch {}
+    }
+
+    if (typeof window !== "undefined") {
+      window.removeEventListener("pointermove", this.onDragMove);
+      window.removeEventListener("pointerup", this.onDragEnd);
+      window.removeEventListener("pointercancel", this.onDragEnd);
+    }
+
+    const currentLeft = parseFloat(this.container.style.left);
+    const currentTop = parseFloat(this.container.style.top);
+    if (!isNaN(currentLeft) && !isNaN(currentTop) && typeof localStorage !== "undefined") {
+      try {
+        localStorage.setItem(
+          "railbench_perf_monitor_pos",
+          JSON.stringify({ left: currentLeft, top: currentTop })
+        );
+      } catch {}
+    }
+  };
+
+  private initSavedPosition(): void {
+    if (typeof localStorage === "undefined") return;
+    try {
+      const savedPosStr = localStorage.getItem("railbench_perf_monitor_pos");
+      if (savedPosStr) {
+        const savedPos = JSON.parse(savedPosStr);
+        if (typeof savedPos?.left === "number" && typeof savedPos?.top === "number") {
+          this.setPosition(savedPos.left, savedPos.top);
+        }
+      }
+    } catch {}
+  }
+
+  setPosition(left: number, top: number): void {
+    let clampedLeft = Math.max(0, left);
+    let clampedTop = Math.max(0, top);
+
+    const hostWidth = this.host?.clientWidth ?? 0;
+    const hostHeight = this.host?.clientHeight ?? 0;
+    const overlayWidth = this.container.offsetWidth || 250;
+    const overlayHeight = this.container.offsetHeight || 180;
+
+    if (hostWidth > 0 && hostWidth > overlayWidth) {
+      clampedLeft = Math.min(clampedLeft, hostWidth - overlayWidth);
+    }
+    if (hostHeight > 0 && hostHeight > overlayHeight) {
+      clampedTop = Math.min(clampedTop, hostHeight - overlayHeight);
+    }
+
+    this.container.style.right = "auto";
+    this.container.style.bottom = "auto";
+    this.container.style.left = `${Math.round(clampedLeft)}px`;
+    this.container.style.top = `${Math.round(clampedTop)}px`;
+  }
+
+  resetPosition(): void {
+    this.container.style.left = "auto";
+    this.container.style.bottom = "auto";
+    this.container.style.top = "10px";
+    this.container.style.right = "10px";
+    if (typeof localStorage !== "undefined") {
+      try {
+        localStorage.removeItem("railbench_perf_monitor_pos");
+      } catch {}
+    }
+  }
+
+  getPosition(): { left: number; top: number } | null {
+    const left = parseFloat(this.container.style.left);
+    const top = parseFloat(this.container.style.top);
+    if (!isNaN(left) && !isNaN(top)) {
+      return { left, top };
+    }
+    return null;
+  }
+
+  clampPosition(): void {
+    if (!this.host) return;
+    const currentLeft = parseFloat(this.container.style.left);
+    const currentTop = parseFloat(this.container.style.top);
+    if (isNaN(currentLeft) || isNaN(currentTop)) return;
+
+    this.setPosition(currentLeft, currentTop);
+  }
+
   private detectGpu() {
     try {
       const gl =
-        this.renderer.app.canvas.getContext("webgl2") ||
-        this.renderer.app.canvas.getContext("webgl");
+        this.renderer.app?.canvas?.getContext?.("webgl2") ||
+        this.renderer.app?.canvas?.getContext?.("webgl");
       if (gl) {
         const debugInfo = gl.getExtension("WEBGL_debug_renderer_info");
         if (debugInfo) {
@@ -72,6 +394,10 @@ export class PerfMonitor {
             vendor: vendor || "GPU",
             renderer: renderer || "WebGL Hardware Accelerated",
           };
+          if (this.gpuValEl) {
+            this.gpuValEl.textContent = this.gpuInfo.renderer;
+            this.gpuValEl.title = this.gpuInfo.renderer;
+          }
         }
       }
     } catch {}
@@ -80,7 +406,13 @@ export class PerfMonitor {
   show() {
     this.isVisible = true;
     this.container.style.display = "block";
-    localStorage.setItem("railbench_show_perf_monitor", "true");
+    if (typeof localStorage !== "undefined") {
+      try {
+        localStorage.setItem("railbench_show_perf_monitor", "true");
+      } catch {}
+    }
+    this.clampPosition();
+    this.renderOverlay();
     this.lastTime = performance.now();
     this.frames = 0;
     this.loop();
@@ -89,10 +421,17 @@ export class PerfMonitor {
   hide() {
     this.isVisible = false;
     this.container.style.display = "none";
-    localStorage.setItem("railbench_show_perf_monitor", "false");
-    if (this.animFrameId !== null) {
+    if (typeof localStorage !== "undefined") {
+      try {
+        localStorage.setItem("railbench_show_perf_monitor", "false");
+      } catch {}
+    }
+    if (this.animFrameId !== null && typeof cancelAnimationFrame !== "undefined") {
       cancelAnimationFrame(this.animFrameId);
       this.animFrameId = null;
+    }
+    if (this.isDragging) {
+      this.onDragEnd();
     }
   }
 
@@ -125,17 +464,19 @@ export class PerfMonitor {
       this.renderOverlay();
     }
 
-    this.animFrameId = requestAnimationFrame(this.loop);
+    if (typeof requestAnimationFrame !== "undefined") {
+      this.animFrameId = requestAnimationFrame(this.loop);
+    }
   };
 
   private renderOverlay() {
     const layout = this.getLayout();
-    const pieceCount = layout.pieces.length;
-    const modelCount = layout.models?.length || 0;
+    const pieceCount = layout?.pieces?.length || 0;
+    const modelCount = layout?.models?.length || 0;
 
     // RAM calculation (Chrome/Edge/Electron have performance.memory)
     const perfMem = (performance as unknown as { memory?: { usedJSHeapSize: number; totalJSHeapSize: number } })
-      .memory;
+      ?.memory;
     let ramStr = "N/A (Browser Protected)";
     if (perfMem) {
       const usedMb = (perfMem.usedJSHeapSize / (1024 * 1024)).toFixed(1);
@@ -149,71 +490,36 @@ export class PerfMonitor {
 
     const fpsColor = this.fps >= 55 ? "#10b981" : this.fps >= 30 ? "#f59e0b" : "#ef4444";
 
-    this.container.innerHTML = `
-      <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(51, 65, 85, 0.8); padding-bottom: 6px; margin-bottom: 8px;">
-        <span style="font-weight: 700; color: #38bdf8; display: flex; align-items: center; gap: 4px;">
-          <span>⚡</span>
-          <span>HARDWARE MONITOR</span>
-        </span>
-        <button id="perf-close-btn" style="background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 13px;">✕</button>
-      </div>
+    if (this.fpsValEl) {
+      this.fpsValEl.innerHTML = `${this.fps} FPS <span style="font-size: 10px; color: #94a3b8;">(${this.frameTimeMs} ms)</span>`;
+      this.fpsValEl.style.color = fpsColor;
+    }
 
-      <div style="display: flex; flex-direction: column; gap: 4px;">
-        <div style="display: flex; justify-content: space-between;">
-          <span style="color: #94a3b8;">FPS:</span>
-          <span style="color: ${fpsColor}; font-weight: 700;">${this.fps} FPS <span style="font-size: 10px; color: #94a3b8;">(${this.frameTimeMs} ms)</span></span>
-        </div>
+    if (this.cpuValEl) {
+      this.cpuValEl.textContent = `${this.frameTimeMs} ms`;
+    }
 
-        <div style="display: flex; justify-content: space-between;">
-          <span style="color: #94a3b8;">CPU Frame Time:</span>
-          <span style="color: #f8fafc; font-weight: 600;">${this.frameTimeMs} ms</span>
-        </div>
+    if (this.ramValEl) {
+      this.ramValEl.textContent = ramStr;
+    }
 
-        <div style="display: flex; justify-content: space-between;">
-          <span style="color: #94a3b8;">RAM (JS Heap):</span>
-          <span style="color: #f8fafc; font-weight: 600;">${ramStr}</span>
-        </div>
+    if (this.tracksValEl) {
+      this.tracksValEl.textContent = `${pieceCount} Gleise, ${modelCount} 3D`;
+    }
 
-        <div style="display: flex; justify-content: space-between;">
-          <span style="color: #94a3b8;">Gleise & Objekte:</span>
-          <span style="color: #f8fafc; font-weight: 600;">${pieceCount} Gleise, ${modelCount} 3D</span>
-        </div>
+    if (this.gpuValEl && this.gpuInfo.renderer) {
+      this.gpuValEl.textContent = this.gpuInfo.renderer;
+      this.gpuValEl.title = this.gpuInfo.renderer;
+    }
+  }
 
-        <div style="border-top: 1px solid rgba(51, 65, 85, 0.6); margin-top: 4px; padding-top: 4px;">
-          <div style="color: #94a3b8; font-size: 10px; margin-bottom: 2px;">GPU VENDOR & ACCELERATION:</div>
-          <div style="color: #38bdf8; font-size: 10.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${this.gpuInfo.renderer}">
-            ${this.gpuInfo.renderer}
-          </div>
-        </div>
-
-        ${
-          this.onGenerateStressTracks
-            ? `
-          <div style="border-top: 1px solid rgba(51, 65, 85, 0.6); margin-top: 6px; padding-top: 6px;">
-            <div style="color: #94a3b8; font-size: 10.5px; margin-bottom: 4px;">Stresstest (Auslastung prüfen):</div>
-            <div style="display: flex; gap: 4px;">
-              <button class="perf-stress-btn" data-count="500" style="flex: 1; background: #0284c7; color: white; border: none; border-radius: 4px; padding: 4px 6px; font-size: 10px; cursor: pointer; font-weight: 600;">+500</button>
-              <button class="perf-stress-btn" data-count="1000" style="flex: 1; background: #0369a1; color: white; border: none; border-radius: 4px; padding: 4px 6px; font-size: 10px; cursor: pointer; font-weight: 600;">+1000</button>
-            </div>
-          </div>
-        `
-            : ""
-        }
-      </div>
-    `;
-
-    // Close button event
-    const closeBtn = this.container.querySelector("#perf-close-btn");
-    closeBtn?.addEventListener("click", () => this.hide());
-
-    // Stress test buttons event
-    const stressBtns = this.container.querySelectorAll<HTMLButtonElement>(".perf-stress-btn");
-    stressBtns.forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const count = parseInt(btn.dataset.count || "500", 10);
-        this.onGenerateStressTracks?.(count);
-      });
-    });
+  destroy(): void {
+    this.hide();
+    if (typeof window !== "undefined") {
+      window.removeEventListener("pointermove", this.onDragMove);
+      window.removeEventListener("pointerup", this.onDragEnd);
+      window.removeEventListener("pointercancel", this.onDragEnd);
+    }
+    this.container.remove();
   }
 }
-

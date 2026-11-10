@@ -10,13 +10,13 @@
   "description": "Modulares Straßensystem mit 2-spurigen Fahrbahnen (Breite 24 mm), Kurven, T-Einmündungen, Kreuzungen und Wendeplatz für den Maßstab Z (1:220).",
   "entries": [
     {
-      "id": "ST-Z-S079",
-      "name": "Gerade Straße 79 mm",
-      "nameEn": "Straight Road 79 mm",
+      "id": "ST-Z-BUS",
+      "name": "Bushaltestelle / Parkbucht 79 mm",
+      "nameEn": "Bus Stop / Parking Bay 79 mm",
       "kind": "straight",
-      "category": "Geraden",
-      "description": "2-spurige Standard-Fahrbahn 79 mm mit Mittellinie und Randstreifen (Breite 24 mm)",
-      "descriptionEn": "2-lane standard road 79 mm with dashed center line and shoulder markings (width 24 mm)",
+      "category": "Zubehör",
+      "description": "79,1 mm Fahrbahn mit seitlicher Parkbucht und Bus-Wartefläche (Breite ca. 30 mm)",
+      "descriptionEn": "79.1 mm road with side parking bay and bus passenger area (width approx. 30 mm)",
       "length": 79.1,
       "isRoad": true,
       "roadWidth": 24,
@@ -29,6 +29,186 @@
         },
         {
           "x": 79.1,
+          "y": 0,
+          "angle": 0
+        }
+      ],
+      "gauge": 6.5
+    },
+    {
+      "id": "ST-Z-C079-45",
+      "name": "Kurve 45° (R = 79,1 mm)",
+      "nameEn": "Curved Road 45° (R = 79.1 mm)",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Bogen 45°, Radius 79,1 mm (Breite 24 mm)",
+      "descriptionEn": "Curve 45°, radius 79.1 mm (width 24 mm)",
+      "radius": 79.1,
+      "angle": 45,
+      "isRoad": true,
+      "roadWidth": 24,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 55.9,
+          "y": 23.2,
+          "angle": 45
+        }
+      ],
+      "gauge": 6.5
+    },
+    {
+      "id": "ST-Z-C079-90",
+      "name": "Kurve 90° (R = 79,1 mm)",
+      "nameEn": "Curved Road 90° (R = 79.1 mm)",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Standard-Rechtwinkelkurve 90°, Radius 79,1 mm (Breite 24 mm)",
+      "descriptionEn": "Standard 90° right-angle road curve, radius 79.1 mm (width 24 mm)",
+      "radius": 79.1,
+      "angle": 90,
+      "isRoad": true,
+      "roadWidth": 24,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 79.1,
+          "y": 79.1,
+          "angle": 90
+        }
+      ],
+      "gauge": 6.5
+    },
+    {
+      "id": "ST-Z-C119-45",
+      "name": "Kurve 45° groß (R = 118,6 mm)",
+      "nameEn": "Wide Curved Road 45° (R = 118.6 mm)",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Großer weiter Bogen 45°, Radius 118,6 mm (Breite 24 mm)",
+      "descriptionEn": "Wide gentle curve 45°, radius 118.6 mm (width 24 mm)",
+      "radius": 118.6,
+      "angle": 45,
+      "isRoad": true,
+      "roadWidth": 24,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 83.9,
+          "y": 34.7,
+          "angle": 45
+        }
+      ],
+      "gauge": 6.5
+    },
+    {
+      "id": "ST-Z-CROSS",
+      "name": "Bahnübergang 79 mm (Straße)",
+      "nameEn": "Level / Grade Crossing 79 mm (Road)",
+      "kind": "straight",
+      "category": "Zubehör",
+      "description": "79,1 mm Straße mit Gleisüberfahrt (6,5 mm) und Vorwarnstreifen",
+      "descriptionEn": "79.1 mm road with rail crossing (6.5 mm) and warning stripes",
+      "length": 79.1,
+      "isRoad": true,
+      "roadWidth": 24,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 79.1,
+          "y": 0,
+          "angle": 0
+        }
+      ],
+      "gauge": 6.5
+    },
+    {
+      "id": "ST-Z-FLEX",
+      "name": "Flexstraße 350 mm (Z)",
+      "nameEn": "Flex Road 350 mm (Z)",
+      "kind": "flex",
+      "category": "Geraden",
+      "description": "2-spurige flexible Z-Fahrbahn bis 350 mm für individuelle Radien und Geraden (Breite 24 mm)",
+      "descriptionEn": "2-lane flexible Z roadway up to 350 mm for custom curve radii and straights (width 24 mm)",
+      "length": 350,
+      "isRoad": true,
+      "roadWidth": 24,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 350,
+          "y": 0,
+          "angle": 0
+        }
+      ],
+      "gauge": 6.5
+    },
+    {
+      "id": "ST-Z-LOOP",
+      "name": "Wendeplatz / Sackgasse (Wendehammer)",
+      "nameEn": "Cul-de-sac / Turning Loop",
+      "kind": "accessory",
+      "category": "Zubehör",
+      "description": "Straßenende mit rundem Wendehammer (Durchmesser 35,6 mm, Anschlussbreite 24 mm)",
+      "descriptionEn": "Dead end street with round turning circle (diameter 35.6 mm, connection 24 mm)",
+      "length": 35.6,
+      "isRoad": true,
+      "roadWidth": 24,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        }
+      ],
+      "gauge": 6.5
+    },
+    {
+      "id": "ST-Z-S020",
+      "name": "Gerade Straße 20 mm",
+      "nameEn": "Short Straight Road 20 mm",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Kurzes Ausgleichsstück 19,8 mm (Breite 24 mm)",
+      "descriptionEn": "Short compensation road piece 19.8 mm (width 24 mm)",
+      "length": 19.8,
+      "isRoad": true,
+      "roadWidth": 24,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 19.8,
           "y": 0,
           "angle": 0
         }
@@ -62,41 +242,14 @@
       "gauge": 6.5
     },
     {
-      "id": "ST-Z-S020",
-      "name": "Gerade Straße 20 mm",
-      "nameEn": "Short Straight Road 20 mm",
+      "id": "ST-Z-S079",
+      "name": "Gerade Straße 79 mm",
+      "nameEn": "Straight Road 79 mm",
       "kind": "straight",
       "category": "Geraden",
-      "description": "Kurzes Ausgleichsstück 19,8 mm (Breite 24 mm)",
-      "descriptionEn": "Short compensation road piece 19.8 mm (width 24 mm)",
-      "length": 19.8,
-      "isRoad": true,
-      "roadWidth": 24,
-      "hasRoadbed": false,
-      "localConnectors": [
-        {
-          "x": 0,
-          "y": 0,
-          "angle": 180
-        },
-        {
-          "x": 19.8,
-          "y": 0,
-          "angle": 0
-        }
-      ],
-      "gauge": 6.5
-    },
-    {
-      "id": "ST-Z-C079-90",
-      "name": "Kurve 90° (R = 79,1 mm)",
-      "nameEn": "Curved Road 90° (R = 79.1 mm)",
-      "kind": "curve",
-      "category": "Bögen",
-      "description": "Standard-Rechtwinkelkurve 90°, Radius 79,1 mm (Breite 24 mm)",
-      "descriptionEn": "Standard 90° right-angle road curve, radius 79.1 mm (width 24 mm)",
-      "radius": 79.1,
-      "angle": 90,
+      "description": "2-spurige Standard-Fahrbahn 79 mm mit Mittellinie und Randstreifen (Breite 24 mm)",
+      "descriptionEn": "2-lane standard road 79 mm with dashed center line and shoulder markings (width 24 mm)",
+      "length": 79.1,
       "isRoad": true,
       "roadWidth": 24,
       "hasRoadbed": false,
@@ -108,62 +261,8 @@
         },
         {
           "x": 79.1,
-          "y": 79.1,
-          "angle": 90
-        }
-      ],
-      "gauge": 6.5
-    },
-    {
-      "id": "ST-Z-C079-45",
-      "name": "Kurve 45° (R = 79,1 mm)",
-      "nameEn": "Curved Road 45° (R = 79.1 mm)",
-      "kind": "curve",
-      "category": "Bögen",
-      "description": "Bogen 45°, Radius 79,1 mm (Breite 24 mm)",
-      "descriptionEn": "Curve 45°, radius 79.1 mm (width 24 mm)",
-      "radius": 79.1,
-      "angle": 45,
-      "isRoad": true,
-      "roadWidth": 24,
-      "hasRoadbed": false,
-      "localConnectors": [
-        {
-          "x": 0,
           "y": 0,
-          "angle": 180
-        },
-        {
-          "x": 55.9,
-          "y": 23.2,
-          "angle": 45
-        }
-      ],
-      "gauge": 6.5
-    },
-    {
-      "id": "ST-Z-C119-45",
-      "name": "Kurve 45° groß (R = 118,6 mm)",
-      "nameEn": "Wide Curved Road 45° (R = 118.6 mm)",
-      "kind": "curve",
-      "category": "Bögen",
-      "description": "Großer weiter Bogen 45°, Radius 118,6 mm (Breite 24 mm)",
-      "descriptionEn": "Wide gentle curve 45°, radius 118.6 mm (width 24 mm)",
-      "radius": 118.6,
-      "angle": 45,
-      "isRoad": true,
-      "roadWidth": 24,
-      "hasRoadbed": false,
-      "localConnectors": [
-        {
-          "x": 0,
-          "y": 0,
-          "angle": 180
-        },
-        {
-          "x": 83.9,
-          "y": 34.7,
-          "angle": 45
+          "angle": 0
         }
       ],
       "gauge": 6.5
@@ -267,79 +366,6 @@
           "x": 55.9,
           "y": 23.2,
           "angle": 45
-        }
-      ],
-      "gauge": 6.5
-    },
-    {
-      "id": "ST-Z-LOOP",
-      "name": "Wendeplatz / Sackgasse (Wendehammer)",
-      "nameEn": "Cul-de-sac / Turning Loop",
-      "kind": "accessory",
-      "category": "Zubehör",
-      "description": "Straßenende mit rundem Wendehammer (Durchmesser 35,6 mm, Anschlussbreite 24 mm)",
-      "descriptionEn": "Dead end street with round turning circle (diameter 35.6 mm, connection 24 mm)",
-      "length": 35.6,
-      "isRoad": true,
-      "roadWidth": 24,
-      "hasRoadbed": false,
-      "localConnectors": [
-        {
-          "x": 0,
-          "y": 0,
-          "angle": 180
-        }
-      ],
-      "gauge": 6.5
-    },
-    {
-      "id": "ST-Z-BUS",
-      "name": "Bushaltestelle / Parkbucht 79 mm",
-      "nameEn": "Bus Stop / Parking Bay 79 mm",
-      "kind": "straight",
-      "category": "Zubehör",
-      "description": "79,1 mm Fahrbahn mit seitlicher Parkbucht und Bus-Wartefläche (Breite ca. 30 mm)",
-      "descriptionEn": "79.1 mm road with side parking bay and bus passenger area (width approx. 30 mm)",
-      "length": 79.1,
-      "isRoad": true,
-      "roadWidth": 24,
-      "hasRoadbed": false,
-      "localConnectors": [
-        {
-          "x": 0,
-          "y": 0,
-          "angle": 180
-        },
-        {
-          "x": 79.1,
-          "y": 0,
-          "angle": 0
-        }
-      ],
-      "gauge": 6.5
-    },
-    {
-      "id": "ST-Z-CROSS",
-      "name": "Bahnübergang 79 mm (Straße)",
-      "nameEn": "Level / Grade Crossing 79 mm (Road)",
-      "kind": "straight",
-      "category": "Zubehör",
-      "description": "79,1 mm Straße mit Gleisüberfahrt (6,5 mm) und Vorwarnstreifen",
-      "descriptionEn": "79.1 mm road with rail crossing (6.5 mm) and warning stripes",
-      "length": 79.1,
-      "isRoad": true,
-      "roadWidth": 24,
-      "hasRoadbed": false,
-      "localConnectors": [
-        {
-          "x": 0,
-          "y": 0,
-          "angle": 180
-        },
-        {
-          "x": 79.1,
-          "y": 0,
-          "angle": 0
         }
       ],
       "gauge": 6.5

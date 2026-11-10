@@ -1,4 +1,5 @@
 import type { Catalog, CatalogEntry, TrackKind } from "./types";
+import { compareCatalogEntriesByNumber } from "./types";
 import { maerklinCCatalog } from "./systems/maerklin-c-h0";
 import { maerklinMCatalog } from "./systems/maerklin-m-h0";
 import { maerklinKCatalog } from "./systems/maerklin-k-h0";
@@ -107,6 +108,7 @@ export class CatalogRegistry {
         for (const cat of list) {
           if (cat && cat.id && Array.isArray(cat.entries)) {
             cat.isCustom = true;
+            cat.entries.sort(compareCatalogEntriesByNumber);
             this.catalogs.set(cat.id, cat);
           }
         }
@@ -123,6 +125,9 @@ export class CatalogRegistry {
     }
     if (!catalog.name) {
       catalog.name = `${catalog.manufacturer} ${catalog.scale} ${catalog.system}`;
+    }
+    if (Array.isArray(catalog.entries)) {
+      catalog.entries.sort(compareCatalogEntriesByNumber);
     }
     this.catalogs.set(catalog.id, catalog);
     this.notifyListeners();

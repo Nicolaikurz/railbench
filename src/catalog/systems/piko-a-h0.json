@@ -112,6 +112,127 @@
       "gauge": 16.5
     },
     {
+      "id": "55219",
+      "name": "Gebogenes Gleis R9 / 15°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Großer Gegenbogen R9 = 907,97 mm, Bogen 15° für Weichen",
+      "radius": 907.97,
+      "angle": 15,
+      "gauge": 16.5
+    },
+    {
+      "id": "55220",
+      "name": "Weiche WL links 15°",
+      "kind": "turnout-left",
+      "category": "Weichen",
+      "description": "Länge 239,07 mm, Abzweig R9 = 907,97 mm / 15°",
+      "length": 239.07,
+      "branchRadius": 907.97,
+      "branchAngle": 15,
+      "gauge": 16.5
+    },
+    {
+      "id": "55221",
+      "name": "Weiche WR rechts 15°",
+      "kind": "turnout-right",
+      "category": "Weichen",
+      "description": "Länge 239,07 mm, Abzweig R9 = 907,97 mm / 15°",
+      "length": 239.07,
+      "branchRadius": 907.97,
+      "branchAngle": 15,
+      "gauge": 16.5
+    },
+    {
+      "id": "55222",
+      "name": "Bogenweiche BWL links (R2/R3)",
+      "kind": "curved-turnout-left",
+      "category": "Weichen",
+      "description": "Stammbogen R2 = 421,88 mm / 30°, Abzweig R3 = 483,75 mm / 30°",
+      "radius": 421.88,
+      "angle": 30,
+      "branchRadius": 483.75,
+      "branchAngle": 30,
+      "gauge": 16.5
+    },
+    {
+      "id": "55223",
+      "name": "Bogenweiche BWR rechts (R2/R3)",
+      "kind": "curved-turnout-right",
+      "category": "Weichen",
+      "description": "Stammbogen R2 = 421,88 mm / 30°, Abzweig R3 = 483,75 mm / 30°",
+      "radius": 421.88,
+      "angle": 30,
+      "branchRadius": 483.75,
+      "branchAngle": 30,
+      "gauge": 16.5
+    },
+    {
+      "id": "55224",
+      "name": "Doppelkreuzungsweiche DKW 15°",
+      "kind": "dkw",
+      "category": "Kreuzungen",
+      "description": "Länge 239,07 mm, Kreuzung 15°, 2x Abzweig R = 907,97 mm / 15°",
+      "length": 239.07,
+      "angle": 15,
+      "branchRadius": 907.97,
+      "branchAngle": 15,
+      "gauge": 16.5
+    },
+    {
+      "id": "55225",
+      "name": "Dreiwegweiche W3 (15°)",
+      "kind": "three-way",
+      "category": "Weichen",
+      "description": "Länge 239,07 mm, 2x symmetrischer Abzweig 15° / R9 = 907,97 mm",
+      "length": 239.07,
+      "branchRadius": 907.97,
+      "branchAngle": 15,
+      "gauge": 16.5
+    },
+    {
+      "id": "55227",
+      "name": "Einfache Weiche WL links (kurz / 30°)",
+      "kind": "turnout-left",
+      "category": "Weichen",
+      "description": "Kurze Weiche Länge G231 (230,93 mm), Abzweig R2 = 421,88 mm / 30°",
+      "length": 230.93,
+      "branchRadius": 421.88,
+      "branchAngle": 30,
+      "gauge": 16.5
+    },
+    {
+      "id": "55228",
+      "name": "Einfache Weiche WR rechts (kurz / 30°)",
+      "kind": "turnout-right",
+      "category": "Weichen",
+      "description": "Kurze Weiche Länge G231 (230,93 mm), Abzweig R2 = 421,88 mm / 30°",
+      "length": 230.93,
+      "branchRadius": 421.88,
+      "branchAngle": 30,
+      "gauge": 16.5
+    },
+    {
+      "id": "55240",
+      "name": "Kreuzung K15 (15°)",
+      "kind": "crossing",
+      "category": "Kreuzungen",
+      "description": "Länge 239,07 mm, Kreuzungswinkel 15°",
+      "length": 239.07,
+      "angle": 15,
+      "gauge": 16.5
+    },
+    {
+      "id": "55241",
+      "name": "Kreuzung K30 (30°)",
+      "kind": "crossing",
+      "category": "Kreuzungen",
+      "description": "Länge 119,54 mm, Kreuzungswinkel 30°",
+      "length": 119.54,
+      "angle": 30,
+      "gauge": 16.5
+    },
+    {
       "id": "55251",
       "name": "Gebogenes Gleis R1 / 7,5°",
       "kind": "curve",
@@ -152,133 +273,21 @@
       "gauge": 16.5
     },
     {
-      "id": "55219",
-      "name": "Gebogenes Gleis R9 / 15°",
-      "kind": "curve",
-      "category": "Bögen",
-      "description": "Großer Gegenbogen R9 = 907,97 mm, Bogen 15° für Weichen",
-      "radius": 907.97,
-      "angle": 15,
-      "gauge": 16.5
-    },
-    {
-      "id": "55220",
-      "name": "Weiche WL links 15°",
-      "kind": "turnout-left",
-      "category": "Weichen",
-      "description": "Länge 239,07 mm, Abzweig R9 = 907,97 mm / 15°",
-      "length": 239.07,
-      "branchRadius": 907.97,
-      "branchAngle": 15,
-      "gauge": 16.5
-    },
-    {
-      "id": "55221",
-      "name": "Weiche WR rechts 15°",
-      "kind": "turnout-right",
-      "category": "Weichen",
-      "description": "Länge 239,07 mm, Abzweig R9 = 907,97 mm / 15°",
-      "length": 239.07,
-      "branchRadius": 907.97,
-      "branchAngle": 15,
-      "gauge": 16.5
-    },
-    {
-      "id": "55225",
-      "name": "Dreiwegweiche W3 (15°)",
-      "kind": "three-way",
-      "category": "Weichen",
-      "description": "Länge 239,07 mm, 2x symmetrischer Abzweig 15° / R9 = 907,97 mm",
-      "length": 239.07,
-      "branchRadius": 907.97,
-      "branchAngle": 15,
-      "gauge": 16.5
-    },
-    {
-      "id": "55222",
-      "name": "Bogenweiche BWL links (R2/R3)",
-      "kind": "curved-turnout-left",
-      "category": "Weichen",
-      "description": "Stammbogen R2 = 421,88 mm / 30°, Abzweig R3 = 483,75 mm / 30°",
-      "radius": 421.88,
-      "angle": 30,
-      "branchRadius": 483.75,
-      "branchAngle": 30,
-      "gauge": 16.5
-    },
-    {
-      "id": "55223",
-      "name": "Bogenweiche BWR rechts (R2/R3)",
-      "kind": "curved-turnout-right",
-      "category": "Weichen",
-      "description": "Stammbogen R2 = 421,88 mm / 30°, Abzweig R3 = 483,75 mm / 30°",
-      "radius": 421.88,
-      "angle": 30,
-      "branchRadius": 483.75,
-      "branchAngle": 30,
-      "gauge": 16.5
-    },
-    {
-      "id": "55227",
-      "name": "Einfache Weiche WL links (kurz / 30°)",
-      "kind": "turnout-left",
-      "category": "Weichen",
-      "description": "Kurze Weiche Länge G231 (230,93 mm), Abzweig R2 = 421,88 mm / 30°",
-      "length": 230.93,
-      "branchRadius": 421.88,
-      "branchAngle": 30,
-      "gauge": 16.5
-    },
-    {
-      "id": "55228",
-      "name": "Einfache Weiche WR rechts (kurz / 30°)",
-      "kind": "turnout-right",
-      "category": "Weichen",
-      "description": "Kurze Weiche Länge G231 (230,93 mm), Abzweig R2 = 421,88 mm / 30°",
-      "length": 230.93,
-      "branchRadius": 421.88,
-      "branchAngle": 30,
-      "gauge": 16.5
-    },
-    {
-      "id": "55224",
-      "name": "Doppelkreuzungsweiche DKW 15°",
-      "kind": "dkw",
-      "category": "Kreuzungen",
-      "description": "Länge 239,07 mm, Kreuzung 15°, 2x Abzweig R = 907,97 mm / 15°",
-      "length": 239.07,
-      "angle": 15,
-      "branchRadius": 907.97,
-      "branchAngle": 15,
-      "gauge": 16.5
-    },
-    {
-      "id": "55240",
-      "name": "Kreuzung K15 (15°)",
-      "kind": "crossing",
-      "category": "Kreuzungen",
-      "description": "Länge 239,07 mm, Kreuzungswinkel 15°",
-      "length": 239.07,
-      "angle": 15,
-      "gauge": 16.5
-    },
-    {
-      "id": "55241",
-      "name": "Kreuzung K30 (30°)",
-      "kind": "crossing",
-      "category": "Kreuzungen",
-      "description": "Länge 119,54 mm, Kreuzungswinkel 30°",
-      "length": 119.54,
-      "angle": 30,
-      "gauge": 16.5
-    },
-    {
       "id": "55270",
       "name": "Anschluss-Clip analog",
       "kind": "straight",
       "category": "Zubehör",
       "description": "Schienenanschluss analog",
       "length": 0,
+      "gauge": 16.5
+    },
+    {
+      "id": "55274",
+      "name": "Entkupplungsgleis elektrisch G119",
+      "kind": "straight",
+      "category": "Zubehör",
+      "description": "Elektrisches Entkupplungsgleis, Länge 119,54 mm",
+      "length": 119.54,
       "gauge": 16.5
     },
     {
@@ -297,15 +306,6 @@
       "category": "Zubehör",
       "description": "Gerade G239 (239,07 mm) mit integriertem digitalen Anschluss-Clip",
       "length": 239.07,
-      "gauge": 16.5
-    },
-    {
-      "id": "55274",
-      "name": "Entkupplungsgleis elektrisch G119",
-      "kind": "straight",
-      "category": "Zubehör",
-      "description": "Elektrisches Entkupplungsgleis, Länge 119,54 mm",
-      "length": 119.54,
       "gauge": 16.5
     },
     {

@@ -63,6 +63,9 @@ export const en: Translations = {
       themeStatusLight: "Light",
       themeTooltip: "Toggle Theme (System / Dark / Light)",
       togglePerfMonitor: "Performance Monitor (FPS / RAM)",
+      lockBars: "Lock Bar Resizing",
+      unlockBars: "Unlock Bar Resizing",
+      resetUiSizes: "Reset UI Sizes (Toolbar / Sidebars)",
     },
     helpMenu: {
       helpGuide: "User Guide & Getting Started...",

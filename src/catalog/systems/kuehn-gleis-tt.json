@@ -73,16 +73,6 @@
       "gauge": 12
     },
     {
-      "id": "72220",
-      "name": "Gebogenes Gleis R2 / 30°",
-      "kind": "curve",
-      "category": "Bögen",
-      "description": "Radius R2 = 365 mm, Bogen 30°",
-      "radius": 365,
-      "angle": 30,
-      "gauge": 12
-    },
-    {
       "id": "72211",
       "name": "Gebogenes Gleis R1 / 10°",
       "kind": "curve",
@@ -90,6 +80,16 @@
       "description": "Ausgleichsbogen R1 = 321 mm, Bogen 10°",
       "radius": 321,
       "angle": 10,
+      "gauge": 12
+    },
+    {
+      "id": "72220",
+      "name": "Gebogenes Gleis R2 / 30°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R2 = 365 mm, Bogen 30°",
+      "radius": 365,
+      "angle": 30,
       "gauge": 12
     },
     {

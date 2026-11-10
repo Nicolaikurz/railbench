@@ -8,7 +8,7 @@ import {
   updatePieceConnections,
   getPieceConnectorHeight,
 } from "@/core/snapping";
-import type { TrackPiece, Layer } from "@/core/types";
+import type { TrackPiece, Layer, Transform } from "@/core/types";
 import {
   distanceToTrackPiece,
   isPieceInSelectionBox,
@@ -971,6 +971,52 @@ describe("snap in place & center rotation", () => {
       // p2 und pBridge sind NICHT verbunden (Höhe 0 != 80)
       expect(p2.connectors[1]!.connectedTo).toBeUndefined();
       expect(pBridge.connectors[0]!.connectedTo).toBeUndefined();
+    });
+
+    it("ignoriert veraltete/gelöschte Geister-Verbindungen (stale connectedTo) und erlaubt Snapping", () => {
+      const entry: any = { id: "24188", name: "Straight", category: "Straight", description: "Straight", kind: "straight", length: 188.3 };
+      // p1 hat einen Connector mit veralteter Referenz auf ein gelöschtes Stück "deleted-piece"
+      const p1: TrackPiece = {
+        id: "p1",
+        catalogId: "24188",
+        transform: { x: 0, y: 0, rotation: 0 },
+        connectors: [
+          { x: 0, y: 0, angle: 180 },
+          { x: 188.3, y: 0, angle: 0, connectedTo: { pieceId: "deleted-piece", connectorIndex: 0 } },
+        ],
+      };
+
+      const candT: Transform = { x: 200, y: 5, rotation: 0 };
+      const snap = findBestSnapForPiece(entry, candT, [p1], undefined, 45, 60);
+
+      // Muss erfolgreich snappen, da "deleted-piece" nicht existiert!
+      expect(snap).toBeDefined();
+      expect(snap?.targetPieceId).toBe("p1");
+      expect(snap?.targetConnectorIndex).toBe(1);
+    });
+
+    it("erlaubt zuverlässiges Snapping auch bei stark abweichendem Anfangswinkel innerhalb des Radius", () => {
+      const entry: any = { id: "24188", name: "Straight", category: "Straight", description: "Straight", kind: "straight", length: 188.3 };
+      // p1 liegt senkrecht (90 Grad)
+      const p1: TrackPiece = {
+        id: "p1",
+        catalogId: "24188",
+        transform: { x: 0, y: 0, rotation: 90 },
+        connectors: [
+          { x: 0, y: 0, angle: 270 },
+          { x: 0, y: 188.3, angle: 90 },
+        ],
+      };
+
+      // candT liegt waagerecht (0 Grad) und 30mm neben dem 90-Grad-Connector
+      const candT: Transform = { x: 25, y: 188.3, rotation: 0 };
+      const snap = findBestSnapForPiece(entry, candT, [p1], undefined, 45, 60);
+
+      // Muss erfolgreich einrasten und automatisch auf 90 Grad ausrichten
+      expect(snap).toBeDefined();
+      expect(snap?.targetPieceId).toBe("p1");
+      expect(snap?.targetConnectorIndex).toBe(1);
+      expect(snap?.snappedTransform.rotation).toBeCloseTo(90, 1);
     });
   });
 });

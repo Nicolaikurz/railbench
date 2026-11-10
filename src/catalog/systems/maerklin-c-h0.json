@@ -9,6 +9,22 @@
   "conductors": 3,
   "entries": [
     {
+      "id": "24001",
+      "name": "Böschungsendstück 16,5 mm",
+      "kind": "straight",
+      "category": "Zubehör",
+      "description": "Böschungsendstück 16,5 mm zum sauberen Abschluss offener Gleisenden",
+      "length": 16.5,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        }
+      ],
+      "gauge": 16.5
+    },
+    {
       "id": "24064",
       "name": "Gerades Gleis 64,3 mm",
       "kind": "straight",
@@ -36,68 +52,21 @@
       "gauge": 16.5
     },
     {
+      "id": "24088",
+      "name": "Basis-Anschlussgleis 188,3 mm",
+      "kind": "straight",
+      "category": "Zubehör",
+      "description": "Gerades Gleis 188,3 mm mit Funkentstörung und Anschlussklemmen",
+      "length": 188.3,
+      "gauge": 16.5
+    },
+    {
       "id": "24094",
       "name": "Gerades Gleis 94,2 mm",
       "kind": "straight",
       "category": "Geraden",
       "description": "Halbes Standardgleis 94,2 mm",
       "length": 94.2,
-      "gauge": 16.5
-    },
-    {
-      "id": "24172",
-      "name": "Gerades Gleis 171,7 mm",
-      "kind": "straight",
-      "category": "Geraden",
-      "description": "Gerades Standardgleis 171,7 mm",
-      "length": 171.7,
-      "gauge": 16.5
-    },
-    {
-      "id": "24188",
-      "name": "Gerades Gleis 188,3 mm",
-      "kind": "straight",
-      "category": "Geraden",
-      "description": "Basis-Standardgleis 188,3 mm",
-      "length": 188.3,
-      "gauge": 16.5
-    },
-    {
-      "id": "24900",
-      "name": "C-Gleis Flexgleis / Anpassungsgleis (900,0 mm)",
-      "nameEn": "C-Track Flex Track / Adaptor (900.0 mm)",
-      "kind": "flex",
-      "category": "Geraden",
-      "description": "Flexibles Gleis / Anpassungsgleis für individuelle Längen, Kurvenradien und Rampen (900,0 mm)",
-      "descriptionEn": "Flexible track section / adaptor track for custom lengths, curve radiuses and ramps (900.0 mm)",
-      "length": 900,
-      "gauge": 16.5
-    },
-    {
-      "id": "24229",
-      "name": "Gerades Gleis 229,3 mm",
-      "kind": "straight",
-      "category": "Geraden",
-      "description": "Langes gerades Gleis 229,3 mm",
-      "length": 229.3,
-      "gauge": 16.5
-    },
-    {
-      "id": "24236",
-      "name": "Gerades Gleis 236,1 mm",
-      "kind": "straight",
-      "category": "Geraden",
-      "description": "Länge passend zu schlanken Weichen 236,1 mm",
-      "length": 236.1,
-      "gauge": 16.5
-    },
-    {
-      "id": "24360",
-      "name": "Gerades Gleis 360,0 mm",
-      "kind": "straight",
-      "category": "Geraden",
-      "description": "Großes gerades Gleis 360,0 mm (doppeltes Standardgleis)",
-      "length": 360,
       "gauge": 16.5
     },
     {
@@ -128,6 +97,34 @@
       "description": "Radius R1 = 360 mm, Bogenwinkel 30° (12 Stück für Vollkreis)",
       "radius": 360,
       "angle": 30,
+      "gauge": 16.5
+    },
+    {
+      "id": "24172",
+      "name": "Gerades Gleis 171,7 mm",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Gerades Standardgleis 171,7 mm",
+      "length": 171.7,
+      "gauge": 16.5
+    },
+    {
+      "id": "24188",
+      "name": "Gerades Gleis 188,3 mm",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Basis-Standardgleis 188,3 mm",
+      "length": 188.3,
+      "gauge": 16.5
+    },
+    {
+      "id": "24194",
+      "name": "Schaltgleis gebogen R1 / 15°",
+      "kind": "curve",
+      "category": "Zubehör",
+      "description": "Schaltgleis R1 = 360 mm / 15° mit Schleiferkontakt",
+      "radius": 360,
+      "angle": 15,
       "gauge": 16.5
     },
     {
@@ -171,6 +168,15 @@
       "gauge": 16.5
     },
     {
+      "id": "24229",
+      "name": "Gerades Gleis 229,3 mm",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Langes gerades Gleis 229,3 mm",
+      "length": 229.3,
+      "gauge": 16.5
+    },
+    {
       "id": "24230",
       "name": "Gebogenes Gleis R2 / 30°",
       "kind": "curve",
@@ -178,6 +184,25 @@
       "description": "Radius R2 = 437,5 mm, Bogenwinkel 30° (12 Stück für Parallelkreis)",
       "radius": 437.5,
       "angle": 30,
+      "gauge": 16.5
+    },
+    {
+      "id": "24236",
+      "name": "Gerades Gleis 236,1 mm",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Länge passend zu schlanken Weichen 236,1 mm",
+      "length": 236.1,
+      "gauge": 16.5
+    },
+    {
+      "id": "24294",
+      "name": "Schaltgleis gebogen R2 / 15°",
+      "kind": "curve",
+      "category": "Zubehör",
+      "description": "Schaltgleis R2 = 437,5 mm / 15° mit Schleiferkontakt",
+      "radius": 437.5,
+      "angle": 15,
       "gauge": 16.5
     },
     {
@@ -201,6 +226,15 @@
       "gauge": 16.5
     },
     {
+      "id": "24360",
+      "name": "Gerades Gleis 360,0 mm",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Großes gerades Gleis 360,0 mm (doppeltes Standardgleis)",
+      "length": 360,
+      "gauge": 16.5
+    },
+    {
       "id": "24430",
       "name": "Gebogenes Gleis R4 / 30°",
       "kind": "curve",
@@ -218,16 +252,6 @@
       "description": "Radius R5 = 643,6 mm, Bogenwinkel 30°",
       "radius": 643.6,
       "angle": 30,
-      "gauge": 16.5
-    },
-    {
-      "id": "24912",
-      "name": "Gebogenes Gleis R9 / 12,1°",
-      "kind": "curve",
-      "category": "Bögen",
-      "description": "Radius R9 = 1114,6 mm, Bogenwinkel 12,1° (Gegenbogen für schlanke Weichen)",
-      "radius": 1114.6,
-      "angle": 12.1,
       "gauge": 16.5
     },
     {
@@ -250,6 +274,49 @@
       "length": 188.3,
       "branchRadius": 437.5,
       "branchAngle": 24.3,
+      "gauge": 16.5
+    },
+    {
+      "id": "24624",
+      "name": "Doppelkreuzungsweiche (DKW) 188,3 mm",
+      "kind": "dkw",
+      "category": "Kreuzungen",
+      "description": "Länge 188,3 mm, Kreuzungswinkel 24,3°, 2x Abzweig R2 / 24,3° mit elektrischem Antrieb",
+      "length": 188.3,
+      "angle": 24.3,
+      "branchRadius": 437.5,
+      "branchAngle": 24.3,
+      "gauge": 16.5
+    },
+    {
+      "id": "24630",
+      "name": "Dreiweg-Weiche 188,3 mm",
+      "kind": "three-way",
+      "category": "Weichen",
+      "description": "Länge 188,3 mm, 2 symmetrische Abzweige R2 = 437,5 mm / 24,3°",
+      "length": 188.3,
+      "branchRadius": 437.5,
+      "branchAngle": 24.3,
+      "gauge": 16.5
+    },
+    {
+      "id": "24640",
+      "name": "Kreuzung 188,3 mm / 24,3°",
+      "kind": "crossing",
+      "category": "Kreuzungen",
+      "description": "Länge 188,3 mm, Kreuzungswinkel 24,3°",
+      "length": 188.3,
+      "angle": 24.3,
+      "gauge": 16.5
+    },
+    {
+      "id": "24649",
+      "name": "Kreuzung 103,3 mm / 48,6°",
+      "kind": "crossing",
+      "category": "Kreuzungen",
+      "description": "Länge 103,3 mm, Kreuzungswinkel 48,6° (z.B. für doppelten Gleiswechsel / Hosenträger)",
+      "length": 103.3,
+      "angle": 48.6,
       "gauge": 16.5
     },
     {
@@ -301,6 +368,28 @@
       "gauge": 16.5
     },
     {
+      "id": "24720",
+      "name": "Schlanke DKW 236,1 mm",
+      "kind": "dkw",
+      "category": "Kreuzungen",
+      "description": "Länge 236,1 mm, Kreuzungswinkel 12,1°, schlanke Doppelkreuzungsweiche mit integriertem Antrieb",
+      "length": 236.1,
+      "angle": 12.1,
+      "branchRadius": 1114.6,
+      "branchAngle": 12.1,
+      "gauge": 16.5
+    },
+    {
+      "id": "24740",
+      "name": "Schlanke Kreuzung 236,1 mm / 12,1°",
+      "kind": "crossing",
+      "category": "Kreuzungen",
+      "description": "Länge 236,1 mm, Kreuzungswinkel 12,1° passend zu schlanken Weichen",
+      "length": 236.1,
+      "angle": 12.1,
+      "gauge": 16.5
+    },
+    {
       "id": "24771",
       "name": "Schlanke Bogenweiche links R3",
       "kind": "curved-turnout-left",
@@ -327,77 +416,42 @@
       "gauge": 16.5
     },
     {
-      "id": "24630",
-      "name": "Dreiweg-Weiche 188,3 mm",
-      "kind": "three-way",
-      "category": "Weichen",
-      "description": "Länge 188,3 mm, 2 symmetrische Abzweige R2 = 437,5 mm / 24,3°",
-      "length": 188.3,
-      "branchRadius": 437.5,
-      "branchAngle": 24.3,
+      "id": "24900",
+      "name": "C-Gleis Flexgleis / Anpassungsgleis (900,0 mm)",
+      "nameEn": "C-Track Flex Track / Adaptor (900.0 mm)",
+      "kind": "flex",
+      "category": "Geraden",
+      "description": "Flexibles Gleis / Anpassungsgleis für individuelle Längen, Kurvenradien und Rampen (900,0 mm)",
+      "descriptionEn": "Flexible track section / adaptor track for custom lengths, curve radiuses and ramps (900.0 mm)",
+      "length": 900,
       "gauge": 16.5
     },
     {
-      "id": "24640",
-      "name": "Kreuzung 188,3 mm / 24,3°",
-      "kind": "crossing",
-      "category": "Kreuzungen",
-      "description": "Länge 188,3 mm, Kreuzungswinkel 24,3°",
-      "length": 188.3,
-      "angle": 24.3,
-      "gauge": 16.5
-    },
-    {
-      "id": "24649",
-      "name": "Kreuzung 103,3 mm / 48,6°",
-      "kind": "crossing",
-      "category": "Kreuzungen",
-      "description": "Länge 103,3 mm, Kreuzungswinkel 48,6° (z.B. für doppelten Gleiswechsel / Hosenträger)",
-      "length": 103.3,
-      "angle": 48.6,
-      "gauge": 16.5
-    },
-    {
-      "id": "24740",
-      "name": "Schlanke Kreuzung 236,1 mm / 12,1°",
-      "kind": "crossing",
-      "category": "Kreuzungen",
-      "description": "Länge 236,1 mm, Kreuzungswinkel 12,1° passend zu schlanken Weichen",
-      "length": 236.1,
+      "id": "24912",
+      "name": "Gebogenes Gleis R9 / 12,1°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R9 = 1114,6 mm, Bogenwinkel 12,1° (Gegenbogen für schlanke Weichen)",
+      "radius": 1114.6,
       "angle": 12.1,
       "gauge": 16.5
     },
     {
-      "id": "24624",
-      "name": "Doppelkreuzungsweiche (DKW) 188,3 mm",
-      "kind": "dkw",
-      "category": "Kreuzungen",
-      "description": "Länge 188,3 mm, Kreuzungswinkel 24,3°, 2x Abzweig R2 / 24,3° mit elektrischem Antrieb",
-      "length": 188.3,
-      "angle": 24.3,
-      "branchRadius": 437.5,
-      "branchAngle": 24.3,
-      "gauge": 16.5
-    },
-    {
-      "id": "24720",
-      "name": "Schlanke DKW 236,1 mm",
-      "kind": "dkw",
-      "category": "Kreuzungen",
-      "description": "Länge 236,1 mm, Kreuzungswinkel 12,1°, schlanke Doppelkreuzungsweiche mit integriertem Antrieb",
-      "length": 236.1,
-      "angle": 12.1,
-      "branchRadius": 1114.6,
-      "branchAngle": 12.1,
-      "gauge": 16.5
-    },
-    {
-      "id": "24088",
-      "name": "Basis-Anschlussgleis 188,3 mm",
+      "id": "24922",
+      "name": "Übergangsgleis K-Gleis 180 mm",
       "kind": "straight",
       "category": "Zubehör",
-      "description": "Gerades Gleis 188,3 mm mit Funkentstörung und Anschlussklemmen",
-      "length": 188.3,
+      "description": "Übergangsgleis 180 mm von C-Gleis auf Märklin K-Gleis",
+      "length": 180,
+      "gauge": 16.5
+    },
+    {
+      "id": "24951",
+      "name": "Übergangsgleis M-Gleis 180 mm",
+      "kind": "straight",
+      "category": "Zubehör",
+      "description": "Übergangsgleis 180 mm von C-Gleis auf Märklin M-Gleis",
+      "length": 180,
       "gauge": 16.5
     },
     {
@@ -433,27 +487,11 @@
       "gauge": 16.5
     },
     {
-      "id": "24001",
-      "name": "Böschungsendstück 16,5 mm",
+      "id": "24994",
+      "name": "Kontaktgleissatz gerade 94,2 mm",
       "kind": "straight",
       "category": "Zubehör",
-      "description": "Böschungsendstück 16,5 mm zum sauberen Abschluss offener Gleisenden",
-      "length": 16.5,
-      "localConnectors": [
-        {
-          "x": 0,
-          "y": 0,
-          "angle": 180
-        }
-      ],
-      "gauge": 16.5
-    },
-    {
-      "id": "24997",
-      "name": "Entkupplungsgleis 94,2 mm",
-      "kind": "straight",
-      "category": "Zubehör",
-      "description": "Entkupplungsgleis 94,2 mm mit elektrischem Antrieb",
+      "description": "Kontaktgleissatz (2 Stück à 94,2 mm) für Gleisbesetztmeldung",
       "length": 94.2,
       "gauge": 16.5
     },
@@ -467,50 +505,12 @@
       "gauge": 16.5
     },
     {
-      "id": "24994",
-      "name": "Kontaktgleissatz gerade 94,2 mm",
+      "id": "24997",
+      "name": "Entkupplungsgleis 94,2 mm",
       "kind": "straight",
       "category": "Zubehör",
-      "description": "Kontaktgleissatz (2 Stück à 94,2 mm) für Gleisbesetztmeldung",
+      "description": "Entkupplungsgleis 94,2 mm mit elektrischem Antrieb",
       "length": 94.2,
-      "gauge": 16.5
-    },
-    {
-      "id": "24194",
-      "name": "Schaltgleis gebogen R1 / 15°",
-      "kind": "curve",
-      "category": "Zubehör",
-      "description": "Schaltgleis R1 = 360 mm / 15° mit Schleiferkontakt",
-      "radius": 360,
-      "angle": 15,
-      "gauge": 16.5
-    },
-    {
-      "id": "24294",
-      "name": "Schaltgleis gebogen R2 / 15°",
-      "kind": "curve",
-      "category": "Zubehör",
-      "description": "Schaltgleis R2 = 437,5 mm / 15° mit Schleiferkontakt",
-      "radius": 437.5,
-      "angle": 15,
-      "gauge": 16.5
-    },
-    {
-      "id": "24951",
-      "name": "Übergangsgleis M-Gleis 180 mm",
-      "kind": "straight",
-      "category": "Zubehör",
-      "description": "Übergangsgleis 180 mm von C-Gleis auf Märklin M-Gleis",
-      "length": 180,
-      "gauge": 16.5
-    },
-    {
-      "id": "24922",
-      "name": "Übergangsgleis K-Gleis 180 mm",
-      "kind": "straight",
-      "category": "Zubehör",
-      "description": "Übergangsgleis 180 mm von C-Gleis auf Märklin K-Gleis",
-      "length": 180,
       "gauge": 16.5
     },
     {

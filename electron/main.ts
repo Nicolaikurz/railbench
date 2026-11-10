@@ -102,6 +102,16 @@ async function createWindow() {
 function setupMenu() {
   const isMac = process.platform === "darwin";
 
+  if (isMac) {
+    app.setAboutPanelOptions({
+      applicationName: "RAILbench",
+      applicationVersion: app.getVersion(),
+      version: app.getVersion(),
+      copyright: "Copyright © 2026 RAILbench Team",
+      credits: "Modellbahn Gleisplanungs-Tool",
+    });
+  }
+
   if (!isMac) {
     // Auf Linux (inkl. Flatpak) und Windows soll keine zusätzliche native Fenster-Menüleiste
     // ("Datei Bearbeiten Ansicht Werkzeuge...") angezeigt werden, da Railbench
@@ -272,11 +282,12 @@ function setupMenu() {
           accelerator: "?",
           click: () => mainWindow?.webContents.send("menu:action", "shortcuts"),
         },
-        { type: "separator" },
-        {
-          label: "Über Railbench...",
-          click: () => mainWindow?.webContents.send("menu:action", "help"),
-        },
+        ...(isMac
+          ? []
+          : [
+              { type: "separator" as const },
+              { role: "about" as const },
+            ]),
       ],
     },
   ];

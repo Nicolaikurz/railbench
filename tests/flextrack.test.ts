@@ -304,4 +304,47 @@ describe("Flextrack System", () => {
     expect(snapResult.snappedConnector).toBeUndefined();
     expect(snapResult.customLength).toBe(maxLen);
   });
+
+  it("adjusts and curves flex streets properly", () => {
+    const roadEntry = {
+      id: "ST-FLEX",
+      name: "Flexstraße 800 mm",
+      nameEn: "Flex Road 800 mm",
+      kind: "flex" as const,
+      category: "Geraden",
+      description: "2-spurige flexible Fahrbahn",
+      length: 800,
+      isRoad: true,
+      roadWidth: 60,
+      gauge: 16.5,
+    };
+
+    const roadPiece: TrackPiece = {
+      id: "road-flex-1",
+      catalogId: "ST-FLEX",
+      transform: { x: 0, y: 0, rotation: 0 },
+      connectors: [
+        { x: 0, y: 0, angle: 180 },
+        { x: 800, y: 0, angle: 0 },
+      ],
+    };
+
+    expect(isFlexTrack(roadEntry, roadPiece)).toBe(true);
+
+    // Adjust length to 400 mm
+    const adj = adjustFlexTrackOpenConnector(roadPiece, roadEntry, { x: 400, y: 0 });
+    expect(adj.customLength).toBeCloseTo(400, 1);
+    expect(roadPiece.connectors[1]!.x).toBeCloseTo(400, 1);
+    expect(roadPiece.connectors[1]!.y).toBeCloseTo(0, 1);
+
+    // Bend flex street into a curve
+    bendFlexTrack(roadPiece, roadEntry, 250, 45);
+    expect(roadPiece.customRadius).toBe(250);
+    expect(roadPiece.customAngle).toBe(45);
+    const eff = getEffectiveFlexEntry(roadEntry, roadPiece);
+    expect(eff.kind).toBe("curve");
+    expect(eff.isRoad).toBe(true);
+    expect(roadPiece.connectors[1]!.x).toBeGreaterThan(0);
+    expect(roadPiece.connectors[1]!.y).toBeGreaterThan(0);
+  });
 });

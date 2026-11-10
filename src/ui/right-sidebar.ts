@@ -39,7 +39,8 @@ const STYLES = `
   --cl-bg-glass: linear-gradient(160deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.12));
   --cl-panel-shadow: 0 8px 24px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.6);
 
-  width: max-content;
+  width: 100%;
+  box-sizing: border-box;
   min-width: 0;
   color: var(--cl-text);
   text-shadow: var(--cl-text-shadow);
@@ -201,17 +202,78 @@ const STYLES = `
 .cl-pill:hover { background: var(--cl-glass-hover); }
 .cl-pill.is-primary { background: var(--cl-accent-soft); border-color: var(--cl-accent-edge); }
 
-/* Wood plate switch */
-.cl-toggle {
-  display: flex; align-items: center; justify-content: space-between; gap: 8px;
-  padding: 3px 7px; text-align: left; white-space: nowrap;
-  background: var(--cl-glass); border: 1px solid transparent; border-radius: 8px;
+/* Action buttons (Auswahlsperre, Woodplatte) */
+.cl-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  text-align: left;
+  border-radius: 6px;
+  border: 1px solid var(--cl-edge);
+  background: var(--cl-glass);
+  color: var(--cl-text);
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
-.cl-toggle:hover { background: var(--cl-glass-hover); }
-.cl-switch { position: relative; flex: none; width: 24px; height: 14px; background: var(--cl-track); border-radius: 999px; transition: background 0.2s; }
-.cl-switch-knob { position: absolute; top: 2px; left: 2px; width: 10px; height: 10px; background: #fff; border-radius: 50%; transition: transform 0.2s; }
-.cl-toggle.is-on .cl-switch { background: var(--cl-accent); }
-.cl-toggle.is-on .cl-switch-knob { transform: translateX(10px); }
+.cl-btn:hover {
+  background: var(--cl-glass-hover);
+  border-color: var(--cl-accent-edge);
+  color: var(--cl-text);
+}
+.cl-btn:active {
+  background: var(--cl-glass-active);
+  transform: scale(0.98);
+}
+.cl-btn.is-active,
+.cl-btn.is-on {
+  background: var(--cl-accent-soft);
+  border-color: var(--cl-accent-edge);
+  color: var(--cl-accent);
+  font-weight: 600;
+}
+.cl-btn-badge {
+  font-size: 9.5px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--cl-glass);
+  border: 1px solid var(--cl-edge);
+  color: var(--cl-text-dim);
+  font-weight: 600;
+  flex: none;
+  transition: all 0.15s ease;
+}
+.cl-btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+.cl-btn-icon svg {
+  width: 13px;
+  height: 13px;
+}
+.cl-btn.is-active .cl-btn-badge,
+.cl-btn.is-on .cl-btn-badge {
+  background: var(--cl-accent);
+  border-color: var(--cl-accent);
+  color: #ffffff;
+}
+.cl-btn-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+  border-top: 1px solid var(--cl-edge);
+  padding-top: 4px;
+}
 
 @media (prefers-reduced-motion: reduce) {
   .crystal-panel * { transition: none !important; }
@@ -238,6 +300,7 @@ const ICONS = {
   trash: svg('<path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/>'),
   edit: svg('<path d="M4 20h4L19 9l-4-4L4 16v4z"/>'),
   plus: svg('<path d="M12 5v14M5 12h14"/>'),
+  wood: svg('<path d="M4 6h16M4 12h16M4 18h16"/><path d="M7 6v12M17 6v12"/>'),
 };
 
 export class RightSidebar {
@@ -287,9 +350,21 @@ export class RightSidebar {
     return btn;
   }
 
+  private getContentContainer(): HTMLElement {
+    let container = this.host.querySelector(".crystal-panel-inner") as HTMLElement;
+    if (!container) {
+      container = document.createElement("div");
+      container.className = "crystal-panel-inner";
+      container.style.cssText = "width: 100%; height: 100%; display: flex; flex-direction: column; overflow: hidden;";
+      this.host.appendChild(container);
+    }
+    return container;
+  }
+
   private render() {
-    this.host.innerHTML = "";
     ensureDefaultLayers(this.layout);
+    const container = this.getContentContainer();
+    container.innerHTML = "";
 
     const t = getTranslations().rightSidebar;
     const layers = this.layout.layers || [];
@@ -339,51 +414,65 @@ export class RightSidebar {
       body.appendChild(alertBox);
     }
 
-    // Disable Selection Lock toggle switch
-    if (this.callbacks.onToggleSelectionLock) {
-      const de = getLanguage() === "de";
-      const on = this.callbacks.isSelectionLockDisabled?.() ?? false;
-      const lockRow = document.createElement("button");
-      lockRow.type = "button";
-      lockRow.className = `cl-toggle ${on ? "is-on" : ""}`;
-      lockRow.setAttribute("role", "switch");
-      lockRow.setAttribute("aria-checked", String(on));
-      lockRow.title = de
-        ? "Auswahlsperre aufheben: Erlaubt das Auswählen von Gleisen und Modellen über alle Ebenen hinweg, auch auf gesperrten oder gelöschten Ebenen"
-        : "Disable selection lock: Allows selecting items across all layers, even locked or deleted layers";
-      lockRow.innerHTML = `
-        <span>${t.disableSelectionLock}</span>
-        <span class="cl-switch"><span class="cl-switch-knob"></span></span>`;
-      lockRow.addEventListener("click", () => {
-        this.callbacks.onToggleSelectionLock?.();
-        this.render();
-      });
-      body.appendChild(lockRow);
+    // Action buttons container for Selection Lock & Woodplate
+    if (this.callbacks.onToggleSelectionLock || this.callbacks.onToggleWoodPlate) {
+      const btnGroup = document.createElement("div");
+      btnGroup.className = "cl-btn-group";
+
+      // Disable Selection Lock button
+      if (this.callbacks.onToggleSelectionLock) {
+        const de = getLanguage() === "de";
+        const on = this.callbacks.isSelectionLockDisabled?.() ?? false;
+        const lockBtn = document.createElement("button");
+        lockBtn.type = "button";
+        lockBtn.className = `cl-btn ${on ? "is-active" : ""}`;
+        lockBtn.id = "cl-toggle-selection-lock";
+        lockBtn.title = de
+          ? "Auswahlsperre: Erlaubt oder sperrt das Auswählen von Gleisen und Modellen über inaktive, gesperrte oder gelöschte Ebenen hinweg"
+          : "Selection Lock: Allows or restricts selecting items across inactive, locked or deleted layers";
+        lockBtn.innerHTML = `
+          <span style="display: flex; align-items: center; gap: 6px;">
+            <span class="cl-btn-icon">${on ? ICONS.unlock : ICONS.lock}</span>
+            <span>${de ? "Auswahlsperre" : "Selection lock"}</span>
+          </span>
+          <span class="cl-btn-badge">${on ? (de ? "Aufgehoben" : "Unlocked") : (de ? "Aktiv" : "Active")}</span>
+        `;
+        lockBtn.addEventListener("click", () => {
+          this.callbacks.onToggleSelectionLock?.();
+          this.render();
+        });
+        btnGroup.appendChild(lockBtn);
+      }
+
+      // Wood plate button
+      if (this.callbacks.onToggleWoodPlate) {
+        const de = getLanguage() === "de";
+        const on = this.callbacks.isWoodPlateActive?.() ?? false;
+        const woodBtn = document.createElement("button");
+        woodBtn.type = "button";
+        woodBtn.className = `cl-btn ${on ? "is-active" : ""}`;
+        woodBtn.id = "cl-toggle-woodplate";
+        woodBtn.title = de
+          ? "Trassenbrett / Woodplatte unter Gleisen und Straßen ein- oder ausblenden"
+          : "Show or hide wood roadbed plate under tracks and roads";
+        woodBtn.innerHTML = `
+          <span style="display: flex; align-items: center; gap: 6px;">
+            <span class="cl-btn-icon">${ICONS.wood}</span>
+            <span>${de ? "Woodplatte" : "Wood plate"}</span>
+          </span>
+          <span class="cl-btn-badge">${on ? (de ? "An" : "On") : (de ? "Aus" : "Off")}</span>
+        `;
+        woodBtn.addEventListener("click", () => {
+          this.callbacks.onToggleWoodPlate?.();
+          this.render();
+        });
+        btnGroup.appendChild(woodBtn);
+      }
+
+      body.appendChild(btnGroup);
     }
 
-    // Wood plate toggle
-    if (this.callbacks.onToggleWoodPlate) {
-      const de = getLanguage() === "de";
-      const on = this.callbacks.isWoodPlateActive?.() ?? false;
-      const row = document.createElement("button");
-      row.type = "button";
-      row.className = `cl-toggle ${on ? "is-on" : ""}`;
-      row.setAttribute("role", "switch");
-      row.setAttribute("aria-checked", String(on));
-      row.title = de
-        ? "Trassenbrett / Woodplatte unter Gleisen und Straßen platzieren"
-        : "Place wood roadbed plate under tracks and roads";
-      row.innerHTML = `
-        <span>${de ? "Woodplatte" : "Wood plate"}</span>
-        <span class="cl-switch"><span class="cl-switch-knob"></span></span>`;
-      row.addEventListener("click", () => {
-        this.callbacks.onToggleWoodPlate?.();
-        this.render();
-      });
-      body.appendChild(row);
-    }
-
-    this.host.appendChild(body);
+    container.appendChild(body);
   }
 
   private renderLayer(layer: Layer, isActive: boolean, hasSelection: boolean, t: ReturnType<typeof getTranslations>["rightSidebar"]) {

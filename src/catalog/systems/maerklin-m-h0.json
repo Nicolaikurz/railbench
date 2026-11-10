@@ -9,6 +9,53 @@
   "conductors": 3,
   "entries": [
     {
+      "id": "5100",
+      "name": "Gebogenes Gleis Normalkreis I / 30°",
+      "nameEn": "Curved Track Normal Circle I / 30°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R1 = 360,0 mm, Bogen 30° (12 Stück für Vollkreis)",
+      "descriptionEn": "Radius R1 = 360.0 mm, angle 30° (12 pieces make 360°)",
+      "radius": 360,
+      "angle": 30,
+      "gauge": 16.5
+    },
+    {
+      "id": "5101",
+      "name": "Gebogenes Gleis Normalkreis I / 15°",
+      "nameEn": "Curved Track Normal Circle I / 15°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R1 = 360,0 mm, halbes Gleis 15°",
+      "descriptionEn": "Radius R1 = 360.0 mm, half curve 15°",
+      "radius": 360,
+      "angle": 15,
+      "gauge": 16.5
+    },
+    {
+      "id": "5102",
+      "name": "Gebogenes Gleis Normalkreis I / 7,5°",
+      "nameEn": "Curved Track Normal Circle I / 7.5°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R1 = 360,0 mm, Viertelgleis 7,5°",
+      "descriptionEn": "Radius R1 = 360.0 mm, quarter curve 7.5°",
+      "radius": 360,
+      "angle": 7.5,
+      "gauge": 16.5
+    },
+    {
+      "id": "5104",
+      "name": "Kontaktgleis gerade (90,0 mm)",
+      "nameEn": "Sensor Track straight (90.0 mm)",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Gleisbesetztmelde-Gleis mit isolierter Schiene (90,0 mm)",
+      "descriptionEn": "Isolated rail track section for block signaling (90.0 mm)",
+      "length": 90,
+      "gauge": 16.5
+    },
+    {
       "id": "5106",
       "name": "Gerades Gleis 1/1 (180,0 mm)",
       "nameEn": "Straight Track 1/1 (180.0 mm)",
@@ -64,17 +111,6 @@
       "gauge": 16.5
     },
     {
-      "id": "5129",
-      "name": "Gerades Ausgleichsgleis (70,0 mm)",
-      "nameEn": "Straight Compensation Track (70.0 mm)",
-      "kind": "straight",
-      "category": "Geraden",
-      "description": "Ausgleichsstück für Gegenbogen 5200 / Bogenweichen 5140 (70,0 mm)",
-      "descriptionEn": "Adapter straight for parallel curves and curved turnouts (70.0 mm)",
-      "length": 70,
-      "gauge": 16.5
-    },
-    {
       "id": "5111",
       "name": "Anschlussgleis gerade (180,0 mm)",
       "nameEn": "Feeder Track straight (180.0 mm)",
@@ -108,133 +144,26 @@
       "gauge": 16.5
     },
     {
-      "id": "5146",
-      "name": "Schaltgleis gerade (90,0 mm)",
-      "nameEn": "Control Track straight (90.0 mm)",
-      "kind": "straight",
-      "category": "Geraden",
-      "description": "Schaltgleis gerade (Momentkontakt durch Mittelschleifer)",
-      "descriptionEn": "Straight contact track triggered by center pick-up shoe",
-      "length": 90,
-      "gauge": 16.5
-    },
-    {
-      "id": "5104",
-      "name": "Kontaktgleis gerade (90,0 mm)",
-      "nameEn": "Sensor Track straight (90.0 mm)",
-      "kind": "straight",
-      "category": "Geraden",
-      "description": "Gleisbesetztmelde-Gleis mit isolierter Schiene (90,0 mm)",
-      "descriptionEn": "Isolated rail track section for block signaling (90.0 mm)",
-      "length": 90,
-      "gauge": 16.5
-    },
-    {
-      "id": "5100",
-      "name": "Gebogenes Gleis Normalkreis I / 30°",
-      "nameEn": "Curved Track Normal Circle I / 30°",
-      "kind": "curve",
-      "category": "Bögen",
-      "description": "Radius R1 = 360,0 mm, Bogen 30° (12 Stück für Vollkreis)",
-      "descriptionEn": "Radius R1 = 360.0 mm, angle 30° (12 pieces make 360°)",
-      "radius": 360,
+      "id": "5114",
+      "name": "Kreuzung 30°",
+      "nameEn": "Crossing 30°",
+      "kind": "crossing",
+      "category": "Kreuzungen",
+      "description": "Feste Kreuzung 30°, Länge 193,0 mm",
+      "descriptionEn": "Fixed crossing 30°, length 193.0 mm",
+      "length": 193,
       "angle": 30,
       "gauge": 16.5
     },
     {
-      "id": "5101",
-      "name": "Gebogenes Gleis Normalkreis I / 15°",
-      "nameEn": "Curved Track Normal Circle I / 15°",
-      "kind": "curve",
-      "category": "Bögen",
-      "description": "Radius R1 = 360,0 mm, halbes Gleis 15°",
-      "descriptionEn": "Radius R1 = 360.0 mm, half curve 15°",
-      "radius": 360,
-      "angle": 15,
-      "gauge": 16.5
-    },
-    {
-      "id": "5102",
-      "name": "Gebogenes Gleis Normalkreis I / 7,5°",
-      "nameEn": "Curved Track Normal Circle I / 7.5°",
-      "kind": "curve",
-      "category": "Bögen",
-      "description": "Radius R1 = 360,0 mm, Viertelgleis 7,5°",
-      "descriptionEn": "Radius R1 = 360.0 mm, quarter curve 7.5°",
-      "radius": 360,
-      "angle": 7.5,
-      "gauge": 16.5
-    },
-    {
-      "id": "5120",
-      "name": "Gebogenes Gleis Industriekreis / 30°",
-      "nameEn": "Curved Track Industrial Circle / 30°",
-      "kind": "curve",
-      "category": "Bögen",
-      "description": "Enger Industriekreis Radius R0 = 286,0 mm, Bogen 30°",
-      "descriptionEn": "Sharp industrial radius R0 = 286.0 mm, angle 30°",
-      "radius": 286,
-      "angle": 30,
-      "gauge": 16.5
-    },
-    {
-      "id": "5200",
-      "name": "Gebogenes Gleis Parallelkreis II / 30°",
-      "nameEn": "Curved Track Parallel Circle II / 30°",
-      "kind": "curve",
-      "category": "Bögen",
-      "description": "Radius R2 = 437,4 mm, Bogen 30° (12 Stück für Vollkreis)",
-      "descriptionEn": "Radius R2 = 437.4 mm, angle 30° (12 pieces make 360°)",
-      "radius": 437.4,
-      "angle": 30,
-      "gauge": 16.5
-    },
-    {
-      "id": "5201",
-      "name": "Gebogenes Gleis Parallelkreis II / 15°",
-      "nameEn": "Curved Track Parallel Circle II / 15°",
-      "kind": "curve",
-      "category": "Bögen",
-      "description": "Radius R2 = 437,4 mm, halbes Gleis 15°",
-      "descriptionEn": "Radius R2 = 437.4 mm, half curve 15°",
-      "radius": 437.4,
-      "angle": 15,
-      "gauge": 16.5
-    },
-    {
-      "id": "5205",
-      "name": "Ausgleichsbogen R2 / 5° 43'",
-      "nameEn": "Compensation Curve R2 / 5° 43'",
-      "kind": "curve",
-      "category": "Bögen",
-      "description": "Radius R2 = 437,4 mm, Ausgleichswinkel 5,72° (Gegenkurve)",
-      "descriptionEn": "Radius R2 = 437.4 mm, angle 5.72° for parallel turnout spacing",
-      "radius": 437.4,
-      "angle": 5.72,
-      "gauge": 16.5
-    },
-    {
-      "id": "5206",
-      "name": "Gegenbogen für Weichen 5202 / 24° 17'",
-      "nameEn": "Counter Curve for Turnout 5202 / 24° 17'",
-      "kind": "curve",
-      "category": "Bögen",
-      "description": "Radius R2 = 437,4 mm, Gegenbogenwinkel 24,28° (passend zu Weichen 5202)",
-      "descriptionEn": "Radius R2 = 437.4 mm, angle 24.28° matching turnout 5202",
-      "radius": 437.4,
-      "angle": 24.28,
-      "gauge": 16.5
-    },
-    {
-      "id": "5147",
-      "name": "Schaltgleis gebogen R1 / 15°",
-      "nameEn": "Control Track curved R1 / 15°",
-      "kind": "curve",
-      "category": "Bögen",
-      "description": "Schaltgleis gebogen (Radius 360,0 mm, 15°)",
-      "descriptionEn": "Curved contact track (Radius 360.0 mm, 15°)",
-      "radius": 360,
-      "angle": 15,
+      "id": "5115",
+      "name": "Prellbock beleuchtet (70,0 mm)",
+      "nameEn": "Buffer Stop with Lantern (70.0 mm)",
+      "kind": "accessory",
+      "category": "Zubehör",
+      "description": "Prellbock mit Pufferbohle und beleuchtetem Sperrsignal (Länge 70,0 mm)",
+      "descriptionEn": "Buffer stop with illuminated stop signal (length 70.0 mm)",
+      "length": 70,
       "gauge": 16.5
     },
     {
@@ -264,6 +193,42 @@
       "gauge": 16.5
     },
     {
+      "id": "5120",
+      "name": "Gebogenes Gleis Industriekreis / 30°",
+      "nameEn": "Curved Track Industrial Circle / 30°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Enger Industriekreis Radius R0 = 286,0 mm, Bogen 30°",
+      "descriptionEn": "Sharp industrial radius R0 = 286.0 mm, angle 30°",
+      "radius": 286,
+      "angle": 30,
+      "gauge": 16.5
+    },
+    {
+      "id": "5128",
+      "name": "Doppelkreuzungsweiche (DKW) R1 / 30°",
+      "nameEn": "Double Slip Switch (DKW) R1 / 30°",
+      "kind": "dkw",
+      "category": "Kreuzungen",
+      "description": "Doppelkreuzungsweiche R1, Länge 180,0 mm, Kreuzungswinkel 30°, Bogenradius 360,0 mm",
+      "descriptionEn": "Double slip crossing switch R1, length 180.0 mm, angle 30°, radius 360.0 mm",
+      "length": 180,
+      "angle": 30,
+      "branchRadius": 360,
+      "gauge": 16.5
+    },
+    {
+      "id": "5129",
+      "name": "Gerades Ausgleichsgleis (70,0 mm)",
+      "nameEn": "Straight Compensation Track (70.0 mm)",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Ausgleichsstück für Gegenbogen 5200 / Bogenweichen 5140 (70,0 mm)",
+      "descriptionEn": "Adapter straight for parallel curves and curved turnouts (70.0 mm)",
+      "length": 70,
+      "gauge": 16.5
+    },
+    {
       "id": "5137-L",
       "name": "Weiche links R1 mit Laterne",
       "nameEn": "Turnout Left R1 with Lantern",
@@ -287,32 +252,6 @@
       "length": 180,
       "branchRadius": 360,
       "branchAngle": 30,
-      "gauge": 16.5
-    },
-    {
-      "id": "5202-L",
-      "name": "Weiche links R2 (Großer Kreis) / 24° 17'",
-      "nameEn": "Turnout Left R2 (Parallel Circle) / 24° 17'",
-      "kind": "turnout-left",
-      "category": "Weichen",
-      "description": "Große Weiche links, Gerade 180,0 mm, Abzweig R2 437,4 mm / 24,28°",
-      "descriptionEn": "Large left turnout, straight 180.0 mm, branch R2 437.4 mm / 24.28°",
-      "length": 180,
-      "branchRadius": 437.4,
-      "branchAngle": 24.28,
-      "gauge": 16.5
-    },
-    {
-      "id": "5202-R",
-      "name": "Weiche rechts R2 (Großer Kreis) / 24° 17'",
-      "nameEn": "Turnout Right R2 (Parallel Circle) / 24° 17'",
-      "kind": "turnout-right",
-      "category": "Weichen",
-      "description": "Große Weiche rechts, Gerade 180,0 mm, Abzweig R2 437,4 mm / 24,28°",
-      "descriptionEn": "Large right turnout, straight 180.0 mm, branch R2 437.4 mm / 24.28°",
-      "length": 180,
-      "branchRadius": 437.4,
-      "branchAngle": 24.28,
       "gauge": 16.5
     },
     {
@@ -357,16 +296,100 @@
       "gauge": 16.5
     },
     {
-      "id": "5128",
-      "name": "Doppelkreuzungsweiche (DKW) R1 / 30°",
-      "nameEn": "Double Slip Switch (DKW) R1 / 30°",
-      "kind": "dkw",
-      "category": "Kreuzungen",
-      "description": "Doppelkreuzungsweiche R1, Länge 180,0 mm, Kreuzungswinkel 30°, Bogenradius 360,0 mm",
-      "descriptionEn": "Double slip crossing switch R1, length 180.0 mm, angle 30°, radius 360.0 mm",
-      "length": 180,
+      "id": "5146",
+      "name": "Schaltgleis gerade (90,0 mm)",
+      "nameEn": "Control Track straight (90.0 mm)",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Schaltgleis gerade (Momentkontakt durch Mittelschleifer)",
+      "descriptionEn": "Straight contact track triggered by center pick-up shoe",
+      "length": 90,
+      "gauge": 16.5
+    },
+    {
+      "id": "5147",
+      "name": "Schaltgleis gebogen R1 / 15°",
+      "nameEn": "Control Track curved R1 / 15°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Schaltgleis gebogen (Radius 360,0 mm, 15°)",
+      "descriptionEn": "Curved contact track (Radius 360.0 mm, 15°)",
+      "radius": 360,
+      "angle": 15,
+      "gauge": 16.5
+    },
+    {
+      "id": "5200",
+      "name": "Gebogenes Gleis Parallelkreis II / 30°",
+      "nameEn": "Curved Track Parallel Circle II / 30°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R2 = 437,4 mm, Bogen 30° (12 Stück für Vollkreis)",
+      "descriptionEn": "Radius R2 = 437.4 mm, angle 30° (12 pieces make 360°)",
+      "radius": 437.4,
       "angle": 30,
-      "branchRadius": 360,
+      "gauge": 16.5
+    },
+    {
+      "id": "5201",
+      "name": "Gebogenes Gleis Parallelkreis II / 15°",
+      "nameEn": "Curved Track Parallel Circle II / 15°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R2 = 437,4 mm, halbes Gleis 15°",
+      "descriptionEn": "Radius R2 = 437.4 mm, half curve 15°",
+      "radius": 437.4,
+      "angle": 15,
+      "gauge": 16.5
+    },
+    {
+      "id": "5202-L",
+      "name": "Weiche links R2 (Großer Kreis) / 24° 17'",
+      "nameEn": "Turnout Left R2 (Parallel Circle) / 24° 17'",
+      "kind": "turnout-left",
+      "category": "Weichen",
+      "description": "Große Weiche links, Gerade 180,0 mm, Abzweig R2 437,4 mm / 24,28°",
+      "descriptionEn": "Large left turnout, straight 180.0 mm, branch R2 437.4 mm / 24.28°",
+      "length": 180,
+      "branchRadius": 437.4,
+      "branchAngle": 24.28,
+      "gauge": 16.5
+    },
+    {
+      "id": "5202-R",
+      "name": "Weiche rechts R2 (Großer Kreis) / 24° 17'",
+      "nameEn": "Turnout Right R2 (Parallel Circle) / 24° 17'",
+      "kind": "turnout-right",
+      "category": "Weichen",
+      "description": "Große Weiche rechts, Gerade 180,0 mm, Abzweig R2 437,4 mm / 24,28°",
+      "descriptionEn": "Large right turnout, straight 180.0 mm, branch R2 437.4 mm / 24.28°",
+      "length": 180,
+      "branchRadius": 437.4,
+      "branchAngle": 24.28,
+      "gauge": 16.5
+    },
+    {
+      "id": "5205",
+      "name": "Ausgleichsbogen R2 / 5° 43'",
+      "nameEn": "Compensation Curve R2 / 5° 43'",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R2 = 437,4 mm, Ausgleichswinkel 5,72° (Gegenkurve)",
+      "descriptionEn": "Radius R2 = 437.4 mm, angle 5.72° for parallel turnout spacing",
+      "radius": 437.4,
+      "angle": 5.72,
+      "gauge": 16.5
+    },
+    {
+      "id": "5206",
+      "name": "Gegenbogen für Weichen 5202 / 24° 17'",
+      "nameEn": "Counter Curve for Turnout 5202 / 24° 17'",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R2 = 437,4 mm, Gegenbogenwinkel 24,28° (passend zu Weichen 5202)",
+      "descriptionEn": "Radius R2 = 437.4 mm, angle 24.28° matching turnout 5202",
+      "radius": 437.4,
+      "angle": 24.28,
       "gauge": 16.5
     },
     {
@@ -383,18 +406,6 @@
       "gauge": 16.5
     },
     {
-      "id": "5114",
-      "name": "Kreuzung 30°",
-      "nameEn": "Crossing 30°",
-      "kind": "crossing",
-      "category": "Kreuzungen",
-      "description": "Feste Kreuzung 30°, Länge 193,0 mm",
-      "descriptionEn": "Fixed crossing 30°, length 193.0 mm",
-      "length": 193,
-      "angle": 30,
-      "gauge": 16.5
-    },
-    {
       "id": "5211",
       "name": "Kreuzung für Parallelkreis 5200",
       "nameEn": "Parallel Crossing for Circle 5200",
@@ -404,17 +415,6 @@
       "descriptionEn": "Crossing for parallel track R2, length 180.0 mm, angle 24.28°",
       "length": 180,
       "angle": 24.28,
-      "gauge": 16.5
-    },
-    {
-      "id": "5115",
-      "name": "Prellbock beleuchtet (70,0 mm)",
-      "nameEn": "Buffer Stop with Lantern (70.0 mm)",
-      "kind": "accessory",
-      "category": "Zubehör",
-      "description": "Prellbock mit Pufferbohle und beleuchtetem Sperrsignal (Länge 70,0 mm)",
-      "descriptionEn": "Buffer stop with illuminated stop signal (length 70.0 mm)",
-      "length": 70,
       "gauge": 16.5
     },
     {
@@ -451,16 +451,56 @@
       "gauge": 16.5,
       "hasRoadbed": true,
       "localConnectors": [
-        { "x": 0, "y": 0, "angle": 180 },
-        { "x": 0, "y": 77.4, "angle": 180 },
-        { "x": 0, "y": 154.8, "angle": 180 },
-        { "x": 0, "y": 232.2, "angle": 180 },
-        { "x": 0, "y": 309.6, "angle": 180 },
-        { "x": 360, "y": 0, "angle": 0 },
-        { "x": 360, "y": 77.4, "angle": 0 },
-        { "x": 360, "y": 154.8, "angle": 0 },
-        { "x": 360, "y": 232.2, "angle": 0 },
-        { "x": 360, "y": 309.6, "angle": 0 }
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 0,
+          "y": 77.4,
+          "angle": 180
+        },
+        {
+          "x": 0,
+          "y": 154.8,
+          "angle": 180
+        },
+        {
+          "x": 0,
+          "y": 232.2,
+          "angle": 180
+        },
+        {
+          "x": 0,
+          "y": 309.6,
+          "angle": 180
+        },
+        {
+          "x": 360,
+          "y": 0,
+          "angle": 0
+        },
+        {
+          "x": 360,
+          "y": 77.4,
+          "angle": 0
+        },
+        {
+          "x": 360,
+          "y": 154.8,
+          "angle": 0
+        },
+        {
+          "x": 360,
+          "y": 232.2,
+          "angle": 0
+        },
+        {
+          "x": 360,
+          "y": 309.6,
+          "angle": 0
+        }
       ]
     }
   ]

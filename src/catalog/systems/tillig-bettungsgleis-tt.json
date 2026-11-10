@@ -27,30 +27,12 @@
       "gauge": 12
     },
     {
-      "id": "83706",
-      "name": "Anschlussgleis BG2a (83 mm)",
-      "kind": "straight",
-      "category": "Geraden",
-      "description": "Gerades Gleis 83 mm mit Anschlussklemmen",
-      "length": 83,
-      "gauge": 12
-    },
-    {
       "id": "83702",
       "name": "Gerades Gleis BG3 (43 mm)",
       "kind": "straight",
       "category": "Geraden",
       "description": "Ausgleichsgerade mit Bettung, Länge 43 mm (Weichen-Gegenstück)",
       "length": 43,
-      "gauge": 12
-    },
-    {
-      "id": "83705",
-      "name": "Gerades Gleis BG4 (41,5 mm)",
-      "kind": "straight",
-      "category": "Geraden",
-      "description": "Viertelgleis mit Bettung, Länge 41,5 mm",
-      "length": 41.5,
       "gauge": 12
     },
     {
@@ -63,21 +45,30 @@
       "gauge": 12
     },
     {
+      "id": "83705",
+      "name": "Gerades Gleis BG4 (41,5 mm)",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Viertelgleis mit Bettung, Länge 41,5 mm",
+      "length": 41.5,
+      "gauge": 12
+    },
+    {
+      "id": "83706",
+      "name": "Anschlussgleis BG2a (83 mm)",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Gerades Gleis 83 mm mit Anschlussklemmen",
+      "length": 83,
+      "gauge": 12
+    },
+    {
       "id": "83707",
       "name": "Trenngleis BG-T (41,5 mm)",
       "kind": "straight",
       "category": "Geraden",
       "description": "Unterbrechergleis 41,5 mm mit einseitiger Schienentrennung",
       "length": 41.5,
-      "gauge": 12
-    },
-    {
-      "id": "83740",
-      "name": "Übergangsgleis Bettung/Modellgleis (166 mm)",
-      "kind": "straight",
-      "category": "Geraden",
-      "description": "Länge 166 mm zum Übergang auf Modellgleis ohne Bettung",
-      "length": 166,
       "gauge": 12
     },
     {
@@ -96,36 +87,6 @@
       "kind": "curve",
       "category": "Bögen",
       "description": "Radius R11 = 310 mm, Bogen 15°",
-      "radius": 310,
-      "angle": 15,
-      "gauge": 12
-    },
-    {
-      "id": "83725",
-      "name": "Gegenbogen Weiche BR12-W / 15°",
-      "kind": "curve",
-      "category": "Bögen",
-      "description": "Radius R11 = 310 mm, 15° mit verkürztem Bettungskörper für EW-B1 Parallelgleisabstand 43 mm",
-      "radius": 310,
-      "angle": 15,
-      "gauge": 12
-    },
-    {
-      "id": "83722",
-      "name": "Bogen-Anschlussgleis BR11a / 30°",
-      "kind": "curve",
-      "category": "Bögen",
-      "description": "Radius R11 = 310 mm, 30° mit elektrischem Anschluss",
-      "radius": 310,
-      "angle": 30,
-      "gauge": 12
-    },
-    {
-      "id": "83724",
-      "name": "Bogen-Trenngleis BR12-T / 15°",
-      "kind": "curve",
-      "category": "Bögen",
-      "description": "Radius R11 = 310 mm, 15° mit einpoliger Gleistrennung",
       "radius": 310,
       "angle": 15,
       "gauge": 12
@@ -188,6 +149,72 @@
       "description": "Radius R41 = 439 mm, Bogen 15°",
       "radius": 439,
       "angle": 15,
+      "gauge": 12
+    },
+    {
+      "id": "83721",
+      "name": "Entkupplungsgleis elektrisch",
+      "kind": "uncoupler",
+      "category": "Zubehör",
+      "description": "Länge 83 mm mit integriertem elektrischem Entkuppler",
+      "length": 83,
+      "gauge": 12
+    },
+    {
+      "id": "83722",
+      "name": "Bogen-Anschlussgleis BR11a / 30°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R11 = 310 mm, 30° mit elektrischem Anschluss",
+      "radius": 310,
+      "angle": 30,
+      "gauge": 12
+    },
+    {
+      "id": "83723",
+      "name": "Aufgleis- und Bahnübergangsgleis BG6 (166 mm)",
+      "kind": "straight",
+      "category": "Zubehör",
+      "description": "Gerades Gleis 166 mm mit Aufgleishilfe / Rillenbelag",
+      "length": 166,
+      "gauge": 12
+    },
+    {
+      "id": "83724",
+      "name": "Bogen-Trenngleis BR12-T / 15°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R11 = 310 mm, 15° mit einpoliger Gleistrennung",
+      "radius": 310,
+      "angle": 15,
+      "gauge": 12
+    },
+    {
+      "id": "83725",
+      "name": "Gegenbogen Weiche BR12-W / 15°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R11 = 310 mm, 15° mit verkürztem Bettungskörper für EW-B1 Parallelgleisabstand 43 mm",
+      "radius": 310,
+      "angle": 15,
+      "gauge": 12
+    },
+    {
+      "id": "83740",
+      "name": "Übergangsgleis Bettung/Modellgleis (166 mm)",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Länge 166 mm zum Übergang auf Modellgleis ohne Bettung",
+      "length": 166,
+      "gauge": 12
+    },
+    {
+      "id": "83750",
+      "name": "Bettungsgleis mit Prellbock",
+      "kind": "buffer-stop",
+      "category": "Zubehör",
+      "description": "Gleis BG3 (43 mm) mit fest montiertem Prellbock",
+      "length": 43,
       "gauge": 12
     },
     {
@@ -265,33 +292,6 @@
       "length": 166,
       "angle": 15,
       "branchRadius": 310,
-      "gauge": 12
-    },
-    {
-      "id": "83750",
-      "name": "Bettungsgleis mit Prellbock",
-      "kind": "buffer-stop",
-      "category": "Zubehör",
-      "description": "Gleis BG3 (43 mm) mit fest montiertem Prellbock",
-      "length": 43,
-      "gauge": 12
-    },
-    {
-      "id": "83721",
-      "name": "Entkupplungsgleis elektrisch",
-      "kind": "uncoupler",
-      "category": "Zubehör",
-      "description": "Länge 83 mm mit integriertem elektrischem Entkuppler",
-      "length": 83,
-      "gauge": 12
-    },
-    {
-      "id": "83723",
-      "name": "Aufgleis- und Bahnübergangsgleis BG6 (166 mm)",
-      "kind": "straight",
-      "category": "Zubehör",
-      "description": "Gerades Gleis 166 mm mit Aufgleishilfe / Rillenbelag",
-      "length": 166,
       "gauge": 12
     }
   ]

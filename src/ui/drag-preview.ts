@@ -26,6 +26,7 @@ export function createPieceDragCanvas(
   roadWidthMm: number = 60,
   scaleGauge: number = 16.5,
   zoom: number = 1.0,
+  hideBadge: boolean = false,
 ): HTMLCanvasElement {
   if (typeof document === "undefined") {
     return {} as HTMLCanvasElement;
@@ -40,12 +41,80 @@ export function createPieceDragCanvas(
   const pxPerMm = Math.max(0.2, Math.min(3.0, zoom || 1.0));
 
   if (effectiveIsRoad) {
-    renderRoadPiece(ctx, canvas, entry, roadWidthMm, pxPerMm);
+    renderRoadPiece(ctx, canvas, entry, roadWidthMm, pxPerMm, hideBadge);
   } else {
-    renderTrackPiece(ctx, canvas, entry, scaleGauge, pxPerMm);
+    renderTrackPiece(ctx, canvas, entry, scaleGauge, pxPerMm, hideBadge);
   }
 
   return canvas;
+}
+
+const thumbnailCache = new Map<string, HTMLCanvasElement>();
+
+/**
+ * Creates a crisp, proportional 2D thumbnail preview of a catalog entry for sidebar cards.
+ */
+export function createCatalogThumbnail(
+  entry: CatalogEntry,
+  isRoad: boolean = false,
+  roadWidthMm: number = 60,
+  scaleGauge: number = 16.5,
+  targetW: number = 60,
+  targetH: number = 40,
+): HTMLCanvasElement {
+  if (typeof document === "undefined") {
+    return {} as HTMLCanvasElement;
+  }
+
+  const cacheKey = `${entry.id}_${isRoad ? "r" : "t"}_${roadWidthMm}_${scaleGauge}_${targetW}_${targetH}`;
+  const cached = thumbnailCache.get(cacheKey);
+  if (cached) {
+    const clone = document.createElement("canvas");
+    clone.width = cached.width;
+    clone.height = cached.height;
+    clone.style.width = cached.style.width;
+    clone.style.height = cached.style.height;
+    const ctx = clone.getContext("2d");
+    if (ctx) ctx.drawImage(cached, 0, 0);
+    return clone;
+  }
+
+  const dpr = typeof window !== "undefined" ? Math.min(2, window.devicePixelRatio || 1) : 1;
+  const thumbCanvas = document.createElement("canvas");
+  thumbCanvas.width = targetW * dpr;
+  thumbCanvas.height = targetH * dpr;
+  thumbCanvas.style.width = `${targetW}px`;
+  thumbCanvas.style.height = `${targetH}px`;
+
+  const ctx = thumbCanvas.getContext("2d");
+  if (!ctx) return thumbCanvas;
+
+  const rawCanvas = createPieceDragCanvas(entry, isRoad, roadWidthMm, scaleGauge, 0.6, true);
+  if (rawCanvas && rawCanvas.width && rawCanvas.height) {
+    const pad = 3 * dpr;
+    const availW = thumbCanvas.width - pad * 2;
+    const availH = thumbCanvas.height - pad * 2;
+    const scale = Math.min(availW / rawCanvas.width, availH / rawCanvas.height);
+    const drawW = rawCanvas.width * scale;
+    const drawH = rawCanvas.height * scale;
+    const drawX = (thumbCanvas.width - drawW) / 2;
+    const drawY = (thumbCanvas.height - drawH) / 2;
+
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(rawCanvas, 0, 0, rawCanvas.width, rawCanvas.height, drawX, drawY, drawW, drawH);
+  }
+
+  thumbnailCache.set(cacheKey, thumbCanvas);
+
+  const result = document.createElement("canvas");
+  result.width = thumbCanvas.width;
+  result.height = thumbCanvas.height;
+  result.style.width = thumbCanvas.style.width;
+  result.style.height = thumbCanvas.style.height;
+  const rCtx = result.getContext("2d");
+  if (rCtx) rCtx.drawImage(thumbCanvas, 0, 0);
+  return result;
 }
 
 /**
@@ -57,6 +126,7 @@ function renderTrackPiece(
   entry: CatalogEntry,
   gaugeMm: number,
   pxPerMm: number,
+  hideBadge: boolean = false,
 ): void {
   const gauge = Math.max(6, gaugeMm * pxPerMm);
   const ballastWidth = gauge + 9;
@@ -128,7 +198,7 @@ function renderTrackPiece(
     drawConnectorDot(ctx, r * Math.sin(rad), -r * Math.cos(rad), accentColor);
 
     ctx.restore();
-    drawPieceIdBadge(ctx, entry.id, canvas.width, canvas.height);
+    if (!hideBadge) drawPieceIdBadge(ctx, entry.id, canvas.width, canvas.height);
     return;
   }
 
@@ -180,7 +250,7 @@ function renderTrackPiece(
     }
 
     ctx.restore();
-    drawPieceIdBadge(ctx, entry.id, canvas.width, canvas.height);
+    if (!hideBadge) drawPieceIdBadge(ctx, entry.id, canvas.width, canvas.height);
     return;
   }
 
@@ -225,7 +295,7 @@ function renderTrackPiece(
     drawConnectorDot(ctx, rBranch * Math.sin(rad), -rBranch * Math.cos(rad), accentColor);
 
     ctx.restore();
-    drawPieceIdBadge(ctx, entry.id, canvas.width, canvas.height);
+    if (!hideBadge) drawPieceIdBadge(ctx, entry.id, canvas.width, canvas.height);
     return;
   }
 
@@ -268,7 +338,7 @@ function renderTrackPiece(
     }
 
     ctx.restore();
-    drawPieceIdBadge(ctx, entry.id, canvas.width, canvas.height);
+    if (!hideBadge) drawPieceIdBadge(ctx, entry.id, canvas.width, canvas.height);
     return;
   }
 
@@ -316,7 +386,7 @@ function renderTrackPiece(
   }
 
   ctx.restore();
-  drawPieceIdBadge(ctx, entry.id, canvas.width, canvas.height);
+  if (!hideBadge) drawPieceIdBadge(ctx, entry.id, canvas.width, canvas.height);
 }
 
 /**
@@ -328,6 +398,7 @@ function renderRoadPiece(
   entry: CatalogEntry,
   roadWidthMm: number,
   pxPerMm: number,
+  hideBadge: boolean = false,
 ): void {
   const roadW = Math.max(20, (roadWidthMm || entry.roadWidth || 60) * pxPerMm);
   const roadColor = "#1e293b";
@@ -374,7 +445,7 @@ function renderRoadPiece(
     ctx.setLineDash([]);
 
     ctx.restore();
-    drawPieceIdBadge(ctx, entry.id, canvas.width, canvas.height);
+    if (!hideBadge) drawPieceIdBadge(ctx, entry.id, canvas.width, canvas.height);
     return;
   }
 
@@ -408,7 +479,7 @@ function renderRoadPiece(
   ctx.setLineDash([]);
 
   ctx.restore();
-  drawPieceIdBadge(ctx, entry.id, canvas.width, canvas.height);
+  if (!hideBadge) drawPieceIdBadge(ctx, entry.id, canvas.width, canvas.height);
 }
 
 function getModelCategoryTheme(category?: string): {

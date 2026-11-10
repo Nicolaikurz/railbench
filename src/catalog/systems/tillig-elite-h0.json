@@ -9,6 +9,142 @@
   "conductors": 2,
   "entries": [
     {
+      "id": "85100",
+      "name": "Flexgleis Holzschwellen 890 mm",
+      "kind": "flex",
+      "category": "Geraden",
+      "description": "Flexgleis mit Holzschwellenimitat, Länge 890 mm",
+      "length": 890,
+      "gauge": 16.5
+    },
+    {
+      "id": "85101",
+      "name": "Flexgleis Betonschwellen 890 mm",
+      "kind": "flex",
+      "category": "Geraden",
+      "description": "Flexgleis mit Betonschwellenimitat, Länge 890 mm",
+      "length": 890,
+      "gauge": 16.5
+    },
+    {
+      "id": "85102",
+      "name": "Flexgleis Stahlschwellen 890 mm",
+      "kind": "flex",
+      "category": "Geraden",
+      "description": "Flexgleis mit Stahlschwellenimitat, Länge 890 mm",
+      "length": 890,
+      "gauge": 16.5
+    },
+    {
+      "id": "85104",
+      "name": "Schwellenband Holz 890 mm",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Schwellenband ohne Schienenprofile, Länge 890 mm",
+      "length": 890,
+      "gauge": 16.5
+    },
+    {
+      "id": "85111",
+      "name": "Gebogenes Gleis R12 / 15°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R11 = 366 mm, Bogen 15°",
+      "radius": 366,
+      "angle": 15,
+      "gauge": 16.5
+    },
+    {
+      "id": "85112",
+      "name": "Gebogenes Gleis R22 / 15°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R21 = 425 mm, Bogen 15°",
+      "radius": 425,
+      "angle": 15,
+      "gauge": 16.5
+    },
+    {
+      "id": "85113",
+      "name": "Gebogenes Gleis R32 / 15°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R31 = 484 mm, Bogen 15°",
+      "radius": 484,
+      "angle": 15,
+      "gauge": 16.5
+    },
+    {
+      "id": "85114",
+      "name": "Gebogenes Gleis R42 / 15°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R41 = 543 mm, Bogen 15°",
+      "radius": 543,
+      "angle": 15,
+      "gauge": 16.5
+    },
+    {
+      "id": "85115",
+      "name": "Gebogenes Gleis R01 / 15°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Gegenbogen zur EW3/IBW, Radius R01 = 966 mm, Bogen 15°",
+      "radius": 966,
+      "angle": 15,
+      "gauge": 16.5
+    },
+    {
+      "id": "85116",
+      "name": "Gebogenes Gleis R02 / 12°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Gegenbogen zur EW3, Radius R01 = 966 mm, Bogen 12°",
+      "radius": 966,
+      "angle": 12,
+      "gauge": 16.5
+    },
+    {
+      "id": "85121",
+      "name": "Gebogenes Gleis R11 / 30°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R11 = 366 mm, Bogen 30°",
+      "radius": 366,
+      "angle": 30,
+      "gauge": 16.5
+    },
+    {
+      "id": "85122",
+      "name": "Gebogenes Gleis R21 / 30°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R21 = 425 mm, Bogen 30°",
+      "radius": 425,
+      "angle": 30,
+      "gauge": 16.5
+    },
+    {
+      "id": "85123",
+      "name": "Gebogenes Gleis R31 / 30°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R31 = 484 mm, Bogen 30°",
+      "radius": 484,
+      "angle": 30,
+      "gauge": 16.5
+    },
+    {
+      "id": "85124",
+      "name": "Gebogenes Gleis R41 / 30°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R41 = 543 mm, Bogen 30°",
+      "radius": 543,
+      "angle": 30,
+      "gauge": 16.5
+    },
+    {
       "id": "85125",
       "name": "Gerades Gleis G1 (228 mm)",
       "kind": "straight",
@@ -63,139 +199,51 @@
       "gauge": 16.5
     },
     {
-      "id": "85100",
-      "name": "Flexgleis Holzschwellen 890 mm",
-      "kind": "flex",
-      "category": "Geraden",
-      "description": "Flexgleis mit Holzschwellenimitat, Länge 890 mm",
-      "length": 890,
-      "gauge": 16.5
-    },
-    {
-      "id": "85101",
-      "name": "Flexgleis Betonschwellen 890 mm",
-      "kind": "flex",
-      "category": "Geraden",
-      "description": "Flexgleis mit Betonschwellenimitat, Länge 890 mm",
-      "length": 890,
-      "gauge": 16.5
-    },
-    {
-      "id": "85102",
-      "name": "Flexgleis Stahlschwellen 890 mm",
-      "kind": "flex",
-      "category": "Geraden",
-      "description": "Flexgleis mit Stahlschwellenimitat, Länge 890 mm",
-      "length": 890,
-      "gauge": 16.5
-    },
-    {
-      "id": "85104",
-      "name": "Schwellenband Holz 890 mm",
+      "id": "85135",
+      "name": "Übergangsgleis Tillig Elite auf Standardgleis (114 mm)",
       "kind": "straight",
-      "category": "Geraden",
-      "description": "Schwellenband ohne Schienenprofile, Länge 890 mm",
-      "length": 890,
+      "category": "Zubehör",
+      "description": "Übergang von Code 83 (2,1 mm) auf Code 100 (2,5 mm), Länge 114 mm",
+      "length": 114,
       "gauge": 16.5
     },
     {
-      "id": "85121",
-      "name": "Gebogenes Gleis R11 / 30°",
-      "kind": "curve",
-      "category": "Bögen",
-      "description": "Radius R11 = 366 mm, Bogen 30°",
-      "radius": 366,
+      "id": "85141",
+      "name": "Elektrisches Entkupplungsgleis (114 mm)",
+      "kind": "straight",
+      "category": "Zubehör",
+      "description": "Entkupplungsgleis auf G2-Basis, Länge 114 mm",
+      "length": 114,
+      "gauge": 16.5
+    },
+    {
+      "id": "85310",
+      "name": "Kreuzung K1 (15°)",
+      "kind": "crossing",
+      "category": "Kreuzungen",
+      "description": "Länge 166 mm, Kreuzungswinkel 15°",
+      "length": 166,
+      "angle": 15,
+      "gauge": 16.5
+    },
+    {
+      "id": "85311",
+      "name": "Kreuzung K2 (30°)",
+      "kind": "crossing",
+      "category": "Kreuzungen",
+      "description": "Länge 114 mm, Kreuzungswinkel 30°",
+      "length": 114,
       "angle": 30,
       "gauge": 16.5
     },
     {
-      "id": "85111",
-      "name": "Gebogenes Gleis R12 / 15°",
-      "kind": "curve",
-      "category": "Bögen",
-      "description": "Radius R11 = 366 mm, Bogen 15°",
-      "radius": 366,
-      "angle": 15,
-      "gauge": 16.5
-    },
-    {
-      "id": "85122",
-      "name": "Gebogenes Gleis R21 / 30°",
-      "kind": "curve",
-      "category": "Bögen",
-      "description": "Radius R21 = 425 mm, Bogen 30°",
-      "radius": 425,
-      "angle": 30,
-      "gauge": 16.5
-    },
-    {
-      "id": "85112",
-      "name": "Gebogenes Gleis R22 / 15°",
-      "kind": "curve",
-      "category": "Bögen",
-      "description": "Radius R21 = 425 mm, Bogen 15°",
-      "radius": 425,
-      "angle": 15,
-      "gauge": 16.5
-    },
-    {
-      "id": "85123",
-      "name": "Gebogenes Gleis R31 / 30°",
-      "kind": "curve",
-      "category": "Bögen",
-      "description": "Radius R31 = 484 mm, Bogen 30°",
-      "radius": 484,
-      "angle": 30,
-      "gauge": 16.5
-    },
-    {
-      "id": "85113",
-      "name": "Gebogenes Gleis R32 / 15°",
-      "kind": "curve",
-      "category": "Bögen",
-      "description": "Radius R31 = 484 mm, Bogen 15°",
-      "radius": 484,
-      "angle": 15,
-      "gauge": 16.5
-    },
-    {
-      "id": "85124",
-      "name": "Gebogenes Gleis R41 / 30°",
-      "kind": "curve",
-      "category": "Bögen",
-      "description": "Radius R41 = 543 mm, Bogen 30°",
-      "radius": 543,
-      "angle": 30,
-      "gauge": 16.5
-    },
-    {
-      "id": "85114",
-      "name": "Gebogenes Gleis R42 / 15°",
-      "kind": "curve",
-      "category": "Bögen",
-      "description": "Radius R41 = 543 mm, Bogen 15°",
-      "radius": 543,
-      "angle": 15,
-      "gauge": 16.5
-    },
-    {
-      "id": "85115",
-      "name": "Gebogenes Gleis R01 / 15°",
-      "kind": "curve",
-      "category": "Bögen",
-      "description": "Gegenbogen zur EW3/IBW, Radius R01 = 966 mm, Bogen 15°",
-      "radius": 966,
-      "angle": 15,
-      "gauge": 16.5
-    },
-    {
-      "id": "85116",
-      "name": "Gebogenes Gleis R02 / 12°",
-      "kind": "curve",
-      "category": "Bögen",
-      "description": "Gegenbogen zur EW3, Radius R01 = 966 mm, Bogen 12°",
-      "radius": 966,
-      "angle": 12,
+      "id": "85312",
+      "name": "Kreuzung K3 (8,5°)",
+      "kind": "crossing",
+      "category": "Kreuzungen",
+      "description": "Schlanke Kreuzung für Hosenträger/Gleisharfen, Länge 308 mm, Kreuzungswinkel 8,5°",
+      "length": 308,
+      "angle": 8.5,
       "gauge": 16.5
     },
     {
@@ -381,60 +429,12 @@
       "gauge": 16.5
     },
     {
-      "id": "85310",
-      "name": "Kreuzung K1 (15°)",
-      "kind": "crossing",
-      "category": "Kreuzungen",
-      "description": "Länge 166 mm, Kreuzungswinkel 15°",
-      "length": 166,
-      "angle": 15,
-      "gauge": 16.5
-    },
-    {
-      "id": "85311",
-      "name": "Kreuzung K2 (30°)",
-      "kind": "crossing",
-      "category": "Kreuzungen",
-      "description": "Länge 114 mm, Kreuzungswinkel 30°",
-      "length": 114,
-      "angle": 30,
-      "gauge": 16.5
-    },
-    {
-      "id": "85312",
-      "name": "Kreuzung K3 (8,5°)",
-      "kind": "crossing",
-      "category": "Kreuzungen",
-      "description": "Schlanke Kreuzung für Hosenträger/Gleisharfen, Länge 308 mm, Kreuzungswinkel 8,5°",
-      "length": 308,
-      "angle": 8.5,
-      "gauge": 16.5
-    },
-    {
       "id": "85918",
       "name": "Prellbockgleis 57 mm",
       "kind": "straight",
       "category": "Zubehör",
       "description": "Gleis G3 mit vormontiertem Prellbock",
       "length": 57,
-      "gauge": 16.5
-    },
-    {
-      "id": "85141",
-      "name": "Elektrisches Entkupplungsgleis (114 mm)",
-      "kind": "straight",
-      "category": "Zubehör",
-      "description": "Entkupplungsgleis auf G2-Basis, Länge 114 mm",
-      "length": 114,
-      "gauge": 16.5
-    },
-    {
-      "id": "85135",
-      "name": "Übergangsgleis Tillig Elite auf Standardgleis (114 mm)",
-      "kind": "straight",
-      "category": "Zubehör",
-      "description": "Übergang von Code 83 (2,1 mm) auf Code 100 (2,5 mm), Länge 114 mm",
-      "length": 114,
       "gauge": 16.5
     }
   ]

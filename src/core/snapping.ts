@@ -361,7 +361,9 @@ export function findBestSnapForPiece(
 
       // Straßen nur an Straßen, Gleise nur an Gleise snappen
       const targetEntry = catalogRegistry.findEntry(piece.catalogId);
-      if (Boolean(targetEntry?.isRoad) !== Boolean(entry.isRoad)) continue;
+      const targetIsRoad = Boolean(targetEntry?.isRoad || piece.catalogId.startsWith("road-"));
+      const movingIsRoad = Boolean(entry.isRoad || entry.id.startsWith("road-"));
+      if (targetIsRoad !== movingIsRoad) continue;
 
       for (let ti = 0; ti < piece.connectors.length; ti++) {
         // Falls dieser Zielanschluss ignoriert werden soll (z. B. beim Wegziehen von der bestehenden Verbindung)
@@ -371,7 +373,15 @@ export function findBestSnapForPiece(
 
         const target = piece.connectors[ti]!;
         // Falls Connector schon mit einem anderen Teil belegt ist
-        if (target.connectedTo && !ignoreSet.has(target.connectedTo.pieceId)) continue;
+        if (target.connectedTo && !ignoreSet.has(target.connectedTo.pieceId)) {
+          const otherPiece = pieces.find((p) => p.id === target.connectedTo!.pieceId);
+          if (otherPiece) {
+            const otherConn = otherPiece.connectors[target.connectedTo.connectorIndex];
+            if (otherConn && dist(target, otherConn) <= 6.0) {
+              continue; // Tatsächlich geometrisch belegt
+            }
+          }
+        }
 
         // Höhenprüfung ("the connection should be on the same hight"):
         if (candidatePieceOrElevation) {
@@ -390,9 +400,8 @@ export function findBestSnapForPiece(
         if (diff > 180) diff = 360 - diff;
 
         // Snap-in-place Toleranz:
-        // Bei nahem Heranführen (<= 28mm) rastet das Gleis direkt passgenau ein,
-        // auch wenn der Anstellwinkel noch grob abweicht.
-        const effectiveAngleTolerance = d <= 28 ? 180 : angleTolerance;
+        // Bei Heranführen innerhalb des Snap-Radius rastet das Gleis passgenau ein.
+        const effectiveAngleTolerance = d <= Math.max(35, radius) ? 180 : angleTolerance;
         if (diff > effectiveAngleTolerance) continue;
 
         // Bewertungsgewichtung: Nähere Anschlüsse und besser ausgerichtete Anschlüsse bevorzugen

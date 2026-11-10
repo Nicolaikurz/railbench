@@ -82,6 +82,7 @@ export class CanvasController {
   private draggedPiecesMap = new Map<string, Transform>();
   private draggedInitialConnections: { pieceId: string; connectorIndex: number }[] = [];
   private pieceCenterWorld = { x: 0, y: 0 }; private pendingSingleSelect: string | null = null; private hasDragMoved = false;
+  private hasUnlatchedFromInitial = false;
   private isDraggingBaseboard = false; private activeBaseboard: BaseboardConfig | null = null;
   private baseboardDragStartWorld = { x: 0, y: 0 };
   private baseboardOriginalPos = { positionMode: "custom" as const, customX: 0, customY: 0 };
@@ -633,7 +634,10 @@ export class CanvasController {
       if (this.deps.isSnappingEnabled()) {
         const otherPieces = layout.pieces.filter((p) => !this.draggedPiecesMap.has(p.id));
         let bestDist = Infinity;
-        const ignoreConn = dragDist < 28 ? this.draggedInitialConnections : undefined;
+        if (!this.hasUnlatchedFromInitial && dragDist >= 24) {
+          this.hasUnlatchedFromInitial = true;
+        }
+        const ignoreConn = !this.hasUnlatchedFromInitial ? this.draggedInitialConnections : undefined;
 
         for (const [id, origT] of this.draggedPiecesMap.entries()) {
           const piece = layout.pieces.find((p) => p.id === id);
@@ -838,24 +842,24 @@ export class CanvasController {
       canvas.style.cursor = "default";
       this.deps.sync();
     } else if (this.isRotatingPiece) {
-      if (this.commitMovedItems(layout, history)) this.deps.sync(true);
-      this.isRotatingPiece = false;
-      this.activePiece = null;
-      this.draggedPiecesMap.clear();
+      if (this.commitMovedItems(layout, history)) {
+        updatePieceConnections(layout.pieces, layout.layers);
+        this.deps.sync(true);
+      }
+      this.isRotatingPiece = false; this.activePiece = null; this.draggedPiecesMap.clear();
+      this.draggedInitialConnections = []; this.hasUnlatchedFromInitial = false;
       canvas.style.cursor = "default";
       this.deps.sync();
     } else if (this.isDraggingPiece) {
       if (!this.hasDragMoved && this.pendingSingleSelect) {
         selection.set(this.pendingSingleSelect);
-      } else if (this.hasDragMoved) {
-        if (this.commitMovedItems(layout, history)) this.deps.sync(true);
+      } else if (this.hasDragMoved && this.commitMovedItems(layout, history)) {
+        updatePieceConnections(layout.pieces, layout.layers);
+        this.deps.sync(true);
       }
-      this.isDraggingPiece = false;
-      this.activePiece = null;
-      this.activeModel = null;
-      this.pendingSingleSelect = null;
-      this.hasDragMoved = false;
-      this.draggedPiecesMap.clear();
+      this.isDraggingPiece = false; this.activePiece = null; this.activeModel = null;
+      this.pendingSingleSelect = null; this.hasDragMoved = false; this.hasUnlatchedFromInitial = false;
+      this.draggedPiecesMap.clear(); this.draggedInitialConnections = [];
       canvas.style.cursor = "default";
       this.deps.sync();
     } else if (this.isDraggingBaseboard && this.activeBaseboard) {
@@ -881,6 +885,7 @@ export class CanvasController {
   }
 
   private populateDraggedPiecesMap(layout: Layout, selection: Selection): void {
+    this.hasUnlatchedFromInitial = false;
     this.draggedPiecesMap.clear();
     for (const id of selection.all()) {
       const p = layout.pieces.find((x) => x.id === id);

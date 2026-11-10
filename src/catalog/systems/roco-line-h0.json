@@ -9,12 +9,85 @@
   "conductors": 2,
   "entries": [
     {
+      "id": "42400",
+      "name": "Flexgleis Holzschwellen (920 mm)",
+      "kind": "flex",
+      "category": "Geraden",
+      "description": "Flexgleis mit Holzschwellen, Länge 920 mm",
+      "length": 920,
+      "gauge": 16.5
+    },
+    {
+      "id": "42401",
+      "name": "Prellbock-Gleis 57,5 mm",
+      "kind": "buffer-stop",
+      "category": "Zubehör",
+      "description": "Gleisstück G1/4 (57,5 mm) mit fest montiertem Prellbock",
+      "length": 57.5,
+      "gauge": 16.5
+    },
+    {
+      "id": "42402",
+      "name": "Aufgleisgerät 230 mm",
+      "kind": "straight",
+      "category": "Zubehör",
+      "description": "Aufgleisvorrichtung auf Basis G1 (230 mm)",
+      "length": 230,
+      "gauge": 16.5
+    },
+    {
+      "id": "42406",
+      "name": "Flexgleis Betonschwellen (920 mm)",
+      "kind": "flex",
+      "category": "Geraden",
+      "description": "Flexgleis mit Betonschwellen, Länge 920 mm",
+      "length": 920,
+      "gauge": 16.5
+    },
+    {
+      "id": "42407",
+      "name": "Flexgleis Stahlschwellen (920 mm)",
+      "kind": "flex",
+      "category": "Geraden",
+      "description": "Flexgleis mit Stahlschwellen, Länge 920 mm",
+      "length": 920,
+      "gauge": 16.5
+    },
+    {
+      "id": "42408",
+      "name": "Verstellbares Ausgleichsgleis 80–120 mm",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Teleskop-Ausgleichsgleis stufenlos ausziehbar",
+      "length": 115,
+      "gauge": 16.5
+    },
+    {
+      "id": "42409",
+      "name": "Gebogenes Gleis R20 / 5°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R20 = 1962 mm, Bogen 5°",
+      "radius": 1962,
+      "angle": 5,
+      "gauge": 16.5
+    },
+    {
       "id": "42410",
       "name": "Gerades Gleis G1 (230 mm)",
       "kind": "straight",
       "category": "Geraden",
       "description": "Standardgerade G1, Grundmodul 230 mm",
       "length": 230,
+      "gauge": 16.5
+    },
+    {
+      "id": "42411",
+      "name": "Gerades Gleis G4 (920 mm)",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Vierfach-Gerade G4 (4x G1), Länge 920 mm",
+      "length": 920,
       "gauge": 16.5
     },
     {
@@ -36,12 +109,21 @@
       "gauge": 16.5
     },
     {
-      "id": "42411",
-      "name": "Gerades Gleis G4 (920 mm)",
-      "kind": "straight",
-      "category": "Geraden",
-      "description": "Vierfach-Gerade G4 (4x G1), Länge 920 mm",
-      "length": 920,
+      "id": "42419",
+      "name": "Schaltgleis / Kontaktgleis 115 mm",
+      "kind": "uncoupler",
+      "category": "Funktionsgleise",
+      "description": "Schaltgleis G1/2 mit Momentkontakt zur Zugsteuerung",
+      "length": 115,
+      "gauge": 16.5
+    },
+    {
+      "id": "42420",
+      "name": "Reed-Kontaktgleis 115 mm",
+      "kind": "uncoupler",
+      "category": "Funktionsgleise",
+      "description": "Gleis G1/2 mit eingebautem Reed-Schalter",
+      "length": 115,
       "gauge": 16.5
     },
     {
@@ -51,69 +133,6 @@
       "category": "Geraden",
       "description": "Diagonalgleis D2, Länge 166 mm",
       "length": 166,
-      "gauge": 16.5
-    },
-    {
-      "id": "42429",
-      "name": "Diagonalgerade D4 (345 mm)",
-      "kind": "straight",
-      "category": "Geraden",
-      "description": "Diagonalgleis D4 für 15°-Verbindungen, Länge 345 mm",
-      "length": 345,
-      "gauge": 16.5
-    },
-    {
-      "id": "42430",
-      "name": "Diagonalgerade D8 (172,5 mm)",
-      "kind": "straight",
-      "category": "Geraden",
-      "description": "Ausgleichsgerade D8 (halbe D4), Länge 172,5 mm",
-      "length": 172.5,
-      "gauge": 16.5
-    },
-    {
-      "id": "42431",
-      "name": "Diagonalgerade D12 (115 mm)",
-      "kind": "straight",
-      "category": "Geraden",
-      "description": "Diagonalgleis D12 (Drittel D4), Länge 115 mm",
-      "length": 115,
-      "gauge": 16.5
-    },
-    {
-      "id": "42408",
-      "name": "Verstellbares Ausgleichsgleis 80–120 mm",
-      "kind": "straight",
-      "category": "Geraden",
-      "description": "Teleskop-Ausgleichsgleis stufenlos ausziehbar",
-      "length": 115,
-      "gauge": 16.5
-    },
-    {
-      "id": "42400",
-      "name": "Flexgleis Holzschwellen (920 mm)",
-      "kind": "flex",
-      "category": "Geraden",
-      "description": "Flexgleis mit Holzschwellen, Länge 920 mm",
-      "length": 920,
-      "gauge": 16.5
-    },
-    {
-      "id": "42406",
-      "name": "Flexgleis Betonschwellen (920 mm)",
-      "kind": "flex",
-      "category": "Geraden",
-      "description": "Flexgleis mit Betonschwellen, Länge 920 mm",
-      "length": 920,
-      "gauge": 16.5
-    },
-    {
-      "id": "42407",
-      "name": "Flexgleis Stahlschwellen (920 mm)",
-      "kind": "flex",
-      "category": "Geraden",
-      "description": "Flexgleis mit Stahlschwellen, Länge 920 mm",
-      "length": 920,
       "gauge": 16.5
     },
     {
@@ -167,16 +186,6 @@
       "gauge": 16.5
     },
     {
-      "id": "42428",
-      "name": "Gebogenes Gleis R9 / 15°",
-      "kind": "curve",
-      "category": "Bögen",
-      "description": "Radius R9 = 826,4 mm, Bogen 15° (Gegenbogen zu 15°-Weichen für 61,6 mm Parallelabstand)",
-      "radius": 826.4,
-      "angle": 15,
-      "gauge": 16.5
-    },
-    {
       "id": "42427",
       "name": "Gebogenes Gleis R10 / 15°",
       "kind": "curve",
@@ -187,13 +196,40 @@
       "gauge": 16.5
     },
     {
-      "id": "42409",
-      "name": "Gebogenes Gleis R20 / 5°",
+      "id": "42428",
+      "name": "Gebogenes Gleis R9 / 15°",
       "kind": "curve",
       "category": "Bögen",
-      "description": "Radius R20 = 1962 mm, Bogen 5°",
-      "radius": 1962,
-      "angle": 5,
+      "description": "Radius R9 = 826,4 mm, Bogen 15° (Gegenbogen zu 15°-Weichen für 61,6 mm Parallelabstand)",
+      "radius": 826.4,
+      "angle": 15,
+      "gauge": 16.5
+    },
+    {
+      "id": "42429",
+      "name": "Diagonalgerade D4 (345 mm)",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Diagonalgleis D4 für 15°-Verbindungen, Länge 345 mm",
+      "length": 345,
+      "gauge": 16.5
+    },
+    {
+      "id": "42430",
+      "name": "Diagonalgerade D8 (172,5 mm)",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Ausgleichsgerade D8 (halbe D4), Länge 172,5 mm",
+      "length": 172.5,
+      "gauge": 16.5
+    },
+    {
+      "id": "42431",
+      "name": "Diagonalgerade D12 (115 mm)",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Diagonalgleis D12 (Drittel D4), Länge 115 mm",
+      "length": 115,
       "gauge": 16.5
     },
     {
@@ -259,6 +295,30 @@
       "gauge": 16.5
     },
     {
+      "id": "42448",
+      "name": "Einfache Kreuzungsweiche EKW10",
+      "kind": "crossing",
+      "category": "Kreuzungen",
+      "description": "Schlanke EKW, Länge 345 mm, Kreuzungswinkel 10°",
+      "length": 345,
+      "angle": 10,
+      "branchRadius": 1050,
+      "branchAngle": 10,
+      "gauge": 16.5
+    },
+    {
+      "id": "42451",
+      "name": "Doppelkreuzungsweiche DKW15",
+      "kind": "dkw",
+      "category": "Kreuzungen",
+      "description": "Länge 230 mm, Kreuzungswinkel 15°, 2x Abzweig R = 873,5 mm / 15°",
+      "length": 230,
+      "angle": 15,
+      "branchRadius": 873.5,
+      "branchAngle": 15,
+      "gauge": 16.5
+    },
+    {
       "id": "42454",
       "name": "Dreiwegweiche DWW15",
       "kind": "three-way",
@@ -267,28 +327,6 @@
       "length": 287.5,
       "branchRadius": 873.5,
       "branchAngle": 15,
-      "gauge": 16.5
-    },
-    {
-      "id": "42488",
-      "name": "Schlanke Weiche links Wl10",
-      "kind": "turnout-left",
-      "category": "Weichen",
-      "description": "Länge 345 mm (1,5x G1), Abzweig R = 1948 mm / 10° (Herzstück 8,96°)",
-      "length": 345,
-      "branchRadius": 1948,
-      "branchAngle": 10,
-      "gauge": 16.5
-    },
-    {
-      "id": "42489",
-      "name": "Schlanke Weiche rechts Wr10",
-      "kind": "turnout-right",
-      "category": "Weichen",
-      "description": "Länge 345 mm (1,5x G1), Abzweig R = 1948 mm / 10° (Herzstück 8,96°)",
-      "length": 345,
-      "branchRadius": 1948,
-      "branchAngle": 10,
       "gauge": 16.5
     },
     {
@@ -388,15 +426,25 @@
       "gauge": 16.5
     },
     {
-      "id": "42451",
-      "name": "Doppelkreuzungsweiche DKW15",
-      "kind": "dkw",
-      "category": "Kreuzungen",
-      "description": "Länge 230 mm, Kreuzungswinkel 15°, 2x Abzweig R = 873,5 mm / 15°",
-      "length": 230,
-      "angle": 15,
-      "branchRadius": 873.5,
-      "branchAngle": 15,
+      "id": "42488",
+      "name": "Schlanke Weiche links Wl10",
+      "kind": "turnout-left",
+      "category": "Weichen",
+      "description": "Länge 345 mm (1,5x G1), Abzweig R = 1948 mm / 10° (Herzstück 8,96°)",
+      "length": 345,
+      "branchRadius": 1948,
+      "branchAngle": 10,
+      "gauge": 16.5
+    },
+    {
+      "id": "42489",
+      "name": "Schlanke Weiche rechts Wr10",
+      "kind": "turnout-right",
+      "category": "Weichen",
+      "description": "Länge 345 mm (1,5x G1), Abzweig R = 1948 mm / 10° (Herzstück 8,96°)",
+      "length": 345,
+      "branchRadius": 1948,
+      "branchAngle": 10,
       "gauge": 16.5
     },
     {
@@ -409,28 +457,6 @@
       "angle": 10,
       "branchRadius": 1050,
       "branchAngle": 10,
-      "gauge": 16.5
-    },
-    {
-      "id": "42448",
-      "name": "Einfache Kreuzungsweiche EKW10",
-      "kind": "crossing",
-      "category": "Kreuzungen",
-      "description": "Schlanke EKW, Länge 345 mm, Kreuzungswinkel 10°",
-      "length": 345,
-      "angle": 10,
-      "branchRadius": 1050,
-      "branchAngle": 10,
-      "gauge": 16.5
-    },
-    {
-      "id": "42498",
-      "name": "Kreuzung K15 (15°)",
-      "kind": "crossing",
-      "category": "Kreuzungen",
-      "description": "Länge 230 mm, Kreuzungswinkel 15°",
-      "length": 230,
-      "angle": 15,
       "gauge": 16.5
     },
     {
@@ -454,21 +480,13 @@
       "gauge": 16.5
     },
     {
-      "id": "42401",
-      "name": "Prellbock-Gleis 57,5 mm",
-      "kind": "buffer-stop",
-      "category": "Zubehör",
-      "description": "Gleisstück G1/4 (57,5 mm) mit fest montiertem Prellbock",
-      "length": 57.5,
-      "gauge": 16.5
-    },
-    {
-      "id": "42608",
-      "name": "Prellbock Bausatz",
-      "kind": "buffer-stop",
-      "category": "Zubehör",
-      "description": "Prellbock zum Aufklemmen auf Standardgleise",
-      "length": 25,
+      "id": "42498",
+      "name": "Kreuzung K15 (15°)",
+      "kind": "crossing",
+      "category": "Kreuzungen",
+      "description": "Länge 230 mm, Kreuzungswinkel 15°",
+      "length": 230,
+      "angle": 15,
       "gauge": 16.5
     },
     {
@@ -490,30 +508,12 @@
       "gauge": 16.5
     },
     {
-      "id": "42419",
-      "name": "Schaltgleis / Kontaktgleis 115 mm",
-      "kind": "uncoupler",
-      "category": "Funktionsgleise",
-      "description": "Schaltgleis G1/2 mit Momentkontakt zur Zugsteuerung",
-      "length": 115,
-      "gauge": 16.5
-    },
-    {
-      "id": "42420",
-      "name": "Reed-Kontaktgleis 115 mm",
-      "kind": "uncoupler",
-      "category": "Funktionsgleise",
-      "description": "Gleis G1/2 mit eingebautem Reed-Schalter",
-      "length": 115,
-      "gauge": 16.5
-    },
-    {
-      "id": "42402",
-      "name": "Aufgleisgerät 230 mm",
-      "kind": "straight",
+      "id": "42608",
+      "name": "Prellbock Bausatz",
+      "kind": "buffer-stop",
       "category": "Zubehör",
-      "description": "Aufgleisvorrichtung auf Basis G1 (230 mm)",
-      "length": 230,
+      "description": "Prellbock zum Aufklemmen auf Standardgleise",
+      "length": 25,
       "gauge": 16.5
     }
   ]

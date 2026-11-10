@@ -18,51 +18,6 @@
       "gauge": 6.5
     },
     {
-      "id": "R009",
-      "name": "Gerades Gleis 220 mm",
-      "kind": "straight",
-      "category": "Geraden",
-      "description": "Langes Geradengleis, Länge 220 mm",
-      "length": 220,
-      "gauge": 6.5
-    },
-    {
-      "id": "R024",
-      "name": "Gerades Gleis 55 mm",
-      "kind": "straight",
-      "category": "Geraden",
-      "description": "Halbes Standardgleis, Länge 55 mm",
-      "length": 55,
-      "gauge": 6.5
-    },
-    {
-      "id": "R008",
-      "name": "Gerades Gleis 25 mm",
-      "kind": "straight",
-      "category": "Geraden",
-      "description": "Kurzes Ausgleichsstück, Länge 25 mm",
-      "length": 25,
-      "gauge": 6.5
-    },
-    {
-      "id": "R039",
-      "name": "Ausgleichsgleis 115 mm",
-      "kind": "straight",
-      "category": "Geraden",
-      "description": "Ausgleichsgerade für Weichengegenbögen, Länge 115 mm",
-      "length": 115,
-      "gauge": 6.5
-    },
-    {
-      "id": "R040",
-      "name": "Ausgleichsgleis 53,6 mm",
-      "kind": "straight",
-      "category": "Geraden",
-      "description": "Ausgleichsstück, Länge 53,6 mm",
-      "length": 53.6,
-      "gauge": 6.5
-    },
-    {
       "id": "R002",
       "name": "Gebogenes Gleis R195-45°",
       "kind": "curve",
@@ -103,6 +58,33 @@
       "gauge": 6.5
     },
     {
+      "id": "R006",
+      "name": "Prellbock A auf Gleisstück 25 mm",
+      "kind": "straight",
+      "category": "Zubehör",
+      "description": "Gleis 25 mm mit Prellbock A",
+      "length": 25,
+      "gauge": 6.5
+    },
+    {
+      "id": "R008",
+      "name": "Gerades Gleis 25 mm",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Kurzes Ausgleichsstück, Länge 25 mm",
+      "length": 25,
+      "gauge": 6.5
+    },
+    {
+      "id": "R009",
+      "name": "Gerades Gleis 220 mm",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Langes Geradengleis, Länge 220 mm",
+      "length": 220,
+      "gauge": 6.5
+    },
+    {
       "id": "R012",
       "name": "Gebogenes Gleis R490-13°",
       "kind": "curve",
@@ -135,6 +117,61 @@
       "gauge": 6.5
     },
     {
+      "id": "R024",
+      "name": "Gerades Gleis 55 mm",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Halbes Standardgleis, Länge 55 mm",
+      "length": 55,
+      "gauge": 6.5
+    },
+    {
+      "id": "R028",
+      "name": "Kreuzung 90°",
+      "kind": "crossing",
+      "category": "Kreuzungen",
+      "description": "Länge 55 mm, Kreuzungswinkel 90°",
+      "length": 55,
+      "gauge": 6.5,
+      "angle": 90
+    },
+    {
+      "id": "R029",
+      "name": "Aufgleisgleis 110 mm",
+      "kind": "straight",
+      "category": "Zubehör",
+      "description": "Gerade 110 mm mit Aufgleishilfe",
+      "length": 110,
+      "gauge": 6.5
+    },
+    {
+      "id": "R034",
+      "name": "Prellbockgleis beleuchtet",
+      "kind": "straight",
+      "category": "Zubehör",
+      "description": "Gleis 55 mm mit rot beleuchtetem Prellbock",
+      "length": 55,
+      "gauge": 6.5
+    },
+    {
+      "id": "R039",
+      "name": "Ausgleichsgleis 115 mm",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Ausgleichsgerade für Weichengegenbögen, Länge 115 mm",
+      "length": 115,
+      "gauge": 6.5
+    },
+    {
+      "id": "R040",
+      "name": "Ausgleichsgleis 53,6 mm",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Ausgleichsstück, Länge 53,6 mm",
+      "length": 53.6,
+      "gauge": 6.5
+    },
+    {
       "id": "R045",
       "name": "Elektrische Weiche links 110 mm (13°)",
       "kind": "turnout-left",
@@ -154,43 +191,6 @@
       "length": 110,
       "branchRadius": 490,
       "branchAngle": 13,
-      "gauge": 6.5
-    },
-    {
-      "id": "R028",
-      "name": "Kreuzung 90°",
-      "kind": "crossing",
-      "category": "Kreuzungen",
-      "description": "Länge 55 mm, Kreuzungswinkel 90°",
-      "length": 55,
-      "gauge": 6.5,
-      "angle": 90
-    },
-    {
-      "id": "R034",
-      "name": "Prellbockgleis beleuchtet",
-      "kind": "straight",
-      "category": "Zubehör",
-      "description": "Gleis 55 mm mit rot beleuchtetem Prellbock",
-      "length": 55,
-      "gauge": 6.5
-    },
-    {
-      "id": "R006",
-      "name": "Prellbock A auf Gleisstück 25 mm",
-      "kind": "straight",
-      "category": "Zubehör",
-      "description": "Gleis 25 mm mit Prellbock A",
-      "length": 25,
-      "gauge": 6.5
-    },
-    {
-      "id": "R029",
-      "name": "Aufgleisgleis 110 mm",
-      "kind": "straight",
-      "category": "Zubehör",
-      "description": "Gerade 110 mm mit Aufgleishilfe",
-      "length": 110,
       "gauge": 6.5
     }
   ]

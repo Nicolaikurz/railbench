@@ -10,13 +10,13 @@
   "description": "Modulares Straßensystem mit 2-spurigen Fahrbahnen (Breite 60 mm), Kurven, T-Einmündungen, Kreuzungen und Wendeplatz. Ideal für Faller Car System und Straßenplanung.",
   "entries": [
     {
-      "id": "ST-S200",
-      "name": "Gerade Straße 200 mm",
-      "nameEn": "Straight Road 200 mm",
+      "id": "ST-BUS",
+      "name": "Bushaltestelle / Parkbucht 200 mm",
+      "nameEn": "Bus Stop / Parking Bay 200 mm",
       "kind": "straight",
-      "category": "Geraden",
-      "description": "2-spurige Standard-Fahrbahn 200 mm mit Mittellinie und Randstreifen (Breite 60 mm)",
-      "descriptionEn": "2-lane standard road 200 mm with dashed center line and shoulder markings (width 60 mm)",
+      "category": "Zubehör",
+      "description": "200 mm Fahrbahn mit seitlicher Parkbucht und Bus-Wartefläche (Breite 75 mm)",
+      "descriptionEn": "200 mm road with side parking bay and bus passenger area (width 75 mm)",
       "length": 200,
       "isRoad": true,
       "roadWidth": 60,
@@ -29,6 +29,186 @@
         },
         {
           "x": 200,
+          "y": 0,
+          "angle": 0
+        }
+      ],
+      "gauge": 16.5
+    },
+    {
+      "id": "ST-C200-45",
+      "name": "Kurve 45° (R = 200 mm)",
+      "nameEn": "Curved Road 45° (R = 200 mm)",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Bogen 45°, Radius 200 mm (Breite 60 mm)",
+      "descriptionEn": "Curve 45°, radius 200 mm (width 60 mm)",
+      "radius": 200,
+      "angle": 45,
+      "isRoad": true,
+      "roadWidth": 60,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 141.4,
+          "y": 58.6,
+          "angle": 45
+        }
+      ],
+      "gauge": 16.5
+    },
+    {
+      "id": "ST-C200-90",
+      "name": "Kurve 90° (R = 200 mm)",
+      "nameEn": "Curved Road 90° (R = 200 mm)",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Standard-Rechtwinkelkurve 90°, Radius 200 mm (Breite 60 mm)",
+      "descriptionEn": "Standard 90° right-angle road curve, radius 200 mm (width 60 mm)",
+      "radius": 200,
+      "angle": 90,
+      "isRoad": true,
+      "roadWidth": 60,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 200,
+          "y": 200,
+          "angle": 90
+        }
+      ],
+      "gauge": 16.5
+    },
+    {
+      "id": "ST-C300-45",
+      "name": "Kurve 45° groß (R = 300 mm)",
+      "nameEn": "Wide Curved Road 45° (R = 300 mm)",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Großer weiter Bogen 45°, Radius 300 mm (Breite 60 mm)",
+      "descriptionEn": "Wide gentle curve 45°, radius 300 mm (width 60 mm)",
+      "radius": 300,
+      "angle": 45,
+      "isRoad": true,
+      "roadWidth": 60,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 212.1,
+          "y": 87.9,
+          "angle": 45
+        }
+      ],
+      "gauge": 16.5
+    },
+    {
+      "id": "ST-CROSS",
+      "name": "Bahnübergang 200 mm (Straße)",
+      "nameEn": "Level / Grade Crossing 200 mm (Road)",
+      "kind": "straight",
+      "category": "Zubehör",
+      "description": "200 mm Straße mit Holz-/Gummibohlen-Gleisüberfahrt und Vorwarnstreifen",
+      "descriptionEn": "200 mm road with timber/rubber rail crossing and warning stripes",
+      "length": 200,
+      "isRoad": true,
+      "roadWidth": 60,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 200,
+          "y": 0,
+          "angle": 0
+        }
+      ],
+      "gauge": 16.5
+    },
+    {
+      "id": "ST-FLEX",
+      "name": "Flexstraße 800 mm",
+      "nameEn": "Flex Road 800 mm",
+      "kind": "flex",
+      "category": "Geraden",
+      "description": "2-spurige flexible Fahrbahn bis 800 mm für individuelle Radien und Geraden (Breite 60 mm)",
+      "descriptionEn": "2-lane flexible roadway up to 800 mm for custom curve radii and straights (width 60 mm)",
+      "length": 800,
+      "isRoad": true,
+      "roadWidth": 60,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 800,
+          "y": 0,
+          "angle": 0
+        }
+      ],
+      "gauge": 16.5
+    },
+    {
+      "id": "ST-LOOP",
+      "name": "Wendeplatz / Sackgasse (Wendehammer)",
+      "nameEn": "Cul-de-sac / Turning Loop",
+      "kind": "accessory",
+      "category": "Zubehör",
+      "description": "Straßenende mit rundem Wendehammer (Durchmesser 90 mm, Anschlussbreite 60 mm)",
+      "descriptionEn": "Dead end street with round turning circle (diameter 90 mm, connection 60 mm)",
+      "length": 90,
+      "isRoad": true,
+      "roadWidth": 60,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        }
+      ],
+      "gauge": 16.5
+    },
+    {
+      "id": "ST-S050",
+      "name": "Gerade Straße 50 mm",
+      "nameEn": "Short Straight Road 50 mm",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Kurzes Ausgleichsstück 50 mm (Breite 60 mm)",
+      "descriptionEn": "Short compensation road piece 50 mm (width 60 mm)",
+      "length": 50,
+      "isRoad": true,
+      "roadWidth": 60,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 50,
           "y": 0,
           "angle": 0
         }
@@ -62,41 +242,14 @@
       "gauge": 16.5
     },
     {
-      "id": "ST-S050",
-      "name": "Gerade Straße 50 mm",
-      "nameEn": "Short Straight Road 50 mm",
+      "id": "ST-S200",
+      "name": "Gerade Straße 200 mm",
+      "nameEn": "Straight Road 200 mm",
       "kind": "straight",
       "category": "Geraden",
-      "description": "Kurzes Ausgleichsstück 50 mm (Breite 60 mm)",
-      "descriptionEn": "Short compensation road piece 50 mm (width 60 mm)",
-      "length": 50,
-      "isRoad": true,
-      "roadWidth": 60,
-      "hasRoadbed": false,
-      "localConnectors": [
-        {
-          "x": 0,
-          "y": 0,
-          "angle": 180
-        },
-        {
-          "x": 50,
-          "y": 0,
-          "angle": 0
-        }
-      ],
-      "gauge": 16.5
-    },
-    {
-      "id": "ST-C200-90",
-      "name": "Kurve 90° (R = 200 mm)",
-      "nameEn": "Curved Road 90° (R = 200 mm)",
-      "kind": "curve",
-      "category": "Bögen",
-      "description": "Standard-Rechtwinkelkurve 90°, Radius 200 mm (Breite 60 mm)",
-      "descriptionEn": "Standard 90° right-angle road curve, radius 200 mm (width 60 mm)",
-      "radius": 200,
-      "angle": 90,
+      "description": "2-spurige Standard-Fahrbahn 200 mm mit Mittellinie und Randstreifen (Breite 60 mm)",
+      "descriptionEn": "2-lane standard road 200 mm with dashed center line and shoulder markings (width 60 mm)",
+      "length": 200,
       "isRoad": true,
       "roadWidth": 60,
       "hasRoadbed": false,
@@ -108,62 +261,8 @@
         },
         {
           "x": 200,
-          "y": 200,
-          "angle": 90
-        }
-      ],
-      "gauge": 16.5
-    },
-    {
-      "id": "ST-C200-45",
-      "name": "Kurve 45° (R = 200 mm)",
-      "nameEn": "Curved Road 45° (R = 200 mm)",
-      "kind": "curve",
-      "category": "Bögen",
-      "description": "Bogen 45°, Radius 200 mm (Breite 60 mm)",
-      "descriptionEn": "Curve 45°, radius 200 mm (width 60 mm)",
-      "radius": 200,
-      "angle": 45,
-      "isRoad": true,
-      "roadWidth": 60,
-      "hasRoadbed": false,
-      "localConnectors": [
-        {
-          "x": 0,
           "y": 0,
-          "angle": 180
-        },
-        {
-          "x": 141.4,
-          "y": 58.6,
-          "angle": 45
-        }
-      ],
-      "gauge": 16.5
-    },
-    {
-      "id": "ST-C300-45",
-      "name": "Kurve 45° groß (R = 300 mm)",
-      "nameEn": "Wide Curved Road 45° (R = 300 mm)",
-      "kind": "curve",
-      "category": "Bögen",
-      "description": "Großer weiter Bogen 45°, Radius 300 mm (Breite 60 mm)",
-      "descriptionEn": "Wide gentle curve 45°, radius 300 mm (width 60 mm)",
-      "radius": 300,
-      "angle": 45,
-      "isRoad": true,
-      "roadWidth": 60,
-      "hasRoadbed": false,
-      "localConnectors": [
-        {
-          "x": 0,
-          "y": 0,
-          "angle": 180
-        },
-        {
-          "x": 212.1,
-          "y": 87.9,
-          "angle": 45
+          "angle": 0
         }
       ],
       "gauge": 16.5
@@ -267,79 +366,6 @@
           "x": 141.4,
           "y": 58.6,
           "angle": 45
-        }
-      ],
-      "gauge": 16.5
-    },
-    {
-      "id": "ST-LOOP",
-      "name": "Wendeplatz / Sackgasse (Wendehammer)",
-      "nameEn": "Cul-de-sac / Turning Loop",
-      "kind": "accessory",
-      "category": "Zubehör",
-      "description": "Straßenende mit rundem Wendehammer (Durchmesser 90 mm, Anschlussbreite 60 mm)",
-      "descriptionEn": "Dead end street with round turning circle (diameter 90 mm, connection 60 mm)",
-      "length": 90,
-      "isRoad": true,
-      "roadWidth": 60,
-      "hasRoadbed": false,
-      "localConnectors": [
-        {
-          "x": 0,
-          "y": 0,
-          "angle": 180
-        }
-      ],
-      "gauge": 16.5
-    },
-    {
-      "id": "ST-BUS",
-      "name": "Bushaltestelle / Parkbucht 200 mm",
-      "nameEn": "Bus Stop / Parking Bay 200 mm",
-      "kind": "straight",
-      "category": "Zubehör",
-      "description": "200 mm Fahrbahn mit seitlicher Parkbucht und Bus-Wartefläche (Breite 75 mm)",
-      "descriptionEn": "200 mm road with side parking bay and bus passenger area (width 75 mm)",
-      "length": 200,
-      "isRoad": true,
-      "roadWidth": 60,
-      "hasRoadbed": false,
-      "localConnectors": [
-        {
-          "x": 0,
-          "y": 0,
-          "angle": 180
-        },
-        {
-          "x": 200,
-          "y": 0,
-          "angle": 0
-        }
-      ],
-      "gauge": 16.5
-    },
-    {
-      "id": "ST-CROSS",
-      "name": "Bahnübergang 200 mm (Straße)",
-      "nameEn": "Level / Grade Crossing 200 mm (Road)",
-      "kind": "straight",
-      "category": "Zubehör",
-      "description": "200 mm Straße mit Holz-/Gummibohlen-Gleisüberfahrt und Vorwarnstreifen",
-      "descriptionEn": "200 mm road with timber/rubber rail crossing and warning stripes",
-      "length": 200,
-      "isRoad": true,
-      "roadWidth": 60,
-      "hasRoadbed": false,
-      "localConnectors": [
-        {
-          "x": 0,
-          "y": 0,
-          "angle": 180
-        },
-        {
-          "x": 200,
-          "y": 0,
-          "angle": 0
         }
       ],
       "gauge": 16.5

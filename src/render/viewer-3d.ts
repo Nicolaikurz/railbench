@@ -1531,7 +1531,7 @@ export class Viewer3D {
       }
     };
 
-    if (kind === "straight" || kind === "accessory") {
+    if (kind === "straight" || kind === "accessory" || kind === "flex") {
       const len = entry.length ?? 200;
       const straightGroup = new THREE.Group();
       if (Math.abs(heightDiff) > 0.01) {
@@ -1627,7 +1627,7 @@ export class Viewer3D {
     if (kind === "curve") {
       const r = entry.radius ?? 200;
       const a = entry.angle ?? 90;
-      addCurvedRoad(group, r, a, 1, heightDiff);
+      addCurvedRoad(group, r, Math.abs(a), a < 0 ? -1 : 1, heightDiff);
       return;
     }
 
@@ -2422,7 +2422,7 @@ export class Viewer3D {
       kind === "curved-turnout-right" ||
       ((kind === "turnout-left" || kind === "turnout-right") && !!entry.radius && !entry.length);
 
-    if (kind === "straight" || kind === "accessory") {
+    if (kind === "straight" || kind === "accessory" || kind === "flex") {
       const len = entry.length ?? 188.3;
       const heightDiff = endElev - startElev;
       if (Math.abs(heightDiff) > 0.01) {

@@ -36,6 +36,8 @@ export interface ToolbarFactoryDeps {
   toggle3D: () => void;
   toggleMeasureTool: () => void;
   toggleRightSidebar: () => void;
+  onResetUiSizes?: () => void;
+  onToggleLockBars?: () => void;
   saveSettingsState: () => void;
   sync: (dirty?: boolean) => void;
   isSnappingEnabled: () => boolean;
@@ -65,15 +67,7 @@ export function buildToolbarEvents(deps: ToolbarFactoryDeps): ToolbarEvents {
 
   return {
     onToggleRightSidebar: () => deps.toggleRightSidebar(),
-    onNewPlan: () => {
-      if (confirm(getTranslations().dialogs.confirmNewPlan)) {
-        layout.pieces = [];
-        ensureDefaultLayers(layout);
-        selection.clear();
-        planManager.setPlanInfo("New Layout.railbench", null, "railbench");
-        deps.sync(true);
-      }
-    },
+    onNewPlan: () => operations.triggerNewPlan(),
     onUndo: () => {
       history.undo();
       deps.sync(true);
@@ -241,6 +235,8 @@ export function buildToolbarEvents(deps: ToolbarFactoryDeps): ToolbarEvents {
     },
     onOpenCollab: () => deps.triggerCollabDialog(),
     onTogglePerfMonitor: () => deps.getPerfMonitor().toggle(),
+    onResetUiSizes: () => deps.onResetUiSizes?.(),
+    onToggleLockBars: () => deps.onToggleLockBars?.(),
     onResetPersonalConfig: () => {
       const t = getTranslations();
       if (confirm(t.dialogs.confirmResetConfig)) {

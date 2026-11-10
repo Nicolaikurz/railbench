@@ -60,3 +60,20 @@ export interface Catalog {
   description?: string;
   entries: CatalogEntry[];
 }
+
+/**
+ * Vergleicht zwei Katalogeinträge anhand ihrer Artikelnummer / ID
+ * in natürlicher numerischer Reihenfolge (z. B. 24064 < 24071 < 24188 < 24900).
+ */
+export function compareCatalogEntriesByNumber(a: CatalogEntry, b: CatalogEntry): number {
+  const cmp = a.id.localeCompare(b.id, undefined, { numeric: true, sensitivity: "base" });
+  if (cmp !== 0) return cmp;
+  return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" });
+}
+
+/**
+ * Sortiert ein Array von Katalogeinträgen nach Artikelnummer / ID.
+ */
+export function sortCatalogEntries(entries: CatalogEntry[]): CatalogEntry[] {
+  return [...entries].sort(compareCatalogEntriesByNumber);
+}

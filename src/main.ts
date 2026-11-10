@@ -1,6 +1,7 @@
 import { Renderer } from "@/render/renderer";
 import { attachCamera } from "@/render/camera";
 import { createLayout, ensureDefaultLayers, getBaseboards, getBaseboardPolygon } from "@/core/layout";
+import { updatePieceConnections } from "@/core/snapping";
 import type { BaseboardSnapGuide } from "@/core/baseboard-snapping";
 import type { BaseboardConfig, Layout, TrackPiece, Transform, Model3D, ColorMode } from "@/core/types";
 import { Ruler } from "@/ui/ruler";
@@ -39,6 +40,7 @@ import { initDemoTracks, generateStressTracks } from "@/editor/demo-tracks";
 import { showWelcomeDialog, type StartupAction } from "@/ui/welcome-dialog";
 import { getFullAppTitle } from "@/version";
 import { getEffectiveFlexEntry } from "@/core/flextrack";
+import { initLayoutResizers } from "@/ui/layout-resizer";
 
 async function main() {
   document.title = `${getFullAppTitle()} – Model Railway Track Planner`;
@@ -75,6 +77,7 @@ async function main() {
   let measureSnapPoint: { x: number; y: number } | null = null;
   let measureSnapEnabled = true;
   let measureDraggingPoint: "A" | "B" | null = null;
+  let layoutResizer: any = null;
 
   if (rightSidebarCollapsed) {
     const app = document.getElementById("app");
@@ -105,6 +108,7 @@ async function main() {
       powerSimEnabled,
       rulerVisible: ruler?.isVisible() ?? true,
       rightSidebarCollapsed,
+      barsLocked: layoutResizer?.isLocked(),
       selectedCatalogId: catalog?.id,
       activeSidebarTab: (sidebar?.getActiveTab() as any) ?? "catalog",
       camera: renderer?.world ? {
@@ -529,6 +533,7 @@ async function main() {
   // Sync-Funktion für UI und Rendering
   function sync(dirty = false) {
     if (dirty) {
+      updatePieceConnections(layout.pieces, layout.layers);
       planManager.markDirty(true);
       planManager.saveToLocalStorage(layout);
       if (!isApplyingRemote) {
@@ -610,6 +615,7 @@ async function main() {
       themePref: themeManager.getPreference(),
       resolvedTheme: themeManager.getResolvedTheme(),
       rightSidebarCollapsed,
+      barsLocked: layoutResizer?.isLocked(),
       collabStatus: collabClient.getStatus(),
       collabUsersCount: collabClient.getUsers().length,
     });
@@ -677,12 +683,22 @@ async function main() {
     },
     onToggleSelectionLock: () => toggleSelectionLock(),
     isSelectionLockDisabled: () => selectionLockDisabled,
+    onToggleWoodPlate: () => toggleWoodPlate(),
+    isWoodPlateActive: () => viewer3D?.isWoodPlateEnabled() ?? false,
     getZoom: () => renderer.world.scale.x || 1.0,
     selectedPieceIds: () => selection.all(),
   });
 
   if (savedSettings.activeSidebarTab) {
     sidebar.setActiveTab(savedSettings.activeSidebarTab as any);
+  }
+
+  function toggleWoodPlate() {
+    const active = !viewer3D?.isWoodPlateEnabled();
+    viewer3D?.setWoodPlate(active);
+    const isDe = getLanguage() === "de";
+    showToast(active ? (isDe ? "Woodplatte (Trassenbrett) platziert" : "Wood plate placed under tracks & roads") : (isDe ? "Woodplatte entfernt" : "Wood plate removed"), "🪵");
+    sync();
   }
 
   // RightSidebar initialisieren
@@ -720,13 +736,7 @@ async function main() {
       selection.setMany(toKeep);
       sync(true);
     },
-    onToggleWoodPlate: () => {
-      const active = !viewer3D?.isWoodPlateEnabled();
-      viewer3D?.setWoodPlate(active);
-      const isDe = getLanguage() === "de";
-      showToast(active ? (isDe ? "Woodplatte (Trassenbrett) platziert" : "Wood plate placed under tracks & roads") : (isDe ? "Woodplatte entfernt" : "Wood plate removed"), "🪵");
-      sync();
-    },
+    onToggleWoodPlate: () => toggleWoodPlate(),
     isWoodPlateActive: () => viewer3D?.isWoodPlateEnabled() ?? false,
     onToggleSelectionLock: () => toggleSelectionLock(),
     isSelectionLockDisabled: () => selectionLockDisabled,
@@ -736,6 +746,11 @@ async function main() {
     selectedPieceIds: () => selection.all(),
   });
 
+  layoutResizer = initLayoutResizers();
+  if (savedSettings.barsLocked !== undefined) {
+    layoutResizer.setLocked(savedSettings.barsLocked);
+  }
+
   // Toolbar initialisieren
   const toolbarHost = document.getElementById("toolbar")!;
   const toolbarEvents: ToolbarEvents = buildToolbarEvents({
@@ -744,6 +759,14 @@ async function main() {
     getRenderer: () => renderer, getRuler: () => ruler, getViewer3D: () => viewer3D,
     getSidebar: () => sidebar, getPerfMonitor: () => perfMonitor, getCurrentShortCircuit: () => currentShortCircuit,
     is3DMode: () => is3DMode, toggle3D, toggleMeasureTool, toggleRightSidebar, saveSettingsState, sync,
+    onResetUiSizes: () => layoutResizer.resetAll(),
+    onToggleLockBars: () => {
+      const locked = layoutResizer.toggleLocked();
+      saveSettingsState();
+      sync();
+      const isDe = getLanguage() === "de";
+      showToast(locked ? (isDe ? "Leistengrößen fixiert" : "Panels locked") : (isDe ? "Leistengrößen freigegeben" : "Panels unlocked"), locked ? "🔒" : "🔓");
+    },
     isSnappingEnabled: () => snappingEnabled,
     setSnappingEnabled: (val) => { snappingEnabled = val; },
     toggleSelectionLock: () => toggleSelectionLock(),
@@ -752,11 +775,7 @@ async function main() {
     setTrackLabelsEnabled: (val) => { trackLabelsEnabled = val; },
     isPowerSimEnabled: () => powerSimEnabled,
     setPowerSimEnabled: (val) => { powerSimEnabled = val; },
-    openHeightDialogForSelection,
-    triggerCollabDialog,
-    triggerWelcomeDialog: () => triggerWelcome(),
-    triggerImportCatalog,
-    showToast,
+    openHeightDialogForSelection, triggerCollabDialog, triggerWelcomeDialog: () => triggerWelcome(), triggerImportCatalog, showToast,
   });
 
   createToolbar(toolbarHost, toolbarEvents);
@@ -849,22 +868,13 @@ async function main() {
     setTrackLabelsEnabled: (val) => { trackLabelsEnabled = val; },
     isPowerSimEnabled: () => powerSimEnabled,
     setPowerSimEnabled: (val) => { powerSimEnabled = val; },
-    toggleRightSidebar,
-    openHeightDialogForSelection,
-    openHelpDialog,
+    toggleRightSidebar, openHeightDialogForSelection, openHelpDialog,
     openPrintDialog: () => openPrintDialog(layout, catalog, renderer),
-    isPieceInteractive,
-    isModelInteractive,
-    getCatalogEntryForPiece,
-    sync,
-    saveSettingsState,
-    showToast,
+    isPieceInteractive, isModelInteractive, getCatalogEntryForPiece, sync, saveSettingsState, showToast,
     getCurrentSimulation: () => currentSimulation,
     setSelectionBox: (box) => { currentSelectionBox = box; },
     setDraggingBaseboardState: (isDragging, activeBoard, guides) => {
-      isDraggingBaseboard = isDragging;
-      activeBaseboard = activeBoard;
-      activeBaseboardSnapGuides = guides;
+      isDraggingBaseboard = isDragging; activeBaseboard = activeBoard; activeBaseboardSnapGuides = guides;
     },
   });
 
@@ -872,15 +882,7 @@ async function main() {
   if (window.electronAPI) {
     window.electronAPI.onMenuAction((action) => {
       switch (action) {
-        case "newPlan":
-          if (confirm(getTranslations().dialogs.confirmNewPlan)) {
-            layout.pieces = [];
-            ensureDefaultLayers(layout);
-            selection.clear();
-            planManager.setPlanInfo("New Layout.railbench", null, "railbench");
-            sync(true);
-          }
-          break;
+        case "newPlan": operations.triggerNewPlan(); break;
         case "openPlan": operations.triggerOpenPlan(); break;
         case "savePlan": operations.triggerSavePlan(); break;
         case "savePlanAs": operations.triggerSavePlanAs("railbench"); break;
@@ -927,6 +929,7 @@ async function main() {
       planManager.setPlanInfo(layout.name + ".railbench", null, "railbench");
     } else if (action === "new") {
       layout.pieces = [];
+      layout.models = [];
       ensureDefaultLayers(layout);
       planManager.setPlanInfo(getLanguage() === "de" ? "Neuer Plan.railbench" : "New Layout.railbench", null, "railbench");
     } else {
@@ -936,7 +939,7 @@ async function main() {
     }
     history = new History(layout);
     selection.clear();
-    sync(true);
+    sync(false);
   }
 
   async function triggerWelcome() {

@@ -48,9 +48,11 @@ export class PlanManager {
     const dirtyMark = this.state.isDirty ? " ●" : "";
     const name = this.state.fileName || "New Layout";
     const title = `Railbench – [${name}]${dirtyMark}`;
-    document.title = title;
+    if (typeof document !== "undefined") {
+      document.title = title;
+    }
 
-    if (window.electronAPI) {
+    if (typeof window !== "undefined" && window.electronAPI) {
       window.electronAPI.setWindowTitle(title);
     }
   }

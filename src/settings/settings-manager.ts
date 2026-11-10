@@ -13,6 +13,8 @@ export interface AppSettings {
   rulerVisible?: boolean;
   /** Rechte Sidebar eingeklappt */
   rightSidebarCollapsed?: boolean;
+  /** Leistengrößen fixieren / sperren (Toolbar & Sidebars) */
+  barsLocked?: boolean;
   /** Auswahlsperre aufgehoben (alle Ebenen & gelöschte Ebenen auswählbar) */
   selectionLockDisabled?: boolean;
   /** Startverhalten: "ask" (Willkommensdialog anzeigen), "recent", "new", "demo", "open" */
@@ -78,6 +80,11 @@ export const KNOWN_PERSONAL_CONFIG_KEYS = [
   "railbench_3d_trainhall",
   "railbench_3d_woodplate",
   "railbench_show_perf_monitor",
+  "railbench_perf_monitor_pos",
+  "railbench_sidebar_width",
+  "railbench_toolbar_height",
+  "railbench_right_sidebar_width",
+  "railbench_right_sidebar_height",
 ];
 
 /**

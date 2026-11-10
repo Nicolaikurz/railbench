@@ -2296,7 +2296,7 @@ function drawRoadElevationShadow(
   const shadowColor = 0x000000;
   const kind = entry.kind;
 
-  if (kind === "straight" || kind === "accessory") {
+  if (kind === "straight" || kind === "accessory" || kind === "flex") {
     const l = entry.length ?? 200;
     if (entry.id === "ST-LOOP") {
       g.rect(shadowDist * 0.5, -roadHalf + shadowDist, 35, roadWidth);
@@ -2312,6 +2312,21 @@ function drawRoadElevationShadow(
   if (kind === "curve") {
     const r = entry.radius ?? 200;
     const a = entry.angle ?? 90;
+    if (a < 0) {
+      drawArcStroke(
+        g,
+        shadowDist * 0.5,
+        -r + shadowDist,
+        r,
+        Math.PI / 2,
+        Math.PI / 2 - deg2rad(Math.abs(a)),
+        roadWidth,
+        shadowColor,
+        true,
+        shadowAlpha,
+      );
+      return;
+    }
     drawArcStroke(
       g,
       shadowDist * 0.5,
@@ -2376,7 +2391,7 @@ function drawRoadSelectionContour(
   const glowAlpha = 0.5;
   const contourHalf = contourWidth / 2;
 
-  if (kind === "straight" || kind === "accessory") {
+  if (kind === "straight" || kind === "accessory" || kind === "flex") {
     const l = entry.length ?? 200;
     if (entry.id === "ST-LOOP") {
       g.rect(-4, -contourHalf, 45, contourWidth);
@@ -2401,6 +2416,13 @@ function drawRoadSelectionContour(
   if (kind === "curve") {
     const r = entry.radius ?? 200;
     const a = entry.angle ?? 90;
+    if (a < 0) {
+      const rad = deg2rad(Math.abs(a));
+      drawArcStroke(g, 0, -r, r, Math.PI / 2, Math.PI / 2 - rad, contourWidth, glowColor, true, 0.15);
+      drawArcStroke(g, 0, -r, r - contourHalf, Math.PI / 2, Math.PI / 2 - rad, 3.5, glowColor, true, 0.9);
+      drawArcStroke(g, 0, -r, r + contourHalf, Math.PI / 2, Math.PI / 2 - rad, 3.5, glowColor, true, 0.9);
+      return;
+    }
     const rad = deg2rad(a);
     drawArcStroke(g, 0, r, r, -Math.PI / 2, -Math.PI / 2 + rad, contourWidth, glowColor, false, 0.15);
     drawArcStroke(g, 0, r, r - contourHalf, -Math.PI / 2, -Math.PI / 2 + rad, 3.5, glowColor, false, 0.9);
@@ -2456,7 +2478,7 @@ function drawRoadPiece2D(g: Graphics, entry: CatalogEntry, _isSelected: boolean)
   const markingColor = 0xf8fafc;
   const lineW = 1.5;
 
-  if (kind === "straight" || kind === "accessory") {
+  if (kind === "straight" || kind === "accessory" || kind === "flex") {
     const l = entry.length ?? 200;
 
     // --- WENDEPLATZ / SACKGASSE (ST-LOOP) ---
@@ -2619,6 +2641,26 @@ function drawRoadPiece2D(g: Graphics, entry: CatalogEntry, _isSelected: boolean)
   if (kind === "curve") {
     const r = entry.radius ?? 200;
     const a = entry.angle ?? 90;
+    if (a < 0) {
+      const absA = Math.abs(a);
+      const absRad = deg2rad(absA);
+      drawArcStroke(g, 0, -r, r, Math.PI / 2, Math.PI / 2 - absRad, roadWidth, asphaltColor, true);
+      drawArcStroke(g, 0, -r, r - roadHalf + 2.5, Math.PI / 2, Math.PI / 2 - absRad, lineW, markingColor, true, 0.92);
+      drawArcStroke(g, 0, -r, r + roadHalf - 2.5, Math.PI / 2, Math.PI / 2 - absRad, lineW, markingColor, true, 0.92);
+
+      const totalArc = absRad * r;
+      const period = 14;
+      const numDashes = Math.max(1, Math.floor(totalArc / period));
+      const angStep = absRad / numDashes;
+      const dashAng = (8 / totalArc) * absRad;
+      for (let i = 0; i < numDashes; i++) {
+        const startA = Math.PI / 2 - i * angStep - (angStep - dashAng) * 0.5;
+        const endA = startA - dashAng;
+        drawArcStroke(g, 0, -r, r, startA, endA, lineW, markingColor, true, 0.92);
+      }
+      return;
+    }
+
     const rad = deg2rad(a);
 
     // Asphalt Bogen

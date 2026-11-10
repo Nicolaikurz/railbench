@@ -326,6 +326,7 @@ export function createLayout(name = "New Layout"): Layout {
     name,
     scale: "H0",
     pieces: [],
+    models: [],
     layers: createDefaultLayers(),
     activeLayerId: "layer-1",
     baseboard: defBoard,

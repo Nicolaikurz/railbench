@@ -41,6 +41,11 @@ export class History {
   canRedo(): boolean {
     return this.redoStack.length > 0;
   }
+
+  clear(): void {
+    this.undoStack = [];
+    this.redoStack = [];
+  }
 }
 
 export class AddPieceCommand implements Command {
