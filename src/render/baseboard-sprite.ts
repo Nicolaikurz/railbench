@@ -90,7 +90,7 @@ export function createBaseboardGraphics(
   const radius = Math.max(0, Math.min(config.cornerRadius ?? 12, width / 2, depth / 2));
   const styleConfig = getStyleColors(config.style);
   const polygon = getBaseboardPolygon(config);
-  const isRect = !config.shape || config.shape === "rect";
+  const isRect = (!config.shape || config.shape === "rect") && (!config.rotation || config.rotation === 0);
   const isSelected = options.isSelected ?? false;
   const isDragging = options.isDragging ?? false;
 
@@ -127,62 +127,93 @@ export function createBaseboardGraphics(
     g.poly(polygon);
   }
   g.fill({ color: styleConfig.surfaceColor });
+  container.addChild(g);
 
   // Gras- / Wiesenstruktur oder Holzmaserung
-  if (styleConfig.isGrass) {
-    const step = 70;
-    for (let gy = y + 25; gy < y + depth - 20; gy += step) {
-      const offsetX = ((gy - y) % (step * 2) === 0) ? 0 : step / 2;
-      for (let gx = x + 25 + offsetX; gx < x + width - 20; gx += step) {
-        g.moveTo(gx - 3, gy + 3).lineTo(gx - 4, gy - 4);
-        g.moveTo(gx, gy + 3).lineTo(gx, gy - 6);
-        g.moveTo(gx + 3, gy + 3).lineTo(gx + 4, gy - 4);
+  if (styleConfig.isGrass || styleConfig.hasGrain) {
+    const patternG = new Graphics();
+    if (styleConfig.isGrass) {
+      const step = 70;
+      for (let gy = y + 25; gy < y + depth - 20; gy += step) {
+        const offsetX = ((gy - y) % (step * 2) === 0) ? 0 : step / 2;
+        for (let gx = x + 25 + offsetX; gx < x + width - 20; gx += step) {
+          patternG.moveTo(gx - 3, gy + 3).lineTo(gx - 4, gy - 4);
+          patternG.moveTo(gx, gy + 3).lineTo(gx, gy - 6);
+          patternG.moveTo(gx + 3, gy + 3).lineTo(gx + 4, gy - 4);
+        }
+      }
+      patternG.stroke({ width: 0.9, color: styleConfig.highlightColor, alpha: 0.35 });
+
+      for (let gy = y + 55; gy < y + depth - 30; gy += step) {
+        const offsetX = ((gy - y) % (step * 2) === 0) ? step / 2 : 0;
+        for (let gx = x + 40 + offsetX; gx < x + width - 30; gx += step) {
+          patternG.circle(gx, gy, 1.8);
+        }
+      }
+      patternG.fill({ color: styleConfig.grainColor, alpha: 0.25 });
+    } else if (styleConfig.hasGrain) {
+      const plankHeight = 80; // mm
+      const rot = config.rotation ?? 0;
+      if (rot !== 0) {
+        const cx = x + width / 2;
+        const cy = y + depth / 2;
+        const rad = (rot * Math.PI) / 180;
+        const cos = Math.cos(rad);
+        const sin = Math.sin(rad);
+        const halfDiag = Math.hypot(width, depth);
+        for (let py = -halfDiag; py < halfDiag; py += plankHeight) {
+          const p1 = { x: cx - halfDiag * cos - py * sin, y: cy - halfDiag * sin + py * cos };
+          const p2 = { x: cx + halfDiag * cos - py * sin, y: cy + halfDiag * sin + py * cos };
+          patternG.moveTo(p1.x, p1.y).lineTo(p2.x, p2.y);
+        }
+        patternG.stroke({ width: 0.9, color: styleConfig.grainColor, alpha: 0.28 });
+        for (let py = -halfDiag + 20; py < halfDiag; py += 38) {
+          const p1 = { x: cx - halfDiag * cos - py * sin, y: cy - halfDiag * sin + py * cos };
+          const p2 = { x: cx + halfDiag * cos - py * sin, y: cy + halfDiag * sin + py * cos };
+          patternG.moveTo(p1.x, p1.y).lineTo(p2.x, p2.y);
+        }
+        patternG.stroke({ width: 0.5, color: styleConfig.grainColor, alpha: 0.14 });
+      } else {
+        const startY = y;
+        const endY = y + depth;
+        for (let py = startY + plankHeight; py < endY; py += plankHeight) {
+          patternG.moveTo(x + 2, py).lineTo(x + width - 2, py);
+        }
+        patternG.stroke({ width: 0.9, color: styleConfig.grainColor, alpha: 0.28 });
+        for (let py = startY + 20; py < endY; py += 38) {
+          patternG.moveTo(x + 8, py).lineTo(x + width - 8, py);
+        }
+        patternG.stroke({ width: 0.5, color: styleConfig.grainColor, alpha: 0.14 });
       }
     }
-    g.stroke({ width: 0.9, color: styleConfig.highlightColor, alpha: 0.35 });
 
-    for (let gy = y + 55; gy < y + depth - 30; gy += step) {
-      const offsetX = ((gy - y) % (step * 2) === 0) ? step / 2 : 0;
-      for (let gx = x + 40 + offsetX; gx < x + width - 30; gx += step) {
-        g.circle(gx, gy, 1.8);
-      }
+    if (!isRect) {
+      const maskG = new Graphics();
+      maskG.poly(polygon);
+      maskG.fill({ color: 0xffffff });
+      patternG.mask = maskG;
+      container.addChild(maskG);
     }
-    g.fill({ color: styleConfig.grainColor, alpha: 0.25 });
-  } else if (styleConfig.hasGrain) {
-    const plankHeight = 80; // mm
-    const startY = y;
-    const endY = y + depth;
-
-    // Dielenstöße / Fugen
-    for (let py = startY + plankHeight; py < endY; py += plankHeight) {
-      g.moveTo(x + 2, py).lineTo(x + width - 2, py);
-    }
-    g.stroke({ width: 0.9, color: styleConfig.grainColor, alpha: 0.28 });
-
-    // Feine Holzmaserungs-Wellen
-    for (let py = startY + 20; py < endY; py += 38) {
-      g.moveTo(x + 8, py).lineTo(x + width - 8, py);
-    }
-    g.stroke({ width: 0.5, color: styleConfig.grainColor, alpha: 0.14 });
+    container.addChild(patternG);
   }
 
   // 3. Tischkante / Multiplex-Umleimer (Border & Fase)
+  const borderG = new Graphics();
   if (isRect) {
-    g.roundRect(x, y, width, depth, radius);
-    g.stroke({ width: 4.0, color: styleConfig.edgeColor, alpha: 0.95 });
+    borderG.roundRect(x, y, width, depth, radius);
+    borderG.stroke({ width: 4.0, color: styleConfig.edgeColor, alpha: 0.95 });
 
     // 3D-Lichtkante oben/innen
     const inset = 2;
     if (width > inset * 2 && depth > inset * 2) {
-      g.roundRect(x + inset, y + inset, width - inset * 2, depth - inset * 2, Math.max(0, radius - inset));
-      g.stroke({ width: 1.2, color: styleConfig.highlightColor, alpha: 0.45 });
+      borderG.roundRect(x + inset, y + inset, width - inset * 2, depth - inset * 2, Math.max(0, radius - inset));
+      borderG.stroke({ width: 1.2, color: styleConfig.highlightColor, alpha: 0.45 });
     }
   } else {
-    g.poly(polygon);
-    g.stroke({ width: 4.0, color: styleConfig.edgeColor, alpha: 0.95 });
+    borderG.poly(polygon);
+    borderG.stroke({ width: 4.0, color: styleConfig.edgeColor, alpha: 0.95 });
   }
-
-  container.addChild(g);
+  container.addChild(borderG);
 
   // 3B. Tischdurchbrüche / Ausschnitte für Rampen und Strecken unter der Platte
   if (options.layout && options.catalog) {
@@ -210,7 +241,16 @@ export function createBaseboardGraphics(
 
   // 4. Bemaßungslinien und -beschriftungen
   if (config.showDimensions !== false) {
-    drawDimensionLines(container, x, y, width, depth);
+    const dimContainer = new Container();
+    drawDimensionLines(dimContainer, x, y, width, depth);
+    if (config.rotation) {
+      const cx = x + width / 2;
+      const cy = y + depth / 2;
+      dimContainer.position.set(cx, cy);
+      dimContainer.pivot.set(cx, cy);
+      dimContainer.rotation = (config.rotation * Math.PI) / 180;
+    }
+    container.addChild(dimContainer);
   }
 
   // 5. Magnetische Snap-Führungslinien (Cyan-Laser-Guides)

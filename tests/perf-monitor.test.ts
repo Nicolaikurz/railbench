@@ -229,6 +229,8 @@ describe("PerfMonitor - Draggable Hardware Monitor", () => {
     const overlay = host.querySelector("#perf-monitor-overlay");
     expect(overlay).toBeTruthy();
     expect(overlay?.style.position).toBe("absolute");
+    expect(overlay?.style.bottom).toBe("10px");
+    expect(overlay?.style.right).toBe("10px");
 
     const header = overlay?.querySelector(".perf-monitor-header");
     expect(header).toBeTruthy();
@@ -342,7 +344,7 @@ describe("PerfMonitor - Draggable Hardware Monitor", () => {
 
     expect(monitor.getPosition()).toBeNull();
     expect(overlay.style.right).toBe("10px");
-    expect(overlay.style.top).toBe("10px");
+    expect(overlay.style.bottom).toBe("10px");
 
     monitor.destroy();
   });

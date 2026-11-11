@@ -1,4 +1,4 @@
-import type { Layout, Layer, TrackPiece, BaseboardConfig, Model3D, ModelCategory } from "@/core/types";
+import type { Layout, Layer, LayerPlate, TrackPiece, BaseboardConfig, Model3D, ModelCategory } from "@/core/types";
 import { maerklinCCatalog, catalogRegistry, computeWorldConnectors } from "@/catalog/catalog";
 import { ensureDefaultLayers } from "@/core/layout";
 
@@ -28,7 +28,7 @@ export function toXML(layout: Layout): string {
   if (boards.length > 0) {
     xml += `  <baseboards>\n`;
     for (const bb of boards) {
-      xml += `    <baseboard enabled="${bb.enabled !== false}" id="${escapeXml(bb.id ?? '')}" name="${escapeXml(bb.name ?? 'Table')}" shape="${bb.shape || 'rect'}" width="${bb.width}" depth="${bb.depth}" positionMode="${bb.positionMode}" style="${bb.style}" cornerRadius="${bb.cornerRadius ?? 12}" showDimensions="${bb.showDimensions !== false}" customX="${bb.customX ?? 0}" customY="${bb.customY ?? 0}" lWingWidth="${bb.lWingWidth ?? 800}" lWingDepth="${bb.lWingDepth ?? 800}" lSide="${bb.lSide ?? 'left'}" uLeftWingWidth="${bb.uLeftWingWidth ?? 700}" uRightWingWidth="${bb.uRightWingWidth ?? 700}" uBackDepth="${bb.uBackDepth ?? 600}" tBarDepth="${bb.tBarDepth ?? 600}" tStemWidth="${bb.tStemWidth ?? 800}"/>\n`;
+      xml += `    <baseboard enabled="${bb.enabled !== false}" id="${escapeXml(bb.id ?? '')}" name="${escapeXml(bb.name ?? 'Table')}" shape="${bb.shape || 'rect'}" triangleType="${escapeXml(bb.triangleType || 'corner-tl')}" rotation="${bb.rotation ?? 0}" width="${bb.width}" depth="${bb.depth}" positionMode="${bb.positionMode}" style="${bb.style}" cornerRadius="${bb.cornerRadius ?? 12}" showDimensions="${bb.showDimensions !== false}" customX="${bb.customX ?? 0}" customY="${bb.customY ?? 0}" lWingWidth="${bb.lWingWidth ?? 800}" lWingDepth="${bb.lWingDepth ?? 800}" lSide="${bb.lSide ?? 'left'}" uLeftWingWidth="${bb.uLeftWingWidth ?? 700}" uRightWingWidth="${bb.uRightWingWidth ?? 700}" uBackDepth="${bb.uBackDepth ?? 600}" tBarDepth="${bb.tBarDepth ?? 600}" tStemWidth="${bb.tStemWidth ?? 800}"/>\n`;
     }
     xml += `  </baseboards>\n`;
   }
@@ -37,7 +37,31 @@ export function toXML(layout: Layout): string {
     const firstLayerId = readyLayout.layers[0]?.id ?? "layer-1";
     xml += `  <layers activeLayerId="${escapeXml(readyLayout.activeLayerId ?? firstLayerId)}">\n`;
     for (const lay of readyLayout.layers) {
-      xml += `    <layer id="${escapeXml(lay.id)}" name="${escapeXml(lay.name)}" color="${escapeXml(lay.color || '#38bdf8')}" visible="${lay.visible !== false}" locked="${lay.locked === true}" heightMm="${lay.heightMm ?? 0}"/>\n`;
+      const modeAttr = lay.woodPlateMode ? ` woodPlateMode="${escapeXml(lay.woodPlateMode)}"` : "";
+      const thAttr = lay.woodPlateThicknessMm !== undefined ? ` woodPlateThicknessMm="${lay.woodPlateThicknessMm}"` : "";
+      if (lay.plates && lay.plates.length > 0) {
+        xml += `    <layer id="${escapeXml(lay.id)}" name="${escapeXml(lay.name)}" color="${escapeXml(lay.color || '#38bdf8')}" visible="${lay.visible !== false}" locked="${lay.locked === true}" heightMm="${lay.heightMm ?? 0}"${modeAttr}${thAttr}>\n`;
+        for (const pl of lay.plates) {
+          const nameAttr = pl.name ? ` name="${escapeXml(pl.name)}"` : "";
+          const boardAttr = pl.baseboardId ? ` baseboardId="${escapeXml(pl.baseboardId)}"` : "";
+          const posAttr = pl.positionMode ? ` positionMode="${escapeXml(pl.positionMode)}"` : "";
+          const shapeAttr = pl.shape ? ` shape="${escapeXml(pl.shape)}"` : "";
+          const triAttr = pl.triangleType ? ` triangleType="${escapeXml(pl.triangleType)}"` : "";
+          const lWingWAttr = pl.lWingWidth !== undefined ? ` lWingWidth="${pl.lWingWidth}"` : "";
+          const lWingDAttr = pl.lWingDepth !== undefined ? ` lWingDepth="${pl.lWingDepth}"` : "";
+          const lSideAttr = pl.lSide ? ` lSide="${escapeXml(pl.lSide)}"` : "";
+          const uLWAttr = pl.uLeftWingWidth !== undefined ? ` uLeftWingWidth="${pl.uLeftWingWidth}"` : "";
+          const uRWAttr = pl.uRightWingWidth !== undefined ? ` uRightWingWidth="${pl.uRightWingWidth}"` : "";
+          const uBDAttr = pl.uBackDepth !== undefined ? ` uBackDepth="${pl.uBackDepth}"` : "";
+          const tBDAttr = pl.tBarDepth !== undefined ? ` tBarDepth="${pl.tBarDepth}"` : "";
+          const tSWAttr = pl.tStemWidth !== undefined ? ` tStemWidth="${pl.tStemWidth}"` : "";
+          const rotAttr = pl.rotation !== undefined ? ` rotation="${pl.rotation}"` : "";
+          xml += `      <plate id="${escapeXml(pl.id)}"${nameAttr}${boardAttr} width="${pl.width}" depth="${pl.depth}" x="${pl.x ?? 0}" y="${pl.y ?? 0}" thicknessMm="${pl.thicknessMm ?? 10}"${posAttr}${shapeAttr}${triAttr}${lWingWAttr}${lWingDAttr}${lSideAttr}${uLWAttr}${uRWAttr}${uBDAttr}${tBDAttr}${tSWAttr}${rotAttr}/>\n`;
+        }
+        xml += `    </layer>\n`;
+      } else {
+        xml += `    <layer id="${escapeXml(lay.id)}" name="${escapeXml(lay.name)}" color="${escapeXml(lay.color || '#38bdf8')}" visible="${lay.visible !== false}" locked="${lay.locked === true}" heightMm="${lay.heightMm ?? 0}"${modeAttr}${thAttr}/>\n`;
+      }
     }
     xml += `  </layers>\n`;
   }
@@ -130,6 +154,8 @@ export function fromXML(xmlStr: string): Layout {
       name: bbNode.getAttribute("name") || `Tisch ${index + 1}`,
       enabled: bbNode.getAttribute("enabled") !== "false",
       shape: (bbNode.getAttribute("shape") as any) || "rect",
+      triangleType: (bbNode.getAttribute("triangleType") as any) || undefined,
+      rotation: parseFloat(bbNode.getAttribute("rotation") || "0"),
       width: parseFloat(bbNode.getAttribute("width") || "2400"),
       depth: parseFloat(bbNode.getAttribute("depth") || "1200"),
       positionMode: (bbNode.getAttribute("positionMode") as any) || "center",
@@ -158,6 +184,35 @@ export function fromXML(xmlStr: string): Layout {
     activeLayerId = layersNode.getAttribute("activeLayerId") || undefined;
     const layerElements = layersNode.querySelectorAll("layer");
     layerElements.forEach((el) => {
+      const modeAttr = el.getAttribute("woodPlateMode") as any;
+      const thAttr = el.getAttribute("woodPlateThicknessMm");
+      const plateNodes = el.querySelectorAll("plate");
+      const plates: LayerPlate[] = [];
+      plateNodes.forEach((pl) => {
+        plates.push({
+          id: pl.getAttribute("id") || `plate-${Date.now()}-${Math.random()}`,
+          name: pl.getAttribute("name") || undefined,
+          baseboardId: pl.getAttribute("baseboardId") || undefined,
+          shape: (pl.getAttribute("shape") as any) || undefined,
+          triangleType: (pl.getAttribute("triangleType") as any) || undefined,
+          lWingWidth: pl.getAttribute("lWingWidth") ? parseFloat(pl.getAttribute("lWingWidth")!) : undefined,
+          lWingDepth: pl.getAttribute("lWingDepth") ? parseFloat(pl.getAttribute("lWingDepth")!) : undefined,
+          lSide: (pl.getAttribute("lSide") as any) || undefined,
+          uLeftWingWidth: pl.getAttribute("uLeftWingWidth") ? parseFloat(pl.getAttribute("uLeftWingWidth")!) : undefined,
+          uRightWingWidth: pl.getAttribute("uRightWingWidth") ? parseFloat(pl.getAttribute("uRightWingWidth")!) : undefined,
+          uBackDepth: pl.getAttribute("uBackDepth") ? parseFloat(pl.getAttribute("uBackDepth")!) : undefined,
+          tBarDepth: pl.getAttribute("tBarDepth") ? parseFloat(pl.getAttribute("tBarDepth")!) : undefined,
+          tStemWidth: pl.getAttribute("tStemWidth") ? parseFloat(pl.getAttribute("tStemWidth")!) : undefined,
+          rotation: pl.getAttribute("rotation") ? parseFloat(pl.getAttribute("rotation")!) : undefined,
+          width: parseFloat(pl.getAttribute("width") || "1200"),
+          depth: parseFloat(pl.getAttribute("depth") || "600"),
+          x: parseFloat(pl.getAttribute("x") || "0"),
+          y: parseFloat(pl.getAttribute("y") || "0"),
+          thicknessMm: parseFloat(pl.getAttribute("thicknessMm") || "10"),
+          positionMode: (pl.getAttribute("positionMode") as any) || "center",
+        });
+      });
+
       parsedLayers.push({
         id: el.getAttribute("id") || `layer-${Date.now()}`,
         name: el.getAttribute("name") || "Layer",
@@ -165,6 +220,9 @@ export function fromXML(xmlStr: string): Layout {
         visible: el.getAttribute("visible") !== "false",
         locked: el.getAttribute("locked") === "true",
         heightMm: parseFloat(el.getAttribute("heightMm") || "0"),
+        woodPlateMode: modeAttr || undefined,
+        woodPlateThicknessMm: thAttr ? parseFloat(thAttr) : undefined,
+        plates: plates.length > 0 ? plates : undefined,
       });
     });
   }

@@ -239,7 +239,19 @@ export function computeTableTrackCutouts(
 
   const baseboardPoly = getBaseboardPolygon(baseboard);
   if (baseboardPoly.length < 3) return [];
-  const baseboardBounds = getBaseboardBounds(baseboard);
+  let polyMinX = Infinity, polyMaxX = -Infinity, polyMinY = Infinity, polyMaxY = -Infinity;
+  for (const p of baseboardPoly) {
+    if (p.x < polyMinX) polyMinX = p.x;
+    if (p.x > polyMaxX) polyMaxX = p.x;
+    if (p.y < polyMinY) polyMinY = p.y;
+    if (p.y > polyMaxY) polyMaxY = p.y;
+  }
+  const baseboardBounds = {
+    x: polyMinX,
+    y: polyMinY,
+    width: polyMaxX - polyMinX,
+    depth: polyMaxY - polyMinY,
+  };
 
   const entryMap = new Map<string, CatalogEntry>();
   for (const e of catalog.entries) entryMap.set(e.id, e);

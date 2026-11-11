@@ -362,5 +362,114 @@ describe("Ramp Generator & Clearance Heights", () => {
       // Verify each turn (12 pieces) climbs by ~80mm
       expect(result.pieces[11]!.elevation!.end).toBeCloseTo(80, 0.5);
     });
+
+    it("adjusts helix piece count and gradient dynamically when targetGradientPercent changes", () => {
+      const anchor: TrackPiece = {
+        id: "anchor",
+        catalogId: "24188",
+        transform: { x: 0, y: 0, rotation: 0 },
+        elevation: { start: 0, end: 0 },
+        connectors: [
+          { x: 0, y: 0, angle: 180 },
+          { x: 188.3, y: 0, angle: 0 },
+        ],
+      };
+
+      const res40 = generateRampPieces({
+        catalog: maerklinCCatalog,
+        anchorPiece: anchor,
+        connectorIndex: 1,
+        targetHeightMm: 80,
+        shape: "helix",
+        direction: "right",
+        selectedCurveCatalogId: "24230", // R2 = 437.5mm
+        targetGradientPercent: 4.0,
+      });
+
+      const res35 = generateRampPieces({
+        catalog: maerklinCCatalog,
+        anchorPiece: anchor,
+        connectorIndex: 1,
+        targetHeightMm: 80,
+        shape: "helix",
+        direction: "right",
+        selectedCurveCatalogId: "24230",
+        targetGradientPercent: 3.5,
+      });
+
+      const res28 = generateRampPieces({
+        catalog: maerklinCCatalog,
+        anchorPiece: anchor,
+        connectorIndex: 1,
+        targetHeightMm: 80,
+        shape: "helix",
+        direction: "right",
+        selectedCurveCatalogId: "24230",
+        targetGradientPercent: 2.8,
+      });
+
+      const res20 = generateRampPieces({
+        catalog: maerklinCCatalog,
+        anchorPiece: anchor,
+        connectorIndex: 1,
+        targetHeightMm: 80,
+        shape: "helix",
+        direction: "right",
+        selectedCurveCatalogId: "24230",
+        targetGradientPercent: 2.0,
+      });
+
+      // 4.0% target: <= 4.0%
+      expect(res40.gradientPercent).toBeLessThanOrEqual(4.0);
+      expect(res40.pieces.length).toBe(9);
+
+      // 3.5% target: <= 3.5%
+      expect(res35.gradientPercent).toBeLessThanOrEqual(3.5);
+      expect(res35.pieces.length).toBe(10);
+
+      // 2.8% target: <= 2.8%
+      expect(res28.gradientPercent).toBeLessThanOrEqual(2.8);
+      expect(res28.pieces.length).toBe(13);
+
+      // 2.0% target: <= 2.0%
+      expect(res20.gradientPercent).toBeLessThanOrEqual(2.0);
+      expect(res20.pieces.length).toBe(18);
+
+      // Verify that changing target gradient creates strictly more pieces as gradient gets gentler
+      expect(res20.pieces.length).toBeGreaterThan(res28.pieces.length);
+      expect(res28.pieces.length).toBeGreaterThan(res35.pieces.length);
+      expect(res35.pieces.length).toBeGreaterThan(res40.pieces.length);
+    });
+
+    it("supports downward helix (Gleiswendel abwärts) with target gradient", () => {
+      const anchor: TrackPiece = {
+        id: "anchor",
+        catalogId: "24188",
+        transform: { x: 0, y: 0, rotation: 0 },
+        elevation: { start: 100, end: 100 },
+        connectors: [
+          { x: 0, y: 0, angle: 180 },
+          { x: 188.3, y: 0, angle: 0 },
+        ],
+      };
+
+      const result = generateRampPieces({
+        catalog: maerklinCCatalog,
+        anchorPiece: anchor,
+        connectorIndex: 1,
+        targetHeightMm: 20, // descending 80mm down
+        shape: "helix",
+        direction: "left",
+        selectedCurveCatalogId: "24230",
+        targetGradientPercent: 2.8,
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.gradientPercent).toBeLessThanOrEqual(2.8);
+      expect(result.pieces.length).toBe(13);
+      // For left turn, connector 1 is entry, connector 0 is exit
+      expect(result.pieces[0]!.elevation!.end).toBeCloseTo(100, 0.5);
+      expect(result.pieces[12]!.elevation!.start).toBeCloseTo(20, 0.5);
+    });
   });
 });

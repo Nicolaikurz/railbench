@@ -38,6 +38,33 @@ export type ColorMode = "off" | "types" | "layers";
 
 export type LayerWoodPlateMode = "none" | "table" | "tight";
 
+export type BaseboardStyle = "wood" | "dark-wood" | "plywood" | "slate" | "white" | "grass";
+export type BaseboardShape = "rect" | "l-shape" | "u-shape" | "t-shape" | "triangle";
+export type BaseboardTriangleType = "corner-tl" | "corner-tr" | "corner-bl" | "corner-br" | "isosceles";
+
+export interface LayerPlate {
+  id: string;
+  name?: string;
+  baseboardId?: string; // id of the table this plate is attached to
+  shape?: BaseboardShape;
+  triangleType?: BaseboardTriangleType;
+  lWingWidth?: number;
+  lWingDepth?: number;
+  lSide?: "left" | "right";
+  uLeftWingWidth?: number;
+  uRightWingWidth?: number;
+  uBackDepth?: number;
+  tBarDepth?: number;
+  tStemWidth?: number;
+  rotation?: number;
+  width: number; // in mm, z.B. 1200
+  depth: number; // in mm, z.B. 600
+  x?: number; // in mm (Offset relativ zum Tisch)
+  y?: number; // in mm (Offset relativ zum Tisch)
+  thicknessMm?: number; // in mm, Standard: 10 oder 12
+  positionMode?: "center" | "top-left" | "custom";
+}
+
 export interface Layer {
   id: string;
   name: string;
@@ -47,18 +74,18 @@ export interface Layer {
   heightMm?: number;
   woodPlateMode?: LayerWoodPlateMode;
   woodPlateThicknessMm?: number;
+  plates?: LayerPlate[];
 }
-
-export type BaseboardStyle = "wood" | "dark-wood" | "plywood" | "slate" | "white" | "grass";
-export type BaseboardShape = "rect" | "l-shape" | "u-shape" | "t-shape";
 
 export interface BaseboardConfig {
   id?: string;
   name?: string;
   enabled: boolean;
   shape?: BaseboardShape;
+  triangleType?: BaseboardTriangleType;
   width: number; // in mm, z.B. 2400
   depth: number; // in mm, z.B. 1200
+  rotation?: number; // in degrees, e.g. 0, 45, 90
   // L-Form Parameter
   lWingWidth?: number;
   lWingDepth?: number;

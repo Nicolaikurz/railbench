@@ -96,11 +96,45 @@ export function buildStation3D(group: THREE.Group): void {
     group.add(pillar);
   }
 
-  // Fenster & Türen
+ // Fenster & Eingänge auf beiden Seiten (Gleisseite +Z, Vorplatzseite -Z)
   const winMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.1, metalness: 0.9 });
-  for (let x = -95; x <= 55; x += 30) {
-    const win = new THREE.Mesh(new THREE.BoxGeometry(14, 20, 1), winMat);
-    win.position.set(x, 49.5, 36);
-    group.add(win);
+  const frameMat = new THREE.MeshStandardMaterial({ color: 0x3f2a1d, roughness: 0.7 });
+  const doorMat = new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.8 });
+
+  const entranceX = -20;                  // Eingang mittig unter dem Uhrturm
+  const windowOffsets = [-90, -60, -30, 30, 60, 90]; // symmetrisch um den Eingang
+
+  for (const side of [1, -1]) {
+    const wallZ = -10 + side * 45;        // Wandfläche (Gebäude: Mitte z=-10, Tiefe 90)
+    const faceZ = wallZ + side * 0.5;     // Fenster bündig an der Wand
+
+    // Fenster
+    for (const dx of windowOffsets) {
+      const win = new THREE.Mesh(new THREE.BoxGeometry(14, 20, 1), winMat);
+      win.position.set(entranceX + dx, 49.5, faceZ);
+      group.add(win);
+    }
+
+    // Türrahmen
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(20, 34, 1), frameMat);
+    frame.position.set(entranceX, 22.5, faceZ);
+    group.add(frame);
+
+    // Zwei Türflügel
+    for (const dx of [-4, 4]) {
+      const leaf = new THREE.Mesh(new THREE.BoxGeometry(7.6, 30, 1), doorMat);
+      leaf.position.set(entranceX + dx, 20.5, wallZ + side * 1.5);
+      group.add(leaf);
+    }
+
+    // Oberlicht über der Tür
+    const transom = new THREE.Mesh(new THREE.BoxGeometry(16, 3, 1), winMat);
+    transom.position.set(entranceX, 37.5, wallZ + side * 1.5);
+    group.add(transom);
+
+    // Eingangsstufe
+    const step = new THREE.Mesh(new THREE.BoxGeometry(26, 1.5, 6), curbMat);
+    step.position.set(entranceX, 6.25, wallZ + side * 3);
+    group.add(step);
   }
 }

@@ -327,15 +327,22 @@ export function generateRampPieces(params: RampGeneratorParams): GeneratedRampRe
     const piecesPerTurn = Math.max(4, Math.round(360 / Math.max(1, cAngle)));
     const turnLength = piecesPerTurn * cLen;
 
-    // Minimum turns to clear height
-    const turnsByClearance = Math.ceil(Math.abs(totalRise) / Math.max(10, minClearance));
-    // Minimum turns for gradient limit
-    const turnsByGradient = Math.ceil(minReqLength / Math.max(10, turnLength));
-    const finalTurns = customPieceCount
-      ? Math.max(1, Math.round(customPieceCount / piecesPerTurn))
-      : Math.max(1, turnsByClearance, turnsByGradient);
+    let totalPieces: number;
+    if (customPieceCount !== undefined) {
+      totalPieces = customPieceCount;
+    } else if (targetGradientPercent !== undefined || maxGradientPercent !== undefined) {
+      // User specified target gradient: calculate piece count so gradient <= target gradient
+      const piecesByGradient = Math.ceil(minReqLength / Math.max(1, cLen));
+      const piecesByAngle = params.curveAngleDeg ? Math.round(params.curveAngleDeg / Math.max(1, cAngle)) : 0;
+      totalPieces = Math.max(4, piecesByAngle, piecesByGradient);
+    } else {
+      // Default: full loops of minClearance height
+      const turnsByClearance = Math.ceil(Math.abs(totalRise) / Math.max(10, minClearance));
+      const turnsByGradient = Math.ceil(minReqLength / Math.max(10, turnLength));
+      const finalTurns = Math.max(1, turnsByClearance, turnsByGradient);
+      totalPieces = finalTurns * piecesPerTurn;
+    }
 
-    const totalPieces = customPieceCount ?? finalTurns * piecesPerTurn;
     for (let i = 0; i < totalPieces; i++) {
       sequence.push({ entry: defaultCurve, direction: effectiveDirection });
     }

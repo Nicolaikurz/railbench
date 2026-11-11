@@ -173,9 +173,25 @@ describe("Drag Preview Generator", () => {
       angle: 30,
       branchRadius: 360,
       branchAngle: 30,
+      branchLength: 77.5,
     };
     const cCanvas = createPieceDragCanvas(curvedTurnoutLeft, false);
-    expect(cCanvas.width).toBeGreaterThan(40);
+    // 77.5 + 360 * sin(30 deg) = 257.5 px -> canvas width > 250 px
+    expect(cCanvas.width).toBeGreaterThan(250);
+    expect(cCanvas.height).toBeGreaterThan(40);
+
+    const ctxLeft = cCanvas.getContext("2d") as any;
+    // Connector dots are drawn as circles with radius 2.5: arc(x, y, 2.5, 0, 2*PI)
+    const leftConnectorDots = ctxLeft.arc.mock.calls.filter(
+      (call: any[]) => call[2] === 2.5 && Math.abs(call[4] - Math.PI * 2) < 0.01,
+    );
+    expect(leftConnectorDots.length).toBe(3); // (0,0), main end, branch end
+    // Origin at (0, 0)
+    expect(leftConnectorDots.some((c: any[]) => c[0] === 0 && c[1] === 0)).toBe(true);
+    // Both turnout branches curve upwards (-Y) in Railbench coordinates
+    const leftEndDots = leftConnectorDots.filter((c: any[]) => c[0] > 10);
+    expect(leftEndDots.length).toBe(2);
+    expect(leftEndDots.every((c: any[]) => c[1] < 0)).toBe(true);
 
     const curvedTurnoutRight: CatalogEntry = {
       id: "24672",
@@ -187,9 +203,22 @@ describe("Drag Preview Generator", () => {
       angle: 30,
       branchRadius: 360,
       branchAngle: 30,
+      branchLength: 77.5,
     };
     const cRightCanvas = createPieceDragCanvas(curvedTurnoutRight, false);
-    expect(cRightCanvas.width).toBeGreaterThan(40);
+    expect(cRightCanvas.width).toBeGreaterThan(250);
+    expect(cRightCanvas.height).toBeGreaterThan(40);
+
+    const ctxRight = cRightCanvas.getContext("2d") as any;
+    const rightConnectorDots = ctxRight.arc.mock.calls.filter(
+      (call: any[]) => call[2] === 2.5 && Math.abs(call[4] - Math.PI * 2) < 0.01,
+    );
+    expect(rightConnectorDots.length).toBe(3);
+    expect(rightConnectorDots.some((c: any[]) => c[0] === 0 && c[1] === 0)).toBe(true);
+    // Both turnout branches curve downwards (+Y) in Railbench coordinates
+    const rightEndDots = rightConnectorDots.filter((c: any[]) => c[0] > 10);
+    expect(rightEndDots.length).toBe(2);
+    expect(rightEndDots.every((c: any[]) => c[1] > 0)).toBe(true);
 
     const threeWay: CatalogEntry = {
       id: "24630",

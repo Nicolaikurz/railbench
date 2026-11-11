@@ -1,8 +1,8 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import type { Layout, TrackPiece, Layer, BaseboardConfig, Model3D, ColorMode, LayerWoodPlateMode } from "@/core/types";
-import { getBaseboardPolygon, getBaseboardBounds, getBaseboards, computeBaseboardLegPositions, isPointInsideBaseboard } from "@/core/layout";
+import type { Layout, TrackPiece, Layer, LayerPlate, BaseboardConfig, Model3D, ColorMode, LayerWoodPlateMode } from "@/core/types";
+import { getBaseboardPolygon, getBaseboardBounds, getBaseboards, computeBaseboardLegPositions, isPointInsideBaseboard, getLayerPlatePolygon } from "@/core/layout";
 import type { Catalog, CatalogEntry } from "@/catalog/catalog";
 import { catalogRegistry, isBufferStopPiece } from "@/catalog/catalog";
 import { deg2rad, getPieceLocalCenter, transformPoint } from "@/core/geometry";
@@ -787,14 +787,19 @@ export class Viewer3D {
       }
     }
 
-    // 4B. Vollflächige Holzplatten / Tisch-Zwischenebenen für Ebenen mit woodPlateMode === "table"
-    // Wichtig: Ebene 0 mm (Tisch) bildet bereits die Tischplatte selbst - überspringen um Doppelung zu verhindern!
+    // 4B. Vollflächige Holzplatten / Tisch-Zwischenebenen für Ebenen mit woodPlateMode === "table" oder layer.plates
     if (layout.layers) {
       for (const layer of layout.layers) {
-        if (!layer.visible || layer.woodPlateMode !== "table" || (layer.heightMm ?? 0) === 0) continue;
-        for (const bb of baseboards) {
-          if (bb.enabled) {
-            this.buildLayerDeckPlate3D(layer, bb, layout, catalog);
+        if (!layer.visible) continue;
+        if (layer.plates && layer.plates.length > 0) {
+          for (const plate of layer.plates) {
+            this.buildCustomLayerPlate3D(layer, plate, layout, catalog);
+          }
+        } else if (layer.woodPlateMode === "table" && (layer.heightMm ?? 0) !== 0) {
+          for (const bb of baseboards) {
+            if (bb.enabled) {
+              this.buildLayerDeckPlate3D(layer, bb, layout, catalog);
+            }
           }
         }
       }
@@ -1210,6 +1215,120 @@ export class Viewer3D {
         if (cutouts.length > 0 && isPointInsideCutout(pt, cutouts, riserRadius + 15)) continue;
         const riser = new THREE.Mesh(riserGeo, riserMat);
         const midY = layerH > 0 ? layerH / 2 - depth / 2 : layerH / 2;
+        riser.position.set(pt.x, midY, pt.y);
+        riser.castShadow = true;
+        riser.receiveShadow = true;
+        this.woodPlateGroup.add(riser);
+      }
+    }
+  }
+
+  private buildCustomLayerPlate3D(
+    layer: Layer,
+    plate: LayerPlate,
+    layout: Layout,
+    catalog: Catalog,
+  ) {
+    const width = Math.max(50, plate.width);
+    const depth = Math.max(50, plate.depth);
+    const thickness = plate.thicknessMm ?? layer.woodPlateThicknessMm ?? 10;
+    const layerH = layer.heightMm ?? 0;
+
+    const baseboards = getBaseboards(layout);
+    const targetBoard = (plate.baseboardId ? baseboards.find((b) => b.id === plate.baseboardId) : undefined) || baseboards[0];
+    const tableBounds = targetBoard ? getBaseboardBounds(targetBoard) : { x: 0, y: 0 };
+    const originX = tableBounds.x + (plate.x ?? 0);
+    const originY = tableBounds.y + (plate.y ?? 0);
+    const rot = targetBoard?.rotation ?? 0;
+
+    const polygon = getLayerPlatePolygon(plate, targetBoard);
+
+    let outerPts = polygon.map((p) => new THREE.Vector2(p.x, p.y));
+    if (THREE.ShapeUtils.isClockWise(outerPts)) {
+      outerPts = outerPts.reverse();
+    }
+
+    const shape = new THREE.Shape();
+    shape.moveTo(outerPts[0]!.x, outerPts[0]!.y);
+    for (let i = 1; i < outerPts.length; i++) {
+      shape.lineTo(outerPts[i]!.x, outerPts[i]!.y);
+    }
+    shape.closePath();
+
+    const dummyConfig: BaseboardConfig = {
+      enabled: true,
+      width,
+      depth,
+      shape: plate.shape ?? "rect",
+      triangleType: plate.triangleType,
+      lWingWidth: plate.lWingWidth,
+      lWingDepth: plate.lWingDepth,
+      lSide: plate.lSide,
+      uLeftWingWidth: plate.uLeftWingWidth,
+      uRightWingWidth: plate.uRightWingWidth,
+      uBackDepth: plate.uBackDepth,
+      tBarDepth: plate.tBarDepth,
+      tStemWidth: plate.tStemWidth,
+      positionMode: "custom",
+      customX: originX,
+      customY: originY,
+      rotation: rot,
+      style: "wood",
+    };
+
+    const cutouts = computeTableTrackCutouts(layout, catalog, dummyConfig, layerH, thickness);
+    for (const cutout of cutouts) {
+      if (cutout.points.length < 3) continue;
+      let holeVecs = cutout.points.map((p) => new THREE.Vector2(p.x, p.y));
+      if (!THREE.ShapeUtils.isClockWise(holeVecs)) {
+        holeVecs = holeVecs.reverse();
+      }
+      const holePath = new THREE.Path();
+      holePath.moveTo(holeVecs[0]!.x, holeVecs[0]!.y);
+      for (let i = 1; i < holeVecs.length; i++) {
+        holePath.lineTo(holeVecs[i]!.x, holeVecs[i]!.y);
+      }
+      holePath.closePath();
+      shape.holes.push(holePath);
+    }
+
+    const bevelThickness = 1.5;
+    const extrudeSettings: THREE.ExtrudeGeometryOptions = {
+      depth: thickness,
+      bevelEnabled: true,
+      bevelSegments: 2,
+      steps: 1,
+      bevelSize: 1.5,
+      bevelThickness,
+    };
+
+    const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+    geometry.rotateX(Math.PI / 2);
+    geometry.translate(0, layerH - bevelThickness, 0);
+
+    const woodColor = 0xcbb89d;
+    const material = new THREE.MeshStandardMaterial({
+      color: woodColor,
+      roughness: 0.75,
+      metalness: 0.04,
+    });
+
+    const deckMesh = new THREE.Mesh(geometry, material);
+    deckMesh.receiveShadow = true;
+    deckMesh.castShadow = true;
+    this.woodPlateGroup.add(deckMesh);
+
+    if (Math.abs(layerH) >= 20) {
+      const riserRadius = 12;
+      const riserPositions = computeBaseboardLegPositions(dummyConfig, riserRadius, 55);
+      const riserHeight = Math.abs(layerH);
+      const riserGeo = new THREE.CylinderGeometry(riserRadius, riserRadius, riserHeight, 12);
+      const riserMat = new THREE.MeshStandardMaterial({ color: 0x8c6d48, roughness: 0.8, metalness: 0.05 });
+
+      for (const pt of riserPositions) {
+        if (cutouts.length > 0 && isPointInsideCutout(pt, cutouts, riserRadius + 15)) continue;
+        const riser = new THREE.Mesh(riserGeo, riserMat);
+        const midY = layerH > 0 ? layerH / 2 - thickness / 2 : layerH / 2;
         riser.position.set(pt.x, midY, pt.y);
         riser.castShadow = true;
         riser.receiveShadow = true;
@@ -2534,9 +2653,9 @@ export class Viewer3D {
     const contactH = 72; // 64 mm über Schienenoberkante
     const messengerH = 85; // 13 mm über Fahrdraht
 
-    const buildMast = (x: number, z: number, rotY = 0, side = 1) => {
+    const buildMast = (x: number, z: number, rotY = 0, side = 1, y = 0) => {
       const mastGroup = new THREE.Group();
-      mastGroup.position.set(x, 0, z);
+      mastGroup.position.set(x, y, z);
       mastGroup.rotation.y = rotY;
 
       const mastDist = 24 * side;
@@ -2583,6 +2702,8 @@ export class Viewer3D {
       catGroup.add(mastGroup);
     };
 
+    const unitX = new THREE.Vector3(1, 0, 0);
+
     // Helfer für gerade Fahrleitungs-Drähte
     const addStraightWire = (
       x1: number,
@@ -2591,50 +2712,59 @@ export class Viewer3D {
       z2: number,
       withMasts = true,
       mastSide = 1,
+      y1 = 0,
+      y2 = 0,
     ) => {
       const dx = x2 - x1;
+      const dy = y2 - y1;
       const dz = z2 - z1;
-      const len = Math.hypot(dx, dz);
-      if (len < 1) return;
+      const horizLen = Math.hypot(dx, dz);
+      if (horizLen < 0.1) return;
+      const totalLen = Math.hypot(dx, dy, dz);
       const angle = Math.atan2(dz, dx);
       const mx = (x1 + x2) / 2;
+      const my = (y1 + y2) / 2;
       const mz = (z1 + z2) / 2;
 
+      const dirVec = new THREE.Vector3(dx, dy, dz).normalize();
+      const quat = new THREE.Quaternion().setFromUnitVectors(unitX, dirVec);
+
       // Fahrdraht (Contact Wire)
-      const wireGeo = new THREE.BoxGeometry(len, 0.8, 0.8);
+      const wireGeo = new THREE.BoxGeometry(totalLen, 0.8, 0.8);
       const wireMesh = new THREE.Mesh(wireGeo, wireMat);
-      wireMesh.position.set(mx, contactH, mz);
-      wireMesh.rotation.y = -angle;
+      wireMesh.position.set(mx, contactH + my, mz);
+      wireMesh.quaternion.copy(quat);
       catGroup.add(wireMesh);
 
       // Tragseil (Messenger Wire)
-      const msgGeo = new THREE.BoxGeometry(len, 0.7, 0.7);
+      const msgGeo = new THREE.BoxGeometry(totalLen, 0.7, 0.7);
       const msgMesh = new THREE.Mesh(msgGeo, messengerMat);
-      msgMesh.position.set(mx, messengerH, mz);
-      msgMesh.rotation.y = -angle;
+      msgMesh.position.set(mx, messengerH + my, mz);
+      msgMesh.quaternion.copy(quat);
       catGroup.add(msgMesh);
 
       // Hänger alle 35 mm
-      const dropperCount = Math.max(1, Math.floor(len / 35));
+      const dropperCount = Math.max(1, Math.floor(horizLen / 35));
       for (let i = 1; i <= dropperCount; i++) {
         const u = i / (dropperCount + 1);
         const hx = x1 + dx * u;
+        const hy = y1 + dy * u;
         const hz = z1 + dz * u;
         const dropperGeo = new THREE.CylinderGeometry(0.3, 0.3, 13, 6);
         const dropperMesh = new THREE.Mesh(dropperGeo, messengerMat);
-        dropperMesh.position.set(hx, (contactH + messengerH) / 2, hz);
+        dropperMesh.position.set(hx, (contactH + messengerH) / 2 + hy, hz);
         catGroup.add(dropperMesh);
       }
 
       if (withMasts) {
-        buildMast(x1, z1, -angle, mastSide);
-        if (len >= 120) {
-          buildMast(x2, z2, -angle, mastSide);
+        buildMast(x1, z1, -angle, mastSide, y1);
+        if (horizLen >= 120) {
+          buildMast(x2, z2, -angle, mastSide, y2);
         }
       }
     };
 
-    // Helfer für gebogene Fahrleitungs-Drähte
+    // Helfer für gebogene Fahrleitungs-Drähte (mit Neigungsführung für Wendeln/Rampen)
     const addCurvedWire = (
       r: number,
       rad: number,
@@ -2642,45 +2772,59 @@ export class Viewer3D {
       leadX = 0,
       withMasts = true,
       mastSide = 1,
+      startH = 0,
+      heightDiff = 0,
     ) => {
       const segs = Math.max(4, Math.floor(rad / deg2rad(5)));
       for (let i = 0; i < segs; i++) {
-        const th1 = (rad / segs) * i;
-        const th2 = (rad / segs) * (i + 1);
+        const u1 = i / segs;
+        const u2 = (i + 1) / segs;
+        const th1 = rad * u1;
+        const th2 = rad * u2;
 
         const x1 = leadX + r * Math.sin(th1);
         const z1 = dir * r * (1 - Math.cos(th1));
+        const y1 = startH + u1 * heightDiff;
+
         const x2 = leadX + r * Math.sin(th2);
         const z2 = dir * r * (1 - Math.cos(th2));
+        const y2 = startH + u2 * heightDiff;
 
-        const segLen = Math.hypot(x2 - x1, z2 - z1);
-        const segAngle = Math.atan2(z2 - z1, x2 - x1);
+        const dx = x2 - x1;
+        const dy = y2 - y1;
+        const dz = z2 - z1;
+        const segLen = Math.hypot(dx, dy, dz);
+        if (segLen < 0.01) continue;
+
         const mx = (x1 + x2) / 2;
+        const my = (y1 + y2) / 2;
         const mz = (z1 + z2) / 2;
+        const dirVec = new THREE.Vector3(dx, dy, dz).normalize();
+        const quat = new THREE.Quaternion().setFromUnitVectors(unitX, dirVec);
 
         const wGeo = new THREE.BoxGeometry(segLen, 0.8, 0.8);
         const wMesh = new THREE.Mesh(wGeo, wireMat);
-        wMesh.position.set(mx, contactH, mz);
-        wMesh.rotation.y = -segAngle;
+        wMesh.position.set(mx, contactH + my, mz);
+        wMesh.quaternion.copy(quat);
         catGroup.add(wMesh);
 
         const mGeo = new THREE.BoxGeometry(segLen, 0.7, 0.7);
         const mMesh = new THREE.Mesh(mGeo, messengerMat);
-        mMesh.position.set(mx, messengerH, mz);
-        mMesh.rotation.y = -segAngle;
+        mMesh.position.set(mx, messengerH + my, mz);
+        mMesh.quaternion.copy(quat);
         catGroup.add(mMesh);
 
         const dropGeo = new THREE.CylinderGeometry(0.3, 0.3, 13, 6);
         const dropMesh = new THREE.Mesh(dropGeo, messengerMat);
-        dropMesh.position.set(mx, (contactH + messengerH) / 2, mz);
+        dropMesh.position.set(mx, (contactH + messengerH) / 2 + my, mz);
         catGroup.add(dropMesh);
       }
 
       if (withMasts) {
-        buildMast(leadX, 0, 0, mastSide);
+        buildMast(leadX, 0, 0, mastSide, startH);
         const endX = leadX + r * Math.sin(rad);
         const endZ = dir * r * (1 - Math.cos(rad));
-        buildMast(endX, endZ, -dir * rad, mastSide);
+        buildMast(endX, endZ, -dir * rad, mastSide, startH + heightDiff);
       }
     };
 
@@ -2689,18 +2833,17 @@ export class Viewer3D {
       kind === "curved-turnout-left" ||
       kind === "curved-turnout-right" ||
       ((kind === "turnout-left" || kind === "turnout-right") && !!entry.radius && !entry.length);
+    const heightDiff = endElev - startElev;
 
     if (kind === "straight" || kind === "accessory" || kind === "flex" || kind === "buffer-stop" || isBufferStopPiece(entry)) {
-      const len = entry.length ?? 188.3;
-      const heightDiff = endElev - startElev;
-      if (Math.abs(heightDiff) > 0.01) {
-        catGroup.rotation.z = Math.atan2(heightDiff, len);
-      }
-      addStraightWire(0, 0, len, 0, true, 1);
+      const len = entry.length ?? (kind === "flex" ? 900 : 188.3);
+      addStraightWire(0, 0, len, 0, true, 1, 0, heightDiff);
     } else if (kind === "curve") {
       const r = entry.radius ?? 437.5;
       const a = entry.angle ?? 30;
-      addCurvedWire(r, deg2rad(a), 1, 0, true, 1);
+      const dir: 1 | -1 = a < 0 ? -1 : 1;
+      const absRad = deg2rad(Math.abs(a));
+      addCurvedWire(r, absRad, dir, 0, true, -dir, 0, heightDiff);
     } else if (isCurvedTurnout) {
       const dir: 1 | -1 = kind === "curved-turnout-left" || kind === "turnout-left" ? -1 : 1;
       const r1 = entry.radius ?? 360;
@@ -2716,51 +2859,51 @@ export class Viewer3D {
             : (entry.branchRadius ?? r1);
       const a2 = entry.branchAngle ?? 30;
 
-      addCurvedWire(r1, deg2rad(a1), dir, 0, true, -dir);
+      addCurvedWire(r1, deg2rad(Math.abs(a1)), dir, 0, true, -dir, 0, heightDiff);
       if (lead > 0) {
-        addStraightWire(0, 0, lead, 0, false);
+        addStraightWire(0, 0, lead, 0, false, 1, 0, heightDiff);
       }
-      addCurvedWire(r2, deg2rad(a2), dir, lead, true, dir);
+      addCurvedWire(r2, deg2rad(Math.abs(a2)), dir, lead, true, dir, 0, heightDiff);
     } else if (kind === "turnout-left" || kind === "turnout-right") {
       const len = entry.length ?? 188.3;
       const br = entry.branchRadius ?? 437.5;
       const ba = entry.branchAngle ?? 24.3;
       const dir: 1 | -1 = kind === "turnout-left" ? -1 : 1;
 
-      addStraightWire(0, 0, len, 0, true, -dir);
-      addCurvedWire(br, deg2rad(ba), dir, 0, true, dir);
+      addStraightWire(0, 0, len, 0, true, -dir, 0, heightDiff);
+      addCurvedWire(br, deg2rad(Math.abs(ba)), dir, 0, true, dir, 0, heightDiff);
     } else if (kind === "three-way") {
       const len = entry.length ?? 188.3;
       const br = entry.branchRadius ?? 437.5;
       const ba = entry.branchAngle ?? 24.3;
 
-      addStraightWire(0, 0, len, 0, true, 1);
-      addCurvedWire(br, deg2rad(ba), -1, 0, true, -1);
-      addCurvedWire(br, deg2rad(ba), 1, 0, true, 1);
+      addStraightWire(0, 0, len, 0, true, 1, 0, heightDiff);
+      addCurvedWire(br, deg2rad(Math.abs(ba)), -1, 0, true, -1, 0, heightDiff);
+      addCurvedWire(br, deg2rad(Math.abs(ba)), 1, 0, true, 1, 0, heightDiff);
     } else if (kind === "crossing") {
       const len = entry.length ?? 188.3;
       const a = entry.angle ?? 24.3;
-      const rad = deg2rad(a);
+      const rad = deg2rad(Math.abs(a));
       const h = len / 2;
       const cos = Math.cos(rad);
       const sin = Math.sin(rad);
 
-      addStraightWire(-h, 0, h, 0, true, 1);
-      addStraightWire(-h * cos, -h * sin, h * cos, h * sin, true, 1);
+      addStraightWire(-h, 0, h, 0, true, 1, 0, heightDiff);
+      addStraightWire(-h * cos, -h * sin, h * cos, h * sin, true, 1, 0, heightDiff);
     } else if (kind === "double-slip") {
       const len = entry.length ?? 188.3;
       const a = entry.angle ?? 24.3;
-      const rad = deg2rad(a);
+      const rad = deg2rad(Math.abs(a));
       const h = len / 2;
       const cx = h;
       const cos = Math.cos(rad);
       const sin = Math.sin(rad);
 
-      addStraightWire(0, 0, len, 0, true, 1);
-      addStraightWire(cx - h * cos, -h * sin, cx + h * cos, h * sin, true, 1);
+      addStraightWire(0, 0, len, 0, true, 1, 0, heightDiff);
+      addStraightWire(cx - h * cos, -h * sin, cx + h * cos, h * sin, true, 1, 0, heightDiff);
     } else {
       const len = entry.length ?? 188.3;
-      addStraightWire(0, 0, len, 0, true, 1);
+      addStraightWire(0, 0, len, 0, true, 1, 0, heightDiff);
     }
 
     // 3D-OBERLEITUNGS-EINSPEISUNG (Feeder box, Leitung & Klemmen am Mast)
@@ -2798,23 +2941,28 @@ export class Viewer3D {
       let isoX = 25;
       let isoZ = 0;
       let isoRotY = 0;
+      let isoY = 0;
 
       if (kind === "curve") {
         const r = entry.radius ?? 437.5;
         const a = entry.angle ?? 30;
-        const rad = deg2rad(a);
+        const dir: 1 | -1 = a < 0 ? -1 : 1;
+        const rad = deg2rad(Math.abs(a));
         const frac = isoIdx === 1 ? 0.82 : 0.18;
         const phi = frac * rad;
         isoX = r * Math.sin(phi);
-        isoZ = r * (1 - Math.cos(phi));
-        isoRotY = -phi;
+        isoZ = dir * r * (1 - Math.cos(phi));
+        isoRotY = -dir * phi;
+        isoY = frac * heightDiff;
       } else {
         const len = entry.length ?? 188.3;
-        isoX = isoIdx === 1 ? Math.max(20, len - 25) : Math.min(len - 20, 25);
+        const frac = isoIdx === 1 ? Math.max(20, len - 25) / len : Math.min(len - 20, 25) / len;
+        isoX = frac * len;
+        isoY = frac * heightDiff;
       }
 
       const isoGroup = new THREE.Group();
-      isoGroup.position.set(isoX, 0, isoZ);
+      isoGroup.position.set(isoX, isoY, isoZ);
       isoGroup.rotation.y = isoRotY;
 
       // Zwillings-Keramikisolator im Fahrdraht mit Trennspalt

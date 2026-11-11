@@ -1,4 +1,4 @@
-import type { Layout, Layer, TrackPiece, BaseboardConfig } from "./types";
+import type { Layout, Layer, TrackPiece, BaseboardConfig, LayerPlate } from "./types";
 import { distToSegment } from "./geometry";
 
 export function createDefaultBaseboard(partial?: Partial<BaseboardConfig>): BaseboardConfig {
@@ -7,8 +7,10 @@ export function createDefaultBaseboard(partial?: Partial<BaseboardConfig>): Base
     name: partial?.name ?? "Tisch 1 (Hauptplatte)",
     enabled: partial?.enabled ?? true,
     shape: partial?.shape ?? "rect",
+    triangleType: partial?.triangleType,
     width: partial?.width ?? 2400,
     depth: partial?.depth ?? 1200,
+    rotation: partial?.rotation ?? 0,
     lWingWidth: partial?.lWingWidth ?? 800,
     lWingDepth: partial?.lWingDepth ?? 800,
     lSide: partial?.lSide ?? "left",
@@ -137,23 +139,56 @@ export function getBaseboardBounds(config: BaseboardConfig): { x: number; y: num
 export function getBaseboardPolygon(config: BaseboardConfig): { x: number; y: number }[] {
   const { x, y, width: W, depth: D } = getBaseboardBounds(config);
   const shape = config.shape ?? "rect";
+  let poly: { x: number; y: number }[];
 
   if (shape === "rect") {
-    return [
+    poly = [
       { x, y },
       { x: x + W, y },
       { x: x + W, y: y + D },
       { x, y: y + D },
     ];
-  }
-
-  if (shape === "l-shape") {
+  } else if (shape === "triangle") {
+    const triType = config.triangleType ?? "corner-tl";
+    if (triType === "corner-tl") {
+      poly = [
+        { x, y },
+        { x: x + W, y },
+        { x, y: y + D },
+      ];
+    } else if (triType === "corner-tr") {
+      poly = [
+        { x, y },
+        { x: x + W, y },
+        { x: x + W, y: y + D },
+      ];
+    } else if (triType === "corner-br") {
+      poly = [
+        { x: x + W, y },
+        { x: x + W, y: y + D },
+        { x, y: y + D },
+      ];
+    } else if (triType === "corner-bl") {
+      poly = [
+        { x, y },
+        { x: x + W, y: y + D },
+        { x, y: y + D },
+      ];
+    } else {
+      // "isosceles" peak at top-center, base at bottom
+      poly = [
+        { x: x + W / 2, y },
+        { x: x + W, y: y + D },
+        { x, y: y + D },
+      ];
+    }
+  } else if (shape === "l-shape") {
     const isLeft = (config.lSide ?? "left") === "left";
     const wWing = Math.min(config.lWingWidth ?? 800, W * 0.85);
     const dMain = Math.min(config.lWingDepth ?? 800, D * 0.85);
 
     if (isLeft) {
-      return [
+      poly = [
         { x, y },
         { x: x + W, y },
         { x: x + W, y: y + dMain },
@@ -162,7 +197,7 @@ export function getBaseboardPolygon(config: BaseboardConfig): { x: number; y: nu
         { x, y: y + D },
       ];
     } else {
-      return [
+      poly = [
         { x, y },
         { x: x + W, y },
         { x: x + W, y: y + D },
@@ -171,14 +206,12 @@ export function getBaseboardPolygon(config: BaseboardConfig): { x: number; y: nu
         { x, y: y + dMain },
       ];
     }
-  }
-
-  if (shape === "u-shape") {
+  } else if (shape === "u-shape") {
     const wLeft = Math.min(config.uLeftWingWidth ?? 700, W * 0.45);
     const wRight = Math.min(config.uRightWingWidth ?? 700, W * 0.45);
     const dBack = Math.min(config.uBackDepth ?? 600, D * 0.85);
 
-    return [
+    poly = [
       { x, y },
       { x: x + W, y },
       { x: x + W, y: y + D },
@@ -188,15 +221,13 @@ export function getBaseboardPolygon(config: BaseboardConfig): { x: number; y: nu
       { x: x + wLeft, y: y + D },
       { x, y: y + D },
     ];
-  }
-
-  if (shape === "t-shape") {
+  } else if (shape === "t-shape") {
     const dBar = Math.min(config.tBarDepth ?? 600, D * 0.85);
     const wStem = Math.min(config.tStemWidth ?? 800, W * 0.85);
     const stemLeft = x + (W - wStem) / 2;
     const stemRight = stemLeft + wStem;
 
-    return [
+    poly = [
       { x, y },
       { x: x + W, y },
       { x: x + W, y: y + dBar },
@@ -206,14 +237,88 @@ export function getBaseboardPolygon(config: BaseboardConfig): { x: number; y: nu
       { x: stemLeft, y: y + dBar },
       { x, y: y + dBar },
     ];
+  } else {
+    poly = [
+      { x, y },
+      { x: x + W, y },
+      { x: x + W, y: y + D },
+      { x, y: y + D },
+    ];
   }
 
-  return [
-    { x, y },
-    { x: x + W, y },
-    { x: x + W, y: y + D },
-    { x, y: y + D },
-  ];
+  const rot = config.rotation ?? 0;
+  if (rot !== 0) {
+    const cx = x + W / 2;
+    const cy = y + D / 2;
+    const rad = (rot * Math.PI) / 180;
+    const cos = Math.cos(rad);
+    const sin = Math.sin(rad);
+    poly = poly.map((pt) => {
+      const dx = pt.x - cx;
+      const dy = pt.y - cy;
+      return {
+        x: Math.round((cx + dx * cos - dy * sin) * 10) / 10,
+        y: Math.round((cy + dx * sin + dy * cos) * 10) / 10,
+      };
+    });
+  }
+
+  return poly;
+}
+
+/** Berechnet die Polygonecken einer Ebenen-Holzplatte unter Berücksichtigung ihrer Form (Rechteck, Dreieck, L, U, T)
+ * und der Rotation bzw. Position des zugeordneten Tisches. */
+export function getLayerPlatePolygon(
+  plate: LayerPlate,
+  targetBoard?: BaseboardConfig,
+): { x: number; y: number }[] {
+  const tableBounds = targetBoard ? getBaseboardBounds(targetBoard) : { x: 0, y: 0 };
+  const W = Math.max(50, plate.width);
+  const D = Math.max(50, plate.depth);
+  const x = tableBounds.x + (plate.x ?? 0);
+  const y = tableBounds.y + (plate.y ?? 0);
+
+  const dummyBb: BaseboardConfig = {
+    enabled: true,
+    width: W,
+    depth: D,
+    positionMode: "custom",
+    customX: x,
+    customY: y,
+    shape: plate.shape ?? "rect",
+    triangleType: plate.triangleType,
+    lWingWidth: plate.lWingWidth,
+    lWingDepth: plate.lWingDepth,
+    lSide: plate.lSide,
+    uLeftWingWidth: plate.uLeftWingWidth,
+    uRightWingWidth: plate.uRightWingWidth,
+    uBackDepth: plate.uBackDepth,
+    tBarDepth: plate.tBarDepth,
+    tStemWidth: plate.tStemWidth,
+    rotation: plate.rotation ?? 0,
+    style: "wood",
+  };
+
+  let poly = getBaseboardPolygon(dummyBb);
+
+  const rot = targetBoard?.rotation ?? 0;
+  if (rot !== 0 && targetBoard) {
+    const cx = tableBounds.x + targetBoard.width / 2;
+    const cy = tableBounds.y + targetBoard.depth / 2;
+    const rad = (rot * Math.PI) / 180;
+    const cos = Math.cos(rad);
+    const sin = Math.sin(rad);
+    poly = poly.map((pt) => {
+      const dx = pt.x - cx;
+      const dy = pt.y - cy;
+      return {
+        x: Math.round((cx + dx * cos - dy * sin) * 10) / 10,
+        y: Math.round((cy + dx * sin + dy * cos) * 10) / 10,
+      };
+    });
+  }
+
+  return poly;
 }
 
 /** Berechnet die eingerückten Montagepositionen der Tischbeine (in mm Weltkoordinaten),
@@ -258,8 +363,17 @@ export function computeBaseboardLegPositions(
     const minEdge = Math.min(l1, l2);
     const inset = Math.min(baseInset, Math.max(legRadius + 5, minEdge * 0.25));
 
-    const legX = pCurr.x + (n1x + n2x) * inset;
-    const legY = pCurr.y + (n1y + n2y) * inset;
+    const bisX = n1x + n2x;
+    const bisY = n1y + n2y;
+    const bisLen = Math.hypot(bisX, bisY);
+
+    let legX = pCurr.x + bisX * inset;
+    let legY = pCurr.y + bisY * inset;
+    if (bisLen > 1e-4) {
+      const bisScale = Math.min(inset * 2.8, (2 * inset) / bisLen);
+      legX = pCurr.x + (bisX / bisLen) * bisScale;
+      legY = pCurr.y + (bisY / bisLen) * bisScale;
+    }
 
     // Mindestabstand zu vorherigen Beinen
     const tooClose = placedLegs.some((p) => Math.hypot(p.x - legX, p.y - legY) < 80);

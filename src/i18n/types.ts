@@ -255,6 +255,7 @@ export interface Translations {
         lShape: string;
         uShape: string;
         tShape: string;
+        triangle: string;
       };
       styles: {
         wood: string;

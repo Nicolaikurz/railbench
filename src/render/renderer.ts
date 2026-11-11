@@ -6,7 +6,7 @@ import { getTranslations } from "@/i18n";
 import { createTrackGraphics } from "./track-sprite";
 import { createBaseboardGraphics } from "./baseboard-sprite";
 import { createModel2DGraphics } from "./model-sprite";
-import { getBaseboards, getBaseboardBounds } from "@/core/layout";
+import { getBaseboards, getBaseboardBounds, getBaseboardPolygon, getLayerPlatePolygon } from "@/core/layout";
 import type { BaseboardSnapGuide } from "@/core/baseboard-snapping";
 import { getConnectorSnapStatus } from "@/core/snapping";
 import { isFlexTrack } from "@/core/flextrack";
@@ -146,18 +146,30 @@ export class Renderer {
       }
     }
 
-    // 0A. Tischplatten / Voll-Zwischenebenen (woodPlateMode === "table")
+    // 0A. Tischplatten / Voll-Zwischenebenen (woodPlateMode === "table" oder layer.plates)
     if (layout.layers) {
       for (const layer of layout.layers) {
-        if (!layer.visible || layer.woodPlateMode !== "table" || (layer.heightMm ?? 0) === 0) continue;
-        for (const bb of baseboards) {
-          if (!bb.enabled) continue;
-          const { x, y, width, depth } = getBaseboardBounds(bb);
-          const deckG = new Graphics();
-          deckG.roundRect(x + 2, y + 2, width - 4, depth - 4, Math.max(0, (bb.cornerRadius ?? 12) - 2));
-          deckG.stroke({ width: 2, color: 0xcbb89d, alpha: 0.65 });
-          deckG.fill({ color: 0xcbb89d, alpha: 0.08 });
-          this.baseboardLayer.addChild(deckG);
+        if (!layer.visible) continue;
+        if (layer.plates && layer.plates.length > 0) {
+          for (const plate of layer.plates) {
+            const targetBoard = (plate.baseboardId ? baseboards.find((b) => b.id === plate.baseboardId) : undefined) || baseboards[0];
+            const poly = getLayerPlatePolygon(plate, targetBoard);
+            const deckG = new Graphics();
+            deckG.poly(poly);
+            deckG.stroke({ width: 2, color: 0xcbb89d, alpha: 0.75 });
+            deckG.fill({ color: 0xcbb89d, alpha: 0.14 });
+            this.baseboardLayer.addChild(deckG);
+          }
+        } else if (layer.woodPlateMode === "table" && (layer.heightMm ?? 0) !== 0) {
+          for (const bb of baseboards) {
+            if (!bb.enabled) continue;
+            const poly = getBaseboardPolygon(bb);
+            const deckG = new Graphics();
+            deckG.poly(poly);
+            deckG.stroke({ width: 2, color: 0xcbb89d, alpha: 0.65 });
+            deckG.fill({ color: 0xcbb89d, alpha: 0.08 });
+            this.baseboardLayer.addChild(deckG);
+          }
         }
       }
     }

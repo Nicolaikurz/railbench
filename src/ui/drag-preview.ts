@@ -203,6 +203,159 @@ function renderTrackPiece(
     return;
   }
 
+  const isCurvedTurnoutL =
+    kind === "curved-turnout-left" || (kind === "turnout-left" && !!entry.radius && !entry.length);
+  const isCurvedTurnoutR =
+    kind === "curved-turnout-right" || (kind === "turnout-right" && !!entry.radius && !entry.length);
+
+  if (isCurvedTurnoutL || isCurvedTurnoutR) {
+    // Curved Turnout (Left or Right)
+    const isLeft = isCurvedTurnoutL;
+    const r1 = entry.radius ?? 360;
+    const a1 = entry.angle ?? 30;
+    const lead = entry.branchLength ?? (entry.branchRadius && entry.branchRadius > r1 ? entry.branchRadius - r1 : 0);
+    const r2 = entry.branchLength !== undefined ? (entry.branchRadius ?? r1) : (entry.branchRadius && entry.branchRadius > r1 ? r1 : (entry.branchRadius ?? r1));
+    const a2 = entry.branchAngle ?? entry.angle ?? 30;
+
+    const rad1 = (Math.abs(a1) * Math.PI) / 180;
+    const rad2 = (Math.abs(a2) * Math.PI) / 180;
+
+    const r1Px = r1 * pxPerMm;
+    const r2Px = r2 * pxPerMm;
+    const leadPx = lead * pxPerMm;
+
+    // Track endpoints relative to origin (0, 0)
+    const x1 = r1Px * Math.sin(rad1);
+    const h1 = r1Px * (1 - Math.cos(rad1));
+    const x2 = leadPx + r2Px * Math.sin(rad2);
+    const h2 = r2Px * (1 - Math.cos(rad2));
+
+    const maxX = Math.max(50, x1, x2);
+    const maxH = Math.max(20, h1, h2);
+
+    const pad = Math.max(16, Math.ceil(ballastWidth / 2 + 8));
+    canvas.width = Math.ceil(maxX + pad * 2);
+    canvas.height = Math.ceil(maxH + ballastWidth + pad * 2);
+
+    ctx.save();
+    // In Railbench coordinates (matching the 2D trackplan layout):
+    // Left curved turnout curves upwards (-Y) -> origin placed near bottom
+    // Right curved turnout curves downwards (+Y) -> origin placed near top
+    const originX = pad;
+    const originY = isLeft
+      ? canvas.height - pad - ballastWidth / 2
+      : pad + ballastWidth / 2;
+
+    ctx.translate(originX, originY);
+
+    const dir = isLeft ? -1 : 1;
+    const startAng = isLeft ? Math.PI / 2 : -Math.PI / 2;
+    const endAng1 = isLeft ? Math.PI / 2 - rad1 : -Math.PI / 2 + rad1;
+    const endAng2 = isLeft ? Math.PI / 2 - rad2 : -Math.PI / 2 + rad2;
+
+    // 1. Ballast
+    // Main curve
+    ctx.beginPath();
+    ctx.arc(0, dir * r1Px, r1Px, startAng, endAng1, isLeft);
+    ctx.lineWidth = ballastWidth;
+    ctx.strokeStyle = ballastColor;
+    ctx.lineCap = "round";
+    ctx.stroke();
+
+    // Branch curve
+    if (leadPx > 0) {
+      drawStraightBallast(ctx, 0, 0, leadPx, ballastWidth, ballastColor);
+    }
+    ctx.beginPath();
+    ctx.arc(leadPx, dir * r2Px, r2Px, startAng, endAng2, isLeft);
+    ctx.lineWidth = ballastWidth;
+    ctx.strokeStyle = ballastColor;
+    ctx.lineCap = "round";
+    ctx.stroke();
+
+    // 2. Sleepers
+    const sleeperStep = 6;
+    ctx.strokeStyle = sleeperColor;
+    ctx.lineWidth = 2;
+
+    // Sleepers on main curve
+    const count1 = Math.max(4, Math.floor((r1Px * rad1) / sleeperStep));
+    for (let i = 0; i <= count1; i++) {
+      const a = startAng + (dir * rad1 * i) / count1;
+      const cosA = Math.cos(a);
+      const sinA = Math.sin(a);
+      const rInner = r1Px - gauge / 2 - 2;
+      const rOuter = r1Px + gauge / 2 + 2;
+      ctx.beginPath();
+      ctx.moveTo(rInner * cosA, dir * r1Px + rInner * sinA);
+      ctx.lineTo(rOuter * cosA, dir * r1Px + rOuter * sinA);
+      ctx.stroke();
+    }
+
+    // Sleepers on branch curve (and lead)
+    if (leadPx > 0) {
+      drawStraightSleepers(ctx, 0, 0, leadPx, gauge, sleeperColor);
+    }
+    const count2 = Math.max(4, Math.floor((r2Px * rad2) / sleeperStep));
+    const startStep2 = leadPx > 0 ? 1 : 0;
+    for (let i = startStep2; i <= count2; i++) {
+      const a = startAng + (dir * rad2 * i) / count2;
+      const cosA = Math.cos(a);
+      const sinA = Math.sin(a);
+      const rInner = r2Px - gauge / 2 - 2;
+      const rOuter = r2Px + gauge / 2 + 2;
+      ctx.beginPath();
+      ctx.moveTo(leadPx + rInner * cosA, dir * r2Px + rInner * sinA);
+      ctx.lineTo(leadPx + rOuter * cosA, dir * r2Px + rOuter * sinA);
+      ctx.stroke();
+    }
+
+    // 3. Concentric dual rails with shadow
+    // Main curve rails
+    for (const offset of [-gauge / 2, gauge / 2]) {
+      const rRail = r1Px + dir * offset;
+      ctx.beginPath();
+      ctx.arc(0, dir * r1Px, rRail, startAng, endAng1, isLeft);
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = railShadowColor;
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(0, dir * r1Px, rRail, startAng, endAng1, isLeft);
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = railColor;
+      ctx.stroke();
+    }
+
+    // Branch curve rails
+    if (leadPx > 0) {
+      drawStraightRails(ctx, 0, 0, leadPx, gauge, railColor, railShadowColor);
+    }
+    for (const offset of [-gauge / 2, gauge / 2]) {
+      const rRail = r2Px + dir * offset;
+      ctx.beginPath();
+      ctx.arc(leadPx, dir * r2Px, rRail, startAng, endAng2, isLeft);
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = railShadowColor;
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(leadPx, dir * r2Px, rRail, startAng, endAng2, isLeft);
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = railColor;
+      ctx.stroke();
+    }
+
+    // 4. Connectors (origin, main branch, diverging branch)
+    drawConnectorDot(ctx, 0, 0, accentColor);
+    drawConnectorDot(ctx, x1, dir * h1, accentColor);
+    drawConnectorDot(ctx, x2, dir * h2, accentColor);
+
+    ctx.restore();
+    if (!hideBadge) drawPieceIdBadge(ctx, entry.id, canvas.width, canvas.height);
+    return;
+  }
+
   if (kind === "turnout-left" || kind === "turnout-right" || kind === "three-way") {
     // Turnout Track
     const len = (entry.length || 188) * pxPerMm;
@@ -263,59 +416,6 @@ function renderTrackPiece(
     return;
   }
 
-  if (kind === "curved-turnout-left" || kind === "curved-turnout-right") {
-    // Curved Turnout
-    const rMain = (entry.radius || 360) * pxPerMm;
-    const rBranch = (entry.branchRadius || rMain * 0.8) * pxPerMm;
-    const rad = (Math.abs(entry.angle || 30) * Math.PI) / 180;
-    const isCurvedLeft = kind === "curved-turnout-left";
-    const pad = 16;
-    const arcW = Math.max(50, rMain * Math.sin(rad));
-    const arcH = Math.max(50, rMain * (1 - Math.cos(rad)) + 15);
-
-    canvas.width = Math.ceil(arcW + pad * 2);
-    canvas.height = Math.ceil(arcH + pad * 2);
-
-    ctx.save();
-    if (isCurvedLeft) {
-      // For left curved turnout, curves upwards (-Y) matching the trackplan
-      ctx.translate(pad, canvas.height - pad);
-      ctx.scale(1, -1);
-      ctx.translate(0, rMain);
-    } else {
-      // For right curved turnout, curves downwards (+Y) matching the trackplan
-      ctx.translate(pad, pad + rMain);
-    }
-
-    // Both ballast arcs
-    for (const r of [rMain, rBranch]) {
-      ctx.beginPath();
-      ctx.arc(0, 0, r, -Math.PI / 2, -Math.PI / 2 + rad, false);
-      ctx.lineWidth = ballastWidth;
-      ctx.strokeStyle = ballastColor;
-      ctx.lineCap = "round";
-      ctx.stroke();
-    }
-
-    // Rails for both arcs
-    for (const r of [rMain, rBranch]) {
-      for (const offset of [-gauge / 2, gauge / 2]) {
-        ctx.beginPath();
-        ctx.arc(0, 0, r + offset, -Math.PI / 2, -Math.PI / 2 + rad, false);
-        ctx.lineWidth = 1.8;
-        ctx.strokeStyle = railColor;
-        ctx.stroke();
-      }
-    }
-
-    drawConnectorDot(ctx, 0, -rMain, accentColor);
-    drawConnectorDot(ctx, rMain * Math.sin(rad), -rMain * Math.cos(rad), accentColor);
-    drawConnectorDot(ctx, rBranch * Math.sin(rad), -rBranch * Math.cos(rad), accentColor);
-
-    ctx.restore();
-    if (!hideBadge) drawPieceIdBadge(ctx, entry.id, canvas.width, canvas.height);
-    return;
-  }
 
   if (kind === "crossing" || kind === "double-slip") {
     // Crossing & Double Slip

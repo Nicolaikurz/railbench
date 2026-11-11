@@ -118,10 +118,10 @@ export function buildIndustryBuilding3D(group: THREE.Group): void {
   // 5. Authentisches Sheddach (Sägezahndach) mit 4 Segmenten
   const numSheds = 4;
   const shedLen = hallWidth;
-  const shedWidth = hallDepth / numSheds; // 130 / 4 = 32.5 mm pro Zacke
+  const shedWidth = hallDepth / (numSheds-1); // 130 / 4 = 32.5 mm pro Zacke
   const shedHeight = 22;
 
-  for (let i = 0; i < numSheds; i++) {
+  for (let i = 1; i < (numSheds); i++) {
     const shedZ = -hallDepth / 2 + shedWidth * i;
 
     // Sägezahn-Profil (steiles Glasfenster nach Norden/hinten, schräge Dachfläche nach Süden/vorn)

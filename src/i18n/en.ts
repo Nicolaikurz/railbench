@@ -255,6 +255,7 @@ export const en: Translations = {
         lShape: "L-Shape",
         uShape: "U-Shape",
         tShape: "T-Shape",
+        triangle: "Triangle",
       },
       styles: {
         wood: "Natural Wood",

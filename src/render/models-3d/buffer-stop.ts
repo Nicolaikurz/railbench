@@ -4,15 +4,29 @@ import * as THREE from "three";
 export function buildBufferStop3D(group: THREE.Group): void {
   const steelMat = new THREE.MeshStandardMaterial({ color: 0x374151, roughness: 0.6, metalness: 0.6 });
 
-  // A-Träger links & rechts
-  const beamLeft = new THREE.Mesh(new THREE.BoxGeometry(3, 24, 30), steelMat);
-  beamLeft.rotation.x = -0.4;
-  beamLeft.position.set(-8.5, 12, 0);
+  // Triangular beam profile, extruded along X
+   // Side profile (Z = depth, Y = height), extruded along X for the thickness
+  function createBeamProfile(thickness = 3): THREE.BufferGeometry {
+    const shape = new THREE.Shape();
+    shape.moveTo(-10, 0);     // front bottom, below the plank
+    shape.lineTo(12.5, 0);    // rear end of the foot
+    shape.lineTo(12.5, 3);    // foot height
+    shape.lineTo(-10, 19);    // sloped back up to the plank top
+    shape.closePath();
+
+    const geo = new THREE.ExtrudeGeometry(shape, { depth: thickness, bevelEnabled: false });
+    geo.translate(0, 0, -thickness / 2); // center the thickness around X = 0
+    geo.rotateY(-Math.PI / 2);           // profile X -> world Z, extrusion -> world X
+    return geo;
+  }
+
+  // Beams left & right (ground at Y = 0, no rotation needed)
+  const beamLeft = new THREE.Mesh(createBeamProfile(), steelMat);
+  beamLeft.position.set(-8.5, 0, 0);
   group.add(beamLeft);
 
-  const beamRight = new THREE.Mesh(new THREE.BoxGeometry(3, 24, 30), steelMat);
-  beamRight.rotation.x = -0.4;
-  beamRight.position.set(8.5, 12, 0);
+  const beamRight = new THREE.Mesh(createBeamProfile(), steelMat);
+  beamRight.position.set(8.5, 0, 0);
   group.add(beamRight);
 
   // Holz-Pufferbohle

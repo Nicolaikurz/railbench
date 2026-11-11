@@ -4,6 +4,8 @@ import { createBaseboardGraphics } from "@/render/baseboard-sprite";
 import {
   createDefaultBaseboard,
   getBaseboardBounds,
+  getBaseboardPolygon,
+  getLayerPlatePolygon,
   isPointInsideBaseboard,
   isPointNearBaseboardEdge,
   isPointInBaseboardHeader,
@@ -252,6 +254,129 @@ describe("Baseboard Free Movement & Snapping", () => {
     const container = createBaseboardGraphics(table);
     expect(container).toBeDefined();
     expect(container.children.length).toBeGreaterThan(0);
+  });
+
+  it("supports triangle shape baseboards with multiple corner orientations and isosceles", () => {
+    const orientations: ("corner-tl" | "corner-tr" | "corner-br" | "corner-bl" | "isosceles")[] = [
+      "corner-tl",
+      "corner-tr",
+      "corner-br",
+      "corner-bl",
+      "isosceles",
+    ];
+
+    for (const triType of orientations) {
+      const table = createDefaultBaseboard({
+        id: `board-tri-${triType}`,
+        shape: "triangle",
+        triangleType: triType,
+        width: 1800,
+        depth: 1200,
+        positionMode: "custom",
+        customX: 0,
+        customY: 0,
+        showDimensions: false,
+      });
+
+      const poly = getBaseboardPolygon(table);
+      expect(poly.length).toBe(3);
+
+      // Check leg generation: 3 corner legs inside the table
+      const legs = computeBaseboardLegPositions(table, 18, 45);
+      expect(legs.length).toBe(3);
+      for (const leg of legs) {
+        expect(isPointInsideBaseboard(leg, table)).toBe(true);
+      }
+
+      // Check 2D sprite rendering does not throw
+      const g = createBaseboardGraphics(table);
+      expect(g).toBeDefined();
+    }
+  });
+
+  it("supports table rotation in degrees and transforms the polygon correctly", () => {
+    const table = createDefaultBaseboard({
+      id: "board-rot",
+      shape: "rect",
+      width: 2000,
+      depth: 1000,
+      positionMode: "center", // center is (0, 0), so bounds are [-1000, -500, 2000, 1000]
+      rotation: 90,
+      showDimensions: false,
+    });
+
+    const poly = getBaseboardPolygon(table);
+    expect(poly.length).toBe(4);
+
+    // After 90 degree rotation around center (0, 0):
+    // Original (1000, 500) rotated 90 deg -> (-500, 1000)
+    // Original (-1000, -500) rotated 90 deg -> (500, -1000)
+    // The rotated polygon spans roughly X in [-500, 500] and Y in [-1000, 1000]
+    const xs = poly.map((p) => p.x);
+    const ys = poly.map((p) => p.y);
+    expect(Math.min(...xs)).toBeCloseTo(-500, 0);
+    expect(Math.max(...xs)).toBeCloseTo(500, 0);
+    expect(Math.min(...ys)).toBeCloseTo(-1000, 0);
+    expect(Math.max(...ys)).toBeCloseTo(1000, 0);
+
+    // Center point (0, 0) is inside
+    expect(isPointInsideBaseboard({ x: 0, y: 0 }, table)).toBe(true);
+    // Point (800, 0) was inside before rotation, but is OUTSIDE after 90 deg rotation
+    expect(isPointInsideBaseboard({ x: 800, y: 0 }, table)).toBe(false);
+    // Point (0, 800) was outside before rotation, but is INSIDE after 90 deg rotation
+    expect(isPointInsideBaseboard({ x: 0, y: 800 }, table)).toBe(true);
+
+    // 2D sprite with rotated grain and dimensions
+    const g = createBaseboardGraphics(table);
+    expect(g).toBeDefined();
+  });
+
+  it("calculates polygon for layer plate with shapes (triangle, l-shape, etc.) and rotates along with table", () => {
+    const table = createDefaultBaseboard({
+      id: "board-1",
+      width: 2000,
+      depth: 1000,
+      positionMode: "custom",
+      customX: 100,
+      customY: 200,
+      rotation: 0,
+    });
+
+    // 1. Triangle plate
+    const triPlate = {
+      id: "p1",
+      baseboardId: "board-1",
+      shape: "triangle" as const,
+      triangleType: "corner-tl" as const,
+      width: 1000,
+      depth: 500,
+      x: 50,
+      y: 50,
+    };
+
+    const polyTri = getLayerPlatePolygon(triPlate, table);
+    expect(polyTri.length).toBe(3);
+    // Origin is table (100, 200) + offset (50, 50) = (150, 250)
+    expect(polyTri[0]).toEqual({ x: 150, y: 250 });
+    expect(polyTri[1]).toEqual({ x: 1150, y: 250 });
+    expect(polyTri[2]).toEqual({ x: 150, y: 750 });
+
+    // 2. L-shape plate
+    const lPlate = {
+      id: "p2",
+      baseboardId: "board-1",
+      shape: "l-shape" as const,
+      lWingWidth: 400,
+      lWingDepth: 300,
+      lSide: "left" as const,
+      width: 1000,
+      depth: 800,
+      x: 0,
+      y: 0,
+    };
+
+    const polyL = getLayerPlatePolygon(lPlate, table);
+    expect(polyL.length).toBe(6);
   });
 });
 

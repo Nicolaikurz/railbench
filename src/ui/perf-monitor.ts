@@ -48,8 +48,10 @@ export class PerfMonitor {
     this.container.id = "perf-monitor-overlay";
     this.container.className = "perf-monitor-overlay";
     this.container.style.position = "absolute";
-    this.container.style.top = "10px";
+    this.container.style.bottom = "10px";
     this.container.style.right = "10px";
+    this.container.style.top = "auto";
+    this.container.style.left = "auto";
     this.container.style.backgroundColor = "rgba(15, 23, 42, 0.88)";
     this.container.style.color = "#f8fafc";
     this.container.style.border = "1px solid rgba(51, 65, 85, 0.8)";
@@ -222,8 +224,18 @@ export class PerfMonitor {
       this.initialLeft = containerRect.left - hostRect.left;
       this.initialTop = containerRect.top - hostRect.top;
     } else {
-      this.initialLeft = parseFloat(this.container.style.left) || this.container.offsetLeft || 0;
-      this.initialTop = parseFloat(this.container.style.top) || this.container.offsetTop || 10;
+      const hostW = this.host?.clientWidth || 800;
+      const hostH = this.host?.clientHeight || 600;
+      const overlayW = this.container.offsetWidth || 250;
+      const overlayH = this.container.offsetHeight || 180;
+      this.initialLeft =
+        parseFloat(this.container.style.left) ||
+        this.container.offsetLeft ||
+        (this.container.style.right ? hostW - overlayW - (parseFloat(this.container.style.right) || 10) : 0);
+      this.initialTop =
+        parseFloat(this.container.style.top) ||
+        this.container.offsetTop ||
+        (this.container.style.bottom ? hostH - overlayH - (parseFloat(this.container.style.bottom) || 10) : 10);
     }
 
     this.container.style.right = "auto";
@@ -352,8 +364,8 @@ export class PerfMonitor {
 
   resetPosition(): void {
     this.container.style.left = "auto";
-    this.container.style.bottom = "auto";
-    this.container.style.top = "10px";
+    this.container.style.top = "auto";
+    this.container.style.bottom = "10px";
     this.container.style.right = "10px";
     if (typeof localStorage !== "undefined") {
       try {

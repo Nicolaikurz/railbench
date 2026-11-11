@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { toJSON, fromJSON, toXML } from "@/io/serialize";
+import { toJSON, fromJSON, toXML, fromXML } from "@/io/serialize";
 import type { Layout } from "@/core/types";
 
 describe("Layout Serialization", () => {
@@ -107,6 +107,35 @@ describe("Layout Serialization", () => {
     expect(xml).toContain('depth="1250"');
     expect(xml).toContain('style="plywood"');
     expect(xml).toContain('customX="-50"');
+  });
+
+  it("unterstützt verschiedene Tischformen (L-Form, U-Form, T-Form, Dreieck) und Drehung", () => {
+    const layoutWithTriangle: Layout = {
+      ...layout,
+      baseboard: {
+        enabled: true,
+        shape: "triangle",
+        triangleType: "corner-tr",
+        rotation: 45,
+        width: 1800,
+        depth: 1400,
+        positionMode: "custom",
+        customX: 100,
+        customY: 200,
+        style: "wood",
+      },
+    };
+
+    const json = toJSON(layoutWithTriangle);
+    const parsed = fromJSON(json);
+    expect(parsed.baseboard?.shape).toBe("triangle");
+    expect(parsed.baseboard?.triangleType).toBe("corner-tr");
+    expect(parsed.baseboard?.rotation).toBe(45);
+
+    const xml = toXML(layoutWithTriangle);
+    expect(xml).toContain('shape="triangle"');
+    expect(xml).toContain('triangleType="corner-tr"');
+    expect(xml).toContain('rotation="45"');
   });
 
   it("unterstützt verschiedene Tischformen (L-Form, U-Form, T-Form)", () => {

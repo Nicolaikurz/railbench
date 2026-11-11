@@ -301,11 +301,13 @@ export function openRampGeneratorDialog(options: RampGeneratorDialogOptions): vo
         <div class="ramp-gen-field">
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <label>${isDe ? "Ziel-Steigung" : "Target Gradient"}</label>
-            <div style="display: flex; gap: 4px;">
+            <div style="display: flex; gap: 4px; align-items: center;">
               <button type="button" class="ramp-btn-pill" data-grad="2.0">2.0%</button>
               <button type="button" class="ramp-btn-pill active" data-grad="2.8">2.8%</button>
               <button type="button" class="ramp-btn-pill" data-grad="3.5">3.5%</button>
               <button type="button" class="ramp-btn-pill" data-grad="4.0">4.0%</button>
+              <input type="number" id="ramp-custom-grad-input" value="2.8" min="0.5" max="10.0" step="0.1" style="width: 48px; background: #141b2a; border: 1px solid #334155; color: #f8fafc; border-radius: 6px; padding: 4px 6px; font-size: 12px; text-align: center;" />
+              <span style="font-size: 11px; color: #94a3b8;">%</span>
             </div>
           </div>
         </div>
@@ -404,15 +406,35 @@ export function openRampGeneratorDialog(options: RampGeneratorDialogOptions): vo
     });
   });
 
-  // Gradient preset pills
+  // Gradient preset pills & input
+  const gradInput = modal.querySelector("#ramp-custom-grad-input") as HTMLInputElement | null;
+
   modal.querySelectorAll<HTMLButtonElement>("button[data-grad]").forEach((btn) => {
     btn.addEventListener("click", () => {
       modal.querySelectorAll("button[data-grad]").forEach((b) => b.classList.remove("active"));
       btn.classList.add("active");
       currentGradient = parseFloat(btn.dataset.grad || "2.8");
+      if (gradInput) gradInput.value = currentGradient.toFixed(1);
       updateLiveCalculation();
     });
   });
+
+  if (gradInput) {
+    gradInput.addEventListener("input", () => {
+      const val = parseFloat(gradInput.value);
+      if (!isNaN(val) && val >= 0.5 && val <= 15) {
+        currentGradient = val;
+        modal.querySelectorAll<HTMLButtonElement>("button[data-grad]").forEach((b) => {
+          if (Math.abs(parseFloat(b.dataset.grad || "0") - val) < 0.05) {
+            b.classList.add("active");
+          } else {
+            b.classList.remove("active");
+          }
+        });
+        updateLiveCalculation();
+      }
+    });
+  }
 
   // Target layer change
   targetLayerSelect.addEventListener("change", () => {
@@ -493,24 +515,44 @@ export function openRampGeneratorDialog(options: RampGeneratorDialogOptions): vo
     const lenCm = (latestResult.totalLengthMm / 10).toFixed(1);
     const grad = latestResult.gradientPercent;
 
-    const isClearanceWarning = deltaH > 0 && deltaH < minClearance;
+    let turnsText = "";
+    if (currentShape === "helix") {
+      const selCurve = catalog.entries.find((e) => e.id === currentCurveId);
+      const cAngle = selCurve?.angle ?? 30;
+      const piecesPerTurn = Math.max(4, Math.round(360 / Math.max(1, cAngle)));
+      const turns = (count / piecesPerTurn).toFixed(1);
+      turnsText = `, ${turns} ${isDe ? "Umdr." : "turns"}`;
+    }
 
-    if (grad <= 3.0 && !isClearanceWarning) {
+    if (grad <= 3.0) {
       statusCard.className = "ramp-status-card ok";
-      statusTitle.textContent = `✓ ${isDe ? "Sichere Steigung" : "Safe gradient"}: ${grad.toFixed(1)}% (${count} ${isDe ? "Gleise" : "tracks"}, ${lenCm} cm)`;
-    } else if (grad <= 4.5 && !isClearanceWarning) {
+      statusTitle.textContent = `✓ ${isDe ? "Sichere Steigung" : "Safe gradient"}: ${grad.toFixed(1)}% (${count} ${isDe ? "Gleise" : "tracks"}${turnsText}, ${lenCm} cm)`;
+    } else if (grad <= 4.5) {
       statusCard.className = "ramp-status-card warn";
-      statusTitle.textContent = `⚠️ ${isDe ? "Mäßige Steigung" : "Moderate gradient"}: ${grad.toFixed(1)}% (${count} ${isDe ? "Gleise" : "tracks"}, ${lenCm} cm)`;
+      statusTitle.textContent = `⚠️ ${isDe ? "Mäßige Steigung" : "Moderate gradient"}: ${grad.toFixed(1)}% (${count} ${isDe ? "Gleise" : "tracks"}${turnsText}, ${lenCm} cm)`;
     } else {
       statusCard.className = "ramp-status-card danger";
-      statusTitle.textContent = `⚠️ ${isDe ? "Steile Rampe" : "Steep ramp"}: ${grad.toFixed(1)}% (${count} ${isDe ? "Gleise" : "tracks"}, ${lenCm} cm)`;
+      statusTitle.textContent = `⚠️ ${isDe ? "Steile Rampe" : "Steep ramp"}: ${grad.toFixed(1)}% (${count} ${isDe ? "Gleise" : "tracks"}${turnsText}, ${lenCm} cm)`;
     }
 
     let warningText = "";
-    if (isClearanceWarning) {
+    if (deltaH > 0 && deltaH < minClearance && currentShape !== "helix") {
       warningText = isDe
         ? ` (Hinweis: Höhendifferenz ${deltaH} mm < empfohlene Mindesthöhe ${minClearance} mm für Spur ${scale})`
         : ` (Note: Height difference ${deltaH} mm < minimum clearance ${minClearance} mm for scale ${scale})`;
+    } else if (currentShape === "helix") {
+      const selCurve = catalog.entries.find((e) => e.id === currentCurveId);
+      const cAngle = selCurve?.angle ?? 30;
+      const piecesPerTurn = Math.max(4, Math.round(360 / Math.max(1, cAngle)));
+      const turns = count / piecesPerTurn;
+      if (turns > 1.05) {
+        const risePerTurn = Math.round((deltaH / turns) * 10) / 10;
+        if (risePerTurn < minClearance) {
+          warningText = isDe
+            ? ` (Achtung: Durchfahrtshöhe ${risePerTurn} mm/Runde < Mindesthöhe ${minClearance} mm)`
+            : ` (Warning: Clearance ${risePerTurn} mm/turn < min clearance ${minClearance} mm)`;
+        }
+      }
     }
 
     statusDesc.textContent = `${isDe ? "Verlauf" : "Profile"}: ${currentHeight} mm ➔ ${tH} mm (Δ ${deltaH} mm)${warningText}`;
