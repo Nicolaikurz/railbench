@@ -51,6 +51,7 @@ export interface ToolbarFactoryDeps {
   openHeightDialogForSelection: () => void;
   triggerCollabDialog: () => void;
   triggerWelcomeDialog?: () => void;
+  triggerDemoTracksDialog?: () => void;
   triggerImportCatalog?: () => void;
   showToast: (msg: string, icon?: string) => void;
 }
@@ -68,6 +69,7 @@ export function buildToolbarEvents(deps: ToolbarFactoryDeps): ToolbarEvents {
   return {
     onToggleRightSidebar: () => deps.toggleRightSidebar(),
     onNewPlan: () => operations.triggerNewPlan(),
+    onOpenDemoTracks: () => deps.triggerDemoTracksDialog?.(),
     onUndo: () => {
       history.undo();
       deps.sync(true);

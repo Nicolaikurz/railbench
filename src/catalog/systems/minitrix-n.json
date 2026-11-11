@@ -290,7 +290,7 @@
     {
       "id": "14964",
       "name": "Doppelkreuzungsweiche DKW 15°",
-      "kind": "dkw",
+      "kind": "double-slip",
       "category": "Kreuzungen",
       "description": "Länge 112,6 mm, Kreuzungswinkel 15°",
       "length": 112.6,
@@ -302,7 +302,7 @@
     {
       "id": "14965",
       "name": "Kreuzungsweiche KW 30°",
-      "kind": "dkw",
+      "kind": "double-slip",
       "category": "Kreuzungen",
       "description": "Länge 104,2 mm, Kreuzungswinkel 30°",
       "length": 104.2,

@@ -309,7 +309,7 @@
     {
       "id": "42451",
       "name": "Doppelkreuzungsweiche DKW15",
-      "kind": "dkw",
+      "kind": "double-slip",
       "category": "Kreuzungen",
       "description": "Länge 230 mm, Kreuzungswinkel 15°, 2x Abzweig R = 873,5 mm / 15°",
       "length": 230,
@@ -450,7 +450,7 @@
     {
       "id": "42493",
       "name": "Doppelkreuzungsweiche DKW10 (Baeseler)",
-      "kind": "dkw",
+      "kind": "double-slip",
       "category": "Kreuzungen",
       "description": "Schlanke Baeseler-DKW, Länge 345 mm, Kreuzungswinkel 10°, außenliegende Zungen",
       "length": 345,

@@ -286,7 +286,7 @@
     {
       "id": "83881",
       "name": "Doppelte Kreuzungsweiche DKW 1 (15°)",
-      "kind": "dkw",
+      "kind": "double-slip",
       "category": "Weichen",
       "description": "Länge 166 mm, Kreuzungswinkel 15°, Abzweigradius 310 mm",
       "length": 166,

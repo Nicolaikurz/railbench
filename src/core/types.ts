@@ -94,7 +94,7 @@ export interface Model3D {
 
 export interface Layout {
   name: string;
-  scale: "H0" | "TT" | "N" | "Z" | "1" | "G";
+  scale: "H0" | "TT" | "N" | "Z" | "1" | "G" | "0";
   pieces: TrackPiece[];
   models?: Model3D[];
   feedVoltage?: number;

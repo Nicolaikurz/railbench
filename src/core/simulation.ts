@@ -37,6 +37,7 @@ export const SCALE_CURRENT_PRESETS: Record<string, ScaleCurrentPreset> = {
   N: { scale: "N", label: "Spur N", minMa: 50, maxMa: 150, defaultMa: 100, description: "50–150 mA pro Lok" },
   TT: { scale: "TT", label: "Spur TT", minMa: 200, maxMa: 400, defaultMa: 300, description: "200–400 mA pro Lok" },
   H0: { scale: "H0", label: "Spur H0", minMa: 300, maxMa: 600, defaultMa: 450, description: "300–600 mA pro Lok" },
+  "0": { scale: "0", label: "Spur 0", minMa: 400, maxMa: 800, defaultMa: 600, description: "400–800 mA pro Lok" },
   "1": { scale: "1", label: "Spur 1", minMa: 600, maxMa: 1000, defaultMa: 800, description: "600–1000 mA pro Lok" },
   G: { scale: "G", label: "Spur G", minMa: 600, maxMa: 1000, defaultMa: 1000, description: "Max. 1000 mA (1A) pro Lok" },
 };
@@ -58,7 +59,7 @@ export function isTurnoutEntry(entry?: CatalogEntry): boolean {
     entry.kind === "curved-turnout-left" ||
     entry.kind === "curved-turnout-right" ||
     entry.kind === "three-way" ||
-    entry.kind === "dkw"
+    entry.kind === "double-slip"
   ) {
     return true;
   }

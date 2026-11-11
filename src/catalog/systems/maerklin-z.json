@@ -116,7 +116,7 @@
     {
       "id": "8560",
       "name": "Doppelkreuzungsweiche DKW 13°",
-      "kind": "dkw",
+      "kind": "double-slip",
       "category": "Kreuzungen",
       "description": "Länge 112,8 mm, Kreuzungswinkel 13° mit Doppelantrieb",
       "length": 112.8,

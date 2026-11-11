@@ -240,6 +240,21 @@ describe("Power Drop Simulation", () => {
       const simH0 = simulatePowerDrop(layoutH0, maerklinCCatalog);
       expect(simH0.locoCurrentMa).toBe(450);
       expect(simH0.trainCurrentAmps).toBeCloseTo(0.45, 2);
+
+      const layout0: Layout = { name: "0 Layout", scale: "0", pieces: [{ ...basePiece }] };
+      const sim0 = simulatePowerDrop(layout0, maerklinCCatalog);
+      expect(sim0.locoCurrentMa).toBe(600);
+      expect(sim0.trainCurrentAmps).toBeCloseTo(0.60, 2);
+
+      const layout1: Layout = { name: "1 Layout", scale: "1", pieces: [{ ...basePiece }] };
+      const sim1 = simulatePowerDrop(layout1, maerklinCCatalog);
+      expect(sim1.locoCurrentMa).toBe(800);
+      expect(sim1.trainCurrentAmps).toBeCloseTo(0.80, 2);
+
+      const layoutG: Layout = { name: "G Layout", scale: "G", pieces: [{ ...basePiece }] };
+      const simG = simulatePowerDrop(layoutG, maerklinCCatalog);
+      expect(simG.locoCurrentMa).toBe(1000);
+      expect(simG.trainCurrentAmps).toBeCloseTo(1.00, 2);
     });
 
     it("begrenzt den Maximalstrom pro Lok auf 1 A (1000 mA)", () => {

@@ -106,7 +106,7 @@ export function fromXML(xmlStr: string): Layout {
   }
 
   const name = root.getAttribute("name") ?? "Geladene Anlage";
-  const scale = (root.getAttribute("scale") as "H0" | "TT" | "N" | "Z") ?? "H0";
+  const scale = (root.getAttribute("scale") as "H0" | "TT" | "N" | "Z" | "1" | "G" | "0") ?? "H0";
   const feedVoltageAttr = root.getAttribute("feedVoltage");
   const feedVoltage = feedVoltageAttr ? parseFloat(feedVoltageAttr) : 16;
   const catVoltAttr = root.getAttribute("catenaryFeedVoltage");

@@ -202,7 +202,7 @@
     {
       "id": "20-210",
       "name": "Elektro-Doppelkreuzungsweiche WX310",
-      "kind": "dkw",
+      "kind": "double-slip",
       "category": "Kreuzungen",
       "description": "Länge 174 mm, Kreuzungswinkel 15°",
       "length": 174,

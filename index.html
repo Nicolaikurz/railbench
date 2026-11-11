@@ -1339,6 +1339,36 @@
         font-weight: 600;
       }
 
+      .favorite-track-btn {
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        padding: 0 2px;
+        font-size: 13.5px;
+        line-height: 1;
+        color: var(--text-muted);
+        opacity: 0.35;
+        transition: opacity 0.15s ease, color 0.15s ease, transform 0.12s ease;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .track-card:hover .favorite-track-btn {
+        opacity: 0.75;
+      }
+
+      .favorite-track-btn:hover {
+        opacity: 1 !important;
+        color: #f59e0b !important;
+        transform: scale(1.22);
+      }
+
+      .favorite-track-btn.active {
+        color: #f59e0b !important;
+        opacity: 1 !important;
+      }
+
       .card-body {
         display: flex;
         align-items: center;
@@ -4850,6 +4880,77 @@
         color: #ffffff !important;
         border-color: #ef4444 !important;
         box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+      }
+      .sel-bar-btn:not(.active):not(.sel-bar-btn-danger) {
+        color: #94a3b8;
+      }
+      #sel-bar-btn-feeder.active {
+        background: #f59e0b !important;
+        color: #ffffff !important;
+        border-color: #f59e0b !important;
+        box-shadow: 0 0 8px rgba(245, 158, 11, 0.45);
+      }
+      #sel-bar-btn-isolator.active {
+        background: #dc2626 !important;
+        color: #ffffff !important;
+        border-color: #dc2626 !important;
+        box-shadow: 0 0 8px rgba(220, 38, 38, 0.45);
+      }
+
+      .track-feeder-toggle-btn,
+      .track-isolator-toggle-btn {
+        background: transparent;
+        border: 1px solid transparent;
+        border-radius: 4px;
+        cursor: pointer;
+        padding: 1px 3px;
+        font-size: 13px;
+        line-height: 1;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.15s ease;
+      }
+
+      .track-feeder-toggle-btn.disabled,
+      .track-isolator-toggle-btn.disabled {
+        color: #94a3b8 !important;
+        opacity: 0.8 !important;
+        background: rgba(148, 163, 184, 0.12);
+        border-color: rgba(148, 163, 184, 0.25);
+      }
+
+      .track-feeder-toggle-btn.disabled:hover,
+      .track-isolator-toggle-btn.disabled:hover {
+        color: #64748b !important;
+        background: rgba(148, 163, 184, 0.22);
+        border-color: rgba(148, 163, 184, 0.45);
+        transform: scale(1.15);
+        opacity: 1 !important;
+      }
+
+      .track-feeder-toggle-btn.active {
+        color: #eab308 !important;
+        opacity: 1 !important;
+        background: rgba(234, 179, 8, 0.16);
+        border-color: rgba(234, 179, 8, 0.5);
+        box-shadow: 0 0 6px rgba(234, 179, 8, 0.35);
+        text-shadow: 0 0 6px rgba(234, 179, 8, 0.4);
+      }
+
+      .track-isolator-toggle-btn.active {
+        color: #ef4444 !important;
+        opacity: 1 !important;
+        background: rgba(239, 68, 68, 0.16);
+        border-color: rgba(239, 68, 68, 0.5);
+        box-shadow: 0 0 6px rgba(239, 68, 68, 0.35);
+        text-shadow: 0 0 6px rgba(239, 68, 68, 0.4);
+      }
+
+      .track-feeder-toggle-btn:hover,
+      .track-isolator-toggle-btn:hover {
+        transform: scale(1.18);
+        opacity: 1 !important;
       }
 
       /* Right Sidebar Selection Actions */

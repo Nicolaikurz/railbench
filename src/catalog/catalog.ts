@@ -22,6 +22,12 @@ export * from "./systems/generic-streets-h0";
 export * from "./systems/generic-streets-n";
 export * from "./systems/generic-streets-tt";
 export * from "./systems/generic-streets-z";
+export * from "./systems/generic-streets-0";
+export * from "./systems/generic-streets-1";
+export * from "./systems/generic-streets-g";
+export * from "./systems/lenz-0";
+export * from "./systems/maerklin-1";
+export * from "./systems/lgb-g";
 
 
 // Abwärtskompatibilität
@@ -230,7 +236,7 @@ export function getLocalConnectors(entry?: CatalogEntry | null): LocalConnector[
     ];
   }
 
-  if (kind === "dkw") {
+  if (kind === "double-slip") {
     const l = entry.length ?? 188.3;
     const a = entry.angle ?? 24.3;
     const rad = deg2rad(a);

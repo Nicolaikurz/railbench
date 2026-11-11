@@ -1,4 +1,11 @@
-import { catalogRegistry, compareCatalogEntriesByNumber, type Catalog, type CatalogEntry } from "@/catalog/catalog";
+import {
+  catalogRegistry,
+  compareCatalogEntriesByNumber,
+  isFeederEntry,
+  isIsolatingEntry,
+  type Catalog,
+  type CatalogEntry,
+} from "@/catalog/catalog";
 import type { Layout, Layer, BaseboardConfig, Model3D, ModelCategory } from "@/core/types";
 import { openLayerDialog } from "./layer-dialog";
 import type { SimulationSummary } from "@/core/simulation";
@@ -84,6 +91,7 @@ export interface SidebarCallbacks {
 }
 
 const CATEGORY_MAP: Record<string, string[]> = {
+  Favorites: ["Favorites", "Favoriten"],
   All: ["All", "Alle"],
   Straights: ["Straights", "Geraden"],
   Curves: ["Curves", "Bögen"],
@@ -92,17 +100,28 @@ const CATEGORY_MAP: Record<string, string[]> = {
   Accessories: ["Accessories", "Zubehör"],
 };
 
-const AVAILABLE_SCALES: ModelScale[] = ["H0", "TT", "N", "Z"];
+const AVAILABLE_SCALES: ModelScale[] = ["H0", "TT", "N", "Z", "0", "1", "G"];
 
 const SCALE_DESCRIPTIONS: Record<ModelScale, { de: string; en: string }> = {
   H0: { de: "1:87 (Fahrbahn ~60 mm)", en: "1:87 (Roadway ~60 mm)" },
   TT: { de: "1:120 (Fahrbahn ~45 mm)", en: "1:120 (Roadway ~45 mm)" },
   N: { de: "1:160 (Fahrbahn ~35 mm)", en: "1:160 (Roadway ~35 mm)" },
   Z: { de: "1:220 (Fahrbahn ~25 mm)", en: "1:220 (Roadway ~25 mm)" },
+  "0": { de: "1:45 (Fahrbahn ~115 mm)", en: "1:45 (Roadway ~115 mm)" },
+  "1": { de: "1:32 (Fahrbahn ~160 mm)", en: "1:32 (Roadway ~160 mm)" },
+  G: { de: "1:22,5 (Fahrbahn ~230 mm)", en: "1:22.5 (Roadway ~230 mm)" },
 };
 
 /** Roadway width per scale in mm (full 2-lane width). */
-const ROAD_WIDTH_MM: Record<ModelScale, number> = { H0: 60, TT: 45, N: 35, Z: 25 };
+const ROAD_WIDTH_MM: Record<ModelScale, number> = {
+  H0: 60,
+  TT: 45,
+  N: 35,
+  Z: 25,
+  "0": 115,
+  "1": 160,
+  G: 230,
+};
 
 function getRoadWidthMm(scale?: string): number {
   return ROAD_WIDTH_MM[((scale || "H0").toUpperCase() as ModelScale)] ?? 60;
@@ -247,6 +266,92 @@ const SIDEBAR_DRILLDOWN_STYLES = `
   border-color: var(--cl-accent, #0284c7);
   outline: none;
 }
+
+.favorite-track-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0 2px;
+  font-size: 13.5px;
+  line-height: 1;
+  color: var(--text-muted, #94a3b8);
+  opacity: 0.35;
+  transition: opacity 0.15s ease, color 0.15s ease, transform 0.12s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.track-card:hover .favorite-track-btn {
+  opacity: 0.75;
+}
+
+.favorite-track-btn:hover {
+  opacity: 1 !important;
+  color: #f59e0b !important;
+  transform: scale(1.22);
+}
+
+.favorite-track-btn.active {
+  color: #f59e0b !important;
+  opacity: 1 !important;
+}
+
+.track-feeder-toggle-btn,
+.track-isolator-toggle-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 1px 3px;
+  font-size: 13px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.track-feeder-toggle-btn.disabled,
+.track-isolator-toggle-btn.disabled {
+  color: #94a3b8 !important;
+  opacity: 0.8 !important;
+  background: rgba(148, 163, 184, 0.12);
+  border-color: rgba(148, 163, 184, 0.25);
+}
+
+.track-feeder-toggle-btn.disabled:hover,
+.track-isolator-toggle-btn.disabled:hover {
+  color: #64748b !important;
+  background: rgba(148, 163, 184, 0.22);
+  border-color: rgba(148, 163, 184, 0.45);
+  transform: scale(1.15);
+  opacity: 1 !important;
+}
+
+.track-feeder-toggle-btn.active {
+  color: #eab308 !important;
+  opacity: 1 !important;
+  background: rgba(234, 179, 8, 0.16);
+  border-color: rgba(234, 179, 8, 0.5);
+  box-shadow: 0 0 6px rgba(234, 179, 8, 0.35);
+  text-shadow: 0 0 6px rgba(234, 179, 8, 0.4);
+}
+
+.track-isolator-toggle-btn.active {
+  color: #ef4444 !important;
+  opacity: 1 !important;
+  background: rgba(239, 68, 68, 0.16);
+  border-color: rgba(239, 68, 68, 0.5);
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.35);
+  text-shadow: 0 0 6px rgba(239, 68, 68, 0.4);
+}
+
+.track-feeder-toggle-btn:hover,
+.track-isolator-toggle-btn:hover {
+  transform: scale(1.18);
+  opacity: 1 !important;
+}
 `;
 
 /**
@@ -272,6 +377,9 @@ function ensureSidebarDrilldownStyles() {
 }
 
 function formatCatalogTitle(cat: Catalog): string {
+  if (cat.id === "favorites") {
+    return cat.name;
+  }
   if (cat.isRoadSystem) {
     return cat.name || `${cat.manufacturer} ${cat.system}`;
   }
@@ -279,6 +387,10 @@ function formatCatalogTitle(cat: Catalog): string {
 }
 
 function formatCatalogSubtitle(cat: Catalog, isDe: boolean, t: any): string {
+  if (cat.id === "favorites") {
+    const count = cat.entries.length;
+    return isDe ? `${count} gespeicherte Favoriten` : `${count} saved favorites`;
+  }
   if (cat.isRoadSystem) {
     const width = getRoadWidthMm(cat.scale);
     return isDe ? `Fahrbahnbreite ${width} mm, 2-spurig` : `Road width ${width} mm, 2-lane`;
@@ -326,6 +438,9 @@ export class Sidebar {
   private layout: Layout;
   private simulation: SimulationSummary | null = null;
   private callbacks: SidebarCallbacks;
+  private favoriteItems: Array<{ catalogId?: string; trackId: string }> = [];
+  private entryPowerEnabled: Map<string, boolean> = new Map();
+  private entryIsolatingEnabled: Map<string, boolean> = new Map();
   /** Window listeners registered by the current render pass; removed at the start of the next one. */
   private windowCleanups: Array<() => void> = [];
 
@@ -337,6 +452,7 @@ export class Sidebar {
   ) {
     this.host = host;
     ensureSidebarDrilldownStyles();
+    this.loadFavorites();
 
     this.catalog = catalog.isRoadSystem
       ? catalogRegistry.getAll().find((c) => !c.isRoadSystem) ?? catalogRegistry.getDefault()
@@ -384,6 +500,180 @@ export class Sidebar {
     this.roadCatalog = catalog;
     this.currentRoadScale = ((catalog.scale || "H0").toUpperCase() as ModelScale);
     this.render();
+  }
+
+  /** Loads favorite tracks from localStorage. */
+  loadFavorites() {
+    this.favoriteItems = [];
+    if (typeof localStorage === "undefined") return;
+    try {
+      const raw = localStorage.getItem("railbench_favorite_tracks");
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        for (const item of parsed) {
+          if (typeof item === "string") {
+            const colonIdx = item.indexOf(":");
+            if (colonIdx > 0) {
+              this.favoriteItems.push({
+                catalogId: item.substring(0, colonIdx),
+                trackId: item.substring(colonIdx + 1),
+              });
+            } else {
+              this.favoriteItems.push({ trackId: item });
+            }
+          } else if (item && typeof item === "object" && typeof item.trackId === "string") {
+            this.favoriteItems.push({
+              catalogId: typeof item.catalogId === "string" ? item.catalogId : undefined,
+              trackId: item.trackId,
+            });
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("Could not load favorite tracks from localStorage:", err);
+    }
+  }
+
+  /** Saves favorite tracks to localStorage. */
+  saveFavorites() {
+    if (typeof localStorage === "undefined") return;
+    try {
+      localStorage.setItem("railbench_favorite_tracks", JSON.stringify(this.favoriteItems));
+    } catch (err) {
+      console.warn("Could not save favorite tracks to localStorage:", err);
+    }
+  }
+
+  /** Checks whether a track is currently favorited. */
+  isFavorite(trackId: string, catalogId?: string): boolean {
+    return this.favoriteItems.some((item) => {
+      if (item.trackId !== trackId) return false;
+      if (!catalogId || !item.catalogId) return true;
+      return item.catalogId === catalogId;
+    });
+  }
+
+  /** Toggles favorite status for a track. Returns true if now favorited, false if removed. */
+  toggleFavorite(trackId: string, catalogId?: string): boolean {
+    const existingIndex = this.favoriteItems.findIndex((item) => {
+      if (item.trackId !== trackId) return false;
+      if (!catalogId || !item.catalogId) return true;
+      return item.catalogId === catalogId;
+    });
+
+    let isNowFavorite = false;
+    if (existingIndex >= 0) {
+      this.favoriteItems.splice(existingIndex, 1);
+      isNowFavorite = false;
+    } else {
+      this.favoriteItems.push({
+        catalogId: catalogId && catalogId !== "favorites" ? catalogId : undefined,
+        trackId,
+      });
+      isNowFavorite = true;
+    }
+    this.saveFavorites();
+    return isNowFavorite;
+  }
+
+  /** Returns all stored favorite items. */
+  getFavoriteItems(): Array<{ catalogId?: string; trackId: string }> {
+    return [...this.favoriteItems];
+  }
+
+  /** Number of favorites in the current catalog (or total if in favorites catalog). */
+  getFavoritesCount(): number {
+    if (this.catalog.id === "favorites") {
+      return this.catalog.entries.length;
+    }
+    return this.catalog.entries.filter((e) => this.isFavorite(e.id, this.catalog.id)).length;
+  }
+
+  /** Total number of favorites across all catalogs. */
+  getTotalFavoritesCount(): number {
+    return this.favoriteItems.length;
+  }
+
+  /** Constructs a virtual Catalog containing all saved favorites across track systems. */
+  getFavoritesCatalog(): Catalog {
+    const isDe = getLanguage() === "de";
+    const allCatalogs = catalogRegistry.getAll().filter((c) => !c.isRoadSystem);
+    const entries: CatalogEntry[] = [];
+    const seen = new Set<string>();
+
+    for (const item of this.favoriteItems) {
+      let matchedEntry: CatalogEntry | undefined;
+      let originCat: Catalog | undefined;
+
+      if (item.catalogId) {
+        originCat = allCatalogs.find((c) => c.id === item.catalogId);
+        matchedEntry = originCat?.entries.find((e) => e.id === item.trackId);
+      }
+      if (!matchedEntry) {
+        for (const cat of allCatalogs) {
+          matchedEntry = cat.entries.find((e) => e.id === item.trackId);
+          if (matchedEntry) {
+            originCat = cat;
+            break;
+          }
+        }
+      }
+
+      if (matchedEntry && originCat) {
+        const uniqueKey = `${originCat.id}:${matchedEntry.id}`;
+        if (!seen.has(uniqueKey)) {
+          seen.add(uniqueKey);
+          entries.push({
+            ...matchedEntry,
+            gauge: matchedEntry.gauge ?? originCat.gauge,
+            description: matchedEntry.description || `${originCat.manufacturer} ${originCat.system}`,
+            _originCatalogId: originCat.id,
+            _originCatalogName: `${originCat.manufacturer} ${originCat.system}`,
+          } as CatalogEntry);
+        }
+      }
+    }
+
+    return {
+      id: "favorites",
+      name: isDe ? "Meine Favoriten" : "My Favorites",
+      manufacturer: isDe ? "Favoriten" : "Favorites",
+      system: isDe ? "Gespeicherte Gleise" : "Saved Tracks",
+      scale: this.layout.scale || "H0",
+      gauge: 16.5,
+      entries,
+    };
+  }
+
+  /** Checks whether power feed is currently enabled for a feeder track. Defaults to false (grey) until toggled. */
+  isEntryPowerEnabled(entry: CatalogEntry): boolean {
+    if (this.entryPowerEnabled.has(entry.id)) {
+      return this.entryPowerEnabled.get(entry.id)!;
+    }
+    return false;
+  }
+
+  /** Toggles power feed for a feeder track. */
+  toggleEntryPower(entry: CatalogEntry): boolean {
+    const current = this.isEntryPowerEnabled(entry);
+    this.entryPowerEnabled.set(entry.id, !current);
+    return !current;
+  }
+
+  /** Checks whether track isolation is currently enabled for an isolating track. Defaults to false (grey) until toggled. */
+  isEntryIsolatingEnabled(entry: CatalogEntry): boolean {
+    if (this.entryIsolatingEnabled.has(entry.id)) {
+      return this.entryIsolatingEnabled.get(entry.id)!;
+    }
+    return false;
+  }
+
+  /** Toggles track isolation for an isolating track. */
+  toggleEntryIsolating(entry: CatalogEntry): boolean {
+    const current = this.isEntryIsolatingEnabled(entry);
+    this.entryIsolatingEnabled.set(entry.id, !current);
+    return !current;
   }
 
   /** Registers a window click listener that is automatically removed on the next render(). */
@@ -498,21 +788,29 @@ export class Sidebar {
     const allCatalogs = catalogRegistry.getAll().filter((c) => !c.isRoadSystem);
     if (this.catalog.isRoadSystem) {
       this.catalog = allCatalogs[0] ?? catalogRegistry.getDefault();
+    } else if (this.catalog.id === "favorites") {
+      this.catalog = this.getFavoritesCatalog();
     }
 
     let menuStep: "closed" | "manufacturers" | "systems" = "closed";
-    let activeMfg = this.catalog.manufacturer;
+    let activeMfg =
+      this.catalog.id === "favorites" ? (allCatalogs[0]?.manufacturer ?? "Märklin") : this.catalog.manufacturer;
 
     const selectorBox = document.createElement("div");
     selectorBox.className = "catalog-system-box";
     selectorBox.style.position = "relative";
+
+    const catTitle =
+      this.catalog.id === "favorites"
+        ? `★ ${this.catalog.name}`
+        : `${this.catalog.manufacturer} — ${this.catalog.system}`;
 
     const trigger = document.createElement("button");
     trigger.type = "button";
     trigger.className = "catalog-dropdown-trigger";
     trigger.innerHTML = `
       <div class="catalog-trigger-text">
-        <span class="catalog-trigger-title">${this.catalog.manufacturer} — ${this.catalog.system}</span>
+        <span class="catalog-trigger-title">${catTitle}</span>
         <span class="catalog-trigger-sub">${formatCatalogSubtitle(this.catalog, isDe, t)}</span>
       </div>
       <span class="catalog-dropdown-arrow">▾</span>
@@ -538,6 +836,32 @@ export class Sidebar {
 
         const list = document.createElement("div");
         list.className = "popover-list";
+
+        // Top entry: Meine Favoriten
+        const favCount = this.getTotalFavoritesCount();
+        const favItem = document.createElement("button");
+        favItem.type = "button";
+        const isFavActive = this.catalog.id === "favorites";
+        favItem.className = `popover-item ${isFavActive ? "active" : ""}`;
+        favItem.style.color = "#f59e0b";
+        favItem.style.fontWeight = "600";
+        favItem.style.borderBottom = "1px solid rgba(255, 255, 255, 0.08)";
+        favItem.style.marginBottom = "4px";
+        favItem.innerHTML = `
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span>★</span>
+            <span>${isDe ? "Meine Favoriten" : "My Favorites"}</span>
+          </div>
+          <span class="popover-item-sub" style="color: inherit; font-weight: bold;">${favCount}</span>
+        `;
+        favItem.addEventListener("click", (e) => {
+          e.stopPropagation();
+          menuStep = "closed";
+          this.catalog = this.getFavoritesCatalog();
+          this.selectedCategory = "All";
+          this.render();
+        });
+        list.appendChild(favItem);
 
         const manufacturers = Array.from(new Set(allCatalogs.map((c) => c.manufacturer)));
         for (const mfg of manufacturers) {
@@ -667,7 +991,9 @@ export class Sidebar {
     container.appendChild(searchBox);
 
     // Category Filter Bar
+    const favCount = this.getFavoritesCount();
     const categories: Array<{ id: string; label: string }> = [
+      { id: "Favorites", label: `${t.catalog.categories.favorites ?? "★ Favoriten"} (${favCount})` },
       { id: "All", label: t.catalog.categories.all },
       { id: "Straights", label: t.catalog.categories.straights },
       { id: "Curves", label: t.catalog.categories.curves },
@@ -714,7 +1040,11 @@ export class Sidebar {
 
     const filtered = this.catalog.entries.filter((e) => {
       const matchCat =
-        this.selectedCategory === "All" || allowedCats.includes(e.category) || e.category === this.selectedCategory;
+        this.selectedCategory === "All"
+          ? true
+          : this.selectedCategory === "Favorites"
+          ? this.isFavorite(e.id, (e as any)._originCatalogId || (this.catalog.id !== "favorites" ? this.catalog.id : undefined))
+          : allowedCats.includes(e.category) || e.category === this.selectedCategory;
       const matchQuery =
         !query ||
         e.id.toLowerCase().includes(query) ||
@@ -728,6 +1058,43 @@ export class Sidebar {
     filtered.sort(compareCatalogEntriesByNumber);
 
     if (filtered.length === 0) {
+      if (this.selectedCategory === "Favorites" || this.catalog.id === "favorites") {
+        const totalFavs = this.getTotalFavoritesCount();
+        const emptyBox = document.createElement("div");
+        emptyBox.className = "empty-state";
+        emptyBox.style.padding = "16px 8px";
+        emptyBox.style.textAlign = "center";
+        emptyBox.innerHTML = `
+          <div style="font-size: 24px; margin-bottom: 8px; color: #f59e0b;">★</div>
+          <div style="font-weight: 600; margin-bottom: 4px;">
+            ${isDe ? "Keine Favoriten gefunden" : "No favorites found"}
+          </div>
+          <div style="font-size: 11px; opacity: 0.8; margin-bottom: 12px;">
+            ${isDe
+              ? "Klicke auf den Stern (★) bei einem Gleis, um es als Favorit zu speichern."
+              : "Click the star (★) on any track card to save it as a favorite."}
+          </div>
+        `;
+        if (totalFavs > 0 && this.catalog.id !== "favorites") {
+          const viewAllBtn = document.createElement("button");
+          viewAllBtn.type = "button";
+          viewAllBtn.className = "btn-secondary";
+          viewAllBtn.style.padding = "4px 10px";
+          viewAllBtn.style.fontSize = "11px";
+          viewAllBtn.textContent = isDe
+            ? `Alle Favoriten anzeigen (${totalFavs})`
+            : `Show all favorites (${totalFavs})`;
+          viewAllBtn.addEventListener("click", () => {
+            this.catalog = this.getFavoritesCatalog();
+            this.selectedCategory = "All";
+            this.render();
+          });
+          emptyBox.appendChild(viewAllBtn);
+        }
+        container.appendChild(emptyBox);
+        return;
+      }
+
       container.innerHTML = `<div class="empty-state">${
         isDe ? "Keine passenden Gleise gefunden." : "No matching tracks found."
       }</div>`;
@@ -742,17 +1109,50 @@ export class Sidebar {
       card.draggable = true;
 
       const bp = getTrackBlueprintColor(entry.id);
+      const entryGauge = entry.gauge ?? this.catalog.gauge;
+
+      const isFeeder = isFeederEntry(entry);
+      const isIso = isIsolatingEntry(entry);
+      const powerEnabled = isFeeder ? this.isEntryPowerEnabled(entry) : false;
+      const isoEnabled = isIso ? this.isEntryIsolatingEnabled(entry) : false;
+
+      const powerTitle = powerEnabled
+        ? isDe
+          ? "Gleis-Einspeisung aktiv (Klicken zum Ausschalten)"
+          : "Track power feed active (click to disable)"
+        : isDe
+        ? "Gleis-Einspeisung hinzufügen (Klicken zum Einschalten)"
+        : "Add power feed to track (click to enable)";
+
+      const isoTitle = isoEnabled
+        ? isDe
+          ? "Trennstrecke aktiv (Klicken zum Ausschalten)"
+          : "Track isolator active (click to disable)"
+        : isDe
+        ? "Trennstrecke isolieren (Klicken zum Einschalten)"
+        : "Isolate track (click to enable)";
+
+      const entryPayload: CatalogEntry = {
+        ...entry,
+        _initialPowerFeed: isFeeder ? powerEnabled : undefined,
+        _initialIsolator: isIso ? isoEnabled : undefined,
+      } as any;
 
       // Dragstart: Bind JSON payload + directly render 2D Track Preview
       card.addEventListener("dragstart", (e) => {
+        if ((e.target as HTMLElement).closest(".favorite-track-btn, .track-feeder-toggle-btn, .track-isolator-toggle-btn")) {
+          e.preventDefault();
+          return;
+        }
+
         card.classList.add("dragging");
-        e.dataTransfer?.setData("application/json", JSON.stringify(entry));
+        e.dataTransfer?.setData("application/json", JSON.stringify(entryPayload));
         e.dataTransfer?.setData("text/plain", entry.id);
 
         if (e.dataTransfer) {
           e.dataTransfer.effectAllowed = "copy";
           const zoom = this.callbacks.getZoom?.() ?? 1.0;
-          const canvas = createPieceDragCanvas(entry, false, undefined, this.catalog.gauge, zoom);
+          const canvas = createPieceDragCanvas(entryPayload, false, undefined, entryGauge, zoom);
           attachDragImage(e.dataTransfer, canvas);
         }
       });
@@ -765,7 +1165,7 @@ export class Sidebar {
         ? "Doppelklick: An freies Gleisende anfügen / Ziehen: Frei platzieren"
         : "Double-click: Attach to open snap point / Drag: Place freely";
 
-      setupDoubleAction(card, () => this.callbacks.onAddPiece?.(entry));
+      setupDoubleAction(card, () => this.callbacks.onAddPiece?.(entryPayload));
 
       let spec = "";
       if (entry.length) spec += `L: ${entry.length} mm `;
@@ -776,15 +1176,45 @@ export class Sidebar {
       const displayName = getTrackDisplayName(entry, currentLang);
       const displayCategory = getTrackDisplayCategory(entry.category, currentLang);
       const displayDesc = getTrackDisplayDescription(entry, currentLang);
-      const thumb = createCatalogThumbnail(entry, false, undefined, this.catalog.gauge, 60, 40);
+      const thumb = createCatalogThumbnail(entry, false, undefined, entryGauge, 60, 40);
+
+      const isFav = this.isFavorite(
+        entry.id,
+        (entry as any)._originCatalogId || (this.catalog.id !== "favorites" ? this.catalog.id : undefined)
+      );
+      const favTitle = isFav
+        ? isDe
+          ? "Aus Favoriten entfernen"
+          : "Remove from favorites"
+        : isDe
+        ? "Zu Favoriten hinzufügen"
+        : "Add to favorites";
+
+      const categoryBadge =
+        this.catalog.id === "favorites" && (entry as any)._originCatalogName
+          ? (entry as any)._originCatalogName
+          : displayCategory;
 
       card.innerHTML = `
         <div class="card-top">
           <div style="display: flex; align-items: center; gap: 4px;">
+            <button type="button" class="favorite-track-btn ${isFav ? "active" : ""}" title="${favTitle}" aria-label="${favTitle}">
+              ${isFav ? "★" : "☆"}
+            </button>
+            ${
+              isFeeder
+                ? `<button type="button" class="track-feeder-toggle-btn ${powerEnabled ? "active" : "disabled"}" title="${powerTitle}" aria-label="${powerTitle}">⚡</button>`
+                : ""
+            }
+            ${
+              isIso
+                ? `<button type="button" class="track-isolator-toggle-btn ${isoEnabled ? "active" : "disabled"}" title="${isoTitle}" aria-label="${isoTitle}">⊘</button>`
+                : ""
+            }
             <span class="card-color-dot" style="background: ${bp.css};" title="Blueprint Color"></span>
             <span class="card-id">${entry.id}</span>
           </div>
-          <span class="card-category-badge">${displayCategory}</span>
+          <span class="card-category-badge">${categoryBadge}</span>
         </div>
         <div class="card-body">
           <div class="card-info">
@@ -794,6 +1224,39 @@ export class Sidebar {
           <div class="card-preview" title="${displayName}"></div>
         </div>
       `;
+
+      const favBtn = card.querySelector<HTMLButtonElement>(".favorite-track-btn");
+      if (favBtn) {
+        favBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          this.toggleFavorite(
+            entry.id,
+            (entry as any)._originCatalogId || (this.catalog.id !== "favorites" ? this.catalog.id : undefined)
+          );
+          this.render();
+        });
+      }
+
+      const feederBtn = card.querySelector<HTMLButtonElement>(".track-feeder-toggle-btn");
+      if (feederBtn) {
+        feederBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          this.toggleEntryPower(entry);
+          this.render();
+        });
+      }
+
+      const isoBtn = card.querySelector<HTMLButtonElement>(".track-isolator-toggle-btn");
+      if (isoBtn) {
+        isoBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          this.toggleEntryIsolating(entry);
+          this.render();
+        });
+      }
 
       const previewContainer = card.querySelector(".card-preview");
       if (previewContainer && thumb && typeof thumb.getContext === "function") {

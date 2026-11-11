@@ -54,9 +54,11 @@
     {
       "id": "62088",
       "name": "Basis-Anschlussgleis 188,3 mm",
-      "kind": "straight",
+      "nameEn": "Feeder Track Straight 188.3 mm",
+      "kind": "feeder",
       "category": "Zubehör",
-      "description": "Gerades Gleis 188,3 mm mit Funkentstörung und Anschlussklemmen",
+      "description": "Gerades Gleis 188,3 mm mit Funkentstörung und Einspeise-Anschlussklemmen",
+      "descriptionEn": "Straight feeder track 188.3 mm with interference suppression and power terminals",
       "length": 188.3,
       "gauge": 16.5
     },
@@ -279,7 +281,7 @@
     {
       "id": "62624",
       "name": "Doppelkreuzungsweiche (DKW) 188,3 mm",
-      "kind": "dkw",
+      "kind": "double-slip",
       "category": "Kreuzungen",
       "description": "Länge 188,3 mm, Kreuzungswinkel 24,3°, 2x Abzweig R2 / 24,3° mit elektrischem Antrieb",
       "length": 188.3,
@@ -370,7 +372,7 @@
     {
       "id": "62720",
       "name": "Schlanke DKW 236,1 mm",
-      "kind": "dkw",
+      "kind": "double-slip",
       "category": "Kreuzungen",
       "description": "Länge 236,1 mm, Kreuzungswinkel 12,1°, schlanke Doppelkreuzungsweiche mit integriertem Antrieb",
       "length": 236.1,
@@ -468,10 +470,12 @@
     },
     {
       "id": "62994",
-      "name": "Kontaktgleissatz gerade 94,2 mm",
-      "kind": "straight",
+      "name": "Kontaktgleissatz / Trennstrecke 94,2 mm",
+      "nameEn": "Contact / Isolating Track Set 94.2 mm",
+      "kind": "isolating",
       "category": "Zubehör",
-      "description": "Kontaktgleissatz (2 Stück à 94,2 mm) für Gleisbesetztmeldung",
+      "description": "Kontaktgleissatz / Trennstrecke (2 Stück à 94,2 mm) für Gleisbesetztmeldung und Halteabschnitte",
+      "descriptionEn": "Contact and isolating track set (2 pieces, 94.2 mm) for occupancy detection and block sections",
       "length": 94.2,
       "gauge": 16.5
     },

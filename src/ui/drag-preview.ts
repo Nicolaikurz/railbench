@@ -299,7 +299,7 @@ function renderTrackPiece(
     return;
   }
 
-  if (kind === "crossing" || kind === "dkw") {
+  if (kind === "crossing" || kind === "double-slip") {
     // Crossing & Double Slip
     const len = (entry.length || 188) * pxPerMm;
     const crossAngleDeg = entry.angle || 15;
@@ -329,7 +329,7 @@ function renderTrackPiece(
     ctx.restore();
 
     // DKW center slip curve hints
-    if (kind === "dkw") {
+    if (kind === "double-slip") {
       ctx.beginPath();
       ctx.ellipse(0, 0, len * 0.25, crossH * 0.35, 0, 0, Math.PI * 2);
       ctx.strokeStyle = "rgba(56, 189, 248, 0.7)";

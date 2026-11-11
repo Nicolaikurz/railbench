@@ -27,6 +27,7 @@ export function getScaleRatio(scale: string): number {
     case "TT": return 120;
     case "N": return 160;
     case "Z": return 220;
+    case "0": return 45;
     case "1": return 32;
     case "G": return 22.5;
     default: return 87;

@@ -104,7 +104,7 @@
     {
       "id": "SL-E90",
       "name": "Doppelkreuzungsweiche DKW 12°",
-      "kind": "dkw",
+      "kind": "double-slip",
       "category": "Kreuzungen",
       "description": "Länge 249 mm, Kreuzungswinkel 12°, Radius 914 mm",
       "length": 249,

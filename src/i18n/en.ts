@@ -13,6 +13,7 @@ export const en: Translations = {
     fileMenu: {
       newPlan: "New Layout",
       openPlan: "Open Layout...",
+      demoTracks: "Demo Layouts...",
       savePlan: "Save",
       saveAs: "Save As...",
       importXml: "Import Layout XML...",
@@ -219,6 +220,7 @@ export const en: Translations = {
       twoConductors: "2-conductor",
       threeConductors: "3-conductor",
       categories: {
+        favorites: "Favorites",
         all: "All",
         straights: "Straights",
         curves: "Curves",
@@ -517,5 +519,16 @@ export const en: Translations = {
     serverGuideTitle: "Start your own server on LAN or VPS",
     serverGuideText: "The embedded server runs directly in Railbench. For a headless dedicated server, use:",
     toastRemoteUpdate: "{name} updated the layout",
+  },
+  demoDialog: {
+    title: "Select Demo Layout",
+    subtitle: "Choose a pre-built track plan to test, explore & build upon.",
+    filterAll: "All",
+    loadBtn: "Load Layout",
+    tracksUnit: "Tracks",
+    dimensions: "Board",
+    closeBtn: "Close",
+    unsavedWarning: "The current layout has unsaved changes. Do you want to load the demo layout anyway?",
+    autoSwitchHint: "Note: Loading a demo plan automatically switches to the matching track system and scale.",
   },
 };

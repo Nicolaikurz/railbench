@@ -13,6 +13,7 @@ export interface Translations {
     fileMenu: {
       newPlan: string;
       openPlan: string;
+      demoTracks: string;
       savePlan: string;
       saveAs: string;
       importXml: string;
@@ -219,6 +220,7 @@ export interface Translations {
       twoConductors: string;
       threeConductors: string;
       categories: {
+        favorites: string;
         all: string;
         straights: string;
         curves: string;
@@ -517,5 +519,16 @@ export interface Translations {
     serverGuideTitle: string;
     serverGuideText: string;
     toastRemoteUpdate: string;
+  };
+  demoDialog: {
+    title: string;
+    subtitle: string;
+    filterAll: string;
+    loadBtn: string;
+    tracksUnit: string;
+    dimensions: string;
+    closeBtn: string;
+    unsavedWarning: string;
+    autoSwitchHint: string;
   };
 }

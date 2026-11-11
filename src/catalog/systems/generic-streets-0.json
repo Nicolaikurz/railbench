@@ -1,0 +1,372 @@
+{
+  "id": "generic-streets-0",
+  "name": "Straßensystem / Streets (0 1:45)",
+  "manufacturer": "Modellstraße",
+  "system": "Straßen / Roads",
+  "scale": "0",
+  "gauge": 32,
+  "isRoadSystem": true,
+  "hasRoadbed": false,
+  "description": "Modulares Spur-0-Straßensystem (1:45) mit 2-spurigen Fahrbahnen (Breite 115 mm), Kurven, T-Einmündungen, Kreuzungen und Wendeplatz.",
+  "entries": [
+    {
+      "id": "ST-0-BUS",
+      "name": "Bushaltestelle / Parkbucht 385 mm (0)",
+      "nameEn": "Bus Stop / Parking Bay 385 mm (Scale 0)",
+      "kind": "straight",
+      "category": "Zubehör",
+      "description": "385 mm Fahrbahn mit seitlicher Parkbucht und Bus-Wartefläche (Breite 145 mm)",
+      "descriptionEn": "385 mm road with side parking bay and bus passenger area (width 145 mm)",
+      "length": 385,
+      "isRoad": true,
+      "roadWidth": 115,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 385,
+          "y": 0,
+          "angle": 0
+        }
+      ],
+      "gauge": 32
+    },
+    {
+      "id": "ST-0-C385-45",
+      "name": "Kurve 45° (R = 385 mm, 0)",
+      "nameEn": "Curved Road 45° (R = 385 mm, Scale 0)",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Bogen 45°, Radius 385 mm (Breite 115 mm)",
+      "descriptionEn": "Curve 45°, radius 385 mm (width 115 mm)",
+      "radius": 385,
+      "angle": 45,
+      "isRoad": true,
+      "roadWidth": 115,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 272.2,
+          "y": 112.8,
+          "angle": 45
+        }
+      ],
+      "gauge": 32
+    },
+    {
+      "id": "ST-0-C385-90",
+      "name": "Kurve 90° (R = 385 mm, 0)",
+      "nameEn": "Curved Road 90° (R = 385 mm, Scale 0)",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Standard-Rechtwinkelkurve 90°, Radius 385 mm (Breite 115 mm)",
+      "descriptionEn": "Standard 90° right-angle road curve, radius 385 mm (width 115 mm)",
+      "radius": 385,
+      "angle": 90,
+      "isRoad": true,
+      "roadWidth": 115,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 385,
+          "y": 385,
+          "angle": 90
+        }
+      ],
+      "gauge": 32
+    },
+    {
+      "id": "ST-0-C580-45",
+      "name": "Kurve 45° groß (R = 580 mm, 0)",
+      "nameEn": "Wide Curved Road 45° (R = 580 mm, Scale 0)",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Großer weiter Bogen 45°, Radius 580 mm (Breite 115 mm)",
+      "descriptionEn": "Wide gentle curve 45°, radius 580 mm (width 115 mm)",
+      "radius": 580,
+      "angle": 45,
+      "isRoad": true,
+      "roadWidth": 115,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 410.1,
+          "y": 169.9,
+          "angle": 45
+        }
+      ],
+      "gauge": 32
+    },
+    {
+      "id": "ST-0-CROSS",
+      "name": "Bahnübergang 385 mm (Straße 0)",
+      "nameEn": "Level Crossing 385 mm (Road Scale 0)",
+      "kind": "straight",
+      "category": "Zubehör",
+      "description": "385 mm Straßenüberquerung mit Gleis-Rillenprofil für Spur-0-Gleise (Breite 115 mm)",
+      "descriptionEn": "385 mm road crossing with Scale 0 rail groove inserts (width 115 mm)",
+      "length": 385,
+      "isRoad": true,
+      "roadWidth": 115,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 385,
+          "y": 0,
+          "angle": 0
+        }
+      ],
+      "gauge": 32
+    },
+    {
+      "id": "ST-0-FLEX",
+      "name": "Flexstraße 1200 mm (0)",
+      "nameEn": "Flex Road 1200 mm (Scale 0)",
+      "kind": "flex",
+      "category": "Geraden",
+      "description": "Biegsame 2-spurige Asphaltstraße, Gesamtlänge 1200 mm (Breite 115 mm)",
+      "descriptionEn": "Flexible 2-lane asphalt roadway, total length 1200 mm (width 115 mm)",
+      "length": 1200,
+      "isRoad": true,
+      "roadWidth": 115,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 1200,
+          "y": 0,
+          "angle": 0
+        }
+      ],
+      "gauge": 32
+    },
+    {
+      "id": "ST-0-LOOP",
+      "name": "Wendeplatz / Sackgasse (Wendehammer 0)",
+      "nameEn": "Cul-de-sac / Turning Loop (Scale 0)",
+      "kind": "accessory",
+      "category": "Zubehör",
+      "description": "Kreisförmiger Straßen-Wendeplatz mit 175 mm Durchmesser für Wendemanöver",
+      "descriptionEn": "Circular cul-de-sac turning head with 175 mm diameter for vehicle turning",
+      "length": 175,
+      "isRoad": true,
+      "roadWidth": 115,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        }
+      ],
+      "gauge": 32
+    },
+    {
+      "id": "ST-0-S095",
+      "name": "Gerade Straße 95 mm (0)",
+      "nameEn": "Straight Road 95 mm (Scale 0)",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Kurzes Ausgleichsstück 95 mm, 2-spurig (Breite 115 mm)",
+      "descriptionEn": "Short straight adapter piece 95 mm, 2-lane (width 115 mm)",
+      "length": 95,
+      "isRoad": true,
+      "roadWidth": 115,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 95,
+          "y": 0,
+          "angle": 0
+        }
+      ],
+      "gauge": 32
+    },
+    {
+      "id": "ST-0-S195",
+      "name": "Gerade Straße 195 mm (0)",
+      "nameEn": "Straight Road 195 mm (Scale 0)",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Halbe Standardgerade 195 mm, 2-spurig (Breite 115 mm)",
+      "descriptionEn": "Half standard straight 195 mm, 2-lane (width 115 mm)",
+      "length": 195,
+      "isRoad": true,
+      "roadWidth": 115,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 195,
+          "y": 0,
+          "angle": 0
+        }
+      ],
+      "gauge": 32
+    },
+    {
+      "id": "ST-0-S385",
+      "name": "Gerade Straße 385 mm (0)",
+      "nameEn": "Straight Road 385 mm (Scale 0)",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Standardgerade 385 mm, 2-spurig mit Mittelstreifen (Breite 115 mm)",
+      "descriptionEn": "Standard straight 385 mm, 2-lane with center dash markings (width 115 mm)",
+      "length": 385,
+      "isRoad": true,
+      "roadWidth": 115,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 385,
+          "y": 0,
+          "angle": 0
+        }
+      ],
+      "gauge": 32
+    },
+    {
+      "id": "ST-0-TJ-90",
+      "name": "T-Kreuzung / Einmündung 90° (0)",
+      "nameEn": "T-Junction 90° (Scale 0)",
+      "kind": "turnout-left",
+      "category": "Weichen",
+      "description": "T-Einmündung 90°, Hauptstraße 385 mm, Abzweig 192,5 mm (Breite 115 mm)",
+      "descriptionEn": "90° T-junction, main road 385 mm, branch 192.5 mm (width 115 mm)",
+      "length": 385,
+      "branchLength": 192.5,
+      "branchAngle": 90,
+      "isRoad": true,
+      "roadWidth": 115,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 385,
+          "y": 0,
+          "angle": 0
+        },
+        {
+          "x": 192.5,
+          "y": 192.5,
+          "angle": 90
+        }
+      ],
+      "gauge": 32
+    },
+    {
+      "id": "ST-0-X-90",
+      "name": "Straßenkreuzung 90° (0)",
+      "nameEn": "Crossroads 90° (Scale 0)",
+      "kind": "crossing",
+      "category": "Kreuzungen",
+      "description": "Vollkreuzung 90°, 385 mm × 385 mm mit 4 Anschlüssen (Breite 115 mm)",
+      "descriptionEn": "Full 90° 4-way crossroad, 385 mm x 385 mm with 4 connectors (width 115 mm)",
+      "length": 385,
+      "angle": 90,
+      "isRoad": true,
+      "roadWidth": 115,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 385,
+          "y": 0,
+          "angle": 0
+        },
+        {
+          "x": 192.5,
+          "y": 192.5,
+          "angle": 90
+        },
+        {
+          "x": 192.5,
+          "y": -192.5,
+          "angle": 270
+        }
+      ],
+      "gauge": 32
+    },
+    {
+      "id": "ST-0-Y-45",
+      "name": "Y-Einmündung / Abzweig 45° (0)",
+      "nameEn": "Y-Junction 45° (Scale 0)",
+      "kind": "turnout-left",
+      "category": "Weichen",
+      "description": "Schräge Straßeneinmündung 45°, Hauptstraße 385 mm (Breite 115 mm)",
+      "descriptionEn": "Angled 45° road branching junction, main road 385 mm (width 115 mm)",
+      "length": 385,
+      "isRoad": true,
+      "roadWidth": 115,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 385,
+          "y": 0,
+          "angle": 0
+        },
+        {
+          "x": 272.2,
+          "y": 112.8,
+          "angle": 45
+        }
+      ],
+      "gauge": 32
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 import { Container, Graphics, Text, TextStyle } from "pixi.js";
 import type { TrackPiece, ColorMode } from "@/core/types";
-import { Catalog, getLocalConnectors, type CatalogEntry } from "@/catalog/catalog";
+import { Catalog, getLocalConnectors, isFeederEntry, isIsolatingEntry, type CatalogEntry } from "@/catalog/catalog";
 import type { PiecePowerResult } from "@/core/simulation";
 import { deg2rad, getPieceLocalCenter, getUprightTextRotation } from "@/core/geometry";
 import { getTrackBlueprintColor, type BlueprintColor } from "./blueprint-colors";
@@ -95,10 +95,10 @@ export function createTrackGraphics(
   const gauge = entry.gauge ?? 16.5;
   const gaugeHalf = gauge / 2;
   const hasRoadbed = entry.hasRoadbed ?? true;
-  const ballastWidth = hasRoadbed ? (gauge >= 16 ? 36 : gauge * 2.2) : gauge * 1.5;
+  const ballastWidth = hasRoadbed ? (gauge >= 30 ? gauge * 2.18 : (gauge >= 16 ? 36 : gauge * 2.2)) : gauge * 1.5;
   const tieLenHalf = gauge * 0.78;
-  const tieWidth = gauge >= 16 ? 2.6 : (gauge >= 12 ? 2.0 : 1.5);
-  const tieSpacing = gauge >= 16 ? 6.5 : (gauge >= 12 ? 4.8 : 3.5);
+  const tieWidth = gauge >= 30 ? 6.5 : (gauge >= 16 ? 2.6 : (gauge >= 12 ? 2.0 : 1.5));
+  const tieSpacing = gauge >= 30 ? 16.0 : (gauge >= 16 ? 6.5 : (gauge >= 12 ? 4.8 : 3.5));
 
   // Elevation & Rampen-Berechnung
   const baseElev = options.layerHeightMm ?? 0;
@@ -200,12 +200,16 @@ export function createTrackGraphics(
 
   // --- 5. EINSPEISEPUNKT MARKER (⚡) ---
   if (piece.powerFeed) {
-    drawPowerFeederMarker(container);
+    drawPowerFeederMarker(container, entry);
+  } else if (isFeederEntry(entry)) {
+    drawPowerFeederMarker(container, entry, true);
   }
 
   // --- 5B. SPANNUNGSTRENNSTELLE MARKER (⛔) ---
   if (piece.isIsolator) {
     drawIsolatorMarker(container, entry, piece.isolatedConnectorIndex ?? 0);
+  } else if (isIsolatingEntry(entry)) {
+    drawIsolatorMarker(container, entry, piece.isolatedConnectorIndex ?? 0, true);
   }
 
   // --- 5C. OBERLEITUNG (Fahrdraht & Masten) ---
@@ -804,7 +808,7 @@ function drawSelectionContour(g: Graphics, entry: CatalogEntry, contourWidth = 4
     return;
   }
 
-  if (kind === "dkw") {
+  if (kind === "double-slip") {
     const l = entry.length ?? 188.3;
     const a = entry.angle ?? 24.3;
     const br = entry.branchRadius ?? 437.5;
@@ -853,7 +857,7 @@ function drawSelectionGizmo(container: Container, entry: CatalogEntry) {
 
   const g = new Graphics();
   const center = getPieceLocalCenter(entry);
-  const stemOffset = entry.kind === "turntable" ? 220 : entry.kind === "transfer-table" ? 240 : entry.kind === "dkw" ? 62 : entry.isRoad ? 50 : 48;
+  const stemOffset = entry.kind === "turntable" ? 220 : entry.kind === "transfer-table" ? 240 : entry.kind === "double-slip" ? 62 : entry.isRoad ? 50 : 48;
   const handlePos = { x: center.x, y: center.y - stemOffset };
 
   // 1. Verbindungsschaft zum Drehgriff
@@ -1078,7 +1082,7 @@ function drawBallast(g: Graphics, entry: CatalogEntry, color: number, ballastWid
     return;
   }
 
-  if (kind === "dkw") {
+  if (kind === "double-slip") {
     const l = entry.length ?? 188.3;
     const a = entry.angle ?? 24.3;
     const br = entry.branchRadius ?? 437.5;
@@ -1381,7 +1385,7 @@ function drawTies(g: Graphics, entry: CatalogEntry, color: number, tieLenHalf = 
     return;
   }
 
-  if (kind === "dkw") {
+  if (kind === "double-slip") {
     const l = entry.length ?? 188.3;
     const a = entry.angle ?? 24.3;
     const br = entry.branchRadius ?? 437.5;
@@ -1709,7 +1713,7 @@ function drawRails(g: Graphics, entry: CatalogEntry, color: number, gaugeHalf: n
     return;
   }
 
-  if (kind === "dkw") {
+  if (kind === "double-slip") {
     const l = entry.length ?? 188.3;
     const a = entry.angle ?? 24.3;
     const br = entry.branchRadius ?? 437.5;
@@ -1869,7 +1873,7 @@ function drawTrackCenterline(g: Graphics, entry: CatalogEntry, color: number, wi
     return;
   }
 
-  if (kind === "dkw") {
+  if (kind === "double-slip") {
     const l = entry.length ?? 188.3;
     const a = entry.angle ?? 24.3;
     const br = entry.branchRadius ?? 437.5;
@@ -1917,20 +1921,41 @@ function drawArcStroke(
   g.stroke({ width: strokeWidth, color, alpha, cap: "butt", join: "miter" });
 }
 
-function drawPowerFeederMarker(parent: Container) {
+function drawPowerFeederMarker(parent: Container, entry: CatalogEntry, isGrey = false) {
+  const center = getPieceLocalCenter(entry);
+  const badgeX = center.x;
+  const badgeY = center.y - 26;
+
+  // Verbindungssteg senkrecht zum Gleis (von Gleisrand bis Plakette)
+  const stem = new Graphics();
+  stem.moveTo(badgeX, center.y - 12).lineTo(badgeX, badgeY + 11);
+  stem.stroke({
+    width: 2,
+    color: isGrey ? 0x94a3b8 : 0xeab308,
+    alpha: isGrey ? 0.6 : 0.9,
+  });
+  parent.addChild(stem);
+
   const marker = new Container();
-  marker.position.set(20, -25);
-  marker.rotation = -parent.rotation;
+  marker.position.set(badgeX, badgeY);
+  marker.rotation = 0; // senkrecht zum Gleis
 
   const bg = new Graphics();
+  bg.circle(1, 1, 11);
+  bg.fill({ color: 0x000000, alpha: 0.35 });
   bg.circle(0, 0, 11);
-  bg.fill({ color: 0xeab308, alpha: 0.95 });
-  bg.stroke({ width: 2, color: 0xffffff });
+  if (isGrey) {
+    bg.fill({ color: 0x64748b, alpha: 0.75 });
+    bg.stroke({ width: 1.5, color: 0x94a3b8 });
+  } else {
+    bg.fill({ color: 0xeab308, alpha: 0.95 });
+    bg.stroke({ width: 2, color: 0xffffff });
+  }
   marker.addChild(bg);
 
   const txt = new Text({
     text: "⚡",
-    style: new TextStyle({ fontSize: 13, fill: 0x1e293b, fontWeight: "bold" }),
+    style: new TextStyle({ fontSize: 13, fill: isGrey ? 0xe2e8f0 : 0x1e293b, fontWeight: "bold" }),
   });
   txt.anchor.set(0.5);
   marker.addChild(txt);
@@ -1938,7 +1963,7 @@ function drawPowerFeederMarker(parent: Container) {
   parent.addChild(marker);
 }
 
-function drawIsolatorMarker(parent: Container, entry: CatalogEntry, isoIdx = 0) {
+function drawIsolatorMarker(parent: Container, entry: CatalogEntry, isoIdx = 0, isGrey = false) {
   const locals = getLocalConnectors(entry);
   const lc = locals[isoIdx] ?? locals[0] ?? { x: 0, y: 0, angle: 180 };
 
@@ -1953,33 +1978,54 @@ function drawIsolatorMarker(parent: Container, entry: CatalogEntry, isoIdx = 0) 
   const cy = lc.y + inwardY * 5;
 
   const cut = new Graphics();
-  // Markante rote Trennlinie quer über das Gleisprofil
-  cut.moveTo(cx - perpX * 18, cy - perpY * 18).lineTo(cx + perpX * 18, cy + perpY * 18);
-  cut.stroke({ width: 4, color: 0xdc2626, alpha: 0.95 });
-  // Helle Reflexionslinie
-  cut.moveTo(cx + inwardX * 1.5 - perpX * 18, cy + inwardY * 1.5 - perpY * 18)
-    .lineTo(cx + inwardX * 1.5 + perpX * 18, cy + inwardY * 1.5 + perpY * 18);
-  cut.stroke({ width: 1.5, color: 0xffffff, alpha: 0.85 });
+  if (isGrey) {
+    cut.moveTo(cx - perpX * 18, cy - perpY * 18).lineTo(cx + perpX * 18, cy + perpY * 18);
+    cut.stroke({ width: 3, color: 0x64748b, alpha: 0.6 });
+  } else {
+    // Markante rote Trennlinie quer über das Gleisprofil
+    cut.moveTo(cx - perpX * 18, cy - perpY * 18).lineTo(cx + perpX * 18, cy + perpY * 18);
+    cut.stroke({ width: 4, color: 0xdc2626, alpha: 0.95 });
+    // Helle Reflexionslinie
+    cut.moveTo(cx + inwardX * 1.5 - perpX * 18, cy + inwardY * 1.5 - perpY * 18)
+      .lineTo(cx + inwardX * 1.5 + perpX * 18, cy + inwardY * 1.5 + perpY * 18);
+    cut.stroke({ width: 1.5, color: 0xffffff, alpha: 0.85 });
+  }
   parent.addChild(cut);
 
-  // Markante runde ⛔ Plakette neben der Trennstelle
+  // Plakette senkrecht zum Gleis und über dem Gleis (oben: negatives y)
+  const badgeX = cx;
+  const badgeY = cy - 26;
+
+  // Verbindungssteg senkrecht zum Gleis von der Trennlinie nach oben zur Plakette
+  const stem = new Graphics();
+  stem.moveTo(badgeX, cy - 12).lineTo(badgeX, badgeY + 11);
+  stem.stroke({
+    width: 2,
+    color: isGrey ? 0x94a3b8 : 0xdc2626,
+    alpha: isGrey ? 0.6 : 0.9,
+  });
+  parent.addChild(stem);
+
   const marker = new Container();
-  const badgeX = cx + perpX * 24;
-  const badgeY = cy + perpY * 24;
   marker.position.set(badgeX, badgeY);
-  marker.rotation = -parent.rotation;
+  marker.rotation = 0; // senkrecht zum Gleis
 
   const bg = new Graphics();
   bg.circle(1, 1, 11);
   bg.fill({ color: 0x000000, alpha: 0.45 });
   bg.circle(0, 0, 11);
-  bg.fill({ color: 0xdc2626, alpha: 0.95 });
-  bg.stroke({ width: 2, color: 0xffffff });
+  if (isGrey) {
+    bg.fill({ color: 0x64748b, alpha: 0.75 });
+    bg.stroke({ width: 1.5, color: 0x94a3b8 });
+  } else {
+    bg.fill({ color: 0xdc2626, alpha: 0.95 });
+    bg.stroke({ width: 2, color: 0xffffff });
+  }
   marker.addChild(bg);
 
   const txt = new Text({
-    text: "⛔",
-    style: new TextStyle({ fontSize: 11, fill: 0xffffff, fontWeight: "bold" }),
+    text: isGrey ? "⊘" : "⛔",
+    style: new TextStyle({ fontSize: 13, fill: 0xffffff, fontWeight: "bold" }),
   });
   txt.anchor.set(0.5);
   marker.addChild(txt);
@@ -2089,15 +2135,15 @@ function drawCatenary2D(parent: Container, entry: CatalogEntry, powerResult?: Pi
   parent.addChild(g);
 }
 
-function drawCatenaryPowerFeederMarker(parent: Container, _entry: CatalogEntry) {
+function drawCatenaryPowerFeederMarker(parent: Container, entry: CatalogEntry) {
   const marker = new Container();
-  // Platzierung auf der Mast-Seite bei y = +26
-  marker.position.set(16, 26);
-  marker.rotation = -parent.rotation;
+  const center = getPieceLocalCenter(entry);
+  marker.position.set(center.x, center.y - 28);
+  marker.rotation = 0; // senkrecht zum Gleis
 
   const g = new Graphics();
-  // Zuleitungskabel von der Plakette zum Mast/Fahrdraht
-  g.moveTo(0, 0).lineTo(-16, -6).lineTo(-16, -26);
+  // Zuleitungskabel von der Plakette senkrecht nach unten zum Fahrdraht
+  g.moveTo(0, 11).lineTo(0, 28);
   g.stroke({ width: 1.8, color: 0x0284c7, alpha: 0.9 });
 
   // Schatten
@@ -2161,13 +2207,17 @@ function drawCatenaryIsolatorMarker(parent: Container, entry: CatalogEntry, isoI
 
   parent.addChild(cut);
 
-  // Markante runde Plakette neben der Oberleitungs-Trennstelle
+  // Markante runde Plakette über der Oberleitungs-Trennstelle (senkrecht zum Gleis, oben)
   const marker = new Container();
-  const badgeDist = 26;
-  const badgeX = cx - perpX * badgeDist;
-  const badgeY = cy - perpY * badgeDist;
+  const badgeX = cx;
+  const badgeY = cy - 28;
   marker.position.set(badgeX, badgeY);
-  marker.rotation = -parent.rotation;
+  marker.rotation = 0; // senkrecht zum Gleis
+
+  const gWire = new Graphics();
+  gWire.moveTo(cx, cy - 12).lineTo(cx, cy - 17);
+  gWire.stroke({ width: 1.5, color: 0x0284c7, alpha: 0.85 });
+  parent.addChild(gWire);
 
   const bg = new Graphics();
   bg.circle(1, 1, 11);

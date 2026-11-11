@@ -36,8 +36,9 @@ import { SelectionBar } from "@/ui/selection-bar";
 import { MeasureHud, getScaleRatio } from "@/ui/measure-hud";
 import { TrackOperations } from "@/editor/track-operations";
 import { CanvasController } from "@/editor/canvas-controller";
-import { initDemoTracks, generateStressTracks } from "@/editor/demo-tracks";
+import { initDemoTracks, generateStressTracks, type DemoLayoutDef } from "@/editor/demo-tracks";
 import { showWelcomeDialog, type StartupAction } from "@/ui/welcome-dialog";
+import { showDemoTracksDialog } from "@/ui/demo-tracks-dialog";
 import { getFullAppTitle } from "@/version";
 import { getEffectiveFlexEntry } from "@/core/flextrack";
 import { initLayoutResizers } from "@/ui/layout-resizer";
@@ -635,7 +636,7 @@ async function main() {
       onSuccess: (newCat) => {
         catalog = newCat;
         sidebar?.setCatalog(catalog);
-        if (layout.pieces.length === 0 && (newCat.scale === "H0" || newCat.scale === "N" || newCat.scale === "TT" || newCat.scale === "Z" || newCat.scale === "1")) {
+        if (layout.pieces.length === 0 && (newCat.scale === "H0" || newCat.scale === "N" || newCat.scale === "TT" || newCat.scale === "Z" || newCat.scale === "1" || newCat.scale === "G" || newCat.scale === "0")) {
           layout.scale = newCat.scale;
         }
         sync(false);
@@ -657,7 +658,7 @@ async function main() {
       if (newCat) {
         catalog = newCat;
         sidebar?.setCatalog(catalog);
-        if (layout.pieces.length === 0 && (newCat.scale === "H0" || newCat.scale === "N" || newCat.scale === "TT" || newCat.scale === "Z" || newCat.scale === "1")) {
+        if (layout.pieces.length === 0 && (newCat.scale === "H0" || newCat.scale === "N" || newCat.scale === "TT" || newCat.scale === "Z" || newCat.scale === "1" || newCat.scale === "G" || newCat.scale === "0")) {
           layout.scale = newCat.scale;
         }
         sync(false);
@@ -779,7 +780,12 @@ async function main() {
     setTrackLabelsEnabled: (val) => { trackLabelsEnabled = val; },
     isPowerSimEnabled: () => powerSimEnabled,
     setPowerSimEnabled: (val) => { powerSimEnabled = val; },
-    openHeightDialogForSelection, triggerCollabDialog, triggerWelcomeDialog: () => triggerWelcome(), triggerImportCatalog, showToast,
+    openHeightDialogForSelection,
+    triggerCollabDialog,
+    triggerWelcomeDialog: () => triggerWelcome(),
+    triggerDemoTracksDialog: () => triggerDemoTracks(),
+    triggerImportCatalog,
+    showToast,
   });
 
   createToolbar(toolbarHost, toolbarEvents);
@@ -926,6 +932,51 @@ async function main() {
     sync(false);
   });
 
+  function loadDemoLayout(demo: DemoLayoutDef) {
+    const chosen = demo.createLayout();
+    layout.name = chosen.name;
+    layout.scale = chosen.scale;
+    layout.feedVoltage = chosen.feedVoltage;
+    layout.locoCurrentMa = chosen.locoCurrentMa;
+    layout.locoCount = chosen.locoCount;
+    layout.turnoutLanternCurrentMa = chosen.turnoutLanternCurrentMa;
+    layout.turnoutDecoderCurrentMa = chosen.turnoutDecoderCurrentMa;
+    layout.layers = chosen.layers;
+    layout.activeLayerId = chosen.activeLayerId;
+    layout.baseboard = chosen.baseboard;
+    layout.baseboards = chosen.baseboards;
+    layout.models = chosen.models;
+    layout.pieces = chosen.pieces;
+    ensureDefaultLayers(layout);
+
+    const matchedCat = catalogRegistry.get(demo.catalogId);
+    if (matchedCat) {
+      catalog = matchedCat;
+      sidebar?.setCatalog(catalog);
+    }
+
+    planManager.setPlanInfo(`${layout.name}.railbench`, null, "railbench");
+    history = new History(layout);
+    selection.clear();
+    sync(false);
+    saveSettingsState();
+    showToast(
+      getLanguage() === "de"
+        ? `Demo-Layout "${demo.name}" geladen!`
+        : `Demo layout "${demo.nameEn}" loaded!`,
+      "🚆"
+    );
+  }
+
+  function triggerDemoTracks() {
+    showDemoTracksDialog({
+      currentLayoutDirty: planManager.getState().isDirty,
+      onSelect: (demo) => {
+        loadDemoLayout(demo);
+      },
+    });
+  }
+
   function applyStartupAction(action: "recent" | "new" | "demo" | "open", cached?: Layout | null) {
     if (action === "recent" && cached && cached.pieces?.length) {
       layout = cached;
@@ -936,6 +987,10 @@ async function main() {
       layout.models = [];
       ensureDefaultLayers(layout);
       planManager.setPlanInfo(getLanguage() === "de" ? "Neuer Plan.railbench" : "New Layout.railbench", null, "railbench");
+    } else if (action === "demo") {
+      initDemoTracks(layout, catalog);
+      planManager.setPlanInfo(`${layout.name}.railbench`, null, "railbench");
+      triggerDemoTracks();
     } else {
       initDemoTracks(layout, catalog);
       planManager.setPlanInfo(`${layout.name}.railbench`, null, "railbench");

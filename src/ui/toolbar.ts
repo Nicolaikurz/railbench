@@ -6,6 +6,7 @@ export interface ToolbarEvents {
   onToggleRightSidebar?: () => void;
   onNewPlan: () => void;
   onOpenPlan: () => void;
+  onOpenDemoTracks?: () => void;
   onSavePlan: () => void;
   onSavePlanAs: () => void;
   onSaveXML: () => void;
@@ -399,6 +400,7 @@ function createBrandMainMenu(t: any, events: ToolbarEvents): HTMLElement {
     { sectionHeader: t.menus.plan },
     { label: t.fileMenu.newPlan, shortcut: "Ctrl+N", onClick: events.onNewPlan },
     { label: t.fileMenu.openPlan, shortcut: "Ctrl+O", onClick: events.onOpenPlan },
+    { label: t.fileMenu.demoTracks, onClick: () => events.onOpenDemoTracks?.() },
     { label: t.fileMenu.savePlan, shortcut: "Ctrl+S", onClick: events.onSavePlan },
     { label: t.fileMenu.saveAs, shortcut: "Ctrl+Shift+S", onClick: events.onSavePlanAs },
     { label: t.fileMenu.importCatalog, onClick: () => events.onImportCatalog?.() },

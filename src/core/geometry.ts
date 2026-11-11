@@ -260,7 +260,7 @@ export function distanceToTrackPiece(
     return Math.min(d1, d2);
   }
 
-  if (kind === "dkw") {
+  if (kind === "double-slip") {
     const l = entry.length ?? 188.3;
     const a = entry.angle ?? 24.3;
     const br = entry.branchRadius ?? 437.5;
@@ -337,7 +337,7 @@ export function getPieceLocalCenter(entry: CatalogEntry): Vec2 {
       y: -r * (1 - Math.cos(halfRad)),
     };
   }
-  if (kind === "straight" || kind === "accessory" || kind === "flex" || kind === "turnout-left" || kind === "turnout-right" || kind === "three-way" || kind === "dkw") {
+  if (kind === "straight" || kind === "accessory" || kind === "flex" || kind === "turnout-left" || kind === "turnout-right" || kind === "three-way" || kind === "double-slip") {
     const l = entry.length ?? (kind === "flex" ? 900 : 188.3);
     return { x: l / 2, y: 0 };
   }
@@ -364,7 +364,7 @@ export function getPieceLocalCenter(entry: CatalogEntry): Vec2 {
 export function getPieceRotationHandleWorld(
   entry: CatalogEntry,
   transform: Transform,
-  stemOffset = entry.kind === "turntable" ? 220 : entry.kind === "transfer-table" ? 240 : entry.kind === "dkw" ? 62 : entry.isRoad ? 50 : 48,
+  stemOffset = entry.kind === "turntable" ? 220 : entry.kind === "transfer-table" ? 240 : entry.kind === "double-slip" ? 62 : entry.isRoad ? 50 : 48,
 ): Vec2 {
   const center = getPieceLocalCenter(entry);
   // Senkrecht zur Fahrtrichtung nach oben (negatives y im lokalen System)
@@ -502,7 +502,7 @@ export function isPieceInSelectionBox(
   const isCurvedTurnoutR = kind === "curved-turnout-right" || (kind === "turnout-right" && entry.radius && !entry.length);
   const sampleSteps = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
 
-  if (kind === "straight" || kind === "accessory" || isStraightTurnout || kind === "three-way" || kind === "dkw") {
+  if (kind === "straight" || kind === "accessory" || isStraightTurnout || kind === "three-way" || kind === "double-slip") {
     const l = entry.length ?? 188.3;
     for (const t of sampleSteps) {
       const pt = transformPoint({ x: l * t, y: 0 }, piece.transform);

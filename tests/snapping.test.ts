@@ -78,7 +78,7 @@ describe("findSnap", () => {
     const entry: CatalogEntry = {
       id: "24624",
       name: "DKW",
-      kind: "dkw",
+      kind: "double-slip",
       length: 188.3,
       angle: 24.3,
       branchRadius: 437.5,
@@ -299,7 +299,7 @@ describe("catalogRegistry and track systems", () => {
     expect(tTurnout?.branchAngle).toBe(24.3);
 
     const tDkw = trixCCatalog.entries.find((e) => e.id === "62624");
-    expect(tDkw?.kind).toBe("dkw");
+    expect(tDkw?.kind).toBe("double-slip");
     expect(tDkw?.length).toBe(188.3);
 
     const tSlimCrossing = trixCCatalog.entries.find((e) => e.id === "62740");

@@ -1146,11 +1146,13 @@ export class Viewer3D {
       targetGroup.add(ballastMesh);
 
       // 2. Schwellen
-      const tieGeo = new THREE.BoxGeometry(2.6, 2.2, gauge * 1.55);
-      const tieCount = Math.floor(len / 6.5);
+      const tieW = Math.max(1.5, (gauge / 16.5) * 2.6);
+      const tieStep = Math.max(3.5, (gauge / 16.5) * 6.5);
+      const tieGeo = new THREE.BoxGeometry(tieW, 2.2, gauge * 1.55);
+      const tieCount = Math.floor(len / tieStep);
       for (let i = 0; i < tieCount; i++) {
         const tie = new THREE.Mesh(tieGeo, tieMat);
-        tie.position.set(startX + i * 6.5 + 3.2, ballastH + 1.1, 0);
+        tie.position.set(startX + i * tieStep + tieStep / 2, ballastH + 1.1, 0);
         tie.castShadow = true;
         targetGroup.add(tie);
       }
@@ -1266,8 +1268,10 @@ export class Viewer3D {
 
       // 3. Schwellen entlang des Bogens
       const arcLen = r * rad;
-      const tieCount = Math.max(3, Math.floor(arcLen / 6.5));
-      const tieGeo = new THREE.BoxGeometry(2.6, 2.2, gauge * 1.55);
+      const tieW = Math.max(1.5, (gauge / 16.5) * 2.6);
+      const tieStep = Math.max(3.5, (gauge / 16.5) * 6.5);
+      const tieCount = Math.max(3, Math.floor(arcLen / tieStep));
+      const tieGeo = new THREE.BoxGeometry(tieW, 2.2, gauge * 1.55);
       for (let i = 0; i < tieCount; i++) {
         const u = (i + 0.5) / tieCount;
         const phi = u * rad;
@@ -1407,7 +1411,7 @@ export class Viewer3D {
     // =========================================================================
     // 7. DOPPELKREUZUNGSWEICHE (DKW / Double Slip Switch)
     // =========================================================================
-    else if (kind === "dkw") {
+    else if (kind === "double-slip") {
       const len = entry.length ?? 188.3;
       const a = entry.angle ?? 24.3;
       const rad = deg2rad(a);
@@ -2544,7 +2548,7 @@ export class Viewer3D {
 
       addStraightWire(-h, 0, h, 0, true, 1);
       addStraightWire(-h * cos, -h * sin, h * cos, h * sin, true, 1);
-    } else if (kind === "dkw") {
+    } else if (kind === "double-slip") {
       const len = entry.length ?? 188.3;
       const a = entry.angle ?? 24.3;
       const rad = deg2rad(a);

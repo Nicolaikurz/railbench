@@ -177,7 +177,7 @@ describe("Drag Preview Generator", () => {
     const dkw: CatalogEntry = {
       id: "24620",
       name: "Doppelkreuzungsweiche",
-      kind: "dkw",
+      kind: "double-slip",
       category: "Kreuzungen",
       description: "DKW 188.3 mm, 24.3°",
       length: 188.3,

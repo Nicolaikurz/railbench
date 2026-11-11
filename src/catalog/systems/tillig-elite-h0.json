@@ -407,7 +407,7 @@
     {
       "id": "85390",
       "name": "Doppelkreuzungsweiche Baeseler DKW II (15°)",
-      "kind": "dkw",
+      "kind": "double-slip",
       "category": "Kreuzungen",
       "description": "Länge 228 mm, Kreuzungswinkel 15°, Zungen außenliegend",
       "length": 228,
@@ -419,7 +419,7 @@
     {
       "id": "85395",
       "name": "Doppelkreuzungsweiche eng DKW I (15°)",
-      "kind": "dkw",
+      "kind": "double-slip",
       "category": "Kreuzungen",
       "description": "Länge 166 mm, Kreuzungswinkel 15°, Zungen innenliegend",
       "length": 166,

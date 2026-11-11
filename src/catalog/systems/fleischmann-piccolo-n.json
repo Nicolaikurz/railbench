@@ -334,7 +334,7 @@
     {
       "id": "9184",
       "name": "Doppelkreuzungsweiche DKW 15°",
-      "kind": "dkw",
+      "kind": "double-slip",
       "category": "Kreuzungen",
       "description": "Länge 111 mm, Kreuzung 15°, 2x Abzweig R = 430 mm / 15°",
       "length": 111,

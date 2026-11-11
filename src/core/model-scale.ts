@@ -1,17 +1,29 @@
 import * as THREE from "three";
 
-export type ModelScale = "H0" | "TT" | "N" | "Z";
+export type ModelScale = "H0" | "TT" | "N" | "Z" | "1" | "G" | "0";
 
 /** Maßstab-Nenner (1:x). */
-export const MODEL_SCALE_RATIOS: Record<ModelScale, number> = { H0: 87, TT: 120, N: 160, Z: 220 };
+export const MODEL_SCALE_RATIOS: Record<ModelScale, number> = {
+  "0": 45,
+  "1": 32,
+  G: 22.5,
+  H0: 87,
+  TT: 120,
+  N: 160,
+  Z: 220,
+};
 
 /** Maßstab, in dem alle eingebauten Modelle gezeichnet sind (Geometrie in mm). */
 export const BUILTIN_BASE_SCALE: ModelScale = "H0";
 
-/** Normalisiert Strings wie "h0" oder undefined zu einem gültigen ModelScale. */
+/** Normalisiert Strings wie "h0", "1", "G", "0" oder undefined zu einem gültigen ModelScale. */
 export function parseModelScale(value?: string | null): ModelScale {
-  const s = (value ?? "").toUpperCase() as ModelScale;
-  return s in MODEL_SCALE_RATIOS ? s : BUILTIN_BASE_SCALE;
+  const s = (value ?? "").trim().toUpperCase();
+  if (s in MODEL_SCALE_RATIOS) return s as ModelScale;
+  if (s === "SPUR 0" || s === "SPUR0" || s === "GAUGE 0" || s === "GAUGE0" || s === "SCALE 0" || s === "O") return "0";
+  if (s === "SPUR 1" || s === "SPUR1" || s === "GAUGE 1" || s === "GAUGE1" || s === "SCALE 1") return "1";
+  if (s === "SPUR G" || s === "SPURG" || s === "GAUGE G" || s === "GAUGEG" || s === "SCALE G" || s === "LGB") return "G";
+  return BUILTIN_BASE_SCALE;
 }
 
 /** Faktor, um etwas von einem Maßstab in einen anderen umzurechnen (H0 -> N = 87/160 ≈ 0.544). */

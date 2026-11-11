@@ -68,6 +68,7 @@ export function saveAppSettings(patch: Partial<AppSettings>): void {
 
 export const KNOWN_PERSONAL_CONFIG_KEYS = [
   SETTINGS_STORAGE_KEY,
+  "railbench_favorite_tracks",
   "railbench_theme_pref",
   "theme-pref",
   "railbench_lang",

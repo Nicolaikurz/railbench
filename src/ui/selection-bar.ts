@@ -77,6 +77,24 @@ function injectSelectionBarStyles(): void {
       box-shadow: 0 0 8px rgba(2, 132, 199, 0.45);
       font-weight: 700;
     }
+    .selection-floating-bar .sel-bar-btn:not(.active):not(.sel-bar-btn-danger) {
+      color: #94a3b8;
+    }
+    .selection-floating-bar .sel-bar-btn:not(.active):not(.sel-bar-btn-danger):hover {
+      color: var(--text-main);
+    }
+    .selection-floating-bar #sel-bar-btn-feeder.active {
+      background: #f59e0b !important;
+      color: #ffffff !important;
+      border-color: #f59e0b !important;
+      box-shadow: 0 0 8px rgba(245, 158, 11, 0.45);
+    }
+    .selection-floating-bar #sel-bar-btn-isolator.active {
+      background: #dc2626 !important;
+      color: #ffffff !important;
+      border-color: #dc2626 !important;
+      box-shadow: 0 0 8px rgba(220, 38, 38, 0.45);
+    }
     .selection-floating-bar .sel-bar-btn-danger:hover {
       background: #ef4444 !important;
       color: #ffffff !important;

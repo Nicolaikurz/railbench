@@ -1,6 +1,13 @@
 import type { Layout, TrackPiece, Model3D, Transform } from "@/core/types";
 import { ensureDefaultLayers } from "@/core/layout";
-import { computeWorldConnectors, getLocalConnectors, type Catalog, type CatalogEntry } from "@/catalog/catalog";
+import {
+  computeWorldConnectors,
+  getLocalConnectors,
+  isFeederEntry,
+  isIsolatingEntry,
+  type Catalog,
+  type CatalogEntry,
+} from "@/catalog/catalog";
 import { findBestSnapForPiece, updatePieceConnections } from "@/core/snapping";
 import { snapModelToTurntable } from "@/core/turntable-snap";
 import { cutFlexTrack, bendFlexTrack } from "@/core/flextrack";
@@ -231,12 +238,34 @@ export class TrackOperations {
     const connectors = computeWorldConnectors(entry, targetTransform);
     const isFirst = layout.pieces.length === 0;
 
+    const isFeeder = isFeederEntry(entry);
+    const isIso = isIsolatingEntry(entry);
+
+    let powerFeed = isFirst;
+    if ((entry as any)._initialPowerFeed !== undefined) {
+      powerFeed = Boolean((entry as any)._initialPowerFeed);
+    } else if (isFeeder) {
+      powerFeed = true;
+    }
+
+    let isIsolator = false;
+    let isolatedConnectorIndex: number | undefined = undefined;
+    if ((entry as any)._initialIsolator !== undefined) {
+      isIsolator = Boolean((entry as any)._initialIsolator);
+      if (isIsolator) isolatedConnectorIndex = 0;
+    } else if (isIso) {
+      isIsolator = true;
+      isolatedConnectorIndex = 0;
+    }
+
     const piece: TrackPiece = {
       id,
       catalogId: entry.id,
       transform: targetTransform,
       connectors,
-      powerFeed: isFirst,
+      powerFeed,
+      isIsolator: isIsolator || undefined,
+      isolatedConnectorIndex,
       layerId: targetLayerId,
       elevation: targetElevation,
     };

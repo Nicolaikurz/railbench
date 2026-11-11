@@ -13,6 +13,7 @@ export const de: Translations = {
     fileMenu: {
       newPlan: "Neuer Gleisplan",
       openPlan: "Plan öffnen...",
+      demoTracks: "Demo-Layouts...",
       savePlan: "Speichern",
       saveAs: "Speichern unter...",
       importXml: "Gleisplan XML importieren...",
@@ -219,6 +220,7 @@ export const de: Translations = {
       twoConductors: "2 Leiter",
       threeConductors: "3 Leiter",
       categories: {
+        favorites: "Favoriten",
         all: "Alle",
         straights: "Geraden",
         curves: "Bögen",
@@ -517,5 +519,16 @@ export const de: Translations = {
     serverGuideTitle: "Eigenen Server im LAN oder Internet starten",
     serverGuideText: "Der integrierte Server läuft direkt in Railbench. Für einen dedizierten Dauer-Server ohne Benutzeroberfläche können Sie folgenden Befehl nutzen:",
     toastRemoteUpdate: "{name} hat den Gleisplan aktualisiert",
+  },
+  demoDialog: {
+    title: "Demo-Gleispläne auswählen",
+    subtitle: "Wähle ein vorgefertigtes Gleisplan-Muster zum Testen, Erkunden & Weiterbauen.",
+    filterAll: "Alle",
+    loadBtn: "Plan laden",
+    tracksUnit: "Gleise",
+    dimensions: "Platte",
+    closeBtn: "Schließen",
+    unsavedWarning: "Der aktuelle Plan hat ungespeicherte Änderungen. Möchtest du das Demo-Layout trotzdem laden?",
+    autoSwitchHint: "Hinweis: Das Laden eines Demo-Plans stellt automatisch das passende Gleissystem und die Spurweite ein.",
   },
 };

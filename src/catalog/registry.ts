@@ -15,11 +15,17 @@ import { genericStreetsCatalog } from "./systems/generic-streets-h0";
 import { genericStreetsNCatalog } from "./systems/generic-streets-n";
 import { genericStreetsTTCatalog } from "./systems/generic-streets-tt";
 import { genericStreetsZCatalog} from "./systems/generic-streets-z";
+import { genericStreets0Catalog } from "./systems/generic-streets-0";
+import { genericStreets1Catalog } from "./systems/generic-streets-1";
+import { genericStreetsGCatalog } from "./systems/generic-streets-g";
 import { kuehnGleisTTCatalog } from "./systems/kuehn-gleis-tt";
 import { tilligEliteH0Catalog } from "./systems/tillig-elite-h0";
 import { tilligBettungsgleisTTCatalog } from "./systems/tillig-bettungsgleis-tt";
 import { tilligTTCatalog } from "./systems/tillig-tt";
 import { rokuhanZCatalog } from "./systems/rokuhan-z";
+import { lenz0Catalog } from "./systems/lenz-0";
+import { maerklin1Catalog } from "./systems/maerklin-1";
+import { lgbGCatalog } from "./systems/lgb-g";
 
 
 function parseNum(val: any): number | undefined {
@@ -41,7 +47,19 @@ function normalizeKind(kind: any, entry: { radius?: number; branchRadius?: numbe
   if (k === "curved-turnout-right" || k === "bogenweiche-rechts" || k === "bogenweiche rechts") return "curved-turnout-right";
   if (k === "three-way" || k === "dreiweg" || k === "dreiwegweiche") return "three-way";
   if (k === "crossing" || k === "kreuzung") return "crossing";
-  if (k === "dkw" || k === "doppelkreuzungsweiche") return "dkw";
+  if (
+    k === "double-slip" ||
+    k === "double_slip" ||
+    k === "double slip" ||
+    k === "double-slip-switch" ||
+    k === "double slip switch" ||
+    k === "double-slip-turnout" ||
+    k === "double slip turnout" ||
+    k === "dkw" ||
+    k === "doppelkreuzungsweiche"
+  ) {
+    return "double-slip";
+  }
   if (k === "buffer-stop" || k === "prellbock") return "buffer-stop";
   if (k === "uncoupler" || k === "entkuppler" || k === "entkupplungsgleis") return "uncoupler";
   if (k === "feeder" || k === "anschlussgleis" || k === "einspeisung") return "feeder";
@@ -77,6 +95,12 @@ export class CatalogRegistry {
     this.register(genericStreetsTTCatalog);
     this.register(genericStreetsNCatalog);
     this.register(genericStreetsZCatalog);
+    this.register(genericStreets0Catalog);
+    this.register(genericStreets1Catalog);
+    this.register(genericStreetsGCatalog);
+    this.register(lenz0Catalog);
+    this.register(maerklin1Catalog);
+    this.register(lgbGCatalog);
     this.register(maerklinZCatalog);
     this.register(kuehnGleisTTCatalog);
     this.register(tilligEliteH0Catalog);
@@ -300,7 +324,7 @@ export class CatalogRegistry {
 
         let category = e.category || e.kategorie;
         if (!category) {
-          if (kind.includes("turnout") || kind === "three-way" || kind === "dkw") category = "Weichen";
+          if (kind.includes("turnout") || kind === "three-way" || kind === "double-slip") category = "Weichen";
           else if (kind === "curve") category = "Bögen";
           else if (kind === "crossing") category = "Kreuzungen";
           else if (kind === "buffer-stop" || kind === "uncoupler" || kind === "feeder" || kind === "accessory") category = "Zubehör";

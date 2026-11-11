@@ -1,0 +1,372 @@
+{
+  "id": "generic-streets-1",
+  "name": "Straßensystem / Streets (1 1:32)",
+  "manufacturer": "Modellstraße",
+  "system": "Straßen / Roads",
+  "scale": "1",
+  "gauge": 45,
+  "isRoadSystem": true,
+  "hasRoadbed": false,
+  "description": "Modulares Spur-1-Straßensystem (1:32) mit 2-spurigen Fahrbahnen (Breite 160 mm), Kurven, T-Einmündungen, Kreuzungen und Wendeplatz.",
+  "entries": [
+    {
+      "id": "ST-1-BUS",
+      "name": "Bushaltestelle / Parkbucht 540 mm (1)",
+      "nameEn": "Bus Stop / Parking Bay 540 mm (Scale 1)",
+      "kind": "straight",
+      "category": "Zubehör",
+      "description": "540 mm Fahrbahn mit seitlicher Parkbucht und Bus-Wartefläche (Breite 200 mm)",
+      "descriptionEn": "540 mm road with side parking bay and bus passenger area (width 200 mm)",
+      "length": 540,
+      "isRoad": true,
+      "roadWidth": 160,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 540,
+          "y": 0,
+          "angle": 0
+        }
+      ],
+      "gauge": 45
+    },
+    {
+      "id": "ST-1-C540-45",
+      "name": "Kurve 45° (R = 540 mm, 1)",
+      "nameEn": "Curved Road 45° (R = 540 mm, Scale 1)",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Bogen 45°, Radius 540 mm (Breite 160 mm)",
+      "descriptionEn": "Curve 45°, radius 540 mm (width 160 mm)",
+      "radius": 540,
+      "angle": 45,
+      "isRoad": true,
+      "roadWidth": 160,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 381.8,
+          "y": 158.2,
+          "angle": 45
+        }
+      ],
+      "gauge": 45
+    },
+    {
+      "id": "ST-1-C540-90",
+      "name": "Kurve 90° (R = 540 mm, 1)",
+      "nameEn": "Curved Road 90° (R = 540 mm, Scale 1)",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Standard-Rechtwinkelkurve 90°, Radius 540 mm (Breite 160 mm)",
+      "descriptionEn": "Standard 90° right-angle road curve, radius 540 mm (width 160 mm)",
+      "radius": 540,
+      "angle": 90,
+      "isRoad": true,
+      "roadWidth": 160,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 540,
+          "y": 540,
+          "angle": 90
+        }
+      ],
+      "gauge": 45
+    },
+    {
+      "id": "ST-1-C810-45",
+      "name": "Kurve 45° groß (R = 810 mm, 1)",
+      "nameEn": "Wide Curved Road 45° (R = 810 mm, Scale 1)",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Großer weiter Bogen 45°, Radius 810 mm (Breite 160 mm)",
+      "descriptionEn": "Wide gentle curve 45°, radius 810 mm (width 160 mm)",
+      "radius": 810,
+      "angle": 45,
+      "isRoad": true,
+      "roadWidth": 160,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 572.8,
+          "y": 237.2,
+          "angle": 45
+        }
+      ],
+      "gauge": 45
+    },
+    {
+      "id": "ST-1-CROSS",
+      "name": "Bahnübergang 540 mm (Straße 1)",
+      "nameEn": "Level Crossing 540 mm (Road Scale 1)",
+      "kind": "straight",
+      "category": "Zubehör",
+      "description": "540 mm Straßenüberquerung mit Gleis-Rillenprofil für Spur-1-Gleise (Breite 160 mm)",
+      "descriptionEn": "540 mm road crossing with Scale 1 rail groove inserts (width 160 mm)",
+      "length": 540,
+      "isRoad": true,
+      "roadWidth": 160,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 540,
+          "y": 0,
+          "angle": 0
+        }
+      ],
+      "gauge": 45
+    },
+    {
+      "id": "ST-1-FLEX",
+      "name": "Flexstraße 1500 mm (1)",
+      "nameEn": "Flex Road 1500 mm (Scale 1)",
+      "kind": "flex",
+      "category": "Geraden",
+      "description": "Biegsame 2-spurige Asphaltstraße, Gesamtlänge 1500 mm (Breite 160 mm)",
+      "descriptionEn": "Flexible 2-lane asphalt roadway, total length 1500 mm (width 160 mm)",
+      "length": 1500,
+      "isRoad": true,
+      "roadWidth": 160,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 1500,
+          "y": 0,
+          "angle": 0
+        }
+      ],
+      "gauge": 45
+    },
+    {
+      "id": "ST-1-LOOP",
+      "name": "Wendeplatz / Sackgasse (Wendehammer 1)",
+      "nameEn": "Cul-de-sac / Turning Loop (Scale 1)",
+      "kind": "accessory",
+      "category": "Zubehör",
+      "description": "Kreisförmiger Straßen-Wendeplatz mit 245 mm Durchmesser für Wendemanöver",
+      "descriptionEn": "Circular cul-de-sac turning head with 245 mm diameter for vehicle turning",
+      "length": 245,
+      "isRoad": true,
+      "roadWidth": 160,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        }
+      ],
+      "gauge": 45
+    },
+    {
+      "id": "ST-1-S135",
+      "name": "Gerade Straße 135 mm (1)",
+      "nameEn": "Straight Road 135 mm (Scale 1)",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Kurzes Ausgleichsstück 135 mm, 2-spurig (Breite 160 mm)",
+      "descriptionEn": "Short straight adapter piece 135 mm, 2-lane (width 160 mm)",
+      "length": 135,
+      "isRoad": true,
+      "roadWidth": 160,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 135,
+          "y": 0,
+          "angle": 0
+        }
+      ],
+      "gauge": 45
+    },
+    {
+      "id": "ST-1-S270",
+      "name": "Gerade Straße 270 mm (1)",
+      "nameEn": "Straight Road 270 mm (Scale 1)",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Halbe Standardgerade 270 mm, 2-spurig (Breite 160 mm)",
+      "descriptionEn": "Half standard straight 270 mm, 2-lane (width 160 mm)",
+      "length": 270,
+      "isRoad": true,
+      "roadWidth": 160,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 270,
+          "y": 0,
+          "angle": 0
+        }
+      ],
+      "gauge": 45
+    },
+    {
+      "id": "ST-1-S540",
+      "name": "Gerade Straße 540 mm (1)",
+      "nameEn": "Straight Road 540 mm (Scale 1)",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Standardgerade 540 mm, 2-spurig mit Mittelstreifen (Breite 160 mm)",
+      "descriptionEn": "Standard straight 540 mm, 2-lane with center dash markings (width 160 mm)",
+      "length": 540,
+      "isRoad": true,
+      "roadWidth": 160,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 540,
+          "y": 0,
+          "angle": 0
+        }
+      ],
+      "gauge": 45
+    },
+    {
+      "id": "ST-1-TJ-90",
+      "name": "T-Kreuzung / Einmündung 90° (1)",
+      "nameEn": "T-Junction 90° (Scale 1)",
+      "kind": "turnout-left",
+      "category": "Weichen",
+      "description": "T-Einmündung 90°, Hauptstraße 540 mm, Abzweig 270 mm (Breite 160 mm)",
+      "descriptionEn": "90° T-junction, main road 540 mm, branch 270 mm (width 160 mm)",
+      "length": 540,
+      "branchLength": 270,
+      "branchAngle": 90,
+      "isRoad": true,
+      "roadWidth": 160,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 540,
+          "y": 0,
+          "angle": 0
+        },
+        {
+          "x": 270,
+          "y": 270,
+          "angle": 90
+        }
+      ],
+      "gauge": 45
+    },
+    {
+      "id": "ST-1-X-90",
+      "name": "Straßenkreuzung 90° (1)",
+      "nameEn": "Crossroads 90° (Scale 1)",
+      "kind": "crossing",
+      "category": "Kreuzungen",
+      "description": "Vollkreuzung 90°, 540 mm × 540 mm mit 4 Anschlüssen (Breite 160 mm)",
+      "descriptionEn": "Full 90° 4-way crossroad, 540 mm x 540 mm with 4 connectors (width 160 mm)",
+      "length": 540,
+      "angle": 90,
+      "isRoad": true,
+      "roadWidth": 160,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 540,
+          "y": 0,
+          "angle": 0
+        },
+        {
+          "x": 270,
+          "y": 270,
+          "angle": 90
+        },
+        {
+          "x": 270,
+          "y": -270,
+          "angle": 270
+        }
+      ],
+      "gauge": 45
+    },
+    {
+      "id": "ST-1-Y-45",
+      "name": "Y-Einmündung / Abzweig 45° (1)",
+      "nameEn": "Y-Junction 45° (Scale 1)",
+      "kind": "turnout-left",
+      "category": "Weichen",
+      "description": "Schräge Straßeneinmündung 45°, Hauptstraße 540 mm (Breite 160 mm)",
+      "descriptionEn": "Angled 45° road branching junction, main road 540 mm (width 160 mm)",
+      "length": 540,
+      "isRoad": true,
+      "roadWidth": 160,
+      "hasRoadbed": false,
+      "localConnectors": [
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 540,
+          "y": 0,
+          "angle": 0
+        },
+        {
+          "x": 381.8,
+          "y": 158.2,
+          "angle": 45
+        }
+      ],
+      "gauge": 45
+    }
+  ]
+}

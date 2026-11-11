@@ -76,11 +76,11 @@ describe("Märklin M-Gleis & K-Gleis Catalogs", () => {
     expect(t5117L?.branchAngle).toBe(30.0);
     expect(t5117L?.kind).toBe("turnout-left");
 
-    // 5207 DKW
+    // 5207 DKW / Double slip
     const t5207 = catalogRegistry.findEntry("5207");
     expect(t5207).toBeDefined();
     expect(t5207?.length).toBe(180.0);
-    expect(t5207?.kind).toBe("dkw");
+    expect(t5207?.kind).toBe("double-slip");
 
     // 72941 Schiebebühne
     const t72941 = catalogRegistry.findEntry("72941");
@@ -128,11 +128,11 @@ describe("Märklin M-Gleis & K-Gleis Catalogs", () => {
     expect(t22711?.branchAngle).toBeCloseTo(14.43, 2);
     expect(t22711?.kind).toBe("turnout-left");
 
-    // 2275 slim DKW
+    // 2275 slim DKW / Double slip
     const t2275 = catalogRegistry.findEntry("2275");
     expect(t2275).toBeDefined();
     expect(t2275?.length).toBe(225.0);
-    expect(t2275?.kind).toBe("dkw");
+    expect(t2275?.kind).toBe("double-slip");
   });
 
   it("computes world connectors accurately for M-Gleis and K-Gleis pieces", () => {
@@ -268,12 +268,15 @@ describe("Generic Streets Catalog (H0 Roads)", () => {
     }
   });
 
-  it("provides flex streets across H0, TT, N, Z scales", () => {
+  it("provides flex streets across H0, TT, N, Z, 0, 1, G scales", () => {
     const scales = [
       { id: "ST-FLEX", scale: "H0", len: 800, width: 60 },
       { id: "ST-TT-FLEX", scale: "TT", len: 600, width: 44 },
       { id: "ST-N-FLEX", scale: "N", len: 500, width: 35 },
       { id: "ST-Z-FLEX", scale: "Z", len: 350, width: 24 },
+      { id: "ST-0-FLEX", scale: "0", len: 1200, width: 115 },
+      { id: "ST-1-FLEX", scale: "1", len: 1500, width: 160 },
+      { id: "ST-G-FLEX", scale: "G", len: 1500, width: 230 },
     ];
     for (const s of scales) {
       const entry = catalogRegistry.findEntry(s.id);
@@ -503,6 +506,134 @@ describe("Generic Streets Catalog (H0 Roads)", () => {
     });
 
     expect(() => catalogRegistry.loadFromJSON(layoutJson)).toThrow(/Gleisplan/);
+  });
+});
+
+describe("Scale 0, 1 & Scale G Tracks, Streets, and Buildings", () => {
+  it("registers Lenz Spur 0 track system with 32 mm gauge", () => {
+    const l0Cat = catalogRegistry.get("lenz-0");
+    expect(l0Cat).toBeDefined();
+    expect(l0Cat?.manufacturer).toBe("Lenz");
+    expect(l0Cat?.scale).toBe("0");
+    expect(l0Cat?.gauge).toBe(32.0);
+    expect(l0Cat?.entries.length).toBeGreaterThanOrEqual(15);
+
+    const g1 = catalogRegistry.findEntry("45010");
+    expect(g1).toBeDefined();
+    expect(g1?.length).toBeCloseTo(440.74, 2);
+    expect(g1?.gauge).toBe(32.0);
+    expect(g1?.kind).toBe("straight");
+
+    const r1 = catalogRegistry.findEntry("45021");
+    expect(r1).toBeDefined();
+    expect(r1?.radius).toBe(914.4);
+    expect(r1?.angle).toBe(22.5);
+
+    const wl = catalogRegistry.findEntry("45030");
+    expect(wl).toBeDefined();
+    expect(wl?.kind).toBe("turnout-left");
+    expect(wl?.branchRadius).toBe(1649.39);
+    expect(wl?.branchAngle).toBe(11.25);
+
+    const dkw = catalogRegistry.findEntry("45040");
+    expect(dkw).toBeDefined();
+    expect(dkw?.kind).toBe("double-slip");
+  });
+
+  it("registers Märklin Spur 1 track system with 45 mm gauge", () => {
+    const m1Cat = catalogRegistry.get("maerklin-1");
+    expect(m1Cat).toBeDefined();
+    expect(m1Cat?.manufacturer).toBe("Märklin");
+    expect(m1Cat?.scale).toBe("1");
+    expect(m1Cat?.gauge).toBe(45.0);
+    expect(m1Cat?.entries.length).toBeGreaterThanOrEqual(20);
+
+    const s300 = catalogRegistry.findEntry("5900");
+    expect(s300).toBeDefined();
+    expect(s300?.length).toBe(300);
+    expect(s300?.gauge).toBe(45.0);
+    expect(s300?.kind).toBe("straight");
+
+    const r1020 = catalogRegistry.findEntry("5922");
+    expect(r1020).toBeDefined();
+    expect(r1020?.radius).toBe(1020);
+    expect(r1020?.angle).toBe(30);
+
+    const w1020 = catalogRegistry.findEntry("5972");
+    expect(w1020).toBeDefined();
+    expect(w1020?.kind).toBe("turnout-left");
+    expect(w1020?.branchRadius).toBe(1020);
+    expect(w1020?.branchAngle).toBe(22.5);
+
+    const dkw = catalogRegistry.findEntry("5974");
+    expect(dkw).toBeDefined();
+    expect(dkw?.kind).toBe("double-slip");
+  });
+
+  it("registers LGB Spur G track system with 45 mm gauge", () => {
+    const lgbCat = catalogRegistry.get("lgb-g");
+    expect(lgbCat).toBeDefined();
+    expect(lgbCat?.manufacturer).toBe("LGB");
+    expect(lgbCat?.scale).toBe("G");
+    expect(lgbCat?.gauge).toBe(45.0);
+    expect(lgbCat?.entries.length).toBeGreaterThanOrEqual(20);
+
+    const s300 = catalogRegistry.findEntry("10000");
+    expect(s300).toBeDefined();
+    expect(s300?.length).toBe(300);
+    expect(s300?.gauge).toBe(45.0);
+    expect(s300?.kind).toBe("straight");
+
+    const r600 = catalogRegistry.findEntry("11000");
+    expect(r600).toBeDefined();
+    expect(r600?.radius).toBe(600);
+    expect(r600?.angle).toBe(30);
+
+    const w600 = catalogRegistry.findEntry("12000");
+    expect(w600).toBeDefined();
+    expect(w600?.kind).toBe("turnout-left");
+    expect(w600?.branchRadius).toBe(600);
+    expect(w600?.branchAngle).toBe(30);
+
+    const r3w = catalogRegistry.findEntry("16050");
+    expect(r3w).toBeDefined();
+    expect(r3w?.branchRadius).toBe(1175);
+    expect(r3w?.branchAngle).toBe(22.5);
+  });
+
+  it("registers generic streets catalogs for Scale 0 (1:45), Scale 1 (1:32) and Scale G (1:22.5)", () => {
+    const st0Cat = catalogRegistry.get("generic-streets-0");
+    expect(st0Cat).toBeDefined();
+    expect(st0Cat?.scale).toBe("0");
+    expect(st0Cat?.gauge).toBe(32);
+    expect(st0Cat?.isRoadSystem).toBe(true);
+    for (const e of st0Cat!.entries) {
+      expect(e.isRoad).toBe(true);
+      expect(e.roadWidth).toBe(115);
+      expect(e.gauge).toBe(32);
+    }
+
+    const st1Cat = catalogRegistry.get("generic-streets-1");
+    expect(st1Cat).toBeDefined();
+    expect(st1Cat?.scale).toBe("1");
+    expect(st1Cat?.gauge).toBe(45);
+    expect(st1Cat?.isRoadSystem).toBe(true);
+    for (const e of st1Cat!.entries) {
+      expect(e.isRoad).toBe(true);
+      expect(e.roadWidth).toBe(160);
+      expect(e.gauge).toBe(45);
+    }
+
+    const stGCat = catalogRegistry.get("generic-streets-g");
+    expect(stGCat).toBeDefined();
+    expect(stGCat?.scale).toBe("G");
+    expect(stGCat?.gauge).toBe(45);
+    expect(stGCat?.isRoadSystem).toBe(true);
+    for (const e of stGCat!.entries) {
+      expect(e.isRoad).toBe(true);
+      expect(e.roadWidth).toBe(230);
+      expect(e.gauge).toBe(45);
+    }
   });
 });
 

@@ -15,7 +15,7 @@ export type TrackKind =
   | "transfer-table"
   | "feeder"
   | "buffer-stop"
-  | "dkw"
+  | "double-slip"
   | "isolating"
   | "accessory";
 
@@ -51,8 +51,8 @@ export interface Catalog {
   name: string;
   manufacturer: string;
   system: string;
-  scale: "H0" | "TT" | "N" | "Z" | string;
-  gauge: number; // Spurweite in mm (H0: 16.5, TT: 12.0, N: 9.0, Z: 6.5)
+  scale: "H0" | "TT" | "N" | "Z" | "1" | "G" | "0" | string;
+  gauge: number; // Spurweite in mm (1/G: 45.0, 0: 32.0, H0: 16.5, TT: 12.0, N: 9.0, Z: 6.5)
   hasRoadbed?: boolean; // Bettungsgleis (true) oder Schwellengleis (false)
   conductors?: number; // Leiter-Anzahl: 2 oder 3 Leiter
   isRoadSystem?: boolean; // Kennzeichnung als Straßensystem
@@ -76,4 +76,41 @@ export function compareCatalogEntriesByNumber(a: CatalogEntry, b: CatalogEntry):
  */
 export function sortCatalogEntries(entries: CatalogEntry[]): CatalogEntry[] {
   return [...entries].sort(compareCatalogEntriesByNumber);
+}
+
+/**
+ * Prüft, ob ein Katalogeintrag ein Einspeise- / Anschlussgleis ist.
+ */
+export function isFeederEntry(entry?: CatalogEntry): boolean {
+  if (!entry) return false;
+  if (entry.kind === "feeder") return true;
+  const text = `${entry.id} ${entry.name} ${entry.nameEn ?? ""} ${entry.description} ${entry.descriptionEn ?? ""}`.toLowerCase();
+  return (
+    text.includes("anschlussgleis") ||
+    text.includes("einspeisung") ||
+    text.includes("einspeise") ||
+    text.includes("anschluss-gleis") ||
+    text.includes("power feeder") ||
+    text.includes("feeder track") ||
+    text.includes("stromanschluss")
+  );
+}
+
+/**
+ * Prüft, ob ein Katalogeintrag ein Trenngleis / Isoliergleis ist.
+ */
+export function isIsolatingEntry(entry?: CatalogEntry): boolean {
+  if (!entry) return false;
+  if (entry.kind === "isolating") return true;
+  const text = `${entry.id} ${entry.name} ${entry.nameEn ?? ""} ${entry.description} ${entry.descriptionEn ?? ""}`.toLowerCase();
+  return (
+    text.includes("trennstrecke") ||
+    text.includes("trenngleis") ||
+    text.includes("isoliergleis") ||
+    text.includes("isolating track") ||
+    text.includes("isolated track") ||
+    text.includes("unterbrechergleis") ||
+    text.includes("kontaktgleis") ||
+    text.includes("isolier")
+  );
 }
