@@ -261,14 +261,14 @@ describe("Plan Workflow & Dirty State", () => {
     const turnout = layout.pieces[0]!;
     expect(selection.all()).toEqual([turnout.id]);
 
-    // 2. Add curve track while turnout is selected -> should snap to curved branch (index 2) and turn right (-24.3 deg)
+    // 2. Add curve track while turnout is selected -> should snap to curved branch (index 2) and turn right (24.3 deg)
     ops.addPieceToLayout(curveEntry);
     expect(layout.pieces.length).toBe(2);
     const c1 = layout.pieces[1]!;
     expect(selection.all()).toEqual([c1.id]);
     expect(turnout.connectors[2]!.connectedTo?.pieceId).toBe(c1.id);
     const c1ExitAngle = c1.connectors[0]!.angle;
-    expect(c1ExitAngle).toBeCloseTo(305.7, 0.5);
+    expect(c1ExitAngle).toBeCloseTo(354.3, 0.5);
 
     // 3. Add another curve track -> should continue turning right by another 30 deg
     ops.addPieceToLayout(curveEntry);
@@ -277,7 +277,7 @@ describe("Plan Workflow & Dirty State", () => {
     expect(selection.all()).toEqual([c2.id]);
     expect(c1.connectors[0]!.connectedTo?.pieceId).toBe(c2.id);
     const c2ExitAngle = c2.connectors[0]!.angle;
-    expect(c2ExitAngle).toBeCloseTo(275.7, 0.5);
+    expect(c2ExitAngle).toBeCloseTo(324.3, 0.5);
   });
 
   it("does not snap to random other pieces if selected piece has no empty snap points", () => {

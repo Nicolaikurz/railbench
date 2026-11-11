@@ -21,8 +21,8 @@ export function buildTurntableTrainhall3D(group: THREE.Group): void {
 
   const Y_GROUND = 0;       // Tischoberfläche
   const Y_FLOOR = 3.5;      // Oberkante Hallenboden / Schienenbasis
-  const Y_EAVE = 64;        // Traufhöhe der Wände
-  const Y_RIDGE = 82;       // Firsthöhe der Giebeldächer
+  const Y_EAVE = 100;       // Traufhöhe der Wände (erhöht für vollständige Oberleitungs-Freiheit)
+  const Y_RIDGE = 122;      // Firsthöhe der Giebeldächer
 
   // Materialien
   const groundMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.9 });
@@ -181,12 +181,12 @@ export function buildTurntableTrainhall3D(group: THREE.Group): void {
 
     // Werkstattfenster an den Seiten
     for (let fz = R_FRONT + 45; fz < R_REAR - 45; fz += 55) {
-      const windowMesh = new THREE.Mesh(new THREE.BoxGeometry(4.4, 24, 30), glassMat);
-      windowMesh.position.set(0, Y_FLOOR + 28, fz);
+      const windowMesh = new THREE.Mesh(new THREE.BoxGeometry(4.4, 40, 30), glassMat);
+      windowMesh.position.set(0, Y_FLOOR + 46, fz);
       flankGroup.add(windowMesh);
 
       const sill = new THREE.Mesh(new THREE.BoxGeometry(5.2, 2.5, 34), trimMat);
-      sill.position.set(0, Y_FLOOR + 15, fz);
+      sill.position.set(0, Y_FLOOR + 25, fz);
       flankGroup.add(sill);
     }
 
@@ -206,8 +206,8 @@ export function buildTurntableTrainhall3D(group: THREE.Group): void {
     segGroup.add(rearWall);
 
     // Großes Sprossenfenster
-    const rearWin = new THREE.Mesh(new THREE.BoxGeometry(segW * 0.65, 32, 4.4), glassMat);
-    rearWin.position.set(0, Y_FLOOR + 30, R_REAR - 2);
+    const rearWin = new THREE.Mesh(new THREE.BoxGeometry(segW * 0.65, 46, 4.4), glassMat);
+    rearWin.position.set(0, Y_FLOOR + 48, R_REAR - 2);
     segGroup.add(rearWin);
 
     // Pfeiler an den Segmentgrenzen
@@ -222,9 +222,10 @@ export function buildTurntableTrainhall3D(group: THREE.Group): void {
     group.add(segGroup);
   }
 
-  // 5. FRONTFASSADE MIT LOKTOREN (Y = 3.5 bis Y = 64 mm)
+  // 5. FRONTFASSADE MIT LOKTOREN (Y = 3.5 bis Y = 100 mm)
+  // Durchfahrtsöffnung: Breite 34 mm, Höhe 88 mm (Y von 3.5 bis 91.5 mm für volle Oberleitungs-Freiheit)
   const portalW = 34;
-  const portalH = 46;
+  const portalH = 88;
 
   for (let i = 0; i < 3; i++) {
     const angle = STALL_CENTERS[i]!;
@@ -255,28 +256,39 @@ export function buildTurntableTrainhall3D(group: THREE.Group): void {
     archTrim.position.set(0, Y_FLOOR + portalH + 1.7, R_FRONT + 2);
     portalGroup.add(archTrim);
 
-    // Torflügel links & rechts (auf Bodenhöhe Y=3.5 mm beginnend, leicht geöffnet)
+    // Torflügel links & rechts weit geöffnet an den Außenpfosten
     const leafW = portalW / 2 - 0.5;
     const doorLeafGeo = new THREE.BoxGeometry(leafW, portalH - 1, 1.8);
 
+    // Linker Torflügel: Scharnier am linken Portalpfeiler, weit nach außen geöffnet (~77°)
+    const hingeL = new THREE.Group();
+    hingeL.position.set(-portalW / 2, Y_FLOOR + (portalH - 1) / 2, R_FRONT + 2);
+    hingeL.rotation.y = 1.35;
+
     const doorL = new THREE.Mesh(doorLeafGeo, doorMat);
-    doorL.position.set(-portalW / 4, Y_FLOOR + (portalH - 1) / 2, R_FRONT + 1);
-    doorL.rotation.y = 0.22;
-    portalGroup.add(doorL);
+    doorL.position.set(leafW / 2, 0, 0);
+    hingeL.add(doorL);
+
+    const doorWinL = new THREE.Mesh(new THREE.BoxGeometry(9, 20, 2.2), glassMat);
+    doorWinL.position.set(leafW / 2, (portalH - 1) / 2 - 16, 0);
+    hingeL.add(doorWinL);
+
+    portalGroup.add(hingeL);
+
+    // Rechter Torflügel: Scharnier am rechten Portalpfeiler, weit nach außen geöffnet (~ -77°)
+    const hingeR = new THREE.Group();
+    hingeR.position.set(portalW / 2, Y_FLOOR + (portalH - 1) / 2, R_FRONT + 2);
+    hingeR.rotation.y = -1.35;
 
     const doorR = new THREE.Mesh(doorLeafGeo, doorMat);
-    doorR.position.set(portalW / 4, Y_FLOOR + (portalH - 1) / 2, R_FRONT + 1);
-    doorR.rotation.y = -0.22;
-    portalGroup.add(doorR);
+    doorR.position.set(-leafW / 2, 0, 0);
+    hingeR.add(doorR);
 
-    // Verglaste Oberlichter in den Torflügeln
-    const doorWinL = new THREE.Mesh(new THREE.BoxGeometry(9, 12, 2.2), glassMat);
-    doorWinL.position.set(-portalW / 4 - 0.5, Y_FLOOR + portalH - 12, R_FRONT + 1);
-    portalGroup.add(doorWinL);
+    const doorWinR = new THREE.Mesh(new THREE.BoxGeometry(9, 20, 2.2), glassMat);
+    doorWinR.position.set(-leafW / 2, (portalH - 1) / 2 - 16, 0);
+    hingeR.add(doorWinR);
 
-    const doorWinR = new THREE.Mesh(new THREE.BoxGeometry(9, 12, 2.2), glassMat);
-    doorWinR.position.set(portalW / 4 + 0.5, Y_FLOOR + portalH - 12, R_FRONT + 1);
-    portalGroup.add(doorWinR);
+    portalGroup.add(hingeR);
 
     // Laterne über dem Tor
     const lamp = new THREE.Mesh(new THREE.SphereGeometry(2.2, 8, 8), lampMat);

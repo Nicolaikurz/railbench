@@ -1,4 +1,4 @@
-import type { Layout, Layer } from "@/core/types";
+import type { Layout, Layer, LayerWoodPlateMode } from "@/core/types";
 import { getTranslations } from "@/i18n";
 
 export interface LayerDialogOptions {
@@ -57,13 +57,15 @@ export function openLayerDialog(options: LayerDialogOptions): void {
   let currentColor = isEdit && layer
     ? (layer.color || LAYER_COLOR_PALETTE[0]!)
     : LAYER_COLOR_PALETTE[(nextNum - 1) % LAYER_COLOR_PALETTE.length]!;
+  let currentWoodPlateMode: LayerWoodPlateMode = isEdit && layer?.woodPlateMode ? layer.woodPlateMode : "none";
+  let currentWoodPlateThickness = isEdit && layer?.woodPlateThicknessMm ? layer.woodPlateThicknessMm : 10;
 
   const modal = document.createElement("div");
   modal.id = "layer-modal";
   modal.className = "rb-modal-overlay";
 
   modal.innerHTML = `
-    <div class="rb-modal-card layer-modal-card" style="width: 440px;">
+    <div class="rb-modal-card layer-modal-card" style="width: 460px;">
       <div class="rb-modal-header">
         <div class="rb-modal-title">
           <span>${isEdit ? t.editTitle : t.addTitle}</span>
@@ -129,6 +131,53 @@ export function openLayerDialog(options: LayerDialogOptions): void {
             </div>
           </div>
         </div>
+
+        <!-- 4. Wood Plate (Holzplatte unter Ebene) -->
+        <div class="layer-dialog-section">
+          <label class="layer-dialog-label" style="margin-bottom: 6px; display: block;">${t.woodPlateLabel}</label>
+          <div class="layer-woodplate-options" style="display: flex; flex-direction: column; gap: 6px;">
+            <label class="layer-woodplate-choice ${currentWoodPlateMode === "none" ? "active" : ""}" style="display: flex; align-items: flex-start; gap: 10px; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-color, #cbd5e1); cursor: pointer;">
+              <input type="radio" name="layer-woodplate-mode" value="none" ${currentWoodPlateMode === "none" ? "checked" : ""} style="margin-top: 3px;" />
+              <div style="display: flex; flex-direction: column;">
+                <span style="font-weight: 600; font-size: 13px;">${t.woodPlateNoneTitle}</span>
+                <span style="font-size: 11px; color: var(--text-muted, #64748b);">${t.woodPlateNoneDesc}</span>
+              </div>
+            </label>
+
+            <label class="layer-woodplate-choice ${currentWoodPlateMode === "table" ? "active" : ""}" style="display: flex; align-items: flex-start; gap: 10px; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-color, #cbd5e1); cursor: pointer;">
+              <input type="radio" name="layer-woodplate-mode" value="table" ${currentWoodPlateMode === "table" ? "checked" : ""} style="margin-top: 3px;" />
+              <div style="display: flex; flex-direction: column;">
+                <span style="font-weight: 600; font-size: 13px;">${t.woodPlateTableTitle}</span>
+                <span style="font-size: 11px; color: var(--text-muted, #64748b);">${t.woodPlateTableDesc}</span>
+              </div>
+            </label>
+
+            <label class="layer-woodplate-choice ${currentWoodPlateMode === "tight" ? "active" : ""}" style="display: flex; align-items: flex-start; gap: 10px; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-color, #cbd5e1); cursor: pointer;">
+              <input type="radio" name="layer-woodplate-mode" value="tight" ${currentWoodPlateMode === "tight" ? "checked" : ""} style="margin-top: 3px;" />
+              <div style="display: flex; flex-direction: column;">
+                <span style="font-weight: 600; font-size: 13px;">${t.woodPlateTightTitle}</span>
+                <span style="font-size: 11px; color: var(--text-muted, #64748b);">${t.woodPlateTightDesc}</span>
+              </div>
+            </label>
+          </div>
+
+          <div id="layer-woodplate-thickness-row" style="margin-top: 8px; display: ${currentWoodPlateMode === "none" ? "none" : "flex"}; align-items: center; justify-content: space-between; gap: 12px;">
+            <label for="layer-input-thickness" style="font-size: 12px; color: var(--text-muted, #64748b);">${t.woodPlateThicknessLabel}</label>
+            <div style="position: relative; width: 120px;">
+              <input
+                type="number"
+                id="layer-input-thickness"
+                class="rb-input"
+                style="width: 100%; padding-right: 32px;"
+                value="${currentWoodPlateThickness}"
+                min="2"
+                max="50"
+                step="1"
+              />
+              <span style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); font-size: 12px; color: var(--text-muted, #64748b);">mm</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="rb-modal-footer">
@@ -148,6 +197,24 @@ export function openLayerDialog(options: LayerDialogOptions): void {
   const heightInput = modal.querySelector("#layer-input-height") as HTMLInputElement;
   const customColorInput = modal.querySelector("#layer-custom-color-input") as HTMLInputElement;
   const swatchBtns = modal.querySelectorAll<HTMLButtonElement>(".layer-swatch-btn");
+
+  const woodPlateRadios = modal.querySelectorAll<HTMLInputElement>('input[name="layer-woodplate-mode"]');
+  const woodPlateChoices = modal.querySelectorAll<HTMLLabelElement>(".layer-woodplate-choice");
+  const thicknessRow = modal.querySelector("#layer-woodplate-thickness-row") as HTMLElement;
+  const thicknessInput = modal.querySelector("#layer-input-thickness") as HTMLInputElement;
+
+  woodPlateRadios.forEach((radio) => {
+    radio.addEventListener("change", () => {
+      currentWoodPlateMode = radio.value as LayerWoodPlateMode;
+      woodPlateChoices.forEach((choice) => {
+        const r = choice.querySelector("input");
+        choice.classList.toggle("active", r?.value === currentWoodPlateMode);
+      });
+      if (thicknessRow) {
+        thicknessRow.style.display = currentWoodPlateMode === "none" ? "none" : "flex";
+      }
+    });
+  });
 
   function updateColorSwatches() {
     swatchBtns.forEach((btn) => {
@@ -179,6 +246,8 @@ export function openLayerDialog(options: LayerDialogOptions): void {
     const finalName = nameInput.value.trim() || (isEdit && layer ? layer.name : `Layer ${nextNum}`);
     const parsedHeight = parseFloat(heightInput.value);
     const finalHeight = isNaN(parsedHeight) ? 0 : parsedHeight;
+    const parsedThickness = parseFloat(thicknessInput?.value ?? "10");
+    const finalThickness = isNaN(parsedThickness) ? 10 : Math.max(2, Math.min(50, parsedThickness));
 
     const resultLayer: Layer = {
       id: isEdit && layer ? layer.id : `layer-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
@@ -187,6 +256,8 @@ export function openLayerDialog(options: LayerDialogOptions): void {
       heightMm: Math.round(finalHeight * 10) / 10,
       visible: isEdit && layer ? layer.visible !== false : true,
       locked: isEdit && layer ? layer.locked === true : false,
+      woodPlateMode: currentWoodPlateMode,
+      woodPlateThicknessMm: finalThickness,
     };
 
     closeDialog();

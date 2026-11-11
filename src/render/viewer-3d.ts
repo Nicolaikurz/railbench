@@ -1,18 +1,19 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import type { Layout, TrackPiece, Layer, BaseboardConfig, Model3D, ColorMode } from "@/core/types";
+import type { Layout, TrackPiece, Layer, BaseboardConfig, Model3D, ColorMode, LayerWoodPlateMode } from "@/core/types";
 import { getBaseboardPolygon, getBaseboardBounds, getBaseboards, computeBaseboardLegPositions, isPointInsideBaseboard } from "@/core/layout";
 import type { Catalog, CatalogEntry } from "@/catalog/catalog";
-import { catalogRegistry } from "@/catalog/catalog";
+import { catalogRegistry, isBufferStopPiece } from "@/catalog/catalog";
 import { deg2rad, getPieceLocalCenter, transformPoint } from "@/core/geometry";
 import { getTrackBlueprintColor } from "@/render/blueprint-colors";
-import { createBuiltinModel3DMesh } from "@/render/builtin-models-3d";
+import { createBuiltinModel3DMesh, buildBufferStop3D } from "@/render/builtin-models-3d";
 import { BUILTIN_MODELS } from "@/core/models-3d";
 import { getScaleFactor, parseModelScale, type ModelScale } from "@/core/model-scale";
 import type { ShortCircuitDetectionResult } from "@/core/simulation";
 import { getTranslations, getLanguage } from "@/i18n";
 import { getEffectiveFlexEntry } from "@/core/flextrack";
+import { computeTableTrackCutouts, isPointInsideCutout } from "@/core/table-cutout";
 
 export type Viewer3DEnvironment = "landscape" | "hall" | "minimal";
 
@@ -699,9 +700,16 @@ export class Viewer3D {
 
     // 1. 3D-Tisch / Grundplatte nach Profilform bauen (Rechteck, L, U, T)
     const baseboards = getBaseboards(layout);
-    for (const bb of baseboards) {
-      if (bb.enabled) {
-        this.buildBaseboard3D(bb, layout, catalog);
+    const tableLayer = layout.layers?.find((l) => (l.heightMm ?? 0) === 0);
+    const tableVisible = tableLayer ? tableLayer.visible : true;
+    const tablePlateMode: LayerWoodPlateMode = tableLayer?.woodPlateMode ?? "table";
+    const tableThickness: number | undefined = tableLayer?.woodPlateThicknessMm;
+
+    if (tableVisible) {
+      for (const bb of baseboards) {
+        if (bb.enabled) {
+          this.buildBaseboard3D(bb, layout, catalog, tablePlateMode, tableThickness);
+        }
       }
     }
 
@@ -748,11 +756,15 @@ export class Viewer3D {
       this.buildTrackPiece3D(piece, entry, startElev, endElev, colorMode, layer?.color);
 
       // Wood Plate (Trassenbrett)
-      const plateGroup = new THREE.Group();
-      plateGroup.position.set(piece.transform.x, startElev, piece.transform.y);
-      plateGroup.rotation.y = -deg2rad(piece.transform.rotation);
-      this.buildWoodPlatePiece3D(plateGroup, piece, entry, endElev - startElev);
-      this.woodPlateGroup.add(plateGroup);
+      const plateMode = layer?.woodPlateMode ?? (baseElevation !== 0 || Math.abs(endElev - startElev) > 0.01 ? "tight" : "none");
+      if (plateMode === "tight") {
+        const plateThickness = layer?.woodPlateThicknessMm ?? 8;
+        const plateGroup = new THREE.Group();
+        plateGroup.position.set(piece.transform.x, startElev, piece.transform.y);
+        plateGroup.rotation.y = -deg2rad(piece.transform.rotation);
+        this.buildWoodPlatePiece3D(plateGroup, piece, entry, endElev - startElev, plateThickness);
+        this.woodPlateGroup.add(plateGroup);
+      }
     }
 
     // 4. 3D-Modelle & Scenery (Built-in & Custom .glb/.gltf)
@@ -765,6 +777,26 @@ export class Viewer3D {
         const elev = baseElevation + (model.elevation ?? 0);
 
         this.buildModel3D(model, elev);
+
+        // Building wood plate (Fundamentplatte)
+        const plateMode = layer?.woodPlateMode ?? (baseElevation !== 0 ? "tight" : "none");
+        if (plateMode === "tight") {
+          const plateThickness = layer?.woodPlateThicknessMm ?? 8;
+          this.buildBuildingWoodPlate3D(model, elev, plateThickness);
+        }
+      }
+    }
+
+    // 4B. Vollflächige Holzplatten / Tisch-Zwischenebenen für Ebenen mit woodPlateMode === "table"
+    // Wichtig: Ebene 0 mm (Tisch) bildet bereits die Tischplatte selbst - überspringen um Doppelung zu verhindern!
+    if (layout.layers) {
+      for (const layer of layout.layers) {
+        if (!layer.visible || layer.woodPlateMode !== "table" || (layer.heightMm ?? 0) === 0) continue;
+        for (const bb of baseboards) {
+          if (bb.enabled) {
+            this.buildLayerDeckPlate3D(layer, bb, layout, catalog);
+          }
+        }
       }
     }
 
@@ -922,9 +954,65 @@ export class Viewer3D {
     }
   }
 
-  private buildBaseboard3D(config: BaseboardConfig, layout?: Layout, catalog?: Catalog) {
+  private buildBaseboard3D(
+    config: BaseboardConfig,
+    layout?: Layout,
+    catalog?: Catalog,
+    tablePlateMode: LayerWoodPlateMode = "table",
+    plateThickness?: number,
+  ) {
     const polygon = getBaseboardPolygon(config);
     if (polygon.length < 3) return;
+
+    // 1. Zargenrahmen / Unterbau (Timber Benchwork Frame) um den Umfang des Tisches
+    const frameH = 45;
+    const frameThick = 20;
+    const frameMat = new THREE.MeshStandardMaterial({
+      color: 0x8c6d48, // Multiplex / Schichtholz Zarge
+      roughness: 0.78,
+      metalness: 0.05,
+    });
+
+    for (let i = 0; i < polygon.length; i++) {
+      const p1 = polygon[i]!;
+      const p2 = polygon[(i + 1) % polygon.length]!;
+      const dx = p2.x - p1.x;
+      const dy = p2.y - p1.y;
+      const len = Math.hypot(dx, dy);
+      if (len < 2) continue;
+
+      const frameGeo = new THREE.BoxGeometry(len, frameH, frameThick);
+      const frameMesh = new THREE.Mesh(frameGeo, frameMat);
+      frameMesh.position.set((p1.x + p2.x) / 2, -frameH / 2, (p1.y + p2.y) / 2);
+      frameMesh.rotation.y = -Math.atan2(dy, dx);
+      frameMesh.castShadow = true;
+      frameMesh.receiveShadow = true;
+      this.tableGroup.add(frameMesh);
+    }
+
+    // 2. Tischbeine (Vierkant- oder Rundbeine) an markanten Eckpunkten nach unten
+    const legRadius = 18;
+    const legGeo = new THREE.CylinderGeometry(legRadius, legRadius, 720, 16);
+    const legMat = new THREE.MeshStandardMaterial({ color: 0x27272a, roughness: 0.4, metalness: 0.7 });
+
+    const trackCutouts = layout && catalog ? computeTableTrackCutouts(layout, catalog, config) : [];
+    const legPositions = computeBaseboardLegPositions(config, legRadius, 45);
+    for (const pt of legPositions) {
+      if (trackCutouts.length > 0 && isPointInsideCutout(pt, trackCutouts, legRadius + 15)) {
+        continue;
+      }
+      const leg = new THREE.Mesh(legGeo, legMat);
+      leg.position.set(pt.x, -360 - 35 - 2.5, pt.y);
+      leg.castShadow = true;
+      leg.receiveShadow = true;
+      this.tableGroup.add(leg);
+    }
+
+    // 3. Tischplatte (nur bei tablePlateMode === "table")
+    // Bei "tight" (nur Gleise & Gebäude) oder "none" bleibt der Tisch als offener Rahmen (Open Benchwork)
+    if (tablePlateMode !== "table") {
+      return;
+    }
 
     // Äußere Kontur prüfen: Three.js ExtrudeGeometry verlangt CCW für die Außenkontur
     let outerPts = polygon.map((p) => new THREE.Vector2(p.x, p.y));
@@ -958,10 +1046,8 @@ export class Viewer3D {
           const pt = { x: piece.transform.x, y: piece.transform.y };
           if (!isPointInsideBaseboard(pt, config)) continue;
 
-          // Exakte Grubenöffnung für die Drehscheibe ausschneiden (Radius ~ 140 mm)
           const pitR = 140;
           const holePath = new THREE.Path();
-          // Im Uhrzeigersinn (clockwise = true) für inneres Loch
           holePath.absarc(pt.x, pt.y, pitR, 0, Math.PI * 2, true);
           shape.holes.push(holePath);
         } else if (entry.kind === "transfer-table") {
@@ -969,7 +1055,6 @@ export class Viewer3D {
           const center = transformPoint({ x: l / 2, y: 154.8 }, piece.transform);
           if (!isPointInsideBaseboard(center, config)) continue;
 
-          // Exakte Grubenöffnung für die Schiebebühne ausschneiden
           const pLeft = 36;
           const pRight = l - 36;
           const pTop = -49.2;
@@ -998,10 +1083,28 @@ export class Viewer3D {
       }
     }
 
-    // Extrusion (Tischplatte mit 35 mm Stärke und gefaster Kante)
+    // Tischdurchbrüche / Ausschnitte für Rampen und Strecken unter der Platte
+    for (const cutout of trackCutouts) {
+      if (cutout.points.length < 3) continue;
+      let holeVecs = cutout.points.map((p) => new THREE.Vector2(p.x, p.y));
+      if (!THREE.ShapeUtils.isClockWise(holeVecs)) {
+        holeVecs = holeVecs.reverse();
+      }
+
+      const holePath = new THREE.Path();
+      holePath.moveTo(holeVecs[0]!.x, holeVecs[0]!.y);
+      for (let i = 1; i < holeVecs.length; i++) {
+        holePath.lineTo(holeVecs[i]!.x, holeVecs[i]!.y);
+      }
+      holePath.closePath();
+      shape.holes.push(holePath);
+    }
+
+    // Extrusion (Tischplatte mit wählbarer Stärke und gefaster Kante)
     const bevelThickness = 2.5;
+    const depth = plateThickness ?? 35;
     const extrudeSettings: THREE.ExtrudeGeometryOptions = {
-      depth: 35,
+      depth,
       bevelEnabled: true,
       bevelSegments: 3,
       steps: 1,
@@ -1010,9 +1113,7 @@ export class Viewer3D {
     };
 
     const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
-    // Drehung: Im 2D-Layout entspricht Y der Tiefe Z im 3D-Raum
     geometry.rotateX(Math.PI / 2);
-    // Tischoberkante liegt exakt auf Y = 0 mm (Ausgleich der BevelThickness von 2.5 mm)
     geometry.translate(0, -bevelThickness, 0);
 
     const woodColor = this.getStyleColor(config.style);
@@ -1027,21 +1128,113 @@ export class Viewer3D {
     tableMesh.receiveShadow = true;
     tableMesh.castShadow = true;
     this.tableGroup.add(tableMesh);
+  }
 
-    // Tischbeine (Vierkant- oder Rundbeine) an markanten Eckpunkten nach unten
-    // Wichtig: Beine sind eingerückt, damit sie niemals über die Tischkanten / Tischecken hinausragen!
-    const legRadius = 18;
-    const legGeo = new THREE.CylinderGeometry(legRadius, legRadius, 720, 16);
-    const legMat = new THREE.MeshStandardMaterial({ color: 0x27272a, roughness: 0.4, metalness: 0.7 });
+  private buildLayerDeckPlate3D(
+    layer: Layer,
+    config: BaseboardConfig,
+    layout: Layout,
+    catalog: Catalog,
+  ) {
+    const polygon = getBaseboardPolygon(config);
+    if (polygon.length < 3) return;
 
-    const legPositions = computeBaseboardLegPositions(config, legRadius, 45);
-    for (const pt of legPositions) {
-      const leg = new THREE.Mesh(legGeo, legMat);
-      leg.position.set(pt.x, -360 - 35 - bevelThickness, pt.y);
-      leg.castShadow = true;
-      leg.receiveShadow = true;
-      this.tableGroup.add(leg);
+    let outerPts = polygon.map((p) => new THREE.Vector2(p.x, p.y));
+    if (THREE.ShapeUtils.isClockWise(outerPts)) {
+      outerPts = outerPts.reverse();
     }
+
+    const shape = new THREE.Shape();
+    shape.moveTo(outerPts[0]!.x, outerPts[0]!.y);
+    for (let i = 1; i < outerPts.length; i++) {
+      shape.lineTo(outerPts[i]!.x, outerPts[i]!.y);
+    }
+    shape.closePath();
+
+    const depth = layer.woodPlateThicknessMm ?? 12;
+    const layerH = layer.heightMm ?? 0;
+
+    // Tischdurchbrüche für Gleise, die diese Ebene durchdringen (z. B. Rampen)
+    const cutouts = computeTableTrackCutouts(layout, catalog, config, layerH, depth);
+    for (const cutout of cutouts) {
+      if (cutout.points.length < 3) continue;
+      let holeVecs = cutout.points.map((p) => new THREE.Vector2(p.x, p.y));
+      if (!THREE.ShapeUtils.isClockWise(holeVecs)) {
+        holeVecs = holeVecs.reverse();
+      }
+      const holePath = new THREE.Path();
+      holePath.moveTo(holeVecs[0]!.x, holeVecs[0]!.y);
+      for (let i = 1; i < holeVecs.length; i++) {
+        holePath.lineTo(holeVecs[i]!.x, holeVecs[i]!.y);
+      }
+      holePath.closePath();
+      shape.holes.push(holePath);
+    }
+
+    const bevelThickness = 1.5;
+    const extrudeSettings: THREE.ExtrudeGeometryOptions = {
+      depth,
+      bevelEnabled: true,
+      bevelSegments: 2,
+      steps: 1,
+      bevelSize: 1.5,
+      bevelThickness,
+    };
+
+    const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+    geometry.rotateX(Math.PI / 2);
+    // Oberkante der Platte liegt exakt auf layerH
+    geometry.translate(0, layerH - bevelThickness, 0);
+
+    const woodColor = 0xcbb89d; // Echtes Schichtholz / Birke Multiplex
+    const material = new THREE.MeshStandardMaterial({
+      color: woodColor,
+      roughness: 0.75,
+      metalness: 0.04,
+    });
+
+    const deckMesh = new THREE.Mesh(geometry, material);
+    deckMesh.receiveShadow = true;
+    deckMesh.castShadow = true;
+    this.woodPlateGroup.add(deckMesh);
+
+    // Stützen / Risers bei Ebenen über oder unter der Hauptplatte
+    if (Math.abs(layerH) >= 20) {
+      const riserRadius = 12;
+      const riserPositions = computeBaseboardLegPositions(config, riserRadius, 55);
+      const riserHeight = Math.abs(layerH);
+      const riserGeo = new THREE.CylinderGeometry(riserRadius, riserRadius, riserHeight, 12);
+      const riserMat = new THREE.MeshStandardMaterial({ color: 0x8c6d48, roughness: 0.8, metalness: 0.05 });
+
+      for (const pt of riserPositions) {
+        if (cutouts.length > 0 && isPointInsideCutout(pt, cutouts, riserRadius + 15)) continue;
+        const riser = new THREE.Mesh(riserGeo, riserMat);
+        const midY = layerH > 0 ? layerH / 2 - depth / 2 : layerH / 2;
+        riser.position.set(pt.x, midY, pt.y);
+        riser.castShadow = true;
+        riser.receiveShadow = true;
+        this.woodPlateGroup.add(riser);
+      }
+    }
+  }
+
+  private buildBuildingWoodPlate3D(model: Model3D, baseElevation: number, thickness: number) {
+    const scale = model.scale ?? 1.0;
+    const width = Math.max(20, model.width * scale + 14);
+    const depth = Math.max(20, model.depth * scale + 14);
+
+    const geo = new THREE.BoxGeometry(width, thickness, depth);
+    const woodPlateMat = new THREE.MeshStandardMaterial({
+      color: 0xcbb89d,
+      roughness: 0.85,
+      metalness: 0.05,
+    });
+    const mesh = new THREE.Mesh(geo, woodPlateMat);
+    mesh.position.set(model.transform.x, baseElevation - thickness / 2, model.transform.y);
+    mesh.rotation.y = -deg2rad(model.transform.rotation);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    this.woodPlateGroup.add(mesh);
   }
 
   private applyCurveElevation(
@@ -1166,45 +1359,49 @@ export class Viewer3D {
       targetGroup.add(rL);
       targetGroup.add(rR);
 
-      // 4. Prellbock-Gleis (Accessory / Prellbock am Gleisende)
+      // 4. Prellbock-Gleis (Buffer Stop 3D-Modell am Gleisende)
       if (isAccessory) {
         const bufferGroup = new THREE.Group();
+        buildBufferStop3D(bufferGroup);
+
+        const scale = gauge / 16.5;
+        bufferGroup.scale.set(scale, scale, scale);
+        // buildBufferStop3D:
+        // - X: Spurweite (-8.5 bis +8.5 mm bei H0)
+        // - Z: Längsachse (Pufferbohle bei Z = -10, Haltescheibe bei Z = -13.5, hinteres Trägerende bei Z = +15)
+        // - Y: 0 bis 24 mm
+        // Wir drehen bufferGroup um Y = Math.PI / 2, sodass lokales Z -> Welt X und lokales X -> Welt -Z wird.
+        // Die Pufferbohle zeigt nun in -X Richtung dem ankommenden Zug entgegen.
+        bufferGroup.rotation.y = Math.PI / 2;
+
         const endX = startX + len;
+        // Rückseite des Prellbocks (lokales Z = +15) bündig am Gleisende (endX):
+        const backOffset = 15 * scale;
+        bufferGroup.position.set(endX - backOffset, ballastH + 2.2, 0);
 
-        // Diagonale Stahlträger von Schienen aufwärts
-        const strutGeo = new THREE.BoxGeometry(1.6, 1.6, 12);
-        const strutL = new THREE.Mesh(strutGeo, steelMat);
-        strutL.position.set(endX - 3.5, ballastH + 4.5, -gaugeHalf);
-        strutL.rotation.y = Math.PI / 2;
-        strutL.rotation.z = Math.PI / 4;
-        bufferGroup.add(strutL);
-
-        const strutR = new THREE.Mesh(strutGeo, steelMat);
-        strutR.position.set(endX - 3.5, ballastH + 4.5, gaugeHalf);
-        strutR.rotation.y = Math.PI / 2;
-        strutR.rotation.z = Math.PI / 4;
-        bufferGroup.add(strutR);
-
-        // Pufferbohle (Holz/Stahl quer über Gleis)
-        const bohleGeo = new THREE.BoxGeometry(4, 7, gauge * 1.6);
-        const bohle = new THREE.Mesh(bohleGeo, steelMat);
-        bohle.position.set(endX - 3.5, ballastH + 6.5, 0);
-        bufferGroup.add(bohle);
-
-        // 2 Pufferteller
-        const buffGeo = new THREE.CylinderGeometry(2.4, 2.4, 1.5, 12);
-        for (const s of [-1, 1]) {
-          const buff = new THREE.Mesh(buffGeo, bufferMat);
-          buff.position.set(endX - 0.7, ballastH + 6.5, s * gaugeHalf * 0.75);
-          buff.rotation.z = Math.PI / 2;
-          bufferGroup.add(buff);
+        // Beleuchtete Prellböcke (z. B. Märklin 24978 / Kato 20-043)
+        const isIlluminated =
+          /beleuchtet|illuminat/i.test(entry.name || "") ||
+          /beleuchtet|illuminat/i.test(entry.description || "");
+        if (isIlluminated) {
+          bufferGroup.traverse((obj) => {
+            if (obj instanceof THREE.Mesh && obj.geometry instanceof THREE.CylinderGeometry) {
+              obj.material = new THREE.MeshStandardMaterial({
+                color: 0xef4444,
+                emissive: 0xef4444,
+                emissiveIntensity: 0.95,
+                roughness: 0.25,
+              });
+            }
+          });
         }
 
-        // Sh0 Halt-Signal (Rotes Signal-Rechteck)
-        const sh0Geo = new THREE.BoxGeometry(1.2, 4, 4);
-        const sh0 = new THREE.Mesh(sh0Geo, signalRedMat);
-        sh0.position.set(endX - 5.6, ballastH + 6.5, 0);
-        bufferGroup.add(sh0);
+        bufferGroup.traverse((obj) => {
+          if (obj instanceof THREE.Mesh) {
+            obj.castShadow = true;
+            obj.receiveShadow = true;
+          }
+        });
 
         targetGroup.add(bufferGroup);
       }
@@ -1296,13 +1493,14 @@ export class Viewer3D {
     // =========================================================================
     // 1. GERADES GLEIS & ZUBEHÖR (PRELLBOCK)
     // =========================================================================
-    if (kind === "straight" || kind === "accessory" || kind === "flex") {
+    const isBufferStop = isBufferStopPiece(entry);
+    if (kind === "straight" || kind === "accessory" || kind === "flex" || kind === "buffer-stop" || isBufferStop) {
       const len = entry.length ?? (kind === "flex" ? 900 : 188.3);
       const straightGroup = new THREE.Group();
       if (Math.abs(heightDiff) > 0.01) {
         straightGroup.rotation.z = Math.atan2(heightDiff, len);
       }
-      addStraightSection(straightGroup, len, 0, kind === "accessory");
+      addStraightSection(straightGroup, len, 0, isBufferStop);
       group.add(straightGroup);
     }
     // =========================================================================
@@ -1318,7 +1516,7 @@ export class Viewer3D {
     // 3. BOGENWEICHE (Curved Turnout Left / Right)
     // =========================================================================
     else if (isCurvedTurnout) {
-      const dir: 1 | -1 = kind === "curved-turnout-left" || kind === "turnout-left" ? 1 : -1;
+      const dir: 1 | -1 = kind === "curved-turnout-left" || kind === "turnout-left" ? -1 : 1;
       const r1 = entry.radius ?? 360;
       const a1 = entry.angle ?? 30;
       const lead =
@@ -1349,7 +1547,7 @@ export class Viewer3D {
       const len = entry.length ?? 188.3;
       const br = entry.branchRadius ?? 437.5;
       const ba = entry.branchAngle ?? 24.3;
-      const dir: 1 | -1 = kind === "turnout-left" ? 1 : -1;
+      const dir: 1 | -1 = kind === "turnout-left" ? -1 : 1;
 
       const turnoutGroup = new THREE.Group();
       if (Math.abs(heightDiff) > 0.01) {
@@ -1377,10 +1575,10 @@ export class Viewer3D {
 
       // Stammgleis (gerade)
       addStraightSection(threeWayGroup, len, 0, false);
-      // Abzweig links
-      addCurvedSection(threeWayGroup, br, ba, 1, 0, heightDiff);
-      // Abzweig rechts
+      // Abzweig links (-Z)
       addCurvedSection(threeWayGroup, br, ba, -1, 0, heightDiff);
+      // Abzweig rechts (+Z)
+      addCurvedSection(threeWayGroup, br, ba, 1, 0, heightDiff);
       group.add(threeWayGroup);
     }
     // =========================================================================
@@ -1600,7 +1798,7 @@ export class Viewer3D {
       }
     };
 
-    if (kind === "straight" || kind === "accessory" || kind === "flex") {
+    if (kind === "straight" || kind === "accessory" || kind === "flex" || kind === "buffer-stop" || isBufferStopPiece(entry)) {
       const len = entry.length ?? 200;
       const straightGroup = new THREE.Group();
       if (Math.abs(heightDiff) > 0.01) {
@@ -1709,7 +1907,7 @@ export class Viewer3D {
       addStraightRoad(turnGroup, len);
 
       const isRight = kind === "turnout-right";
-      const branchSign = isRight ? -1 : 1;
+      const branchSign = isRight ? 1 : -1;
 
       if (entry.branchLength !== undefined) {
         const bLen = entry.branchLength;
@@ -1803,18 +2001,19 @@ export class Viewer3D {
     _piece: TrackPiece,
     entry: CatalogEntry,
     heightDiff: number,
+    customThickness?: number,
   ) {
     const isRoad = entry.isRoad === true || entry.id.startsWith("ST-");
     const roadW = entry.roadWidth ?? 60;
     const plateWidth = isRoad ? roadW + 8 : (entry.gauge ?? 16.5) * 2.4;
-    const thickness = 6;
+    const thickness = customThickness ?? 6;
     const woodPlateMat = new THREE.MeshStandardMaterial({
       color: 0xcbb89d,
       roughness: 0.85,
       metalness: 0.05,
     });
 
-    if (entry.kind === "straight" || entry.kind === "accessory" || entry.kind === "flex") {
+    if (entry.kind === "straight" || entry.kind === "accessory" || entry.kind === "flex" || entry.kind === "buffer-stop" || isBufferStopPiece(entry)) {
       const len = entry.length ?? (entry.kind === "flex" ? 900 : isRoad ? 200 : 180);
       const geo = new THREE.BoxGeometry(len, thickness, plateWidth);
       const mesh = new THREE.Mesh(geo, woodPlateMat);
@@ -1943,7 +2142,7 @@ export class Viewer3D {
   private buildTurnoutAccessories3D(group: THREE.Group, entry: CatalogEntry, piece: TrackPiece) {
     const kind = entry.kind;
     const isLeft = kind === "turnout-left" || kind === "curved-turnout-left";
-    const lanternZ = isLeft ? -22 : 22;
+    const lanternZ = isLeft ? 22 : -22;
     const lanternX = 26;
 
     const accGroup = new THREE.Group();
@@ -2491,7 +2690,7 @@ export class Viewer3D {
       kind === "curved-turnout-right" ||
       ((kind === "turnout-left" || kind === "turnout-right") && !!entry.radius && !entry.length);
 
-    if (kind === "straight" || kind === "accessory" || kind === "flex") {
+    if (kind === "straight" || kind === "accessory" || kind === "flex" || kind === "buffer-stop" || isBufferStopPiece(entry)) {
       const len = entry.length ?? 188.3;
       const heightDiff = endElev - startElev;
       if (Math.abs(heightDiff) > 0.01) {
@@ -2503,7 +2702,7 @@ export class Viewer3D {
       const a = entry.angle ?? 30;
       addCurvedWire(r, deg2rad(a), 1, 0, true, 1);
     } else if (isCurvedTurnout) {
-      const dir: 1 | -1 = kind === "curved-turnout-left" || kind === "turnout-left" ? 1 : -1;
+      const dir: 1 | -1 = kind === "curved-turnout-left" || kind === "turnout-left" ? -1 : 1;
       const r1 = entry.radius ?? 360;
       const a1 = entry.angle ?? 30;
       const lead =
@@ -2526,7 +2725,7 @@ export class Viewer3D {
       const len = entry.length ?? 188.3;
       const br = entry.branchRadius ?? 437.5;
       const ba = entry.branchAngle ?? 24.3;
-      const dir: 1 | -1 = kind === "turnout-left" ? 1 : -1;
+      const dir: 1 | -1 = kind === "turnout-left" ? -1 : 1;
 
       addStraightWire(0, 0, len, 0, true, -dir);
       addCurvedWire(br, deg2rad(ba), dir, 0, true, dir);
@@ -2536,8 +2735,8 @@ export class Viewer3D {
       const ba = entry.branchAngle ?? 24.3;
 
       addStraightWire(0, 0, len, 0, true, 1);
-      addCurvedWire(br, deg2rad(ba), 1, 0, true, 1);
       addCurvedWire(br, deg2rad(ba), -1, 0, true, -1);
+      addCurvedWire(br, deg2rad(ba), 1, 0, true, 1);
     } else if (kind === "crossing") {
       const len = entry.length ?? 188.3;
       const a = entry.angle ?? 24.3;

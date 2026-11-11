@@ -1,6 +1,7 @@
-import type { TrackPiece } from "./types";
+import type { TrackPiece, Layer } from "./types";
 import type { Catalog, CatalogEntry } from "@/catalog/catalog";
 import { dist } from "./geometry";
+import { getPieceConnectorHeight } from "./snapping";
 
 export type RampProfile = "linear" | "eased";
 
@@ -346,5 +347,164 @@ export function calculateRamp(params: {
     maxAllowableRiseMm,
     recommendedEndHeightMm,
     requiredLengthMm,
+  };
+}
+
+export interface AutoRampResult {
+  success: boolean;
+  reason?: "no_selection" | "not_continuous" | "same_height";
+  chain?: ChainPieceInfo[];
+  startHeightMm?: number;
+  endHeightMm?: number;
+  totalLengthMm?: number;
+  totalRiseMm?: number;
+  gradientPercent?: number;
+  isContinuous?: boolean;
+  pieceElevations?: Map<string, { start: number; end: number }>;
+}
+
+/**
+ * Automatically calculates a smooth constant-gradient ramp across a chain of track pieces.
+ *
+ * It inspects the endpoints of the selected chain:
+ * - If intermediate pieces are selected and connected to unselected tracks at different elevations (e.g. 0 mm and 80 mm),
+ *   it infers startHeightMm and endHeightMm directly from the connected adjacent tracks.
+ * - If the endpoints themselves belong to layers or pieces with different elevations, those elevations are used.
+ * - Interpolates constant slope (linear profile) across the chain and returns relative elevations for each piece.
+ */
+export function calculateAutoRamp(params: {
+  pieces: TrackPiece[];
+  allPieces?: TrackPiece[];
+  layers?: Layer[];
+  catalog: Catalog;
+  profile?: RampProfile;
+}): AutoRampResult {
+  const { pieces, allPieces, layers, catalog, profile = "linear" } = params;
+
+  if (pieces.length === 0) {
+    return { success: false, reason: "no_selection" };
+  }
+
+  const { ordered, isContinuous } = sortPiecesIntoChain(pieces, catalog, false);
+  if (!isContinuous || ordered.length === 0) {
+    return { success: false, reason: "not_continuous" };
+  }
+
+  const firstItem = ordered[0]!;
+  const lastItem = ordered[ordered.length - 1]!;
+
+  const conn1 = firstItem.piece.connectors[firstItem.entryConnector];
+  const conn2 = lastItem.piece.connectors[lastItem.exitConnector];
+
+  const selectedIds = new Set(pieces.map((p) => p.id));
+  let extPiece1: TrackPiece | undefined;
+  let extConnIdx1: number | undefined;
+  let extPiece2: TrackPiece | undefined;
+  let extConnIdx2: number | undefined;
+
+  if (allPieces && conn1 && conn2) {
+    for (const p of allPieces) {
+      if (selectedIds.has(p.id)) continue;
+      for (let c = 0; c < p.connectors.length; c++) {
+        const conn = p.connectors[c]!;
+        if (!extPiece1 && dist(conn, conn1) <= 8.0) {
+          extPiece1 = p;
+          extConnIdx1 = c;
+        }
+        if (!extPiece2 && dist(conn, conn2) <= 8.0) {
+          extPiece2 = p;
+          extConnIdx2 = c;
+        }
+      }
+    }
+  }
+
+  const h1 = extPiece1 !== undefined && extConnIdx1 !== undefined
+    ? getPieceConnectorHeight(extPiece1, extConnIdx1, layers)
+    : getPieceConnectorHeight(firstItem.piece, firstItem.entryConnector, layers);
+
+  const h2 = extPiece2 !== undefined && extConnIdx2 !== undefined
+    ? getPieceConnectorHeight(extPiece2, extConnIdx2, layers)
+    : getPieceConnectorHeight(lastItem.piece, lastItem.exitConnector, layers);
+
+  const totalLengthMm = ordered.reduce((sum, item) => sum + item.length, 0);
+
+  if (Math.abs(h2 - h1) < 0.1) {
+    return {
+      success: false,
+      reason: "same_height",
+      startHeightMm: Math.round(h1 * 10) / 10,
+      endHeightMm: Math.round(h2 * 10) / 10,
+      totalLengthMm: Math.round(totalLengthMm * 10) / 10,
+      isContinuous: true,
+    };
+  }
+
+  const totalRiseMm = h2 - h1;
+  const avgGrad = totalLengthMm > 0 ? (Math.abs(totalRiseMm) / totalLengthMm) * 100 : 0;
+
+  const chain: ChainPieceInfo[] = [];
+  const pieceElevations = new Map<string, { start: number; end: number }>();
+  let accumDist = 0;
+
+  for (let i = 0; i < ordered.length; i++) {
+    const item = ordered[i]!;
+    const startDist = accumDist;
+    const endDist = accumDist + item.length;
+    accumDist = endDist;
+
+    const u0 = totalLengthMm > 0 ? startDist / totalLengthMm : 0;
+    const u1 = totalLengthMm > 0 ? endDist / totalLengthMm : 1;
+
+    const hEntry = h1 + totalRiseMm * evaluateRampProfile(u0, profile);
+    const hExit = h1 + totalRiseMm * evaluateRampProfile(u1, profile);
+
+    const deltaPiece = Math.abs(hExit - hEntry);
+    const gradPiece = item.length > 0 ? (deltaPiece / item.length) * 100 : 0;
+
+    let c0Height = 0;
+    let c1Height = 0;
+    if (item.entryConnector === 0) {
+      c0Height = hEntry;
+      c1Height = hExit;
+    } else {
+      c0Height = hExit;
+      c1Height = hEntry;
+    }
+
+    const pLayer = layers?.find((l) => l.id === item.piece.layerId);
+    const pBaseH = pLayer?.heightMm ?? 0;
+
+    const elevRel = {
+      start: Math.round((c0Height - pBaseH) * 100) / 100,
+      end: Math.round((c1Height - pBaseH) * 100) / 100,
+    };
+
+    chain.push({
+      piece: item.piece,
+      entryConnectorIndex: item.entryConnector,
+      exitConnectorIndex: item.exitConnector,
+      lengthMm: item.length,
+      startDistMm: startDist,
+      endDistMm: endDist,
+      entryHeightMm: Math.round(hEntry * 10) / 10,
+      exitHeightMm: Math.round(hExit * 10) / 10,
+      gradientPercent: Math.round(gradPiece * 10) / 10,
+      elevation: elevRel,
+    });
+
+    pieceElevations.set(item.piece.id, elevRel);
+  }
+
+  return {
+    success: true,
+    chain,
+    startHeightMm: Math.round(h1 * 10) / 10,
+    endHeightMm: Math.round(h2 * 10) / 10,
+    totalLengthMm: Math.round(totalLengthMm * 10) / 10,
+    totalRiseMm: Math.round(totalRiseMm * 10) / 10,
+    gradientPercent: Math.round(avgGrad * 10) / 10,
+    isContinuous: true,
+    pieceElevations,
   };
 }

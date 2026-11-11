@@ -1,5 +1,15 @@
 import type { HelpTab } from "./help-dialog";
 import { getAppVersionTag } from "@/version";
+import { EXAMPLE_H0_CATALOG_JSON } from "@/catalog/example-catalog";
+
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
 
 export function renderEnglishTab(tab: HelpTab, contentArea: HTMLElement) {
   switch (tab) {
@@ -458,7 +468,8 @@ export function renderEnglishTab(tab: HelpTab, contentArea: HTMLElement) {
               <tr><td><kbd>Right Click</kbd> / <kbd>Middle Click</kbd> + Drag</td><td>Pan Canvas Viewport</td><td>Navigation</td></tr>
               <tr><td><kbd>Ctrl</kbd> / <kbd>Shift</kbd> + <kbd>Left Click</kbd></td><td>Toggle track in selection (Multi-selection)</td><td>Selection</td></tr>
               <tr><td><kbd>Alt</kbd> + <kbd>L</kbd></td><td><strong>Toggle Selection Lock (Select locked & deleted layer items)</strong></td><td>Workspace / Layers</td></tr>
-              <tr><td><kbd>M</kbd></td><td><strong>Change Track Height / Move to Layer</strong></td><td>Layers</td></tr>
+              <tr><td><kbd>M</kbd></td><td><strong>Change Track Height / Move to Layer (Dialog)</strong></td><td>Layers</td></tr>
+              <tr><td><kbd>Shift</kbd> + <kbd>M</kbd></td><td><strong>Auto-Calculate Ramp</strong> (Constant gradient between levels/heights)</td><td>Layers / Ramps</td></tr>
               <tr><td><kbd>Del</kbd> / <kbd>Backspace</kbd></td><td>Delete selected tracks</td><td>Editing</td></tr>
               <tr><td><kbd>F</kbd></td><td>Toggle Power Feeder point</td><td>Electrical</td></tr>
               <tr><td><kbd>Shift</kbd> + <kbd>F</kbd></td><td>Toggle Catenary Power Feeder</td><td>Electrical / Catenary</td></tr>
@@ -479,6 +490,53 @@ export function renderEnglishTab(tab: HelpTab, contentArea: HTMLElement) {
               <tr><td><kbd>F1</kbd> or <kbd>?</kbd></td><td>Open this Help & Feature Guide</td><td>Help</td></tr>
             </tbody>
           </table>
+        </div>
+      `;
+      break;
+
+    case "catalog":
+      contentArea.innerHTML = `
+        <div class="help-topic-section">
+          <h2>Track Catalog Format & JSON Example (H0 Scale)</h2>
+          <p>
+            Railbench allows importing custom track libraries via <strong>File ➔ Import Track Catalog (JSON)...</strong>.
+            Catalogs are stored in a streamlined, universal JSON format.
+          </p>
+
+          <div class="help-feature-grid">
+            <div class="help-card">
+              <h3>Catalog Header Properties</h3>
+              <p>
+                • <code>scale</code>: Model scale (e.g. <code>"H0"</code>, <code>"TT"</code>, <code>"N"</code>, <code>"Z"</code>, <code>"1"</code>, <code>"G"</code>, <code>"0"</code>)<br>
+                • <code>gauge</code>: Track gauge in mm (H0: <code>16.5</code>, TT: <code>12.0</code>, N: <code>9.0</code>, Z: <code>6.5</code>, 1/G: <code>45.0</code>, 0: <code>32.0</code>)<br>
+                • <code>hasRoadbed</code>: <code>true</code> for roadbed / ballast, <code>false</code> for ties only<br>
+                • <code>conductors</code>: <code>2</code> (2-rail DC) or <code>3</code> (3-rail AC / studs)
+              </p>
+            </div>
+            <div class="help-card">
+              <h3>Supported Track Types (17 Kinds)</h3>
+              <p>
+                The template below contains <strong>exactly one representative entry of each track type</strong>:<br>
+                <code>straight</code>, <code>curve</code>, <code>turnout-left</code>, <code>turnout-right</code>, <code>curved-turnout-left</code>, <code>curved-turnout-right</code>,
+                <code>three-way</code>, <code>double-slip</code>, <code>crossing</code>, <code>uncoupler</code>, <code>buffer-stop</code>, <code>feeder</code>,
+                <code>isolating</code>, <code>flex</code>, <code>turntable</code>, <code>transfer-table</code>, <code>accessory</code>.
+              </p>
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 10px; align-items: center; margin: 16px 0 10px 0;">
+            <button class="rb-btn rb-btn-primary" data-action="copy-catalog-json" style="padding: 6px 14px; font-size: 12.5px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+              📋 Copy JSON
+            </button>
+            <button class="rb-btn rb-btn-secondary" data-action="download-catalog-json" style="padding: 6px 14px; font-size: 12.5px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+              💾 Download JSON (railbench-catalog-h0-example.json)
+            </button>
+            <span style="font-size: 12px; color: var(--text-muted);">Scale H0 · 16.5 mm Gauge · 17 Track Kinds</span>
+          </div>
+
+          <div style="position: relative; background: #0f172a; border: 1px solid #334155; border-radius: 8px; overflow: hidden;">
+            <pre style="margin: 0; padding: 14px 16px; max-height: 440px; overflow-y: auto; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 11.5px; line-height: 1.5; color: #e2e8f0; scrollbar-width: thin;"><code id="example-catalog-json">${escapeHtml(EXAMPLE_H0_CATALOG_JSON)}</code></pre>
+          </div>
         </div>
       `;
       break;

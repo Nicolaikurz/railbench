@@ -1,5 +1,15 @@
 import type { HelpTab } from "./help-dialog";
 import { getAppVersionTag } from "@/version";
+import { EXAMPLE_H0_CATALOG_JSON } from "@/catalog/example-catalog";
+
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
 
 export function renderGermanTab(tab: HelpTab, contentArea: HTMLElement) {
   switch (tab) {
@@ -445,7 +455,8 @@ export function renderGermanTab(tab: HelpTab, contentArea: HTMLElement) {
               <tr><td><kbd>Rechtsklick</kbd> / <kbd>Mittelklick</kbd> + Ziehen</td><td>Arbeitsfläche verschieben (Pan)</td><td>Navigation</td></tr>
               <tr><td><kbd>Strg</kbd> / <kbd>Umschalt</kbd> + <kbd>Linksklick</kbd></td><td>Gleis zur Auswahl hinzufügen / entfernen (Mehrfachauswahl)</td><td>Auswahl</td></tr>
               <tr><td><kbd>Alt</kbd> + <kbd>L</kbd></td><td><strong>Auswahlsperre aufheben (Gesperrte & gelöschte Ebenen auswählen)</strong></td><td>Arbeitsbereich / Ebenen</td></tr>
-              <tr><td><kbd>M</kbd></td><td><strong>Gleishöhe & Ebene anpassen</strong></td><td>Ebenen</td></tr>
+              <tr><td><kbd>M</kbd></td><td><strong>Gleishöhe & Ebene anpassen (Dialog)</strong></td><td>Ebenen</td></tr>
+              <tr><td><kbd>Umschalt</kbd> + <kbd>M</kbd></td><td><strong>Auto-Rampe berechnen</strong> (Konstante Steigung zwischen Ebenen/Höhen)</td><td>Ebenen / Rampen</td></tr>
               <tr><td><kbd>Entf</kbd> / <kbd>Rückschritt</kbd></td><td>Markierte Gleise löschen</td><td>Bearbeiten</td></tr>
               <tr><td><kbd>F</kbd></td><td>Stromeinspeisepunkt setzen / umschalten</td><td>Elektrik</td></tr>
               <tr><td><kbd>Umschalt</kbd> + <kbd>F</kbd></td><td>Oberleitungs-Einspeisung setzen / umschalten</td><td>Elektrik / Oberleitung</td></tr>
@@ -466,6 +477,53 @@ export function renderGermanTab(tab: HelpTab, contentArea: HTMLElement) {
               <tr><td><kbd>F1</kbd> oder <kbd>?</kbd></td><td>Dieses Benutzerhandbuch öffnen</td><td>Hilfe</td></tr>
             </tbody>
           </table>
+        </div>
+      `;
+      break;
+
+    case "catalog":
+      contentArea.innerHTML = `
+        <div class="help-topic-section">
+          <h2>Gleiskatalog-Format & JSON-Beispiel (Spur H0)</h2>
+          <p>
+            Railbench unterstützt das Importieren eigener Gleisbibliotheken über das Menü <strong>Datei ➔ Gleiskatalog importieren (JSON)...</strong>.
+            Gleiskataloge werden im schlanken, universellen JSON-Format gespeichert.
+          </p>
+
+          <div class="help-feature-grid">
+            <div class="help-card">
+              <h3>Katalog-Kopfdaten</h3>
+              <p>
+                • <code>scale</code>: Nenngröße (z. B. <code>"H0"</code>, <code>"TT"</code>, <code>"N"</code>, <code>"Z"</code>, <code>"1"</code>, <code>"G"</code>, <code>"0"</code>)<br>
+                • <code>gauge</code>: Modell-Spurweite in mm (H0: <code>16.5</code>, TT: <code>12.0</code>, N: <code>9.0</code>, Z: <code>6.5</code>, 1/G: <code>45.0</code>, 0: <code>32.0</code>)<br>
+                • <code>hasRoadbed</code>: <code>true</code> für Schotterbettung, <code>false</code> für Schwellengleis<br>
+                • <code>conductors</code>: <code>2</code> (Zweileiter) oder <code>3</code> (Dreileiter / Mittelleiter)
+              </p>
+            </div>
+            <div class="help-card">
+              <h3>Unterstützte Gleistypen (17 Typen)</h3>
+              <p>
+                Das untenstehende Muster enthält <strong>exakt ein Exemplar jedes Gleistyps</strong>:<br>
+                <code>straight</code>, <code>curve</code>, <code>turnout-left</code>, <code>turnout-right</code>, <code>curved-turnout-left</code>, <code>curved-turnout-right</code>,
+                <code>three-way</code>, <code>double-slip</code>, <code>crossing</code>, <code>uncoupler</code>, <code>buffer-stop</code>, <code>feeder</code>,
+                <code>isolating</code>, <code>flex</code>, <code>turntable</code>, <code>transfer-table</code>, <code>accessory</code>.
+              </p>
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 10px; align-items: center; margin: 16px 0 10px 0;">
+            <button class="rb-btn rb-btn-primary" data-action="copy-catalog-json" style="padding: 6px 14px; font-size: 12.5px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+              📋 JSON kopieren
+            </button>
+            <button class="rb-btn rb-btn-secondary" data-action="download-catalog-json" style="padding: 6px 14px; font-size: 12.5px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+              💾 JSON herunterladen (railbench-catalog-h0-example.json)
+            </button>
+            <span style="font-size: 12px; color: var(--text-muted);">Spur H0 · 16,5 mm · 17 Gleistypen</span>
+          </div>
+
+          <div style="position: relative; background: #0f172a; border: 1px solid #334155; border-radius: 8px; overflow: hidden;">
+            <pre style="margin: 0; padding: 14px 16px; max-height: 440px; overflow-y: auto; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 11.5px; line-height: 1.5; color: #e2e8f0; scrollbar-width: thin;"><code id="example-catalog-json">${escapeHtml(EXAMPLE_H0_CATALOG_JSON)}</code></pre>
+          </div>
         </div>
       `;
       break;

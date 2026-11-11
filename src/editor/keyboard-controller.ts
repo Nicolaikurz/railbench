@@ -85,7 +85,9 @@ export class KeyboardController {
       this.deps.openPrintDialog();
     } else if (e.key.toLowerCase() === "m" && !ctrlOrMeta) {
       e.preventDefault();
-      if (selection.all().length > 0 && !this.deps.isMeasureToolActive()) {
+      if (e.shiftKey) {
+        ops.applyAutoRamp(() => this.deps.openHeightDialogForSelection());
+      } else if (selection.all().length > 0 && !this.deps.isMeasureToolActive()) {
         this.deps.openHeightDialogForSelection();
       } else {
         this.deps.toggleMeasureTool();

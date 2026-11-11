@@ -128,6 +128,16 @@ describe("Drag Preview Generator", () => {
     expect(canvasLeft.width).toBeGreaterThan(100);
     expect(canvasLeft.height).toBeGreaterThan(30);
 
+    const ctxLeft = canvasLeft.getContext("2d") as any;
+    // Connectors are drawn as circles: arc(x, y, radius, 0, 2*PI)
+    // Find the branch connector dot:
+    const leftBranchArc = ctxLeft.arc.mock.calls.find(
+      (call: any[]) => call[0] > 10 && call[1] !== 0 && call[2] === 2.5,
+    );
+    expect(leftBranchArc).toBeDefined();
+    // In Railbench coordinates, turnout-left branches upwards (-Y)
+    expect(leftBranchArc[1]).toBeLessThan(0);
+
     const rightTurnout: CatalogEntry = {
       id: "24612",
       name: "Weiche rechts",
@@ -142,10 +152,18 @@ describe("Drag Preview Generator", () => {
     const canvasRight = createPieceDragCanvas(rightTurnout, false);
     expect(canvasRight.width).toBeGreaterThan(100);
     expect(canvasRight.height).toBeGreaterThan(30);
+
+    const ctxRight = canvasRight.getContext("2d") as any;
+    const rightBranchArc = ctxRight.arc.mock.calls.find(
+      (call: any[]) => call[0] > 10 && call[1] !== 0 && call[2] === 2.5,
+    );
+    expect(rightBranchArc).toBeDefined();
+    // In Railbench coordinates, turnout-right branches downwards (+Y)
+    expect(rightBranchArc[1]).toBeGreaterThan(0);
   });
 
   it("renders curved turnouts and three-way turnouts", () => {
-    const curvedTurnout: CatalogEntry = {
+    const curvedTurnoutLeft: CatalogEntry = {
       id: "24671",
       name: "Bogenweiche links",
       kind: "curved-turnout-left",
@@ -156,8 +174,22 @@ describe("Drag Preview Generator", () => {
       branchRadius: 360,
       branchAngle: 30,
     };
-    const cCanvas = createPieceDragCanvas(curvedTurnout, false);
+    const cCanvas = createPieceDragCanvas(curvedTurnoutLeft, false);
     expect(cCanvas.width).toBeGreaterThan(40);
+
+    const curvedTurnoutRight: CatalogEntry = {
+      id: "24672",
+      name: "Bogenweiche rechts",
+      kind: "curved-turnout-right",
+      category: "Weichen",
+      description: "Bogenweiche",
+      radius: 360,
+      angle: 30,
+      branchRadius: 360,
+      branchAngle: 30,
+    };
+    const cRightCanvas = createPieceDragCanvas(curvedTurnoutRight, false);
+    expect(cRightCanvas.width).toBeGreaterThan(40);
 
     const threeWay: CatalogEntry = {
       id: "24630",

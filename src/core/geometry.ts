@@ -1,5 +1,5 @@
 import type { Vec2, Transform, TrackPiece } from "./types";
-import type { CatalogEntry } from "@/catalog/catalog";
+import { type CatalogEntry, isBufferStopPiece } from "@/catalog/catalog";
 
 export const deg2rad = (d: number) => (d * Math.PI) / 180;
 export const rad2deg = (r: number) => (r * 180) / Math.PI;
@@ -137,13 +137,13 @@ export function distanceToTrackPiece(
       const dStraight = distToSegment(local, { x: 0, y: 0 }, { x: l, y: 0 });
       if (entry.branchLength !== undefined) {
         const midX = l / 2;
-        const dBranch = distToSegment(local, { x: midX, y: 0 }, { x: midX, y: entry.branchLength });
+        const dBranch = distToSegment(local, { x: midX, y: 0 }, { x: midX, y: -entry.branchLength });
         return Math.min(dStraight, dBranch);
       }
       if (entry.branchRadius !== undefined) {
         const br = entry.branchRadius;
         const ba = entry.branchAngle ?? 45;
-        const dBranch = distToArc(local, 0, br, br, -Math.PI / 2, -Math.PI / 2 + deg2rad(ba), false);
+        const dBranch = distToArc(local, 0, -br, br, Math.PI / 2, Math.PI / 2 - deg2rad(ba), true);
         return Math.min(dStraight, dBranch);
       }
       return dStraight;
@@ -157,7 +157,7 @@ export function distanceToTrackPiece(
     }
   }
 
-  if (kind === "straight" || kind === "accessory" || kind === "flex") {
+  if (kind === "straight" || kind === "accessory" || kind === "flex" || kind === "buffer-stop" || isBufferStopPiece(entry)) {
     const l = entry.length ?? (kind === "flex" ? 900 : 188.3);
     return distToSegment(local, { x: 0, y: 0 }, { x: l, y: 0 });
   }
@@ -179,26 +179,6 @@ export function distanceToTrackPiece(
       const lead = entry.branchLength ?? (entry.branchRadius && entry.branchRadius > r1 ? entry.branchRadius - r1 : 0);
       const r2 = entry.branchLength !== undefined ? (entry.branchRadius ?? r1) : (entry.branchRadius && entry.branchRadius > r1 ? r1 : (entry.branchRadius ?? r1));
       const a2 = entry.branchAngle ?? 30;
-      const d1 = distToArc(local, 0, r1, r1, -Math.PI / 2, -Math.PI / 2 + deg2rad(a1), false);
-      const dLead = lead > 0 ? distToSegment(local, { x: 0, y: 0 }, { x: lead, y: 0 }) : Infinity;
-      const d2 = distToArc(local, lead, r2, r2, -Math.PI / 2, -Math.PI / 2 + deg2rad(a2), false);
-      return Math.min(d1, dLead, d2);
-    }
-    const l = entry.length ?? 188.3;
-    const br = entry.branchRadius ?? 437.5;
-    const ba = entry.branchAngle ?? 24.3;
-    const dStraight = distToSegment(local, { x: 0, y: 0 }, { x: l, y: 0 });
-    const dBranch = distToArc(local, 0, br, br, -Math.PI / 2, -Math.PI / 2 + deg2rad(ba), false);
-    return Math.min(dStraight, dBranch);
-  }
-
-  if (kind === "turnout-right") {
-    if (entry.radius && !entry.length) {
-      const r1 = entry.radius;
-      const a1 = entry.angle ?? 30;
-      const lead = entry.branchLength ?? (entry.branchRadius && entry.branchRadius > r1 ? entry.branchRadius - r1 : 0);
-      const r2 = entry.branchLength !== undefined ? (entry.branchRadius ?? r1) : (entry.branchRadius && entry.branchRadius > r1 ? r1 : (entry.branchRadius ?? r1));
-      const a2 = entry.branchAngle ?? 30;
       const d1 = distToArc(local, 0, -r1, r1, Math.PI / 2, Math.PI / 2 - deg2rad(a1), true);
       const dLead = lead > 0 ? distToSegment(local, { x: 0, y: 0 }, { x: lead, y: 0 }) : Infinity;
       const d2 = distToArc(local, lead, -r2, r2, Math.PI / 2, Math.PI / 2 - deg2rad(a2), true);
@@ -212,15 +192,35 @@ export function distanceToTrackPiece(
     return Math.min(dStraight, dBranch);
   }
 
+  if (kind === "turnout-right") {
+    if (entry.radius && !entry.length) {
+      const r1 = entry.radius;
+      const a1 = entry.angle ?? 30;
+      const lead = entry.branchLength ?? (entry.branchRadius && entry.branchRadius > r1 ? entry.branchRadius - r1 : 0);
+      const r2 = entry.branchLength !== undefined ? (entry.branchRadius ?? r1) : (entry.branchRadius && entry.branchRadius > r1 ? r1 : (entry.branchRadius ?? r1));
+      const a2 = entry.branchAngle ?? 30;
+      const d1 = distToArc(local, 0, r1, r1, -Math.PI / 2, -Math.PI / 2 + deg2rad(a1), false);
+      const dLead = lead > 0 ? distToSegment(local, { x: 0, y: 0 }, { x: lead, y: 0 }) : Infinity;
+      const d2 = distToArc(local, lead, r2, r2, -Math.PI / 2, -Math.PI / 2 + deg2rad(a2), false);
+      return Math.min(d1, dLead, d2);
+    }
+    const l = entry.length ?? 188.3;
+    const br = entry.branchRadius ?? 437.5;
+    const ba = entry.branchAngle ?? 24.3;
+    const dStraight = distToSegment(local, { x: 0, y: 0 }, { x: l, y: 0 });
+    const dBranch = distToArc(local, 0, br, br, -Math.PI / 2, -Math.PI / 2 + deg2rad(ba), false);
+    return Math.min(dStraight, dBranch);
+  }
+
   if (kind === "curved-turnout-left") {
     const r1 = entry.radius ?? 360;
     const a1 = entry.angle ?? 30;
     const lead = entry.branchLength ?? (entry.branchRadius && entry.branchRadius > r1 ? entry.branchRadius - r1 : 0);
     const r2 = entry.branchLength !== undefined ? (entry.branchRadius ?? r1) : (entry.branchRadius && entry.branchRadius > r1 ? r1 : (entry.branchRadius ?? r1));
     const a2 = entry.branchAngle ?? 30;
-    const d1 = distToArc(local, 0, r1, r1, -Math.PI / 2, -Math.PI / 2 + deg2rad(a1), false);
+    const d1 = distToArc(local, 0, -r1, r1, Math.PI / 2, Math.PI / 2 - deg2rad(a1), true);
     const dLead = lead > 0 ? distToSegment(local, { x: 0, y: 0 }, { x: lead, y: 0 }) : Infinity;
-    const d2 = distToArc(local, lead, r2, r2, -Math.PI / 2, -Math.PI / 2 + deg2rad(a2), false);
+    const d2 = distToArc(local, lead, -r2, r2, Math.PI / 2, Math.PI / 2 - deg2rad(a2), true);
     return Math.min(d1, dLead, d2);
   }
 
@@ -230,9 +230,9 @@ export function distanceToTrackPiece(
     const lead = entry.branchLength ?? (entry.branchRadius && entry.branchRadius > r1 ? entry.branchRadius - r1 : 0);
     const r2 = entry.branchLength !== undefined ? (entry.branchRadius ?? r1) : (entry.branchRadius && entry.branchRadius > r1 ? r1 : (entry.branchRadius ?? r1));
     const a2 = entry.branchAngle ?? 30;
-    const d1 = distToArc(local, 0, -r1, r1, Math.PI / 2, Math.PI / 2 - deg2rad(a1), true);
+    const d1 = distToArc(local, 0, r1, r1, -Math.PI / 2, -Math.PI / 2 + deg2rad(a1), false);
     const dLead = lead > 0 ? distToSegment(local, { x: 0, y: 0 }, { x: lead, y: 0 }) : Infinity;
-    const d2 = distToArc(local, lead, -r2, r2, Math.PI / 2, Math.PI / 2 - deg2rad(a2), true);
+    const d2 = distToArc(local, lead, r2, r2, -Math.PI / 2, -Math.PI / 2 + deg2rad(a2), false);
     return Math.min(d1, dLead, d2);
   }
 
@@ -325,7 +325,7 @@ export function getPieceLocalCenter(entry: CatalogEntry): Vec2 {
     const halfRad = deg2rad(a / 2);
     return {
       x: r * Math.sin(halfRad),
-      y: r * (1 - Math.cos(halfRad)),
+      y: -r * (1 - Math.cos(halfRad)),
     };
   }
   if (kind === "curved-turnout-right" || (kind === "turnout-right" && entry.radius && !entry.length)) {
@@ -334,10 +334,10 @@ export function getPieceLocalCenter(entry: CatalogEntry): Vec2 {
     const halfRad = deg2rad(a / 2);
     return {
       x: r * Math.sin(halfRad),
-      y: -r * (1 - Math.cos(halfRad)),
+      y: r * (1 - Math.cos(halfRad)),
     };
   }
-  if (kind === "straight" || kind === "accessory" || kind === "flex" || kind === "turnout-left" || kind === "turnout-right" || kind === "three-way" || kind === "double-slip") {
+  if (kind === "straight" || kind === "accessory" || kind === "flex" || kind === "buffer-stop" || kind === "turnout-left" || kind === "turnout-right" || kind === "three-way" || kind === "double-slip" || isBufferStopPiece(entry)) {
     const l = entry.length ?? (kind === "flex" ? 900 : 188.3);
     return { x: l / 2, y: 0 };
   }
@@ -508,15 +508,36 @@ export function isPieceInSelectionBox(
       const pt = transformPoint({ x: l * t, y: 0 }, piece.transform);
       if (isPointInside(pt)) return true;
     }
-  } else if (kind === "curve" || isCurvedTurnoutL) {
+  } else if (isCurvedTurnoutL) {
     const r = entry.radius ?? 437.5;
     const a = entry.angle ?? 30;
     for (const t of sampleSteps) {
-      const ang = -Math.PI / 2 + deg2rad(a * t);
-      const pt = transformPoint({ x: r * Math.cos(ang), y: r + r * Math.sin(ang) }, piece.transform);
+      const ang = Math.PI / 2 - deg2rad(a * t);
+      const pt = transformPoint({ x: r * Math.cos(ang), y: -r + r * Math.sin(ang) }, piece.transform);
       if (isPointInside(pt)) return true;
     }
-    if (isCurvedTurnoutL) {
+    const lead = entry.branchLength ?? (entry.branchRadius && entry.branchRadius > r ? entry.branchRadius - r : 0);
+    const r2 = entry.branchLength !== undefined ? (entry.branchRadius ?? r) : (entry.branchRadius && entry.branchRadius > r ? r : (entry.branchRadius ?? r));
+    const a2 = entry.branchAngle ?? 30;
+    if (lead > 0) {
+      const pt = transformPoint({ x: lead * 0.5, y: 0 }, piece.transform);
+      if (isPointInside(pt)) return true;
+    }
+    for (const t of sampleSteps) {
+      const ang = Math.PI / 2 - deg2rad(a2 * t);
+      const pt = transformPoint({ x: lead + r2 * Math.cos(ang), y: -r2 + r2 * Math.sin(ang) }, piece.transform);
+      if (isPointInside(pt)) return true;
+    }
+  } else if (kind === "curve" || isCurvedTurnoutR) {
+    const r = entry.radius ?? 437.5;
+    const a = entry.angle ?? 30;
+    for (const t of sampleSteps) {
+      const ang = a < 0 ? Math.PI / 2 - deg2rad(Math.abs(a) * t) : -Math.PI / 2 + deg2rad(a * t);
+      const yCenter = a < 0 ? -r : r;
+      const pt = transformPoint({ x: r * Math.cos(ang), y: yCenter + r * Math.sin(ang) }, piece.transform);
+      if (isPointInside(pt)) return true;
+    }
+    if (isCurvedTurnoutR) {
       const lead = entry.branchLength ?? (entry.branchRadius && entry.branchRadius > r ? entry.branchRadius - r : 0);
       const r2 = entry.branchLength !== undefined ? (entry.branchRadius ?? r) : (entry.branchRadius && entry.branchRadius > r ? r : (entry.branchRadius ?? r));
       const a2 = entry.branchAngle ?? 30;
@@ -529,14 +550,6 @@ export function isPieceInSelectionBox(
         const pt = transformPoint({ x: lead + r2 * Math.cos(ang), y: r2 + r2 * Math.sin(ang) }, piece.transform);
         if (isPointInside(pt)) return true;
       }
-    }
-  } else if (isCurvedTurnoutR) {
-    const r = entry.radius ?? 437.5;
-    const a = entry.angle ?? 30;
-    for (const t of sampleSteps) {
-      const ang = Math.PI / 2 - deg2rad(a * t);
-      const pt = transformPoint({ x: r * Math.cos(ang), y: -r + r * Math.sin(ang) }, piece.transform);
-      if (isPointInside(pt)) return true;
     }
     const lead = entry.branchLength ?? (entry.branchRadius && entry.branchRadius > r ? entry.branchRadius - r : 0);
     const r2 = entry.branchLength !== undefined ? (entry.branchRadius ?? r) : (entry.branchRadius && entry.branchRadius > r ? r : (entry.branchRadius ?? r));

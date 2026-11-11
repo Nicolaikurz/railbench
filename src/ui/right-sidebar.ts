@@ -1,7 +1,8 @@
-import type { Layout, Layer } from "@/core/types";
+import type { Layout, Layer, LayerWoodPlateMode } from "@/core/types";
 import { ensureDefaultLayers, sortLayers } from "@/core/layout";
 import { getTranslations, getLanguage, onLanguageChange } from "@/i18n";
 import { openLayerDialog } from "./layer-dialog";
+import { openWoodPlateBatchDialog } from "./wood-plate-dialog";
 
 export interface RightSidebarCallbacks {
   onLayerChange: () => void;
@@ -388,6 +389,42 @@ export class RightSidebar {
       this.addLayerButton(getLanguage() === "de" ? "Ebene hinzufügen" : "Add layer", t.addAboveTooltip, true),
     );
 
+    // Woodplate Quickbar & Batch Configuration
+    const plateBar = document.createElement("div");
+    plateBar.className = "cl-woodplate-quickbar";
+    plateBar.style.cssText = "margin-top: 8px; display: flex; flex-direction: column; gap: 4px;";
+
+    const plateBtnRow = document.createElement("div");
+    plateBtnRow.style.cssText = "display: flex; gap: 4px;";
+
+    const fitTableBtn = document.createElement("button");
+    fitTableBtn.type = "button";
+    fitTableBtn.className = "cl-btn cl-subtle-btn";
+    fitTableBtn.style.cssText = "flex: 1; font-size: 11px; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--border-color, #cbd5e1); background: transparent; cursor: pointer; color: var(--text-color); font-weight: 500; display: flex; align-items: center; justify-content: center; gap: 4px;";
+    fitTableBtn.textContent = t.woodPlateFitTableAll;
+    fitTableBtn.title = t.woodPlateBatchDialogDesc;
+    fitTableBtn.addEventListener("click", () => this.applyBatchWoodPlates("table"));
+
+    const fitTightBtn = document.createElement("button");
+    fitTightBtn.type = "button";
+    fitTightBtn.className = "cl-btn cl-subtle-btn";
+    fitTightBtn.style.cssText = "flex: 1; font-size: 11px; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--border-color, #cbd5e1); background: transparent; cursor: pointer; color: var(--text-color); font-weight: 500; display: flex; align-items: center; justify-content: center; gap: 4px;";
+    fitTightBtn.textContent = t.woodPlateFitTightAll;
+    fitTightBtn.title = t.woodPlateBatchDialogDesc;
+    fitTightBtn.addEventListener("click", () => this.applyBatchWoodPlates("tight"));
+
+    const morePlateBtn = document.createElement("button");
+    morePlateBtn.type = "button";
+    morePlateBtn.className = "cl-btn cl-subtle-btn";
+    morePlateBtn.style.cssText = "font-size: 11px; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border-color, #cbd5e1); background: transparent; cursor: pointer; color: var(--text-muted); display: flex; align-items: center; justify-content: center;";
+    morePlateBtn.textContent = "⚙️";
+    morePlateBtn.title = t.woodPlateBatchDialogTitle;
+    morePlateBtn.addEventListener("click", () => this.openWoodPlatesDialog());
+
+    plateBtnRow.append(fitTableBtn, fitTightBtn, morePlateBtn);
+    plateBar.appendChild(plateBtnRow);
+    body.appendChild(plateBar);
+
     // Orphaned items alert (e.g. from previously deleted layers)
     const orphanedPieces = this.layout.pieces.filter((p) => !layers.some((l) => l.id === (p.layerId || "layer-1")));
     const orphanedModels = (this.layout.models || []).filter((m) => !layers.some((l) => l.id === (m.layerId || "layer-1")));
@@ -569,7 +606,38 @@ export class RightSidebar {
     tracks.className = "cl-tracks";
     tracks.textContent = t.tracksCount.replace("{count}", String(count)).replace("{s}", count === 1 ? "" : "s");
 
-    meta.append(dot, height, tracks);
+    const plateMode = layer.woodPlateMode ?? "none";
+    const plateBtn = document.createElement("button");
+    plateBtn.type = "button";
+    plateBtn.className = "cl-plate-badge";
+    const plateText =
+      plateMode === "table" ? t.woodPlateTable : plateMode === "tight" ? t.woodPlateTight : t.woodPlateNone;
+    plateBtn.textContent = plateText;
+    plateBtn.title = t.woodPlateTooltip;
+    plateBtn.style.fontSize = "11px";
+    plateBtn.style.padding = "1px 6px";
+    plateBtn.style.borderRadius = "4px";
+    plateBtn.style.cursor = "pointer";
+    plateBtn.style.border = plateMode !== "none" ? "1px solid #ea580c" : "1px solid var(--border-color, #cbd5e1)";
+    plateBtn.style.backgroundColor = plateMode !== "none" ? "rgba(251, 146, 60, 0.15)" : "transparent";
+    plateBtn.style.color = plateMode !== "none" ? "var(--text-color, #0f172a)" : "var(--text-muted, #64748b)";
+    plateBtn.style.fontWeight = plateMode !== "none" ? "600" : "400";
+
+    plateBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      // Cycle: none -> table -> tight -> none
+      if (layer.woodPlateMode === "table") {
+        layer.woodPlateMode = "tight";
+      } else if (layer.woodPlateMode === "tight") {
+        layer.woodPlateMode = "none";
+      } else {
+        layer.woodPlateMode = "table";
+      }
+      this.callbacks.onLayerChange();
+      this.render();
+    });
+
+    meta.append(dot, height, tracks, plateBtn);
     info.append(nameRow, meta);
 
     // Actions
@@ -683,5 +751,25 @@ export class RightSidebar {
         this.render();
       },
     });
+  }
+
+  private openWoodPlatesDialog() {
+    openWoodPlateBatchDialog({
+      layout: this.layout,
+      onApply: (mode, thickness) => this.applyBatchWoodPlates(mode, thickness),
+    });
+  }
+
+  private applyBatchWoodPlates(mode: LayerWoodPlateMode, thickness?: number) {
+    if (this.layout.layers) {
+      for (const layer of this.layout.layers) {
+        layer.woodPlateMode = mode;
+        if (thickness !== undefined) {
+          layer.woodPlateThicknessMm = thickness;
+        }
+      }
+    }
+    this.callbacks.onLayerChange();
+    this.render();
   }
 }

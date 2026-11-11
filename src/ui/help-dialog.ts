@@ -2,6 +2,8 @@ import { getLanguage } from "@/i18n";
 import { getAppVersionTag } from "@/version";
 import { renderGermanTab } from "./help-content-de";
 import { renderEnglishTab } from "./help-content-en";
+import { downloadFile } from "@/io/export";
+import { EXAMPLE_H0_CATALOG_JSON } from "@/catalog/example-catalog";
 
 export type HelpTab =
   | "overview"
@@ -12,6 +14,7 @@ export type HelpTab =
   | "view3d"
   | "server"
   | "shortcuts"
+  | "catalog"
   | "about";
 
 export function openHelpDialog(initialTab: HelpTab = "overview"): void {
@@ -43,6 +46,7 @@ export function openHelpDialog(initialTab: HelpTab = "overview"): void {
         { id: "view3d", label: "3D-Ansicht" },
         { id: "server", label: "Multi-User & Server" },
         { id: "shortcuts", label: "Tastaturkürzel" },
+        { id: "catalog", label: "Gleiskatalog (JSON)" },
         { id: "about", label: "Über Railbench & Gleise" },
       ]
     : [
@@ -54,6 +58,7 @@ export function openHelpDialog(initialTab: HelpTab = "overview"): void {
         { id: "view3d", label: "3D View" },
         { id: "server", label: "Multi-User & Server" },
         { id: "shortcuts", label: "Keyboard Shortcuts" },
+        { id: "catalog", label: "Track Catalog (JSON)" },
         { id: "about", label: "About & Systems" },
       ];
 
@@ -132,5 +137,52 @@ export function openHelpDialog(initialTab: HelpTab = "overview"): void {
 
   // Initialen Tab rendern
   renderTabContent(initialTab);
+
+  // Aktionen im Inhaltsbereich (z. B. JSON kopieren & herunterladen)
+  contentArea.addEventListener("click", (e) => {
+    const target = (e.target as HTMLElement).closest<HTMLButtonElement>("button[data-action]");
+    if (!target) return;
+    const action = target.getAttribute("data-action");
+
+    if (action === "copy-catalog-json") {
+      const codeEl = contentArea.querySelector("#example-catalog-json");
+      const text = codeEl?.textContent || EXAMPLE_H0_CATALOG_JSON;
+      const originalText = target.innerHTML;
+
+      const markSuccess = () => {
+        target.innerHTML = isDe ? "✓ In Zwischenablage kopiert!" : "✓ Copied to clipboard!";
+        target.style.background = "#059669";
+        target.style.color = "#ffffff";
+        setTimeout(() => {
+          target.innerHTML = originalText;
+          target.style.background = "";
+          target.style.color = "";
+        }, 2200);
+      };
+
+      if (navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(text).then(markSuccess).catch(() => {
+          // Fallback
+          const ta = document.createElement("textarea");
+          ta.value = text;
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand("copy");
+          ta.remove();
+          markSuccess();
+        });
+      } else {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        ta.remove();
+        markSuccess();
+      }
+    } else if (action === "download-catalog-json") {
+      downloadFile("railbench-catalog-h0-example.json", EXAMPLE_H0_CATALOG_JSON, "application/json");
+    }
+  });
 }
 

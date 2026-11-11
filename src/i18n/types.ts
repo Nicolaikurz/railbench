@@ -322,6 +322,18 @@ export interface Translations {
     disableSelectionLock: string;
     orphanedItemsWarning: string;
     reassignOrphaned: string;
+    woodPlateTooltip: string;
+    woodPlateNone: string;
+    woodPlateTable: string;
+    woodPlateTight: string;
+    woodPlateBatchBtn: string;
+    woodPlateBatchPrompt: string;
+    woodPlateBatchDialogTitle: string;
+    woodPlateBatchDialogDesc: string;
+    woodPlateFitTableAll: string;
+    woodPlateFitTightAll: string;
+    woodPlateNoneAll: string;
+    woodPlateAppliedToast: string;
   };
   selectionBar: {
     selectedPrefix: string;
@@ -363,6 +375,8 @@ export interface Translations {
     heightLabel: string;
     trackFeederBtn: string;
     trackFeederActive: string;
+    autoRampBtn: string;
+    autoRampTitle: string;
   };
   heightDialog: {
     title: string;
@@ -440,6 +454,15 @@ export interface Translations {
     optVisible: string;
     optLocked: string;
     optActive: string;
+    woodPlateSectionTitle: string;
+    woodPlateLabel: string;
+    woodPlateNoneTitle: string;
+    woodPlateNoneDesc: string;
+    woodPlateTableTitle: string;
+    woodPlateTableDesc: string;
+    woodPlateTightTitle: string;
+    woodPlateTightDesc: string;
+    woodPlateThicknessLabel: string;
     cancelBtn: string;
     createBtn: string;
     saveBtn: string;

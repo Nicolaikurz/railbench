@@ -30,10 +30,13 @@ export interface TrackPiece {
   customLength?: number;
   customRadius?: number;
   customAngle?: number;
+  groupId?: string;
   layerId?: string;
 }
 
 export type ColorMode = "off" | "types" | "layers";
+
+export type LayerWoodPlateMode = "none" | "table" | "tight";
 
 export interface Layer {
   id: string;
@@ -42,6 +45,8 @@ export interface Layer {
   visible: boolean;
   locked: boolean;
   heightMm?: number;
+  woodPlateMode?: LayerWoodPlateMode;
+  woodPlateThicknessMm?: number;
 }
 
 export type BaseboardStyle = "wood" | "dark-wood" | "plywood" | "slate" | "white" | "grass";

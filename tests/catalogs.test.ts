@@ -5,7 +5,10 @@ import {
   maerklinKCatalog,
   genericStreetsCatalog,
   computeWorldConnectors,
+  getLocalConnectors,
 } from "@/catalog/catalog";
+import { EXAMPLE_H0_CATALOG, EXAMPLE_H0_CATALOG_JSON } from "@/catalog/example-catalog";
+import type { TrackKind } from "@/catalog/types";
 import { getPieceListSummary, exportPieceListCSV } from "@/io/export";
 import type { Layout } from "@/core/types";
 
@@ -150,9 +153,9 @@ describe("Märklin M-Gleis & K-Gleis Catalogs", () => {
     // Main straight endpoint
     expect(connsK[1]!.x).toBeCloseTo(225.0, 1);
     expect(connsK[1]!.y).toBeCloseTo(0, 1);
-    // Diverging branch endpoint
+    // Diverging branch endpoint (left turnout branches to -y)
     expect(connsK[2]!.x).toBeGreaterThan(200);
-    expect(connsK[2]!.y).toBeGreaterThan(10);
+    expect(connsK[2]!.y).toBeLessThan(-10);
   });
 });
 
@@ -443,7 +446,7 @@ describe("Generic Streets Catalog (H0 Roads)", () => {
     expect(connectors[0]?.angle).toBe(180);
     expect(connectors[1]?.x).toBe(300);
     expect(connectors[1]?.angle).toBe(0);
-    expect(connectors[2]?.angle).toBe(30);
+    expect(connectors[2]?.angle).toBe(330);
   });
 
   it("imports a flat list of tracks as JSON and auto-wraps it into a valid catalog", () => {
@@ -634,6 +637,60 @@ describe("Scale 0, 1 & Scale G Tracks, Streets, and Buildings", () => {
       expect(e.roadWidth).toBe(230);
       expect(e.gauge).toBe(45);
     }
+  });
+
+  describe("Example H0 Catalog (for Help Menu)", () => {
+    const allExpectedKinds: TrackKind[] = [
+      "straight",
+      "curve",
+      "turnout-left",
+      "turnout-right",
+      "curved-turnout-left",
+      "curved-turnout-right",
+      "three-way",
+      "double-slip",
+      "crossing",
+      "uncoupler",
+      "buffer-stop",
+      "feeder",
+      "isolating",
+      "flex",
+      "turntable",
+      "transfer-table",
+      "accessory",
+    ];
+
+    it("has scale H0, gauge 16.5 mm and exactly one of each track type", () => {
+      expect(EXAMPLE_H0_CATALOG.scale).toBe("H0");
+      expect(EXAMPLE_H0_CATALOG.gauge).toBe(16.5);
+      expect(EXAMPLE_H0_CATALOG.entries.length).toBe(allExpectedKinds.length);
+
+      const kindsInCatalog = EXAMPLE_H0_CATALOG.entries.map((e) => e.kind);
+      for (const expectedKind of allExpectedKinds) {
+        const count = kindsInCatalog.filter((k) => k === expectedKind).length;
+        expect(count, `Expected exactly 1 of kind '${expectedKind}'`).toBe(1);
+      }
+    });
+
+    it("parses valid JSON that can be imported via catalogRegistry.loadFromJSON", () => {
+      const parsed = JSON.parse(EXAMPLE_H0_CATALOG_JSON);
+      expect(parsed.id).toBe("custom-h0-example");
+      expect(parsed.scale).toBe("H0");
+      expect(parsed.gauge).toBe(16.5);
+      expect(parsed.entries.length).toBe(allExpectedKinds.length);
+
+      const imported = catalogRegistry.loadFromJSON(EXAMPLE_H0_CATALOG_JSON);
+      expect(imported.id).toBe("custom-h0-example");
+      expect(imported.scale).toBe("H0");
+      expect(imported.gauge).toBe(16.5);
+      expect(imported.entries.length).toBe(allExpectedKinds.length);
+
+      // Verify that every entry generates valid local connectors
+      for (const entry of imported.entries) {
+        const conns = getLocalConnectors(entry);
+        expect(conns.length, `Entry ${entry.id} (${entry.kind}) must have at least 1 connector`).toBeGreaterThanOrEqual(1);
+      }
+    });
   });
 });
 

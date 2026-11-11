@@ -6,6 +6,7 @@
  */
 
 import type { CatalogEntry, TrackKind } from "@/catalog/types";
+import { isBufferStopPiece } from "@/catalog/catalog";
 import type { BuiltinModelDef } from "@/core/models-3d";
 import type { Model3D } from "@/core/types";
 
@@ -219,13 +220,21 @@ function renderTrackPiece(
     canvas.height = Math.ceil(ballastWidth + extraH + pad * 2);
 
     ctx.save();
-    const mainY = kind === "three-way" ? canvas.height / 2 : isLeft ? canvas.height - pad - ballastWidth / 2 : pad + ballastWidth / 2;
+    // In Railbench coordinates (matching the trackplan):
+    // turnout-left branches upwards (-Y) -> main track placed near bottom
+    // turnout-right branches downwards (+Y) -> main track placed near top
+    const mainY =
+      kind === "three-way"
+        ? canvas.height / 2
+        : isLeft
+          ? canvas.height - pad - ballastWidth / 2
+          : pad + ballastWidth / 2;
     ctx.translate(pad, mainY);
 
     // Ballast main track
     drawStraightBallast(ctx, 0, 0, len, ballastWidth, ballastColor);
 
-    // Diverging ballast branches
+    // Diverging ballast branches (matching the 2D trackplan layout)
     if (isLeft) {
       drawTurnoutBranch(ctx, branchR, branchRad, true, ballastWidth, gauge, ballastColor, sleeperColor, railColor, railShadowColor);
     }
@@ -259,6 +268,7 @@ function renderTrackPiece(
     const rMain = (entry.radius || 360) * pxPerMm;
     const rBranch = (entry.branchRadius || rMain * 0.8) * pxPerMm;
     const rad = (Math.abs(entry.angle || 30) * Math.PI) / 180;
+    const isCurvedLeft = kind === "curved-turnout-left";
     const pad = 16;
     const arcW = Math.max(50, rMain * Math.sin(rad));
     const arcH = Math.max(50, rMain * (1 - Math.cos(rad)) + 15);
@@ -267,7 +277,15 @@ function renderTrackPiece(
     canvas.height = Math.ceil(arcH + pad * 2);
 
     ctx.save();
-    ctx.translate(pad, pad + rMain);
+    if (isCurvedLeft) {
+      // For left curved turnout, curves upwards (-Y) matching the trackplan
+      ctx.translate(pad, canvas.height - pad);
+      ctx.scale(1, -1);
+      ctx.translate(0, rMain);
+    } else {
+      // For right curved turnout, curves downwards (+Y) matching the trackplan
+      ctx.translate(pad, pad + rMain);
+    }
 
     // Both ballast arcs
     for (const r of [rMain, rBranch]) {
@@ -357,7 +375,8 @@ function renderTrackPiece(
   drawStraightRails(ctx, 0, 0, len, gauge, railColor, railShadowColor);
 
   // Special accessories on straight tracks
-  if (kind === "buffer-stop") {
+  const isBufferStop = kind === "buffer-stop" || isBufferStopPiece(entry);
+  if (isBufferStop) {
     // Buffer beam (Prellbock)
     ctx.fillStyle = "#ef4444";
     ctx.fillRect(len - 4, -ballastWidth / 2, 5, ballastWidth);
@@ -381,7 +400,7 @@ function renderTrackPiece(
   }
 
   drawConnectorDot(ctx, 0, 0, accentColor);
-  if (kind !== "buffer-stop") {
+  if (!isBufferStop) {
     drawConnectorDot(ctx, len, 0, accentColor);
   }
 
@@ -624,16 +643,33 @@ function renderModelFootprint1to1(
   roundRect(ctx, x, y, w, d, corner);
   ctx.stroke();
 
-  // 3. Diagonal architectural construction cross (identical to trackplan model-sprite.ts)
+  // 3. Roof ridge & hip lines (matching trackplan model-sprite.ts top view)
   if (w >= 24 && d >= 24) {
     ctx.strokeStyle = theme.strokeColor;
-    ctx.lineWidth = 1.0;
-    ctx.globalAlpha = 0.35;
+    ctx.lineWidth = 1.4;
+    ctx.globalAlpha = 0.6;
     ctx.beginPath();
-    ctx.moveTo(x + 4, y + 4);
-    ctx.lineTo(x + w - 4, y + d - 4);
-    ctx.moveTo(x + w - 4, y + 4);
-    ctx.lineTo(x + 4, y + d - 4);
+    if (w >= d) {
+      const hip = d * 0.4;
+      ctx.moveTo(x + hip, y + d / 2);
+      ctx.lineTo(x + w - hip, y + d / 2);
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + hip, y + d / 2);
+      ctx.lineTo(x, y + d);
+      ctx.moveTo(x + w, y);
+      ctx.lineTo(x + w - hip, y + d / 2);
+      ctx.lineTo(x + w, y + d);
+    } else {
+      const hip = w * 0.4;
+      ctx.moveTo(x + w / 2, y + hip);
+      ctx.lineTo(x + w / 2, y + d - hip);
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + w / 2, y + hip);
+      ctx.lineTo(x + w, y);
+      ctx.moveTo(x, y + d);
+      ctx.lineTo(x + w / 2, y + d - hip);
+      ctx.lineTo(x + w, y + d);
+    }
     ctx.stroke();
     ctx.globalAlpha = 1.0;
   }

@@ -6,10 +6,15 @@ import { getTranslations } from "@/i18n";
 import { createTrackGraphics } from "./track-sprite";
 import { createBaseboardGraphics } from "./baseboard-sprite";
 import { createModel2DGraphics } from "./model-sprite";
-import { getBaseboards } from "@/core/layout";
+import { getBaseboards, getBaseboardBounds } from "@/core/layout";
 import type { BaseboardSnapGuide } from "@/core/baseboard-snapping";
 import { getConnectorSnapStatus } from "@/core/snapping";
 import { isFlexTrack } from "@/core/flextrack";
+import {
+  getBuildingDoorConnectors,
+  isConnectorConnectedToBuilding,
+} from "@/core/engine-shed-snap";
+import { dist } from "@/core/geometry";
 
 export interface MeasureState {
   start: { x: number; y: number } | null;
@@ -134,8 +139,26 @@ export class Renderer {
           isSelected,
           isDragging,
           snapGuides: isDragging ? options.baseboardSnapGuides : undefined,
+          layout,
+          catalog,
         });
         this.baseboardLayer.addChild(bbSprite);
+      }
+    }
+
+    // 0A. Tischplatten / Voll-Zwischenebenen (woodPlateMode === "table")
+    if (layout.layers) {
+      for (const layer of layout.layers) {
+        if (!layer.visible || layer.woodPlateMode !== "table" || (layer.heightMm ?? 0) === 0) continue;
+        for (const bb of baseboards) {
+          if (!bb.enabled) continue;
+          const { x, y, width, depth } = getBaseboardBounds(bb);
+          const deckG = new Graphics();
+          deckG.roundRect(x + 2, y + 2, width - 4, depth - 4, Math.max(0, (bb.cornerRadius ?? 12) - 2));
+          deckG.stroke({ width: 2, color: 0xcbb89d, alpha: 0.65 });
+          deckG.fill({ color: 0xcbb89d, alpha: 0.08 });
+          this.baseboardLayer.addChild(deckG);
+        }
       }
     }
 
@@ -152,6 +175,20 @@ export class Renderer {
       for (const model of layout.models) {
         const layer = model.layerId ? layerMap.get(model.layerId) : undefined;
         if (layer && !layer.visible) continue;
+
+        // Holzfundamentplatte rendern, wenn Layer im tight-Modus
+        if (layer?.woodPlateMode === "tight") {
+          const baseG = new Graphics();
+          const scale = model.scale ?? 1.0;
+          const w = (model.width * scale) + 12;
+          const d = (model.depth * scale) + 12;
+          baseG.rect(-w / 2, -d / 2, w, d);
+          baseG.fill({ color: 0xcbb89d, alpha: 0.35 });
+          baseG.stroke({ width: 1.5, color: 0x8c6d48, alpha: 0.7 });
+          baseG.position.set(model.transform.x, model.transform.y);
+          baseG.rotation = (model.transform.rotation * Math.PI) / 180;
+          this.modelsLayer.addChild(baseG);
+        }
 
         const isSelected = selectedIds.has(model.id);
         const modelSprite = createModel2DGraphics(model, isSelected);
@@ -218,9 +255,22 @@ export class Renderer {
       for (const piece of layout.pieces) {
         for (let cIdx = 0; cIdx < piece.connectors.length; cIdx++) {
           const conn = piece.connectors[cIdx]!;
+          const isBuildingSnap = isConnectorConnectedToBuilding(conn, layout.models);
           const info = getConnectorSnapStatus(piece, cIdx, layout.pieces, layout.layers);
 
-          if (info.status === "connected") {
+          if (isBuildingSnap) {
+            // "change the color to blue if an building is snappped"
+            const key = `${Math.round(conn.x * 2) / 2},${Math.round(conn.y * 2) / 2}`;
+            if (drawnConnected.has(key)) continue;
+            drawnConnected.add(key);
+
+            ov.circle(conn.x, conn.y, 4.5);
+            ov.fill({ color: 0x0284c7, alpha: 0.95 });
+            ov.circle(conn.x, conn.y, 2);
+            ov.fill({ color: 0x38bdf8 });
+            ov.circle(conn.x, conn.y, 7);
+            ov.stroke({ width: 1.2, color: 0x0369a1, alpha: 0.7 });
+          } else if (info.status === "connected") {
             // "if two tracks are connected color it grey"
             const key = `${Math.round(conn.x * 2) / 2},${Math.round(conn.y * 2) / 2}`;
             if (drawnConnected.has(key)) continue;
@@ -248,6 +298,38 @@ export class Renderer {
             ov.fill({ color: 0xffffff });
             ov.circle(conn.x, conn.y, 7);
             ov.stroke({ width: 1.2, color: 0x22c55e, alpha: 0.5 });
+          }
+        }
+      }
+
+      // Snappoints für Gebäude (Lokschuppen, Ringlokschuppen etc.)
+      if (layout.models) {
+        for (const m of layout.models) {
+          const doors = getBuildingDoorConnectors(m);
+          for (const door of doors) {
+            const isConnected = layout.pieces.some((p) =>
+              p.connectors.some((c) => dist(c, door) <= 5.0),
+            );
+            const key = `${Math.round(door.x * 2) / 2},${Math.round(door.y * 2) / 2}`;
+            if (isConnected) {
+              if (drawnConnected.has(key)) continue;
+              drawnConnected.add(key);
+
+              // "change the color to blue if an building is snappped"
+              ov.circle(door.x, door.y, 4.5);
+              ov.fill({ color: 0x0284c7, alpha: 0.95 });
+              ov.circle(door.x, door.y, 2);
+              ov.fill({ color: 0x38bdf8 });
+              ov.circle(door.x, door.y, 7);
+              ov.stroke({ width: 1.2, color: 0x0369a1, alpha: 0.7 });
+            } else {
+              ov.circle(door.x, door.y, 4.5);
+              ov.fill({ color: 0x16a34a, alpha: 0.9 });
+              ov.circle(door.x, door.y, 2);
+              ov.fill({ color: 0xffffff });
+              ov.circle(door.x, door.y, 7);
+              ov.stroke({ width: 1.2, color: 0x22c55e, alpha: 0.5 });
+            }
           }
         }
       }

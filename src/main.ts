@@ -24,6 +24,7 @@ import { RightSidebar } from "@/ui/right-sidebar";
 import { PlanManager } from "@/io/plan-manager";
 import { openPrintDialog } from "@/io/print";
 import { openChangeHeightDialog } from "@/ui/height-dialog";
+import { openRampGeneratorDialog } from "@/ui/ramp-generator-dialog";
 import { openHelpDialog, type HelpTab } from "@/ui/help-dialog";
 import { openCatalogImportDialog } from "@/catalog/catalog-importer";
 import { openCollabDialog } from "@/ui/collab-dialog";
@@ -423,6 +424,31 @@ async function main() {
     });
   }
 
+  function openRampGeneratorForPiece(anchorPiece: TrackPiece) {
+    openRampGeneratorDialog({
+      layout,
+      catalog,
+      anchorPiece,
+      onApply: (generatedPieces, newLayer) => {
+        if (newLayer) {
+          if (!layout.layers) layout.layers = [];
+          if (!layout.layers.some((l) => l.id === newLayer.id)) {
+            layout.layers.push(newLayer);
+          }
+          layout.activeLayerId = newLayer.id;
+        }
+        history.run(new AddPiecesCommand(generatedPieces));
+        selection.setMany(generatedPieces.map((p) => p.id));
+        sync(true);
+        const isDe = getLanguage() === "de";
+        showToast(
+          isDe ? `${generatedPieces.length} Rampengleise erstellt` : `Created ${generatedPieces.length} ramp tracks`,
+          "📐",
+        );
+      },
+    });
+  }
+
   function findMeasureSnapPoint(pos: { x: number; y: number }, snapDist = 20, forceNoSnap = false): { x: number; y: number } | null {
     if (!snappingEnabled || !measureSnapEnabled || forceNoSnap) return null;
     let closestPt: { x: number; y: number } | null = null;
@@ -519,6 +545,14 @@ async function main() {
     onAdjustFlexTrack: (id, len, r, a) => operations.adjustFlexTrack(id, len, r, a),
     onSelectLayer: (layerId) => operations.moveSelectedToLayer(layerId, { start: 0, end: 0 }),
     onOpenHeightDialog: () => openHeightDialogForSelection(),
+    onApplyAutoRamp: () => operations.applyAutoRamp(() => openHeightDialogForSelection()),
+    onOpenRampGenerator: () => {
+      const sel = selection.all();
+      if (sel.length === 1) {
+        const piece = layout.pieces.find((p) => p.id === sel[0]);
+        if (piece) openRampGeneratorForPiece(piece);
+      }
+    },
     onToggleFeeder: () => operations.toggleSelectedFeeder(),
     onToggleIsolator: () => operations.toggleSelectedIsolator(),
     onToggleCatenary: () => operations.toggleSelectedCatenary(),
@@ -526,9 +560,12 @@ async function main() {
     onToggleCatenaryIsolator: () => operations.toggleSelectedCatenaryIsolator(),
     onToggleTurnoutDecoder: () => operations.toggleSelectedTurnoutDecoder(),
     onToggleTurnoutLantern: () => operations.toggleSelectedTurnoutLantern(),
+    onRotate: (delta) => operations.rotateSelected(delta ?? 7.5),
     onDelete: () => operations.deleteSelected(),
     getSelectedPieceIds: () => selection.all(),
-    getLayout: () => layout, getCatalogEntry: getCatalogEntryForPiece,
+    getLayout: () => layout,
+    getCatalogEntry: getCatalogEntryForPiece,
+    getCatalog: () => catalog,
   });
 
   // Sync-Funktion für UI und Rendering
@@ -879,6 +916,7 @@ async function main() {
     isPowerSimEnabled: () => powerSimEnabled,
     setPowerSimEnabled: (val) => { powerSimEnabled = val; },
     toggleRightSidebar, openHeightDialogForSelection, openHelpDialog,
+    openRampGeneratorForPiece,
     openPrintDialog: () => openPrintDialog(layout, catalog, renderer),
     isPieceInteractive, isModelInteractive, getCatalogEntryForPiece, sync, saveSettingsState, showToast,
     getCurrentSimulation: () => currentSimulation,

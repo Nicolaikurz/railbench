@@ -193,5 +193,50 @@ describe("Layer Height & Print Features", () => {
     expect(testLayout.layers![0]!.id).toBe("l2"); // Upper Level (100mm) at the top
     expect(testLayout.layers![1]!.id).toBe("l1"); // Ground (0mm)
   });
+
+  it("ensureDefaultLayers links the 0 mm ground table layer with woodPlateMode table", () => {
+    const testLayout: Layout = {
+      name: "Table Link Test",
+      scale: "H0",
+      pieces: [],
+      layers: [
+        { id: "l1", name: "Table / Ground", heightMm: 0, visible: true, locked: false, color: "#38bdf8" },
+        { id: "l2", name: "Mountain Level", heightMm: 80, visible: true, locked: false, color: "#f472b6" },
+      ],
+    };
+
+    ensureDefaultLayers(testLayout);
+    const ground = testLayout.layers?.find((l) => (l.heightMm ?? 0) === 0);
+    expect(ground?.woodPlateMode).toBe("table");
+  });
+
+  it("supports applying woodPlateMode across all layers (fit to table and only tracks & buildings)", () => {
+    const testLayout: Layout = {
+      name: "Batch Woodplate Test",
+      scale: "H0",
+      pieces: [],
+      layers: [
+        { id: "l1", name: "Ground (0 mm)", heightMm: 0, visible: true, locked: false, color: "#38bdf8" },
+        { id: "l2", name: "Mid Deck (60 mm)", heightMm: 60, visible: true, locked: false, color: "#f472b6" },
+        { id: "l3", name: "High Deck (120 mm)", heightMm: 120, visible: true, locked: false, color: "#34d399" },
+      ],
+    };
+
+    ensureDefaultLayers(testLayout);
+
+    // Apply fit to table across all layers
+    for (const layer of testLayout.layers!) {
+      layer.woodPlateMode = "table";
+      layer.woodPlateThicknessMm = 12;
+    }
+    expect(testLayout.layers!.every((l) => l.woodPlateMode === "table")).toBe(true);
+    expect(testLayout.layers!.every((l) => l.woodPlateThicknessMm === 12)).toBe(true);
+
+    // Apply tight (only tracks & buildings) across all layers
+    for (const layer of testLayout.layers!) {
+      layer.woodPlateMode = "tight";
+    }
+    expect(testLayout.layers!.every((l) => l.woodPlateMode === "tight")).toBe(true);
+  });
 });
 

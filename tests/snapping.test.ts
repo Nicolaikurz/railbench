@@ -134,15 +134,15 @@ describe("findSnap", () => {
     expect(connectors[0]!.y).toBe(0);
     expect(connectors[0]!.angle).toBe(180);
 
-    // Innenbogen R1=360 mm, 30° (nach links / +y)
+    // Innenbogen R1=360 mm, 30° (nach links / -y)
     expect(connectors[1]!.x).toBeCloseTo(180.0, 1);
-    expect(connectors[1]!.y).toBeCloseTo(48.23, 1);
-    expect(connectors[1]!.angle).toBeCloseTo(30, 1);
+    expect(connectors[1]!.y).toBeCloseTo(-48.23, 1);
+    expect(connectors[1]!.angle).toBeCloseTo(330, 1);
 
-    // Außenstrang: 77,5 mm Gerade + R1=360 mm / 30°
+    // Außenstrang: 77,5 mm Gerade + R1=360 mm / 30° (nach links / -y)
     expect(connectors[2]!.x).toBeCloseTo(257.5, 1);
-    expect(connectors[2]!.y).toBeCloseTo(48.23, 1);
-    expect(connectors[2]!.angle).toBeCloseTo(30, 1);
+    expect(connectors[2]!.y).toBeCloseTo(-48.23, 1);
+    expect(connectors[2]!.angle).toBeCloseTo(330, 1);
 
     // Differenz in x entspricht genau der integrierten Geraden 24077 (77,5 mm)
     expect(connectors[2]!.x - connectors[1]!.x).toBeCloseTo(77.5, 1);
@@ -152,7 +152,7 @@ describe("findSnap", () => {
     // 1. Punkt auf Innenbogen (bei 15°)
     const ptInner = {
       x: 360 * Math.sin((15 * Math.PI) / 180),
-      y: 360 * (1 - Math.cos((15 * Math.PI) / 180)),
+      y: -360 * (1 - Math.cos((15 * Math.PI) / 180)),
     };
     expect(distanceToTrackPiece(ptInner, { x: 0, y: 0, rotation: 0 }, entry!)).toBeCloseTo(0, 1);
 
@@ -163,12 +163,12 @@ describe("findSnap", () => {
     // 3. Punkt auf Bogen des Außenstrangs (bei 15° ab x = 77.5)
     const ptOuter = {
       x: 77.5 + 360 * Math.sin((15 * Math.PI) / 180),
-      y: 360 * (1 - Math.cos((15 * Math.PI) / 180)),
+      y: -360 * (1 - Math.cos((15 * Math.PI) / 180)),
     };
     expect(distanceToTrackPiece(ptOuter, { x: 0, y: 0, rotation: 0 }, entry!)).toBeCloseTo(0, 1);
   });
 
-  it("berechnet Bogenweiche 24672 (rechts) mit R1=360mm und integrierter Ausgleichsgerade 77.5mm nach rechts (-y)", () => {
+  it("berechnet Bogenweiche 24672 (rechts) mit R1=360mm und integrierter Ausgleichsgerade 77.5mm nach rechts (+y)", () => {
     const entry = maerklinCCatalog.entries.find((e) => e.id === "24672");
     expect(entry).toBeDefined();
     expect(entry!.kind).toBe("curved-turnout-right");
@@ -181,15 +181,15 @@ describe("findSnap", () => {
     expect(connectors[0]!.y).toBe(0);
     expect(connectors[0]!.angle).toBe(180);
 
-    // Innenbogen R1=360 mm, 30° (nach rechts / -y)
+    // Innenbogen R1=360 mm, 30° (nach rechts / +y)
     expect(connectors[1]!.x).toBeCloseTo(180.0, 1);
-    expect(connectors[1]!.y).toBeCloseTo(-48.23, 1);
-    expect(connectors[1]!.angle).toBeCloseTo(330, 1);
+    expect(connectors[1]!.y).toBeCloseTo(48.23, 1);
+    expect(connectors[1]!.angle).toBeCloseTo(30, 1);
 
-    // Außenstrang: 77,5 mm Gerade + R1=360 mm / 30° (nach rechts / -y)
+    // Außenstrang: 77,5 mm Gerade + R1=360 mm / 30° (nach rechts / +y)
     expect(connectors[2]!.x).toBeCloseTo(257.5, 1);
-    expect(connectors[2]!.y).toBeCloseTo(-48.23, 1);
-    expect(connectors[2]!.angle).toBeCloseTo(330, 1);
+    expect(connectors[2]!.y).toBeCloseTo(48.23, 1);
+    expect(connectors[2]!.angle).toBeCloseTo(30, 1);
 
     expect(connectors[2]!.x - connectors[1]!.x).toBeCloseTo(77.5, 1);
   });
@@ -207,18 +207,18 @@ describe("findSnap", () => {
     expect(connectors[0]!.y).toBe(0);
     expect(connectors[0]!.angle).toBe(180);
 
-    // Innenbogen R3=515mm, 30°
+    // Innenbogen R3=515mm, 30° (nach links / -y)
     const rad30 = (30 * Math.PI) / 180;
     const expX1 = 515 * Math.sin(rad30); // 257.5
-    const expY1 = 515 * (1 - Math.cos(rad30)); // 68.996
+    const expY1 = -515 * (1 - Math.cos(rad30)); // -68.996
     expect(connectors[1]!.x).toBeCloseTo(expX1, 1);
     expect(connectors[1]!.y).toBeCloseTo(expY1, 1);
-    expect(connectors[1]!.angle).toBeCloseTo(30, 1);
+    expect(connectors[1]!.angle).toBeCloseTo(330, 1);
 
-    // Außenstrang: 64.3mm Gerade + R3 30°
+    // Außenstrang: 64.3mm Gerade + R3 30° (nach links / -y)
     expect(connectors[2]!.x).toBeCloseTo(64.3 + expX1, 1);
     expect(connectors[2]!.y).toBeCloseTo(expY1, 1);
-    expect(connectors[2]!.angle).toBeCloseTo(30, 1);
+    expect(connectors[2]!.angle).toBeCloseTo(330, 1);
   });
 
   it("umfasst das vollständige Märklin C-Gleis Sortiment mit 49 Gleisen", () => {

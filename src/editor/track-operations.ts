@@ -10,7 +10,8 @@ import {
 } from "@/catalog/catalog";
 import { findBestSnapForPiece, updatePieceConnections } from "@/core/snapping";
 import { snapModelToTurntable } from "@/core/turntable-snap";
-import { cutFlexTrack, bendFlexTrack } from "@/core/flextrack";
+import { snapEngineShedToTrack, snapTrainhallToTrack } from "@/core/engine-shed-snap";
+import { cutFlexTrack, bendFlexTrack, flipFlexTrackPiece, isFlexTrack } from "@/core/flextrack";
 import {
   AddPieceCommand,
   AddPiecesCommand,
@@ -24,6 +25,7 @@ import {
   ToggleTurnoutLanternCommand,
   ToggleTurnoutDecoderCommand,
   MovePiecesToLayerCommand,
+  ApplyRampElevationsCommand,
   AddModelCommand,
   RemoveModelCommand,
   MoveModelCommand,
@@ -31,6 +33,7 @@ import {
 import type { History } from "@/editor/commands";
 import type { Selection } from "@/editor/selection";
 import {
+  deg2rad,
   normAngle,
   rotate,
   rotateGroupAroundCentroid,
@@ -38,6 +41,7 @@ import {
 } from "@/core/geometry";
 import { getLanguage, getTranslations } from "@/i18n";
 import { exportPieceListCSV, downloadFile } from "@/io/export";
+import { calculateAutoRamp } from "@/core/ramp";
 import type { PlanManager, PlanFormat } from "@/io/plan-manager";
 import type { Renderer } from "@/render/renderer";
 
@@ -291,7 +295,15 @@ export class TrackOperations {
     if (!m.layerId) m.layerId = layout.activeLayerId || layout.layers?.[0]?.id;
     if (m.builtinId === "turntable-trainhall" && this.ctx.isSnappingEnabled()) {
       const ttSnap = snapModelToTurntable(m.transform, layout.pieces, (p) => this.ctx.getCatalogEntry(p));
-      if (ttSnap) m.transform = ttSnap.snappedTransform;
+      if (ttSnap) {
+        m.transform = ttSnap.snappedTransform;
+      } else {
+        const thSnap = snapTrainhallToTrack(m.transform, layout.pieces);
+        if (thSnap) m.transform = thSnap.snappedTransform;
+      }
+    } else if (m.builtinId === "engine-shed" && this.ctx.isSnappingEnabled()) {
+      const shedSnap = snapEngineShedToTrack(m.transform, layout.pieces, (p) => this.ctx.getCatalogEntry(p));
+      if (shedSnap) m.transform = shedSnap.snappedTransform;
     }
     history.run(new AddModelCommand(m));
     selection.set(m.id);
@@ -535,24 +547,264 @@ export class TrackOperations {
     this.ctx.sync();
   }
 
+  public flipSelected(): void {
+    const layout = this.ctx.getLayout();
+    const selection = this.ctx.getSelection();
+    const selected = selection.all();
+    if (selected.length === 0) return;
+
+    const catalog = this.ctx.getCatalog();
+    for (const id of selected) {
+      const piece = layout.pieces.find((p) => p.id === id);
+      if (!piece) continue;
+      const entry = this.ctx.getCatalogEntry(piece);
+      if (!entry) continue;
+
+      if (isFlexTrack(entry, piece)) {
+        flipFlexTrackPiece(piece, entry);
+      } else {
+        // Check for opposite partner in catalog (e.g. turnout-left <-> turnout-right)
+        let counterpart: CatalogEntry | undefined;
+        if (entry.kind === "turnout-left") {
+          counterpart = catalog.entries.find((e) => e.kind === "turnout-right" && Math.abs((e.length || 0) - (entry.length || 0)) < 5);
+        } else if (entry.kind === "turnout-right") {
+          counterpart = catalog.entries.find((e) => e.kind === "turnout-left" && Math.abs((e.length || 0) - (entry.length || 0)) < 5);
+        } else if (entry.kind === "curved-turnout-left") {
+          counterpart = catalog.entries.find((e) => e.kind === "curved-turnout-right" && Math.abs((e.radius || 0) - (entry.radius || 0)) < 5);
+        } else if (entry.kind === "curved-turnout-right") {
+          counterpart = catalog.entries.find((e) => e.kind === "curved-turnout-left" && Math.abs((e.radius || 0) - (entry.radius || 0)) < 5);
+        }
+
+        if (counterpart) {
+          piece.catalogId = counterpart.id;
+        } else {
+          // Standard piece / curve / straight: rotate 180°
+          piece.transform.rotation = normAngle(piece.transform.rotation + 180);
+        }
+        piece.connectors = computeWorldConnectors(counterpart || entry, piece.transform);
+      }
+    }
+    updatePieceConnections(layout.pieces, layout.layers);
+    this.ctx.sync(true);
+    const isDe = getLanguage() === "de";
+    this.ctx.showToast(isDe ? "Gleise gespiegelt / gewendet" : "Tracks mirrored / flipped", "⇄");
+  }
+
+  public selectConnectedTracks(startPieceId?: string): void {
+    const layout = this.ctx.getLayout();
+    const selection = this.ctx.getSelection();
+    const initialIds = startPieceId ? [startPieceId] : selection.all();
+    if (initialIds.length === 0) return;
+
+    const visited = new Set<string>();
+    const queue = [...initialIds];
+
+    while (queue.length > 0) {
+      const curId = queue.shift()!;
+      if (visited.has(curId)) continue;
+      visited.add(curId);
+
+      const piece = layout.pieces.find((p) => p.id === curId);
+      if (!piece) continue;
+
+      for (const conn of piece.connectors) {
+        if (conn.connectedTo && !visited.has(conn.connectedTo.pieceId)) {
+          queue.push(conn.connectedTo.pieceId);
+        }
+      }
+    }
+
+    selection.clear();
+    for (const id of visited) {
+      selection.add(id);
+    }
+    this.ctx.sync();
+    const isDe = getLanguage() === "de";
+    this.ctx.showToast(isDe ? `${visited.size} verbundene Gleise ausgewählt` : `Selected ${visited.size} connected tracks`, "🔗");
+  }
+
+  public selectLayerTracks(layerId?: string): void {
+    const layout = this.ctx.getLayout();
+    const selection = this.ctx.getSelection();
+    let targetLayerId = layerId;
+
+    if (!targetLayerId) {
+      const selectedIds = selection.all();
+      const firstPiece = layout.pieces.find((p) => selectedIds.includes(p.id));
+      targetLayerId = firstPiece?.layerId || layout.activeLayerId || layout.layers?.[0]?.id;
+    }
+
+    if (!targetLayerId) return;
+
+    selection.clear();
+    let count = 0;
+    for (const p of layout.pieces) {
+      if ((p.layerId || "layer-1") === targetLayerId && this.ctx.isPieceInteractive(p)) {
+        selection.add(p.id);
+        count++;
+      }
+    }
+    this.ctx.sync();
+    const layer = layout.layers?.find((l) => l.id === targetLayerId);
+    const layerName = layer?.name || targetLayerId;
+    const isDe = getLanguage() === "de";
+    this.ctx.showToast(isDe ? `${count} Gleise auf Ebene "${layerName}" ausgewählt` : `Selected ${count} tracks on layer "${layerName}"`, "📑");
+  }
+
+  public toggleGroupSelected(): void {
+    const layout = this.ctx.getLayout();
+    const selection = this.ctx.getSelection();
+    const selectedIds = selection.all();
+    if (selectedIds.length < 2) {
+      const isDe = getLanguage() === "de";
+      this.ctx.showToast(isDe ? "Mindestens 2 Gleise zum Gruppieren markieren" : "Select at least 2 tracks to group", "⚠️");
+      return;
+    }
+
+    const selectedPieces = layout.pieces.filter((p) => selectedIds.includes(p.id));
+    const firstGroupId = selectedPieces[0]?.groupId;
+    const allHaveSameGroup = firstGroupId && selectedPieces.every((p) => p.groupId === firstGroupId);
+
+    const isDe = getLanguage() === "de";
+    if (allHaveSameGroup) {
+      for (const p of selectedPieces) {
+        delete p.groupId;
+      }
+      this.ctx.showToast(isDe ? "Gruppierung aufgehoben" : "Tracks ungrouped", "🗂");
+    } else {
+      const newGroupId = `group-${Date.now()}`;
+      for (const p of selectedPieces) {
+        p.groupId = newGroupId;
+      }
+      this.ctx.showToast(isDe ? `${selectedPieces.length} Gleise gruppiert` : `Grouped ${selectedPieces.length} tracks`, "🗂");
+    }
+    this.ctx.sync(true);
+  }
+
+  public splitTrack(pieceId: string): boolean {
+    const layout = this.ctx.getLayout();
+    const history = this.ctx.getHistory();
+    const piece = layout.pieces.find((p) => p.id === pieceId);
+    if (!piece) return false;
+    const entry = this.ctx.getCatalogEntry(piece);
+    if (!entry) return false;
+
+    const catalog = this.ctx.getCatalog();
+    const isDe = getLanguage() === "de";
+
+    if (isFlexTrack(entry, piece)) {
+      const curLen = piece.customLength ?? entry.length ?? 900;
+      const half = Math.round(curLen / 2);
+      this.adjustFlexTrack(pieceId, half);
+      this.ctx.showToast(isDe ? `Flexgleis bei ${half} mm geteilt` : `Flex track split at ${half} mm`, "✂");
+      return true;
+    }
+
+    const curLen = entry.length ?? 180;
+    const halfLen = curLen / 2;
+    const halfCandidate = catalog.entries.find(
+      (e) => e.kind === "straight" && Math.abs((e.length || 0) - halfLen) <= 6,
+    );
+
+    if (halfCandidate) {
+      piece.catalogId = halfCandidate.id;
+      piece.connectors = computeWorldConnectors(halfCandidate, piece.transform);
+
+      const rad = deg2rad(piece.transform.rotation);
+      const halfActual = halfCandidate.length ?? halfLen;
+      const secondPos = {
+        x: piece.transform.x + halfActual * Math.cos(rad),
+        y: piece.transform.y + halfActual * Math.sin(rad),
+        rotation: piece.transform.rotation,
+      };
+      const secondPiece: TrackPiece = {
+        id: `p-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        catalogId: halfCandidate.id,
+        transform: secondPos,
+        connectors: computeWorldConnectors(halfCandidate, secondPos),
+        layerId: piece.layerId,
+        elevation: piece.elevation ? { ...piece.elevation } : undefined,
+      };
+
+      history.run(new AddPieceCommand(secondPiece));
+      updatePieceConnections(layout.pieces, layout.layers);
+      this.ctx.sync(true);
+      this.ctx.showToast(
+        isDe
+          ? `Gleis geteilt in 2× #${halfCandidate.id} (${halfCandidate.length} mm)`
+          : `Split track into 2× #${halfCandidate.id} (${halfCandidate.length} mm)`,
+        "✂",
+      );
+      return true;
+    } else {
+      this.ctx.showToast(
+        isDe ? "Kein passendes Teilgleis im Katalog gefunden" : "No matching half-track found in catalog",
+        "⚠️",
+      );
+      return false;
+    }
+  }
+
+  public replaceTrack(pieceId: string, newCatalogId: string): boolean {
+    const layout = this.ctx.getLayout();
+    const piece = layout.pieces.find((p) => p.id === pieceId);
+    if (!piece) return false;
+    const newEntry = this.ctx.getCatalog().entries.find((e) => e.id === newCatalogId);
+    if (!newEntry) return false;
+
+    piece.catalogId = newCatalogId;
+    piece.connectors = computeWorldConnectors(newEntry, piece.transform);
+    updatePieceConnections(layout.pieces, layout.layers);
+    this.ctx.sync(true);
+    const isDe = getLanguage() === "de";
+    this.ctx.showToast(isDe ? `Gleis ersetzt durch #${newCatalogId}` : `Replaced track with #${newCatalogId}`, "✂");
+    return true;
+  }
+
   public toggleSelectedFeeder(): void {
     const selection = this.ctx.getSelection();
     const history = this.ctx.getHistory();
+    const layout = this.ctx.getLayout();
     const selected = selection.all();
-    if (selected[0]) {
-      history.run(new ToggleFeederCommand(selected[0]));
-      this.ctx.sync(true);
+    if (selected.length === 0) return;
+
+    if (selected.length === 1) {
+      history.run(new ToggleFeederCommand(selected[0]!));
+    } else {
+      const selectedPieces = layout.pieces.filter((p) => selected.includes(p.id));
+      const allHave = selectedPieces.length > 0 && selectedPieces.every((p) => !!p.powerFeed);
+      for (const id of selected) {
+        const piece = layout.pieces.find((p) => p.id === id);
+        if (piece) {
+          if (allHave && piece.powerFeed) history.run(new ToggleFeederCommand(id));
+          else if (!allHave && !piece.powerFeed) history.run(new ToggleFeederCommand(id));
+        }
+      }
     }
+    this.ctx.sync(true);
   }
 
   public toggleSelectedIsolator(): void {
     const selection = this.ctx.getSelection();
     const history = this.ctx.getHistory();
+    const layout = this.ctx.getLayout();
     const selected = selection.all();
-    if (selected[0]) {
-      history.run(new ToggleIsolatorCommand(selected[0]));
-      this.ctx.sync(true);
+    if (selected.length === 0) return;
+
+    if (selected.length === 1) {
+      history.run(new ToggleIsolatorCommand(selected[0]!));
+    } else {
+      const selectedPieces = layout.pieces.filter((p) => selected.includes(p.id));
+      const allHave = selectedPieces.length > 0 && selectedPieces.every((p) => !!p.isIsolator);
+      for (const id of selected) {
+        const piece = layout.pieces.find((p) => p.id === id);
+        if (piece) {
+          if (allHave && piece.isIsolator) history.run(new ToggleIsolatorCommand(id));
+          else if (!allHave && !piece.isIsolator) history.run(new ToggleIsolatorCommand(id));
+        }
+      }
     }
+    this.ctx.sync(true);
   }
 
   public toggleSelectedCatenary(): void {
@@ -643,6 +895,75 @@ export class TrackOperations {
       history.run(new MovePiecesToLayerCommand(ids, lid, { start: elev, end: elev }));
     }
     this.ctx.sync(true);
+  }
+
+  public applyAutoRamp(onFallbackToDialog?: () => void): boolean {
+    const layout = this.ctx.getLayout();
+    const selection = this.ctx.getSelection();
+    const selectedIds = selection.all();
+    const isDe = getLanguage() === "de";
+
+    if (selectedIds.length === 0) {
+      this.ctx.showToast(isDe ? "Bitte zuerst Gleise für die Rampe auswählen" : "Please select tracks for the ramp first", "⚠️");
+      return false;
+    }
+
+    const selectedPieces = layout.pieces.filter((p) => selectedIds.includes(p.id));
+    if (selectedPieces.length === 0) {
+      this.ctx.showToast(isDe ? "Keine Gleise ausgewählt" : "No tracks selected", "⚠️");
+      return false;
+    }
+
+    const result = calculateAutoRamp({
+      pieces: selectedPieces,
+      allPieces: layout.pieces,
+      layers: layout.layers || [],
+      catalog: this.ctx.getCatalog(),
+      profile: "linear",
+    });
+
+    if (!result.success) {
+      if (result.reason === "not_continuous") {
+        this.ctx.showToast(
+          isDe
+            ? "Gleise müssen eine zusammenhängende Strecke ohne Verzweigungen bilden"
+            : "Selected tracks must form a continuous chain without branches",
+          "⚠️",
+        );
+      } else if (result.reason === "same_height") {
+        this.ctx.showToast(
+          isDe
+            ? `Start und Ende haben dieselbe Höhe (${result.startHeightMm ?? 0} mm). Bitte Höhen-Dialog (⤉) nutzen.`
+            : `Start and end tracks have the same height (${result.startHeightMm ?? 0} mm). Please use Height Dialog (⤉).`,
+          "⚠️",
+        );
+        if (onFallbackToDialog) {
+          onFallbackToDialog();
+        }
+      } else {
+        this.ctx.showToast(isDe ? "Rampe konnte nicht berechnet werden" : "Could not calculate ramp", "⚠️");
+      }
+      return false;
+    }
+
+    if (result.pieceElevations && result.pieceElevations.size > 0) {
+      this.ctx.getHistory().run(new ApplyRampElevationsCommand(result.pieceElevations));
+      this.ctx.sync(true);
+
+      const sH = result.startHeightMm ?? 0;
+      const eH = result.endHeightMm ?? 0;
+      const lenCm = Math.round((result.totalLengthMm ?? 0) / 10);
+      const grad = result.gradientPercent ?? 0;
+      const warnIcon = grad > 4.5 ? " ⚠️" : "";
+
+      const msg = isDe
+        ? `Rampe berechnet: ${sH} mm ➔ ${eH} mm (${lenCm} cm, ${grad.toFixed(1)}% Steigung${warnIcon})`
+        : `Ramp applied: ${sH} mm ➔ ${eH} mm (${lenCm} cm, slope ${grad.toFixed(1)}%${warnIcon})`;
+
+      this.ctx.showToast(msg, "📐");
+      return true;
+    }
+    return false;
   }
 
   public applyAngleInput(rawVal: number): void {

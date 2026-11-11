@@ -127,6 +127,7 @@ const ICONS = {
   layers: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>`,
   lock: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>`,
   unlock: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.5-2"/></svg>`,
+  edit: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>`,
 };
 
 /**
@@ -170,41 +171,36 @@ export function createToolbar(host: HTMLElement, events: ToolbarEvents) {
   const container = document.createElement("div");
   container.className = "toolbar-container";
 
+  // Top-level dropdown menus: Brand/Plan, Edit, View, Help
+  const menuGroup = document.createElement("div");
+  menuGroup.className = "toolbar-group toolbar-menus";
+
   const mainMenu = createBrandMainMenu(t, events);
-  container.appendChild(mainMenu);
+  const editMenu = createEditMenu(t, events);
+  const viewMenu = createViewMenu(t, events);
+  const helpMenu = createHelpMenu(t, events);
+
+  menuGroup.appendChild(mainMenu);
+  menuGroup.appendChild(editMenu);
+  menuGroup.appendChild(viewMenu);
+  menuGroup.appendChild(helpMenu);
+
+  container.appendChild(menuGroup);
   container.appendChild(createDivider());
 
+  // Quick file actions
   const fileActionsGroup = document.createElement("div");
   fileActionsGroup.className = "toolbar-group toolbar-file-quick";
 
   const btnNew = createIconButton(ICONS.filePlus, `${t.fileMenu.newPlan} (Ctrl+N)`, events.onNewPlan, "tb-new");
   const btnOpen = createIconButton(ICONS.folderOpen, `${t.fileMenu.openPlan} (Ctrl+O)`, events.onOpenPlan, "tb-open");
   const btnSave = createIconButton(ICONS.save, `${t.fileMenu.savePlan} (Ctrl+S)`, events.onSavePlan, "tb-save");
-  const viewMenu = createViewMenu(t, events);
-  const helpMenu = createHelpMenu(t, events);
 
   fileActionsGroup.appendChild(btnNew);
   fileActionsGroup.appendChild(btnOpen);
   fileActionsGroup.appendChild(btnSave);
-  fileActionsGroup.appendChild(viewMenu);
-  fileActionsGroup.appendChild(helpMenu);
 
   container.appendChild(fileActionsGroup);
-  container.appendChild(createDivider());
-
-  const editQuickGroup = document.createElement("div");
-  editQuickGroup.className = "toolbar-group toolbar-edit-quick";
-
-  const btnUndo = createIconButton(ICONS.undo, `${t.quick.undoTitle} (Ctrl+Z)`, events.onUndo, "tb-undo");
-  const btnRedo = createIconButton(ICONS.redo, `${t.quick.redoTitle} (Ctrl+Y)`, events.onRedo, "tb-redo");
-  const btnRotate = createIconButton(ICONS.rotateCw, `${t.quick.rotateTitle} (R)`, () => events.onRotateSelected(7.5), "tb-rotate");
-  const btnDelete = createIconButton(ICONS.trash, `${t.quick.deleteTitle} (Del)`, events.onDeleteSelected, "tb-delete", "btn-danger");
-
-  editQuickGroup.appendChild(btnUndo);
-  editQuickGroup.appendChild(btnRedo);
-  editQuickGroup.appendChild(btnRotate);
-  editQuickGroup.appendChild(btnDelete);
-  container.appendChild(editQuickGroup);
   container.appendChild(createDivider());
 
   const featureGroup = document.createElement("div");
@@ -411,20 +407,6 @@ function createBrandMainMenu(t: any, events: ToolbarEvents): HTMLElement {
     { label: t.fileMenu.collaborate, onClick: () => events.onOpenCollab?.() },
 
     { isDivider: true },
-    { sectionHeader: t.menus.edit },
-    { label: t.editMenu.undo, shortcut: "Ctrl+Z", onClick: events.onUndo, id: "item-undo" },
-    { label: t.editMenu.redo, shortcut: "Ctrl+Y", onClick: events.onRedo, id: "item-redo" },
-    { label: t.editMenu.copy, shortcut: "Ctrl+C", onClick: () => events.onCopy?.(), id: "item-copy" },
-    { label: t.editMenu.paste, shortcut: "Ctrl+V", onClick: () => events.onPaste?.(), id: "item-paste" },
-    { label: t.editMenu.duplicate, shortcut: "Ctrl+D", onClick: () => events.onDuplicate?.(), id: "item-duplicate" },
-    { label: t.editMenu.selectAll, shortcut: "Ctrl+A", onClick: () => events.onSelectAll?.(), id: "item-select-all" },
-    { label: t.editMenu.deselectAll, shortcut: "Esc", onClick: () => events.onDeselectAll?.(), id: "item-deselect-all" },
-    { label: t.editMenu.rotateCw, shortcut: "R", onClick: () => events.onRotateSelected(7.5) },
-    { label: t.editMenu.rotateCcw, shortcut: "Shift+R", onClick: () => events.onRotateSelected(-7.5) },
-    { label: t.editMenu.deleteSelected, shortcut: "Del", onClick: events.onDeleteSelected, isDanger: true },
-    { label: t.editMenu.changeHeight, shortcut: "M", onClick: () => events.onMoveSelectedToLayerPrompt?.() },
-
-    { isDivider: true },
     { sectionHeader: t.menus.settings },
     {
       label: t.menus.resetPersonalConfig,
@@ -437,6 +419,31 @@ function createBrandMainMenu(t: any, events: ToolbarEvents): HTMLElement {
   const menu = buildDropdownItems(menuItems, () => brandMenuWrapper.classList.remove("open"));
   brandMenuWrapper.appendChild(menu);
   return brandMenuWrapper;
+}
+
+function createEditMenu(t: any, events: ToolbarEvents): HTMLElement {
+  return createIconDropdownMenu(
+    ICONS.edit,
+    t.menus.edit,
+    [
+      { label: t.editMenu.undo, shortcut: "Ctrl+Z", onClick: events.onUndo, id: "item-undo" },
+      { label: t.editMenu.redo, shortcut: "Ctrl+Y", onClick: events.onRedo, id: "item-redo" },
+      { isDivider: true },
+      { label: t.editMenu.copy, shortcut: "Ctrl+C", onClick: () => events.onCopy?.(), id: "item-copy" },
+      { label: t.editMenu.paste, shortcut: "Ctrl+V", onClick: () => events.onPaste?.(), id: "item-paste" },
+      { label: t.editMenu.duplicate, shortcut: "Ctrl+D", onClick: () => events.onDuplicate?.(), id: "item-duplicate" },
+      { isDivider: true },
+      { label: t.editMenu.selectAll, shortcut: "Ctrl+A", onClick: () => events.onSelectAll?.(), id: "item-select-all" },
+      { label: t.editMenu.deselectAll, shortcut: "Esc", onClick: () => events.onDeselectAll?.(), id: "item-deselect-all" },
+      { isDivider: true },
+      { label: t.editMenu.rotateCw, shortcut: "R", onClick: () => events.onRotateSelected(7.5) },
+      { label: t.editMenu.rotateCcw, shortcut: "Shift+R", onClick: () => events.onRotateSelected(-7.5) },
+      { label: t.editMenu.changeHeight, shortcut: "M", onClick: () => events.onMoveSelectedToLayerPrompt?.() },
+      { isDivider: true },
+      { label: t.editMenu.deleteSelected, shortcut: "Del", onClick: events.onDeleteSelected, isDanger: true },
+    ],
+    "tb-edit",
+  );
 }
 
 function createIconDropdownMenu(iconSvg: string, tooltip: string, items: DropdownItemConfig[], id?: string): HTMLElement {
@@ -586,6 +593,20 @@ export function updateToolbarState(state: ToolbarState) {
 
   const btnRedo = document.getElementById("tb-redo") as HTMLButtonElement | null;
   if (btnRedo && state.canRedo !== undefined) btnRedo.disabled = !state.canRedo;
+
+  const itemUndo = document.getElementById("item-undo") as HTMLButtonElement | null;
+  if (itemUndo && state.canUndo !== undefined) {
+    itemUndo.disabled = !state.canUndo;
+    itemUndo.style.opacity = state.canUndo ? "1" : "0.5";
+    itemUndo.style.pointerEvents = state.canUndo ? "auto" : "none";
+  }
+
+  const itemRedo = document.getElementById("item-redo") as HTMLButtonElement | null;
+  if (itemRedo && state.canRedo !== undefined) {
+    itemRedo.disabled = !state.canRedo;
+    itemRedo.style.opacity = state.canRedo ? "1" : "0.5";
+    itemRedo.style.pointerEvents = state.canRedo ? "auto" : "none";
+  }
 
   const btnRotate = document.getElementById("tb-rotate") as HTMLButtonElement | null;
   if (btnRotate) btnRotate.disabled = !state.hasSelection;

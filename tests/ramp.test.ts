@@ -6,10 +6,11 @@ import {
   evaluateRampProfile,
   sortPiecesIntoChain,
   calculateRamp,
+  calculateAutoRamp,
   calculateEndHeightFromMaxGradient,
   calculateRequiredLengthForGradient,
 } from "@/core/ramp";
-import { MovePiecesToLayerCommand } from "@/editor/commands";
+import { MovePiecesToLayerCommand, ApplyRampElevationsCommand } from "@/editor/commands";
 
 describe("Ramp & Elevation Functionality", () => {
   it("computes track piece length accurately for straights and curves", () => {
@@ -377,6 +378,235 @@ describe("Ramp & Elevation Functionality", () => {
       });
 
       expect(resOk.exceedsTargetMax).toBe(false);
+    });
+
+    describe("calculateAutoRamp", () => {
+      it("infers ramp between lower track (0 mm) and higher track (80 mm) when only intermediate tracks are selected", () => {
+        // Track A on Hauptebene (layer-ground, 0 mm)
+        const trackA: TrackPiece = {
+          id: "track-a",
+          catalogId: "24188",
+          layerId: "layer-ground",
+          transform: { x: 0, y: 0, rotation: 0 },
+          connectors: [
+            { x: 0, y: 0, angle: 180 },
+            { x: 188.3, y: 0, angle: 0 },
+          ],
+        };
+        // Intermediate tracks 1, 2, 3 connecting A to B
+        const inter1: TrackPiece = {
+          id: "inter-1",
+          catalogId: "24188",
+          layerId: "layer-ground",
+          transform: { x: 188.3, y: 0, rotation: 0 },
+          connectors: [
+            { x: 188.3, y: 0, angle: 180 },
+            { x: 376.6, y: 0, angle: 0 },
+          ],
+        };
+        const inter2: TrackPiece = {
+          id: "inter-2",
+          catalogId: "24188",
+          layerId: "layer-ground",
+          transform: { x: 376.6, y: 0, rotation: 0 },
+          connectors: [
+            { x: 376.6, y: 0, angle: 180 },
+            { x: 564.9, y: 0, angle: 0 },
+          ],
+        };
+        const inter3: TrackPiece = {
+          id: "inter-3",
+          catalogId: "24188",
+          layerId: "layer-ground",
+          transform: { x: 564.9, y: 0, rotation: 0 },
+          connectors: [
+            { x: 564.9, y: 0, angle: 180 },
+            { x: 753.2, y: 0, angle: 0 },
+          ],
+        };
+        // Track B on Bergebene (layer-mountain, 80 mm)
+        const trackB: TrackPiece = {
+          id: "track-b",
+          catalogId: "24188",
+          layerId: "layer-mountain",
+          transform: { x: 753.2, y: 0, rotation: 0 },
+          connectors: [
+            { x: 753.2, y: 0, angle: 180 },
+            { x: 941.5, y: 0, angle: 0 },
+          ],
+        };
+
+        const layers = [
+          { id: "layer-ground", name: "Hauptebene", visible: true, locked: false, heightMm: 0 },
+          { id: "layer-mountain", name: "Bergebene", visible: true, locked: false, heightMm: 80 },
+        ];
+
+        const allPieces = [trackA, inter1, inter2, inter3, trackB];
+        // User selects ONLY intermediate tracks [inter1, inter2, inter3]
+        const selected = [inter1, inter2, inter3];
+
+        const res = calculateAutoRamp({
+          pieces: selected,
+          allPieces,
+          layers,
+          catalog: maerklinCCatalog,
+          profile: "linear",
+        });
+
+        expect(res.success).toBe(true);
+        expect(res.startHeightMm).toBe(0);
+        expect(res.endHeightMm).toBe(80);
+        expect(res.totalRiseMm).toBe(80);
+        expect(res.totalLengthMm).toBeCloseTo(188.3 * 3, 1);
+        expect(res.isContinuous).toBe(true);
+
+        const elev1 = res.pieceElevations?.get("inter-1");
+        const elev2 = res.pieceElevations?.get("inter-2");
+        const elev3 = res.pieceElevations?.get("inter-3");
+
+        expect(elev1?.start).toBeCloseTo(0, 1);
+        expect(elev1?.end).toBeCloseTo(80 / 3, 1);
+        expect(elev2?.start).toBeCloseTo(80 / 3, 1);
+        expect(elev2?.end).toBeCloseTo((80 * 2) / 3, 1);
+        expect(elev3?.start).toBeCloseTo((80 * 2) / 3, 1);
+        expect(elev3?.end).toBeCloseTo(80, 1);
+      });
+
+      it("calculates ramp when all tracks from 0 mm to 80 mm are selected", () => {
+        const p1: TrackPiece = {
+          id: "p1",
+          catalogId: "24188",
+          layerId: "l1",
+          transform: { x: 0, y: 0, rotation: 0 },
+          connectors: [{ x: 0, y: 0, angle: 180 }, { x: 188.3, y: 0, angle: 0 }],
+        };
+        const p2: TrackPiece = {
+          id: "p2",
+          catalogId: "24188",
+          layerId: "l2",
+          transform: { x: 188.3, y: 0, rotation: 0 },
+          connectors: [{ x: 188.3, y: 0, angle: 180 }, { x: 376.6, y: 0, angle: 0 }],
+        };
+
+        const layers = [
+          { id: "l1", name: "Ebene 1", visible: true, locked: false, heightMm: 0 },
+          { id: "l2", name: "Ebene 2", visible: true, locked: false, heightMm: 80 },
+        ];
+
+        const res = calculateAutoRamp({
+          pieces: [p1, p2],
+          layers,
+          catalog: maerklinCCatalog,
+          profile: "linear",
+        });
+
+        expect(res.success).toBe(true);
+        expect(res.startHeightMm).toBe(0);
+        expect(res.endHeightMm).toBe(80);
+        expect(res.pieceElevations?.get("p1")?.start).toBeCloseTo(0, 1);
+        expect(res.pieceElevations?.get("p1")?.end).toBeCloseTo(40, 1);
+        // p2 is on l2 (height 80 mm), so elevation is relative to 80 mm: start = 40 - 80 = -40, end = 80 - 80 = 0
+        expect(res.pieceElevations?.get("p2")?.start).toBeCloseTo(-40, 1);
+        expect(res.pieceElevations?.get("p2")?.end).toBeCloseTo(0, 1);
+      });
+
+      it("detects same_height when start and end heights are equal", () => {
+        const p1: TrackPiece = {
+          id: "p1",
+          catalogId: "24188",
+          layerId: "l1",
+          transform: { x: 0, y: 0, rotation: 0 },
+          connectors: [{ x: 0, y: 0, angle: 180 }, { x: 188.3, y: 0, angle: 0 }],
+        };
+        const p2: TrackPiece = {
+          id: "p2",
+          catalogId: "24188",
+          layerId: "l1",
+          transform: { x: 188.3, y: 0, rotation: 0 },
+          connectors: [{ x: 188.3, y: 0, angle: 180 }, { x: 376.6, y: 0, angle: 0 }],
+        };
+
+        const layers = [{ id: "l1", name: "Ebene 1", visible: true, locked: false, heightMm: 0 }];
+
+        const res = calculateAutoRamp({
+          pieces: [p1, p2],
+          layers,
+          catalog: maerklinCCatalog,
+        });
+
+        expect(res.success).toBe(false);
+        expect(res.reason).toBe("same_height");
+        expect(res.startHeightMm).toBe(0);
+        expect(res.endHeightMm).toBe(0);
+      });
+
+      it("detects not_continuous when tracks are disconnected", () => {
+        const p1: TrackPiece = {
+          id: "p1",
+          catalogId: "24188",
+          layerId: "l1",
+          transform: { x: 0, y: 0, rotation: 0 },
+          connectors: [{ x: 0, y: 0, angle: 180 }, { x: 188.3, y: 0, angle: 0 }],
+        };
+        const p2: TrackPiece = {
+          id: "p2",
+          catalogId: "24188",
+          layerId: "l2",
+          transform: { x: 1000, y: 1000, rotation: 0 },
+          connectors: [{ x: 1000, y: 1000, angle: 180 }, { x: 1188.3, y: 1000, angle: 0 }],
+        };
+
+        const layers = [
+          { id: "l1", name: "Ebene 1", visible: true, locked: false, heightMm: 0 },
+          { id: "l2", name: "Ebene 2", visible: true, locked: false, heightMm: 80 },
+        ];
+
+        const res = calculateAutoRamp({
+          pieces: [p1, p2],
+          layers,
+          catalog: maerklinCCatalog,
+        });
+
+        expect(res.success).toBe(false);
+        expect(res.reason).toBe("not_continuous");
+      });
+
+      it("applies and cleanly undoes elevations with ApplyRampElevationsCommand", () => {
+        const layout: Layout = {
+          name: "Test Layout",
+          scale: "H0",
+          pieces: [
+            {
+              id: "t1",
+              catalogId: "24188",
+              transform: { x: 0, y: 0, rotation: 0 },
+              connectors: [],
+              elevation: { start: 5, end: 5 },
+            },
+            {
+              id: "t2",
+              catalogId: "24188",
+              transform: { x: 188.3, y: 0, rotation: 0 },
+              connectors: [],
+            },
+          ],
+        };
+
+        const elevMap = new Map<string, { start: number; end: number }>([
+          ["t1", { start: 0, end: 40 }],
+          ["t2", { start: 40, end: 80 }],
+        ]);
+
+        const cmd = new ApplyRampElevationsCommand(elevMap);
+        cmd.do(layout);
+
+        expect(layout.pieces[0]!.elevation).toEqual({ start: 0, end: 40 });
+        expect(layout.pieces[1]!.elevation).toEqual({ start: 40, end: 80 });
+
+        cmd.undo(layout);
+        expect(layout.pieces[0]!.elevation).toEqual({ start: 5, end: 5 });
+        expect(layout.pieces[1]!.elevation).toBeUndefined();
+      });
     });
   });
 });

@@ -163,6 +163,12 @@ describe("Selection Lock & Deleted Layer Recovery", () => {
     // Update state to selectionLockDisabled = false
     updateToolbarState({ selectionLockDisabled: false });
     expect(btnLock.classList.contains("active")).toBe(false);
+
+    // Verify top-level dropdown menus: Brand/Plan, Edit, View, Help
+    expect(elementsById["tb-brand-trigger"]).toBeDefined();
+    expect(elementsById["tb-edit"]).toBeDefined();
+    expect(elementsById["tb-view"]).toBeDefined();
+    expect(elementsById["tb-help"]).toBeDefined();
   });
 
   it("allows selecting items on deleted layers and across locked layers when selection lock is disabled", () => {
@@ -265,5 +271,68 @@ describe("Selection Lock & Deleted Layer Recovery", () => {
     const layerSelect = elementsById["sel-bar-layer-select"];
     expect(layerSelect).toBeDefined();
     expect(layerSelect.innerHTML).toMatch(/Deleted layer|Gelöschte Ebene/);
+  });
+
+  it("handles catenary feeder and isolator buttons in SelectionBar", () => {
+    const layout: Layout = {
+      name: "Test Layout",
+      scale: "H0",
+      layers: [{ id: "layer-1", name: "Ebene 1", visible: true, locked: false, heightMm: 0 }],
+      pieces: [
+        {
+          id: "p-cat-1",
+          catalogId: "24188",
+          transform: { x: 0, y: 0, rotation: 0 },
+          layerId: "layer-1",
+          connectors: [
+            { x: 0, y: 0, angle: 180 },
+            { x: 188.3, y: 0, angle: 0 },
+          ],
+          hasCatenary: true,
+          catenaryPowerFeed: true,
+          catenaryIsolator: true,
+          catenaryIsolatedConnectorIndex: 0,
+        },
+      ],
+    };
+
+    const onToggleCatenaryFeeder = vi.fn();
+    const onToggleCatenaryIsolator = vi.fn();
+
+    const host = createMockElement("div");
+    const bar = new SelectionBar(host, {
+      onApplyHeight: vi.fn(),
+      onApplyAngle: vi.fn(),
+      onSelectLayer: vi.fn(),
+      onOpenHeightDialog: vi.fn(),
+      onToggleFeeder: vi.fn(),
+      onToggleIsolator: vi.fn(),
+      onToggleCatenary: vi.fn(),
+      onToggleCatenaryFeeder,
+      onToggleCatenaryIsolator,
+      onToggleTurnoutDecoder: vi.fn(),
+      onToggleTurnoutLantern: vi.fn(),
+      onDelete: vi.fn(),
+      getSelectedPieceIds: () => ["p-cat-1"],
+      getLayout: () => layout,
+      getCatalogEntry: () => ({ id: "24188", name: "Gerades Gleis 188,3 mm", kind: "straight" } as any),
+    });
+
+    bar.update();
+
+    const catFeedBtn = elementsById["sel-bar-btn-catenary-feed"];
+    const catIsoBtn = elementsById["sel-bar-btn-catenary-iso"];
+
+    expect(catFeedBtn).toBeDefined();
+    expect(catIsoBtn).toBeDefined();
+    expect(catFeedBtn.classList.contains("active")).toBe(true);
+    expect(catIsoBtn.classList.contains("active")).toBe(true);
+    expect(catIsoBtn.textContent).toContain("⌁⊘ 1/2");
+
+    catFeedBtn.click();
+    expect(onToggleCatenaryFeeder).toHaveBeenCalledTimes(1);
+
+    catIsoBtn.click();
+    expect(onToggleCatenaryIsolator).toHaveBeenCalledTimes(1);
   });
 });

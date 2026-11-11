@@ -1,14 +1,18 @@
 import type { Layout, TrackPiece, Model3D } from "@/core/types";
-import type { CatalogEntry } from "@/catalog/catalog";
+import type { Catalog, CatalogEntry } from "@/catalog/catalog";
+import { catalogRegistry, maerklinCCatalog } from "@/catalog/catalog";
 import { isTurnoutEntry } from "@/core/simulation";
 import { getTranslations, onLanguageChange, getLanguage } from "@/i18n";
 import { isFlexTrack, getFlexTrackRampInfo } from "@/core/flextrack";
+import { calculateAutoRamp } from "@/core/ramp";
 
 export interface SelectionBarCallbacks {
   onApplyHeight: (targetHeightMm: number) => void;
   onApplyAngle: (targetAngleDeg: number) => void;
   onSelectLayer: (layerId: string) => void;
   onOpenHeightDialog: () => void;
+  onApplyAutoRamp?: () => void;
+  onOpenRampGenerator?: () => void;
   onAdjustFlexTrack?: (pieceId: string, cutLength?: number, radius?: number, angle?: number) => void;
   onToggleFeeder: () => void;
   onToggleIsolator: () => void;
@@ -17,10 +21,12 @@ export interface SelectionBarCallbacks {
   onToggleCatenaryIsolator: () => void;
   onToggleTurnoutDecoder: () => void;
   onToggleTurnoutLantern: () => void;
+  onRotate?: (deltaDegrees?: number) => void;
   onDelete: () => void;
   getSelectedPieceIds: () => string[];
   getLayout: () => Layout;
   getCatalogEntry: (piece: TrackPiece) => CatalogEntry | undefined;
+  getCatalog?: () => Catalog;
 }
 
 const STYLE_ID = "selection-bar-overrides";
@@ -121,6 +127,71 @@ function injectSelectionBarStyles(): void {
       overflow: hidden;
       text-overflow: ellipsis;
     }
+    .selection-floating-bar .sel-bar-type {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-main);
+      background: var(--bg-surface);
+      border: 1px solid var(--border-main);
+      padding: 3px 8px;
+      border-radius: 12px;
+      white-space: nowrap;
+      max-width: 170px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .selection-floating-bar .sel-bar-type.mixed {
+      color: #94a3b8;
+      font-style: italic;
+    }
+    .selection-floating-bar .sel-bar-btn.mixed {
+      border: 1.5px dashed #f59e0b !important;
+      background: rgba(245, 158, 11, 0.14) !important;
+      color: #fbbf24 !important;
+    }
+    .selection-floating-bar #sel-bar-btn-feeder.mixed {
+      border-color: #f59e0b !important;
+      color: #fbbf24 !important;
+      background: rgba(245, 158, 11, 0.14) !important;
+    }
+    .selection-floating-bar #sel-bar-btn-isolator.mixed {
+      border-color: #dc2626 !important;
+      color: #f87171 !important;
+      background: rgba(220, 38, 38, 0.14) !important;
+    }
+    .selection-floating-bar #sel-bar-btn-catenary.active {
+      background: #0284c7 !important;
+      color: #ffffff !important;
+      border-color: #0284c7 !important;
+      box-shadow: 0 0 8px rgba(2, 132, 199, 0.45);
+    }
+    .selection-floating-bar #sel-bar-btn-catenary.mixed {
+      border: 1.5px dashed #0284c7 !important;
+      color: #38bdf8 !important;
+      background: rgba(2, 132, 199, 0.14) !important;
+    }
+    .selection-floating-bar #sel-bar-btn-catenary-feed.active {
+      background: #0284c7 !important;
+      color: #ffffff !important;
+      border-color: #0284c7 !important;
+      box-shadow: 0 0 8px rgba(2, 132, 199, 0.45);
+    }
+    .selection-floating-bar #sel-bar-btn-catenary-feed.mixed {
+      border: 1.5px dashed #0284c7 !important;
+      color: #38bdf8 !important;
+      background: rgba(2, 132, 199, 0.14) !important;
+    }
+    .selection-floating-bar #sel-bar-btn-catenary-iso.active {
+      background: #0284c7 !important;
+      color: #ffffff !important;
+      border-color: #0284c7 !important;
+      box-shadow: 0 0 8px rgba(2, 132, 199, 0.45);
+    }
+    .selection-floating-bar #sel-bar-btn-catenary-iso.mixed {
+      border: 1.5px dashed #0284c7 !important;
+      color: #38bdf8 !important;
+      background: rgba(2, 132, 199, 0.14) !important;
+    }
     .selection-floating-bar .sel-bar-select {
       height: 26px;
       width: auto !important;
@@ -179,6 +250,7 @@ export class SelectionBar {
 
   // DOM Elements
   private selBarCount: HTMLElement;
+  private selBarType: HTMLElement;
   private selBarLayerSelect: HTMLSelectElement;
   private selBarDivElev: HTMLElement | null = null;
   private selBarElevGroup: HTMLElement;
@@ -191,7 +263,8 @@ export class SelectionBar {
   private selBarFlexLenInput: HTMLInputElement | null = null;
   private selBarFlexRadiusInput: HTMLInputElement | null = null;
   private selBarFlexAngleInput: HTMLInputElement | null = null;
-  private selBarBtnHeight: HTMLButtonElement;
+  private selBarBtnHeight?: HTMLButtonElement | null = null;
+  private selBarBtnAutoRamp?: HTMLButtonElement | null = null;
   private selBarDivPower: HTMLElement | null = null;
   private selBarBtnFeeder: HTMLButtonElement;
   private selBarBtnIsolator: HTMLButtonElement;
@@ -199,10 +272,7 @@ export class SelectionBar {
   private selBarBtnCatenary: HTMLButtonElement;
   private selBarBtnCatenaryFeed: HTMLButtonElement;
   private selBarBtnCatenaryIso: HTMLButtonElement;
-  private selBarDivTurnout: HTMLElement | null = null;
-  private selBarBtnDecoder: HTMLButtonElement;
-  private selBarBtnLantern: HTMLButtonElement;
-  private selBarDivDel: HTMLElement | null = null;
+  private selBarBtnRotate: HTMLButtonElement;
   private selBarBtnDelete: HTMLButtonElement;
 
   constructor(host: HTMLElement, callbacks: SelectionBarCallbacks) {
@@ -217,21 +287,30 @@ export class SelectionBar {
     const isDe = getLanguage() === "de";
 
     this.container.innerHTML = `
+      <!-- Info: Count & Track Type / Mixed -->
       <span class="sel-bar-count" id="sel-bar-count">0 ${initialSelT.piecePlural}</span>
+      <span class="sel-bar-type" id="sel-bar-type">-</span>
+
+      <span class="sel-bar-divider" id="sel-bar-div-elev"></span>
+
+      <!-- Values: Layer dropdown, Height, Rotation -->
       <div class="sel-bar-layer-group">
         <select id="sel-bar-layer-select" class="sel-bar-select" title="${initialSelT.layerLabel}"></select>
       </div>
-      <span class="sel-bar-divider" id="sel-bar-div-elev"></span>
+
       <div class="sel-bar-angle-group" id="sel-bar-elev-group">
-        <button id="sel-bar-btn-height" class="sel-bar-btn" title="${isDe ? "Gleishöhe & Steigung anpassen (Dialog)" : "Adjust track height & ramp (dialog)"}">⤉</button>
+        <span class="sel-bar-angle-label" id="sel-bar-elev-label" title="${isDe ? "Gleishöhe in mm" : "Track height in mm"}">⤉</span>
         <input type="number" id="sel-bar-elev-input" class="sel-bar-angle-input" step="any" placeholder="0" title="${isDe ? "Gleishöhe in mm (Enter zum Anwenden, ↑/↓ für ±1 mm, Shift für ±0.1)" : "Set exact height in mm (Enter to apply, Up/Down for ±1 mm, Shift for ±0.1)"}" />
         <span class="sel-bar-unit">mm</span>
       </div>
-      <div class="sel-bar-angle-group">
+
+      <div class="sel-bar-angle-group" id="sel-bar-angle-group">
         <span class="sel-bar-angle-label" id="sel-bar-angle-lbl" title="${initialSelT.angleLabel}">↻</span>
         <input type="number" id="sel-bar-angle-input" class="sel-bar-angle-input" step="any" placeholder="0" title="${isDe ? "Drehwinkel in Grad (Enter zum Anwenden, ↑/↓ für ±7.5°)" : "Set exact rotation angle in degrees (Enter to apply, Up/Down for ±7.5°)"}" />
         <span class="sel-bar-unit">°</span>
       </div>
+
+      <!-- Flex track controls (only shown when a single flex track is selected) -->
       <span class="sel-bar-divider" id="sel-bar-div-flex" style="display:none"></span>
       <div class="sel-bar-angle-group" id="sel-bar-flex-group" style="display:none">
         <span class="sel-bar-angle-label" title="${isDe ? "Flexgleis Länge in mm zuschneiden" : "Cut flex track length in mm"}">✂ L:</span>
@@ -244,23 +323,27 @@ export class SelectionBar {
         <input type="number" id="sel-bar-flex-angle" class="sel-bar-angle-input" step="any" placeholder="0" style="width:48px !important" title="${isDe ? "Bogenwinkel in Grad" : "Angle in degrees"}" />
         <span class="sel-bar-unit">°</span>
       </div>
+
       <span class="sel-bar-divider" id="sel-bar-div-power"></span>
-      <button id="sel-bar-btn-feeder" class="sel-bar-btn" title="Gleis-Einspeisung an/aus (F)">⚡</button>
+
+      <!-- State toggles: Power feeder, Isolator gap, Catenary, Catenary feeder, Catenary isolator -->
+      <button id="sel-bar-btn-feeder" class="sel-bar-btn" title="Gleis-Einspeisung (F)">⚡</button>
       <button id="sel-bar-btn-isolator" class="sel-bar-btn" title="${initialSelT.isolatorInactiveTitle}">⊘</button>
-      <span class="sel-bar-divider" id="sel-bar-div-catenary"></span>
       <button id="sel-bar-btn-catenary" class="sel-bar-btn" title="${initialSelT.catenaryInactiveTitle}">⌁</button>
-      <button id="sel-bar-btn-catenary-feed" class="sel-bar-btn" title="${initialSelT.catenaryFeederInactiveTitle}">⌁+</button>
+      <button id="sel-bar-btn-catenary-feed" class="sel-bar-btn" title="${initialSelT.catenaryFeederInactiveTitle}">⌁⚡</button>
       <button id="sel-bar-btn-catenary-iso" class="sel-bar-btn" title="${initialSelT.catenaryIsolatorInactiveTitle}">⌁⊘</button>
-      <span class="sel-bar-divider" id="sel-bar-div-turnout" style="display:none"></span>
-      <button id="sel-bar-btn-decoder" class="sel-bar-btn" title="${initialSelT.decoderInactiveTitle}" style="display:none">📟</button>
-      <button id="sel-bar-btn-lantern" class="sel-bar-btn" title="${initialSelT.lanternInactiveTitle}" style="display:none">💡</button>
-      <span class="sel-bar-divider" id="sel-bar-div-del"></span>
+
+      <span class="sel-bar-divider" id="sel-bar-div-quick"></span>
+
+      <!-- Quick actions: Rotate, Delete -->
+      <button id="sel-bar-btn-rotate" class="sel-bar-btn" title="${isDe ? "Drehen (+7,5°, R)" : "Rotate (+7.5°, R)"}">↻ 7.5°</button>
       <button id="sel-bar-btn-delete" class="sel-bar-btn sel-bar-btn-danger" title="${initialSelT.deleteBtn} (Del)">🗑</button>
     `;
 
     host.appendChild(this.container);
 
     this.selBarCount = this.container.querySelector("#sel-bar-count") as HTMLElement;
+    this.selBarType = this.container.querySelector("#sel-bar-type") as HTMLElement;
     this.selBarLayerSelect = this.container.querySelector("#sel-bar-layer-select") as HTMLSelectElement;
     this.selBarDivElev = this.container.querySelector("#sel-bar-div-elev") as HTMLElement | null;
     this.selBarElevGroup = this.container.querySelector("#sel-bar-elev-group") as HTMLElement;
@@ -273,7 +356,6 @@ export class SelectionBar {
     this.selBarFlexLenInput = this.container.querySelector("#sel-bar-flex-len") as HTMLInputElement | null;
     this.selBarFlexRadiusInput = this.container.querySelector("#sel-bar-flex-radius") as HTMLInputElement | null;
     this.selBarFlexAngleInput = this.container.querySelector("#sel-bar-flex-angle") as HTMLInputElement | null;
-    this.selBarBtnHeight = this.container.querySelector("#sel-bar-btn-height") as HTMLButtonElement;
     this.selBarDivPower = this.container.querySelector("#sel-bar-div-power") as HTMLElement | null;
     this.selBarBtnFeeder = this.container.querySelector("#sel-bar-btn-feeder") as HTMLButtonElement;
     this.selBarBtnIsolator = this.container.querySelector("#sel-bar-btn-isolator") as HTMLButtonElement;
@@ -281,10 +363,7 @@ export class SelectionBar {
     this.selBarBtnCatenary = this.container.querySelector("#sel-bar-btn-catenary") as HTMLButtonElement;
     this.selBarBtnCatenaryFeed = this.container.querySelector("#sel-bar-btn-catenary-feed") as HTMLButtonElement;
     this.selBarBtnCatenaryIso = this.container.querySelector("#sel-bar-btn-catenary-iso") as HTMLButtonElement;
-    this.selBarDivTurnout = this.container.querySelector("#sel-bar-div-turnout") as HTMLElement | null;
-    this.selBarBtnDecoder = this.container.querySelector("#sel-bar-btn-decoder") as HTMLButtonElement;
-    this.selBarBtnLantern = this.container.querySelector("#sel-bar-btn-lantern") as HTMLButtonElement;
-    this.selBarDivDel = this.container.querySelector("#sel-bar-div-del") as HTMLElement | null;
+    this.selBarBtnRotate = this.container.querySelector("#sel-bar-btn-rotate") as HTMLButtonElement;
     this.selBarBtnDelete = this.container.querySelector("#sel-bar-btn-delete") as HTMLButtonElement;
 
     this.bindEvents();
@@ -391,8 +470,21 @@ export class SelectionBar {
       }
     });
 
-    this.selBarBtnHeight.addEventListener("click", () => {
+    this.selBarBtnHeight?.addEventListener("click", () => {
       this.callbacks.onOpenHeightDialog();
+    });
+
+    this.selBarBtnAutoRamp?.addEventListener("click", () => {
+      const selIds = this.callbacks.getSelectedPieceIds();
+      if (selIds.length === 1 && this.callbacks.onOpenRampGenerator) {
+        this.callbacks.onOpenRampGenerator();
+        return;
+      }
+      this.callbacks.onApplyAutoRamp?.();
+    });
+
+    this.selBarBtnRotate.addEventListener("click", () => {
+      this.callbacks.onRotate?.(7.5);
     });
 
     this.selBarBtnFeeder.addEventListener("click", () => {
@@ -415,14 +507,6 @@ export class SelectionBar {
       this.callbacks.onToggleCatenaryIsolator();
     });
 
-    this.selBarBtnDecoder.addEventListener("click", () => {
-      this.callbacks.onToggleTurnoutDecoder();
-    });
-
-    this.selBarBtnLantern.addEventListener("click", () => {
-      this.callbacks.onToggleTurnoutLantern();
-    });
-
     this.selBarBtnDelete.addEventListener("click", () => {
       this.callbacks.onDelete();
     });
@@ -431,37 +515,20 @@ export class SelectionBar {
   public updateStaticTexts(): void {
     const t = getTranslations().selectionBar;
     const isDe = getLanguage() === "de";
-    if (this.selBarElevLabel) this.selBarElevLabel.textContent = isDe ? "Höhe:" : "Height:";
-    if (this.selBarBtnHeight) {
-      this.selBarBtnHeight.textContent = "⤉";
-      this.selBarBtnHeight.title = isDe ? "Gleishöhe & Steigung anpassen (Dialog)" : "Adjust track height & ramp (dialog)";
-    }
+    if (this.selBarElevLabel) this.selBarElevLabel.title = isDe ? "Gleishöhe in mm" : "Track height in mm";
     if (this.selBarAngleLabel) {
-      this.selBarAngleLabel.textContent = "↻";
       this.selBarAngleLabel.title = t.angleLabel;
     }
-    if (this.selBarBtnCatenary) {
-      this.selBarBtnCatenary.textContent = "⌁";
-      this.selBarBtnCatenary.title = t.catenaryInactiveTitle;
+    if (this.selBarBtnRotate) {
+      this.selBarBtnRotate.title = isDe ? "Drehen (+7,5°, R)" : "Rotate (+7.5°, R)";
     }
     if (this.selBarBtnCatenaryFeed) {
-      this.selBarBtnCatenaryFeed.textContent = "⌁+";
       this.selBarBtnCatenaryFeed.title = t.catenaryFeederInactiveTitle;
     }
     if (this.selBarBtnCatenaryIso) {
-      this.selBarBtnCatenaryIso.textContent = "⌁⊘";
       this.selBarBtnCatenaryIso.title = t.catenaryIsolatorInactiveTitle;
     }
-    if (this.selBarBtnLantern) {
-      this.selBarBtnLantern.textContent = "💡";
-      this.selBarBtnLantern.title = t.lanternInactiveTitle;
-    }
-    if (this.selBarBtnDecoder) {
-      this.selBarBtnDecoder.textContent = "📟";
-      this.selBarBtnDecoder.title = t.decoderInactiveTitle;
-    }
     if (this.selBarBtnDelete) {
-      this.selBarBtnDelete.textContent = "🗑";
       this.selBarBtnDelete.title = `${t.deleteBtn} (Del)`;
     }
     this.update();
@@ -481,22 +548,20 @@ export class SelectionBar {
     const firstPiece = selectedPieces[0];
     const firstModel = layout.models?.find((m) => m.id === selectedIds[0]);
     const isDe = getLanguage() === "de";
+    const tSel = getTranslations().selectionBar;
 
     if (firstModel && selectedPieces.length === 0) {
-      this.selBarCount.textContent = `📦 ${firstModel.name} · ${firstModel.width}×${firstModel.depth} mm (H: ${firstModel.height}mm)`;
+      this.selBarCount.textContent = `1 ${isDe ? "Objekt" : "object"}`;
+      this.selBarType.textContent = `📦 ${firstModel.name}`;
+      this.selBarType.classList.remove("mixed");
       this.selBarElevGroup.style.display = "none";
       if (this.selBarDivElev) this.selBarDivElev.style.display = "none";
-      this.selBarBtnHeight.style.display = "none";
       if (this.selBarDivPower) this.selBarDivPower.style.display = "none";
       this.selBarBtnFeeder.style.display = "none";
       this.selBarBtnIsolator.style.display = "none";
-      if (this.selBarDivCatenary) this.selBarDivCatenary.style.display = "none";
       this.selBarBtnCatenary.style.display = "none";
       this.selBarBtnCatenaryFeed.style.display = "none";
       this.selBarBtnCatenaryIso.style.display = "none";
-      if (this.selBarDivTurnout) this.selBarDivTurnout.style.display = "none";
-      this.selBarBtnDecoder.style.display = "none";
-      this.selBarBtnLantern.style.display = "none";
       if (this.selBarDivFlex) this.selBarDivFlex.style.display = "none";
       if (this.selBarFlexGroup) this.selBarFlexGroup.style.display = "none";
 
@@ -519,94 +584,125 @@ export class SelectionBar {
 
     this.selBarElevGroup.style.display = "";
     if (this.selBarDivElev) this.selBarDivElev.style.display = "";
-    this.selBarBtnHeight.style.display = "";
     if (this.selBarDivPower) this.selBarDivPower.style.display = "";
     this.selBarBtnFeeder.style.display = "";
     this.selBarBtnIsolator.style.display = "";
-    if (this.selBarDivCatenary) this.selBarDivCatenary.style.display = "";
     this.selBarBtnCatenary.style.display = "";
     this.selBarBtnCatenaryFeed.style.display = "";
     this.selBarBtnCatenaryIso.style.display = "";
-    const tSel = getTranslations().selectionBar;
 
-    this.selBarBtnHeight.textContent = "⤉";
-    this.selBarBtnHeight.title = isDe ? "Gleishöhe & Steigung anpassen (Dialog)" : "Adjust track height & ramp (dialog)";
+    // 1. Info: Selection count & Track type
+    const pieceWord = selectedIds.length === 1 ? (isDe ? "Gleis" : "track") : (isDe ? "Gleise" : "tracks");
+    this.selBarCount.textContent = `${selectedIds.length} ${pieceWord}`;
 
-    // Track Feeder (Einspeisung)
-    const allHaveFeeder = selectedPieces.length > 0 && selectedPieces.every((p) => !!p.powerFeed);
-    this.selBarBtnFeeder.classList.toggle("active", allHaveFeeder);
+    let typeText = "";
+    let isMixedType = false;
+    if (selectedPieces.length === 1 && firstPiece) {
+      const entry = this.callbacks.getCatalogEntry(firstPiece);
+      typeText = entry?.name || `#${firstPiece.catalogId}`;
+    } else if (selectedPieces.length > 1) {
+      const firstCatId = selectedPieces[0]!.catalogId;
+      const allSameCatId = selectedPieces.every((p) => p.catalogId === firstCatId);
+      if (allSameCatId) {
+        const entry = this.callbacks.getCatalogEntry(selectedPieces[0]!);
+        typeText = entry?.name || `#${firstCatId}`;
+      } else {
+        const firstKind = this.callbacks.getCatalogEntry(selectedPieces[0]!)?.kind;
+        const allSameKind = firstKind && selectedPieces.every((p) => this.callbacks.getCatalogEntry(p)?.kind === firstKind);
+        if (allSameKind) {
+          typeText = firstKind;
+        } else {
+          typeText = isDe ? "gemischt" : "mixed";
+          isMixedType = true;
+        }
+      }
+    }
+    this.selBarType.textContent = typeText || "-";
+    this.selBarType.classList.toggle("mixed", isMixedType);
+
+    // 2. State Toggles (highlighted when active, "mixed" state for multi-selection)
+    // Feeder
+    const feederCount = selectedPieces.filter((p) => !!p.powerFeed).length;
+    const allFeeder = feederCount === selectedPieces.length && selectedPieces.length > 0;
+    const mixedFeeder = feederCount > 0 && feederCount < selectedPieces.length;
+    this.selBarBtnFeeder.classList.toggle("active", allFeeder);
+    this.selBarBtnFeeder.classList.toggle("mixed", mixedFeeder);
     this.selBarBtnFeeder.textContent = "⚡";
-    this.selBarBtnFeeder.title = allHaveFeeder
-      ? (isDe ? "Gleis-Einspeisung entfernen (F)" : "Remove track power feeder (F)")
-      : (isDe ? "Gleis-Einspeisung hinzufügen (F)" : "Add track power feeder (F)");
+    this.selBarBtnFeeder.title = allFeeder
+      ? (isDe ? "Gleis-Einspeisung: aktiv (Klicken zum Entfernen, F)" : "Power feeder: active (Click to remove, F)")
+      : mixedFeeder
+        ? (isDe ? "Gleis-Einspeisung: gemischt (Klicken zum Setzen für alle, F)" : "Power feeder: mixed (Click to set for all, F)")
+        : (isDe ? "Gleis-Einspeisung: aus (Klicken zum Aktivieren, F)" : "Power feeder: off (Click to activate, F)");
 
-    // Track Isolator
-    if (firstPiece?.isIsolator) {
+    // Isolator
+    const isoCount = selectedPieces.filter((p) => !!p.isIsolator).length;
+    const allIso = isoCount === selectedPieces.length && selectedPieces.length > 0;
+    const mixedIso = isoCount > 0 && isoCount < selectedPieces.length;
+    this.selBarBtnIsolator.classList.toggle("active", allIso);
+    this.selBarBtnIsolator.classList.toggle("mixed", mixedIso);
+    if (selectedPieces.length === 1 && firstPiece?.isIsolator) {
       const idx = (firstPiece.isolatedConnectorIndex ?? 0) + 1;
       const total = firstPiece.connectors?.length || 2;
-      this.selBarBtnIsolator.classList.add("active");
       this.selBarBtnIsolator.textContent = `⊘ ${idx}/${total}`;
       this.selBarBtnIsolator.title = tSel.isolatorActiveTitle.replace("{idx}", String(idx)).replace("{total}", String(total));
     } else {
-      this.selBarBtnIsolator.classList.remove("active");
       this.selBarBtnIsolator.textContent = "⊘";
-      this.selBarBtnIsolator.title = tSel.isolatorInactiveTitle;
+      this.selBarBtnIsolator.title = allIso
+        ? (isDe ? "Trennstelle: aktiv (I)" : "Isolator: active (I)")
+        : mixedIso
+          ? (isDe ? "Trennstelle: gemischt (I)" : "Isolator: mixed (I)")
+          : tSel.isolatorInactiveTitle;
     }
 
-    // Oberleitung (Catenary)
-    const allHaveCatenary = selectedPieces.length > 0 && selectedPieces.every((p) => !!p.hasCatenary);
-    this.selBarBtnCatenary.classList.toggle("active", allHaveCatenary);
+    // Catenary
+    const catCount = selectedPieces.filter((p) => !!p.hasCatenary).length;
+    const allCat = catCount === selectedPieces.length && selectedPieces.length > 0;
+    const mixedCat = catCount > 0 && catCount < selectedPieces.length;
+    this.selBarBtnCatenary.classList.toggle("active", allCat);
+    this.selBarBtnCatenary.classList.toggle("mixed", mixedCat);
     this.selBarBtnCatenary.textContent = "⌁";
-    this.selBarBtnCatenary.title = allHaveCatenary ? tSel.catenaryActiveTitle : tSel.catenaryInactiveTitle;
+    this.selBarBtnCatenary.title = allCat
+      ? (isDe ? "Oberleitung: aktiv (Klicken zum Entfernen, O)" : "Catenary: active (Click to remove, O)")
+      : mixedCat
+        ? (isDe ? "Oberleitung: gemischt (Klicken zum Setzen für alle, O)" : "Catenary: mixed (Click to set for all, O)")
+        : (isDe ? "Oberleitung: aus (Klicken zum Aktivieren, O)" : "Catenary: off (Click to activate, O)");
 
-    const allHaveCatenaryFeed = selectedPieces.length > 0 && selectedPieces.every((p) => !!p.catenaryPowerFeed);
-    this.selBarBtnCatenaryFeed.classList.toggle("active", allHaveCatenaryFeed);
-    this.selBarBtnCatenaryFeed.textContent = "⌁+";
-    this.selBarBtnCatenaryFeed.title = allHaveCatenaryFeed ? tSel.catenaryFeederActiveTitle : tSel.catenaryFeederInactiveTitle;
+    // Catenary Feeder
+    const catFeedCount = selectedPieces.filter((p) => !!p.catenaryPowerFeed).length;
+    const allCatFeed = catFeedCount === selectedPieces.length && selectedPieces.length > 0;
+    const mixedCatFeed = catFeedCount > 0 && catFeedCount < selectedPieces.length;
+    this.selBarBtnCatenaryFeed.classList.toggle("active", allCatFeed);
+    this.selBarBtnCatenaryFeed.classList.toggle("mixed", mixedCatFeed);
+    this.selBarBtnCatenaryFeed.textContent = "⌁⚡";
+    this.selBarBtnCatenaryFeed.title = allCatFeed
+      ? (isDe ? "Oberleitungs-Einspeisung: aktiv (Klicken zum Entfernen, Shift+F)" : "Catenary feeder: active (Click to remove, Shift+F)")
+      : mixedCatFeed
+        ? (isDe ? "Oberleitungs-Einspeisung: gemischt (Klicken zum Setzen für alle, Shift+F)" : "Catenary feeder: mixed (Click to set for all, Shift+F)")
+        : tSel.catenaryFeederInactiveTitle;
 
-    if (firstPiece?.catenaryIsolator) {
+    // Catenary Isolator
+    const catIsoCount = selectedPieces.filter((p) => !!p.catenaryIsolator).length;
+    const allCatIso = catIsoCount === selectedPieces.length && selectedPieces.length > 0;
+    const mixedCatIso = catIsoCount > 0 && catIsoCount < selectedPieces.length;
+    this.selBarBtnCatenaryIso.classList.toggle("active", allCatIso);
+    this.selBarBtnCatenaryIso.classList.toggle("mixed", mixedCatIso);
+    if (selectedPieces.length === 1 && firstPiece?.catenaryIsolator) {
       const idx = (firstPiece.catenaryIsolatedConnectorIndex ?? 0) + 1;
       const total = firstPiece.connectors?.length || 2;
-      this.selBarBtnCatenaryIso.classList.add("active");
       this.selBarBtnCatenaryIso.textContent = `⌁⊘ ${idx}/${total}`;
       this.selBarBtnCatenaryIso.title = tSel.catenaryIsolatorActiveTitle.replace("{idx}", String(idx)).replace("{total}", String(total));
     } else {
-      this.selBarBtnCatenaryIso.classList.remove("active");
       this.selBarBtnCatenaryIso.textContent = "⌁⊘";
-      this.selBarBtnCatenaryIso.title = tSel.catenaryIsolatorInactiveTitle;
+      this.selBarBtnCatenaryIso.title = allCatIso
+        ? (isDe ? "Oberleitungs-Trennstelle: aktiv (Shift+I)" : "Catenary isolator: active (Shift+I)")
+        : mixedCatIso
+          ? (isDe ? "Oberleitungs-Trennstelle: gemischt (Shift+I)" : "Catenary isolator: mixed (Shift+I)")
+          : tSel.catenaryIsolatorInactiveTitle;
     }
 
-    // Weichen-Optionen (Decoder & Laterne)
-    const turnoutPieces = selectedPieces.filter((p) => {
-      const entry = this.callbacks.getCatalogEntry(p);
-      return isTurnoutEntry(entry);
-    });
-
-    if (turnoutPieces.length > 0) {
-      if (this.selBarDivTurnout) this.selBarDivTurnout.style.display = "";
-      this.selBarBtnDecoder.style.display = "";
-      this.selBarBtnLantern.style.display = "";
-
-      const allHaveDecoder = turnoutPieces.every((p) => !!p.hasDecoder);
-      this.selBarBtnDecoder.classList.toggle("active", allHaveDecoder);
-      this.selBarBtnDecoder.textContent = "📟";
-      this.selBarBtnDecoder.title = allHaveDecoder ? tSel.decoderActiveTitle : tSel.decoderInactiveTitle;
-
-      const allHaveLantern = turnoutPieces.every((p) => !!p.hasLantern);
-      this.selBarBtnLantern.classList.toggle("active", allHaveLantern);
-      this.selBarBtnLantern.textContent = "💡";
-      this.selBarBtnLantern.title = allHaveLantern ? tSel.lanternActiveTitle : tSel.lanternInactiveTitle;
-    } else {
-      if (this.selBarDivTurnout) this.selBarDivTurnout.style.display = "none";
-      this.selBarBtnDecoder.style.display = "none";
-      this.selBarBtnLantern.style.display = "none";
-    }
-
-    this.selBarBtnDelete.textContent = "🗑";
+    // Quick actions
+    this.selBarBtnRotate.title = isDe ? "Drehen (+7,5°, R)" : "Rotate (+7.5°, R)";
     this.selBarBtnDelete.title = `${tSel.deleteBtn} (Del)`;
-
-    const pieceWord = selectedIds.length === 1 ? tSel.pieceSingular : tSel.piecePlural;
-    this.selBarCount.textContent = `${selectedIds.length} ${pieceWord}`;
 
     const firstLayerId = firstPiece?.layerId || layout.activeLayerId || layers[0]?.id;
     const layerExists = layers.some((l) => l.id === (firstPiece?.layerId || "layer-1"));

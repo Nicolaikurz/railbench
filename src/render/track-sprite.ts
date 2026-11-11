@@ -1,6 +1,6 @@
 import { Container, Graphics, Text, TextStyle } from "pixi.js";
 import type { TrackPiece, ColorMode } from "@/core/types";
-import { Catalog, getLocalConnectors, isFeederEntry, isIsolatingEntry, type CatalogEntry } from "@/catalog/catalog";
+import { Catalog, getLocalConnectors, isFeederEntry, isIsolatingEntry, isBufferStopPiece, type CatalogEntry } from "@/catalog/catalog";
 import type { PiecePowerResult } from "@/core/simulation";
 import { deg2rad, getPieceLocalCenter, getUprightTextRotation } from "@/core/geometry";
 import { getTrackBlueprintColor, type BlueprintColor } from "./blueprint-colors";
@@ -419,7 +419,7 @@ function drawElevationShadow(g: Graphics, entry: CatalogEntry, ballastWidth: num
   const shadowAlpha = Math.min(0.4, 0.12 + elevation * 0.003);
   const shadowColor = 0x000000;
 
-  if (kind === "straight" || kind === "accessory" || kind === "flex") {
+  if (kind === "straight" || kind === "accessory" || kind === "flex" || kind === "buffer-stop" || isBufferStopPiece(entry)) {
     const l = entry.length ?? 188.3;
     g.rect(shadowDist * 0.5, -ballastHalf + shadowDist, l, ballastWidth);
     g.fill({ color: shadowColor, alpha: shadowAlpha });
@@ -612,7 +612,7 @@ function drawSelectionContour(g: Graphics, entry: CatalogEntry, contourWidth = 4
   const glowAlpha = 0.5;
   const contourHalf = contourWidth / 2;
 
-  if (kind === "straight" || kind === "accessory" || kind === "flex") {
+  if (kind === "straight" || kind === "accessory" || kind === "flex" || kind === "buffer-stop" || isBufferStopPiece(entry)) {
     const l = entry.length ?? 188.3;
     g.rect(-4, -contourHalf, l + 8, contourWidth);
     g.stroke({ width: 3.5, color: glowColor, alpha: 0.9, join: "miter" });
@@ -657,40 +657,6 @@ function drawSelectionContour(g: Graphics, entry: CatalogEntry, contourWidth = 4
       const lead = entry.branchLength ?? (entry.branchRadius && entry.branchRadius > r1 ? entry.branchRadius - r1 : 0);
       const r2 = entry.branchLength !== undefined ? (entry.branchRadius ?? r1) : (entry.branchRadius && entry.branchRadius > r1 ? r1 : (entry.branchRadius ?? r1));
       const a2 = entry.branchAngle ?? 30;
-      const end1 = -Math.PI / 2 + deg2rad(a1);
-      const end2 = -Math.PI / 2 + deg2rad(a2);
-      drawArcStroke(g, 0, r1, r1, -Math.PI / 2, end1, contourWidth, glowColor, false, 0.15);
-      drawArcStroke(g, 0, r1, r1 - contourHalf, -Math.PI / 2, end1, 3.5, glowColor, false, 0.9);
-      drawArcStroke(g, 0, r1, r1 + contourHalf, -Math.PI / 2, end1, 3.5, glowColor, false, 0.9);
-      if (lead > 0) {
-        g.rect(-4, -contourHalf, lead + 8, contourWidth);
-        g.stroke({ width: 3.5, color: glowColor, alpha: 0.9, join: "miter" });
-        g.fill({ color: glowColor, alpha: 0.15 });
-      }
-      drawArcStroke(g, lead, r2, r2, -Math.PI / 2, end2, contourWidth, glowColor, false, 0.15);
-      drawArcStroke(g, lead, r2, r2 - contourHalf, -Math.PI / 2, end2, 3.5, glowColor, false, 0.9);
-      drawArcStroke(g, lead, r2, r2 + contourHalf, -Math.PI / 2, end2, 3.5, glowColor, false, 0.9);
-      return;
-    }
-    const l = entry.length ?? 188.3;
-    const br = entry.branchRadius ?? 437.5;
-    const ba = entry.branchAngle ?? 24.3;
-    g.rect(-4, -contourHalf, l + 8, contourWidth);
-    g.stroke({ width: 3.5, color: glowColor, alpha: 0.9, join: "miter" });
-    g.fill({ color: glowColor, alpha: 0.15 });
-    drawArcStroke(g, 0, br, br, -Math.PI / 2, -Math.PI / 2 + deg2rad(ba), contourWidth, glowColor, false, 0.15);
-    drawArcStroke(g, 0, br, br - contourHalf, -Math.PI / 2, -Math.PI / 2 + deg2rad(ba), 3.5, glowColor, false, 0.9);
-    drawArcStroke(g, 0, br, br + contourHalf, -Math.PI / 2, -Math.PI / 2 + deg2rad(ba), 3.5, glowColor, false, 0.9);
-    return;
-  }
-
-  if (kind === "turnout-right") {
-    if (entry.radius && !entry.length) {
-      const r1 = entry.radius;
-      const a1 = entry.angle ?? 30;
-      const lead = entry.branchLength ?? (entry.branchRadius && entry.branchRadius > r1 ? entry.branchRadius - r1 : 0);
-      const r2 = entry.branchLength !== undefined ? (entry.branchRadius ?? r1) : (entry.branchRadius && entry.branchRadius > r1 ? r1 : (entry.branchRadius ?? r1));
-      const a2 = entry.branchAngle ?? 30;
       const end1 = Math.PI / 2 - deg2rad(a1);
       const end2 = Math.PI / 2 - deg2rad(a2);
       drawArcStroke(g, 0, -r1, r1, Math.PI / 2, end1, contourWidth, glowColor, true, 0.15);
@@ -718,29 +684,41 @@ function drawSelectionContour(g: Graphics, entry: CatalogEntry, contourWidth = 4
     return;
   }
 
-  if (kind === "curved-turnout-left") {
-    const r1 = entry.radius ?? 360;
-    const a1 = entry.angle ?? 30;
-    const lead = entry.branchLength ?? (entry.branchRadius && entry.branchRadius > r1 ? entry.branchRadius - r1 : 0);
-    const r2 = entry.branchLength !== undefined ? (entry.branchRadius ?? r1) : (entry.branchRadius && entry.branchRadius > r1 ? r1 : (entry.branchRadius ?? r1));
-    const a2 = entry.branchAngle ?? 30;
-    const end1 = -Math.PI / 2 + deg2rad(a1);
-    const end2 = -Math.PI / 2 + deg2rad(a2);
-    drawArcStroke(g, 0, r1, r1, -Math.PI / 2, end1, contourWidth, glowColor, false, 0.15);
-    drawArcStroke(g, 0, r1, r1 - contourHalf, -Math.PI / 2, end1, 3.5, glowColor, false, 0.9);
-    drawArcStroke(g, 0, r1, r1 + contourHalf, -Math.PI / 2, end1, 3.5, glowColor, false, 0.9);
-    if (lead > 0) {
-      g.rect(-4, -contourHalf, lead + 8, contourWidth);
-      g.stroke({ width: 3.5, color: glowColor, alpha: 0.9, join: "miter" });
-      g.fill({ color: glowColor, alpha: 0.15 });
+  if (kind === "turnout-right") {
+    if (entry.radius && !entry.length) {
+      const r1 = entry.radius;
+      const a1 = entry.angle ?? 30;
+      const lead = entry.branchLength ?? (entry.branchRadius && entry.branchRadius > r1 ? entry.branchRadius - r1 : 0);
+      const r2 = entry.branchLength !== undefined ? (entry.branchRadius ?? r1) : (entry.branchRadius && entry.branchRadius > r1 ? r1 : (entry.branchRadius ?? r1));
+      const a2 = entry.branchAngle ?? 30;
+      const end1 = -Math.PI / 2 + deg2rad(a1);
+      const end2 = -Math.PI / 2 + deg2rad(a2);
+      drawArcStroke(g, 0, r1, r1, -Math.PI / 2, end1, contourWidth, glowColor, false, 0.15);
+      drawArcStroke(g, 0, r1, r1 - contourHalf, -Math.PI / 2, end1, 3.5, glowColor, false, 0.9);
+      drawArcStroke(g, 0, r1, r1 + contourHalf, -Math.PI / 2, end1, 3.5, glowColor, false, 0.9);
+      if (lead > 0) {
+        g.rect(-4, -contourHalf, lead + 8, contourWidth);
+        g.stroke({ width: 3.5, color: glowColor, alpha: 0.9, join: "miter" });
+        g.fill({ color: glowColor, alpha: 0.15 });
+      }
+      drawArcStroke(g, lead, r2, r2, -Math.PI / 2, end2, contourWidth, glowColor, false, 0.15);
+      drawArcStroke(g, lead, r2, r2 - contourHalf, -Math.PI / 2, end2, 3.5, glowColor, false, 0.9);
+      drawArcStroke(g, lead, r2, r2 + contourHalf, -Math.PI / 2, end2, 3.5, glowColor, false, 0.9);
+      return;
     }
-    drawArcStroke(g, lead, r2, r2, -Math.PI / 2, end2, contourWidth, glowColor, false, 0.15);
-    drawArcStroke(g, lead, r2, r2 - contourHalf, -Math.PI / 2, end2, 3.5, glowColor, false, 0.9);
-    drawArcStroke(g, lead, r2, r2 + contourHalf, -Math.PI / 2, end2, 3.5, glowColor, false, 0.9);
+    const l = entry.length ?? 188.3;
+    const br = entry.branchRadius ?? 437.5;
+    const ba = entry.branchAngle ?? 24.3;
+    g.rect(-4, -contourHalf, l + 8, contourWidth);
+    g.stroke({ width: 3.5, color: glowColor, alpha: 0.9, join: "miter" });
+    g.fill({ color: glowColor, alpha: 0.15 });
+    drawArcStroke(g, 0, br, br, -Math.PI / 2, -Math.PI / 2 + deg2rad(ba), contourWidth, glowColor, false, 0.15);
+    drawArcStroke(g, 0, br, br - contourHalf, -Math.PI / 2, -Math.PI / 2 + deg2rad(ba), 3.5, glowColor, false, 0.9);
+    drawArcStroke(g, 0, br, br + contourHalf, -Math.PI / 2, -Math.PI / 2 + deg2rad(ba), 3.5, glowColor, false, 0.9);
     return;
   }
 
-  if (kind === "curved-turnout-right") {
+  if (kind === "curved-turnout-left") {
     const r1 = entry.radius ?? 360;
     const a1 = entry.angle ?? 30;
     const lead = entry.branchLength ?? (entry.branchRadius && entry.branchRadius > r1 ? entry.branchRadius - r1 : 0);
@@ -759,6 +737,28 @@ function drawSelectionContour(g: Graphics, entry: CatalogEntry, contourWidth = 4
     drawArcStroke(g, lead, -r2, r2, Math.PI / 2, end2, contourWidth, glowColor, true, 0.15);
     drawArcStroke(g, lead, -r2, r2 - contourHalf, Math.PI / 2, end2, 3.5, glowColor, true, 0.9);
     drawArcStroke(g, lead, -r2, r2 + contourHalf, Math.PI / 2, end2, 3.5, glowColor, true, 0.9);
+    return;
+  }
+
+  if (kind === "curved-turnout-right") {
+    const r1 = entry.radius ?? 360;
+    const a1 = entry.angle ?? 30;
+    const lead = entry.branchLength ?? (entry.branchRadius && entry.branchRadius > r1 ? entry.branchRadius - r1 : 0);
+    const r2 = entry.branchLength !== undefined ? (entry.branchRadius ?? r1) : (entry.branchRadius && entry.branchRadius > r1 ? r1 : (entry.branchRadius ?? r1));
+    const a2 = entry.branchAngle ?? 30;
+    const end1 = -Math.PI / 2 + deg2rad(a1);
+    const end2 = -Math.PI / 2 + deg2rad(a2);
+    drawArcStroke(g, 0, r1, r1, -Math.PI / 2, end1, contourWidth, glowColor, false, 0.15);
+    drawArcStroke(g, 0, r1, r1 - contourHalf, -Math.PI / 2, end1, 3.5, glowColor, false, 0.9);
+    drawArcStroke(g, 0, r1, r1 + contourHalf, -Math.PI / 2, end1, 3.5, glowColor, false, 0.9);
+    if (lead > 0) {
+      g.rect(-4, -contourHalf, lead + 8, contourWidth);
+      g.stroke({ width: 3.5, color: glowColor, alpha: 0.9, join: "miter" });
+      g.fill({ color: glowColor, alpha: 0.15 });
+    }
+    drawArcStroke(g, lead, r2, r2, -Math.PI / 2, end2, contourWidth, glowColor, false, 0.15);
+    drawArcStroke(g, lead, r2, r2 - contourHalf, -Math.PI / 2, end2, 3.5, glowColor, false, 0.9);
+    drawArcStroke(g, lead, r2, r2 + contourHalf, -Math.PI / 2, end2, 3.5, glowColor, false, 0.9);
     return;
   }
 
@@ -897,7 +897,7 @@ function drawBallast(g: Graphics, entry: CatalogEntry, color: number, ballastWid
   const kind = entry.kind;
   const ballastHalf = ballastWidth / 2;
 
-  if (kind === "straight" || kind === "accessory" || kind === "flex") {
+  if (kind === "straight" || kind === "accessory" || kind === "flex" || kind === "buffer-stop" || isBufferStopPiece(entry)) {
     const l = entry.length ?? 188.3;
     g.rect(0, -ballastHalf, l, ballastWidth);
     g.fill({ color, alpha: 0.95 });
@@ -979,32 +979,6 @@ function drawBallast(g: Graphics, entry: CatalogEntry, color: number, ballastWid
       const lead = entry.branchLength ?? (entry.branchRadius && entry.branchRadius > r1 ? entry.branchRadius - r1 : 0);
       const r2 = entry.branchLength !== undefined ? (entry.branchRadius ?? r1) : (entry.branchRadius && entry.branchRadius > r1 ? r1 : (entry.branchRadius ?? r1));
       const a2 = entry.branchAngle ?? 30;
-      drawArcStroke(g, 0, r1, r1, -Math.PI / 2, -Math.PI / 2 + deg2rad(a1), ballastWidth, color);
-      if (lead > 0) {
-        g.rect(0, -ballastHalf, lead, ballastWidth);
-        g.fill({ color, alpha: 0.95 });
-        g.stroke({ width: 1, color: 0x6c655b, alpha: 0.6, join: "miter" });
-      }
-      drawArcStroke(g, lead, r2, r2, -Math.PI / 2, -Math.PI / 2 + deg2rad(a2), ballastWidth, color);
-      return;
-    }
-    const l = entry.length ?? 188.3;
-    const br = entry.branchRadius ?? 437.5;
-    const ba = entry.branchAngle ?? 24.3;
-    g.rect(0, -ballastHalf, l, ballastWidth);
-    g.fill({ color, alpha: 0.95 });
-    g.stroke({ width: 1, color: 0x6c655b, alpha: 0.6, join: "miter" });
-    drawArcStroke(g, 0, br, br, -Math.PI / 2, -Math.PI / 2 + deg2rad(ba), ballastWidth, color);
-    return;
-  }
-
-  if (kind === "turnout-right") {
-    if (entry.radius && !entry.length) {
-      const r1 = entry.radius;
-      const a1 = entry.angle ?? 30;
-      const lead = entry.branchLength ?? (entry.branchRadius && entry.branchRadius > r1 ? entry.branchRadius - r1 : 0);
-      const r2 = entry.branchLength !== undefined ? (entry.branchRadius ?? r1) : (entry.branchRadius && entry.branchRadius > r1 ? r1 : (entry.branchRadius ?? r1));
-      const a2 = entry.branchAngle ?? 30;
       drawArcStroke(g, 0, -r1, r1, Math.PI / 2, Math.PI / 2 - deg2rad(a1), ballastWidth, color, true);
       if (lead > 0) {
         g.rect(0, -ballastHalf, lead, ballastWidth);
@@ -1024,23 +998,33 @@ function drawBallast(g: Graphics, entry: CatalogEntry, color: number, ballastWid
     return;
   }
 
-  if (kind === "curved-turnout-left") {
-    const r1 = entry.radius ?? 360;
-    const a1 = entry.angle ?? 30;
-    const lead = entry.branchLength ?? (entry.branchRadius && entry.branchRadius > r1 ? entry.branchRadius - r1 : 0);
-    const r2 = entry.branchLength !== undefined ? (entry.branchRadius ?? r1) : (entry.branchRadius && entry.branchRadius > r1 ? r1 : (entry.branchRadius ?? r1));
-    const a2 = entry.branchAngle ?? 30;
-    drawArcStroke(g, 0, r1, r1, -Math.PI / 2, -Math.PI / 2 + deg2rad(a1), ballastWidth, color);
-    if (lead > 0) {
-      g.rect(0, -ballastHalf, lead, ballastWidth);
-      g.fill({ color, alpha: 0.95 });
-      g.stroke({ width: 1, color: 0x6c655b, alpha: 0.6, join: "miter" });
+  if (kind === "turnout-right") {
+    if (entry.radius && !entry.length) {
+      const r1 = entry.radius;
+      const a1 = entry.angle ?? 30;
+      const lead = entry.branchLength ?? (entry.branchRadius && entry.branchRadius > r1 ? entry.branchRadius - r1 : 0);
+      const r2 = entry.branchLength !== undefined ? (entry.branchRadius ?? r1) : (entry.branchRadius && entry.branchRadius > r1 ? r1 : (entry.branchRadius ?? r1));
+      const a2 = entry.branchAngle ?? 30;
+      drawArcStroke(g, 0, r1, r1, -Math.PI / 2, -Math.PI / 2 + deg2rad(a1), ballastWidth, color);
+      if (lead > 0) {
+        g.rect(0, -ballastHalf, lead, ballastWidth);
+        g.fill({ color, alpha: 0.95 });
+        g.stroke({ width: 1, color: 0x6c655b, alpha: 0.6, join: "miter" });
+      }
+      drawArcStroke(g, lead, r2, r2, -Math.PI / 2, -Math.PI / 2 + deg2rad(a2), ballastWidth, color);
+      return;
     }
-    drawArcStroke(g, lead, r2, r2, -Math.PI / 2, -Math.PI / 2 + deg2rad(a2), ballastWidth, color);
+    const l = entry.length ?? 188.3;
+    const br = entry.branchRadius ?? 437.5;
+    const ba = entry.branchAngle ?? 24.3;
+    g.rect(0, -ballastHalf, l, ballastWidth);
+    g.fill({ color, alpha: 0.95 });
+    g.stroke({ width: 1, color: 0x6c655b, alpha: 0.6, join: "miter" });
+    drawArcStroke(g, 0, br, br, -Math.PI / 2, -Math.PI / 2 + deg2rad(ba), ballastWidth, color);
     return;
   }
 
-  if (kind === "curved-turnout-right") {
+  if (kind === "curved-turnout-left") {
     const r1 = entry.radius ?? 360;
     const a1 = entry.angle ?? 30;
     const lead = entry.branchLength ?? (entry.branchRadius && entry.branchRadius > r1 ? entry.branchRadius - r1 : 0);
@@ -1056,6 +1040,22 @@ function drawBallast(g: Graphics, entry: CatalogEntry, color: number, ballastWid
     return;
   }
 
+  if (kind === "curved-turnout-right") {
+    const r1 = entry.radius ?? 360;
+    const a1 = entry.angle ?? 30;
+    const lead = entry.branchLength ?? (entry.branchRadius && entry.branchRadius > r1 ? entry.branchRadius - r1 : 0);
+    const r2 = entry.branchLength !== undefined ? (entry.branchRadius ?? r1) : (entry.branchRadius && entry.branchRadius > r1 ? r1 : (entry.branchRadius ?? r1));
+    const a2 = entry.branchAngle ?? 30;
+    drawArcStroke(g, 0, r1, r1, -Math.PI / 2, -Math.PI / 2 + deg2rad(a1), ballastWidth, color);
+    if (lead > 0) {
+      g.rect(0, -ballastHalf, lead, ballastWidth);
+      g.fill({ color, alpha: 0.95 });
+      g.stroke({ width: 1, color: 0x6c655b, alpha: 0.6, join: "miter" });
+    }
+    drawArcStroke(g, lead, r2, r2, -Math.PI / 2, -Math.PI / 2 + deg2rad(a2), ballastWidth, color);
+    return;
+  }
+
   if (kind === "three-way") {
     const l = entry.length ?? 188.3;
     const br = entry.branchRadius ?? 437.5;
@@ -1063,8 +1063,8 @@ function drawBallast(g: Graphics, entry: CatalogEntry, color: number, ballastWid
     g.rect(0, -ballastHalf, l, ballastWidth);
     g.fill({ color, alpha: 0.95 });
     g.stroke({ width: 1, color: 0x6c655b, alpha: 0.6, join: "miter" });
-    drawArcStroke(g, 0, br, br, -Math.PI / 2, -Math.PI / 2 + deg2rad(ba), ballastWidth, color);
     drawArcStroke(g, 0, -br, br, Math.PI / 2, Math.PI / 2 - deg2rad(ba), ballastWidth, color, true);
+    drawArcStroke(g, 0, br, br, -Math.PI / 2, -Math.PI / 2 + deg2rad(ba), ballastWidth, color);
     return;
   }
 
@@ -1111,7 +1111,7 @@ function drawBallast(g: Graphics, entry: CatalogEntry, color: number, ballastWid
 function drawTies(g: Graphics, entry: CatalogEntry, color: number, tieLenHalf = 13, tieWidth = 2.6, tieSpacing = 6.5) {
   const kind = entry.kind;
 
-  if (kind === "straight" || kind === "accessory" || kind === "flex") {
+  if (kind === "straight" || kind === "accessory" || kind === "flex" || kind === "buffer-stop" || isBufferStopPiece(entry)) {
     const l = entry.length ?? 188.3;
     for (let x = 4; x <= l - 4; x += tieSpacing) {
       g.moveTo(x, -tieLenHalf);
@@ -1214,44 +1214,6 @@ function drawTies(g: Graphics, entry: CatalogEntry, color: number, tieLenHalf = 
     const totalRad1 = deg2rad(a1);
     const stepRad1 = deg2rad(1.2 * (tieSpacing / 6.5));
     for (let ang = stepRad1 / 2; ang < totalRad1; ang += stepRad1) {
-      const curAng = -Math.PI / 2 + ang;
-      const cos = Math.cos(curAng);
-      const sin = Math.sin(curAng);
-      g.moveTo((r1 - tieLenHalf) * cos, r1 + (r1 - tieLenHalf) * sin);
-      g.lineTo((r1 + tieLenHalf) * cos, r1 + (r1 + tieLenHalf) * sin);
-    }
-
-    if (lead > 0) {
-      for (let x = 4; x <= lead - 2; x += tieSpacing) {
-        g.moveTo(x, -tieLenHalf);
-        g.lineTo(x, tieLenHalf);
-      }
-    }
-
-    const totalRad2 = deg2rad(a2);
-    const stepRad2 = deg2rad(1.2 * (tieSpacing / 6.5));
-    const startAng2 = lead > 0 ? stepRad2 / 2 : stepRad2 * 3;
-    for (let ang = startAng2; ang < totalRad2; ang += stepRad2) {
-      const curAng = -Math.PI / 2 + ang;
-      const cos = Math.cos(curAng);
-      const sin = Math.sin(curAng);
-      g.moveTo(lead + (r2 - tieLenHalf) * cos, r2 + (r2 - tieLenHalf) * sin);
-      g.lineTo(lead + (r2 + tieLenHalf) * cos, r2 + (r2 + tieLenHalf) * sin);
-    }
-    g.stroke({ width: tieWidth, color, cap: "butt" });
-    return;
-  }
-
-  if (kind === "curved-turnout-right" || (kind === "turnout-right" && entry.radius && !entry.length)) {
-    const r1 = entry.radius ?? 360;
-    const a1 = entry.angle ?? 30;
-    const lead = entry.branchLength ?? (entry.branchRadius && entry.branchRadius > r1 ? entry.branchRadius - r1 : 0);
-    const r2 = entry.branchLength !== undefined ? (entry.branchRadius ?? r1) : (entry.branchRadius && entry.branchRadius > r1 ? r1 : (entry.branchRadius ?? r1));
-    const a2 = entry.branchAngle ?? 30;
-
-    const totalRad1 = deg2rad(a1);
-    const stepRad1 = deg2rad(1.2 * (tieSpacing / 6.5));
-    for (let ang = stepRad1 / 2; ang < totalRad1; ang += stepRad1) {
       const curAng = Math.PI / 2 - ang;
       const cos = Math.cos(curAng);
       const sin = Math.sin(curAng);
@@ -1280,6 +1242,44 @@ function drawTies(g: Graphics, entry: CatalogEntry, color: number, tieLenHalf = 
     return;
   }
 
+  if (kind === "curved-turnout-right" || (kind === "turnout-right" && entry.radius && !entry.length)) {
+    const r1 = entry.radius ?? 360;
+    const a1 = entry.angle ?? 30;
+    const lead = entry.branchLength ?? (entry.branchRadius && entry.branchRadius > r1 ? entry.branchRadius - r1 : 0);
+    const r2 = entry.branchLength !== undefined ? (entry.branchRadius ?? r1) : (entry.branchRadius && entry.branchRadius > r1 ? r1 : (entry.branchRadius ?? r1));
+    const a2 = entry.branchAngle ?? 30;
+
+    const totalRad1 = deg2rad(a1);
+    const stepRad1 = deg2rad(1.2 * (tieSpacing / 6.5));
+    for (let ang = stepRad1 / 2; ang < totalRad1; ang += stepRad1) {
+      const curAng = -Math.PI / 2 + ang;
+      const cos = Math.cos(curAng);
+      const sin = Math.sin(curAng);
+      g.moveTo((r1 - tieLenHalf) * cos, r1 + (r1 - tieLenHalf) * sin);
+      g.lineTo((r1 + tieLenHalf) * cos, r1 + (r1 + tieLenHalf) * sin);
+    }
+
+    if (lead > 0) {
+      for (let x = 4; x <= lead - 2; x += tieSpacing) {
+        g.moveTo(x, -tieLenHalf);
+        g.lineTo(x, tieLenHalf);
+      }
+    }
+
+    const totalRad2 = deg2rad(a2);
+    const stepRad2 = deg2rad(1.2 * (tieSpacing / 6.5));
+    const startAng2 = lead > 0 ? stepRad2 / 2 : stepRad2 * 3;
+    for (let ang = startAng2; ang < totalRad2; ang += stepRad2) {
+      const curAng = -Math.PI / 2 + ang;
+      const cos = Math.cos(curAng);
+      const sin = Math.sin(curAng);
+      g.moveTo(lead + (r2 - tieLenHalf) * cos, r2 + (r2 - tieLenHalf) * sin);
+      g.lineTo(lead + (r2 + tieLenHalf) * cos, r2 + (r2 + tieLenHalf) * sin);
+    }
+    g.stroke({ width: tieWidth, color, cap: "butt" });
+    return;
+  }
+
   if (kind === "turnout-left") {
     const l = entry.length ?? 188.3;
     const br = entry.branchRadius ?? 437.5;
@@ -1295,11 +1295,11 @@ function drawTies(g: Graphics, entry: CatalogEntry, color: number, tieLenHalf = 
     const totalRad = deg2rad(ba);
     const stepRad = deg2rad(1.2 * (tieSpacing / 6.5));
     for (let ang = stepRad * 2.5; ang < totalRad; ang += stepRad) {
-      const curAng = -Math.PI / 2 + ang;
+      const curAng = Math.PI / 2 - ang;
       const cos = Math.cos(curAng);
       const sin = Math.sin(curAng);
-      g.moveTo((br - tieLenHalf) * cos, br + (br - tieLenHalf) * sin);
-      g.lineTo((br + tieLenHalf) * cos, br + (br + tieLenHalf) * sin);
+      g.moveTo((br - tieLenHalf) * cos, -br + (br - tieLenHalf) * sin);
+      g.lineTo((br + tieLenHalf) * cos, -br + (br + tieLenHalf) * sin);
     }
     g.stroke({ width: tieWidth, color, cap: "butt" });
     return;
@@ -1320,11 +1320,11 @@ function drawTies(g: Graphics, entry: CatalogEntry, color: number, tieLenHalf = 
     const totalRad = deg2rad(ba);
     const stepRad = deg2rad(1.2 * (tieSpacing / 6.5));
     for (let ang = stepRad * 2.5; ang < totalRad; ang += stepRad) {
-      const curAng = Math.PI / 2 - ang;
+      const curAng = -Math.PI / 2 + ang;
       const cos = Math.cos(curAng);
       const sin = Math.sin(curAng);
-      g.moveTo((br - tieLenHalf) * cos, -br + (br - tieLenHalf) * sin);
-      g.lineTo((br + tieLenHalf) * cos, -br + (br + tieLenHalf) * sin);
+      g.moveTo((br - tieLenHalf) * cos, br + (br - tieLenHalf) * sin);
+      g.lineTo((br + tieLenHalf) * cos, br + (br + tieLenHalf) * sin);
     }
     g.stroke({ width: tieWidth, color, cap: "butt" });
     return;
@@ -1345,20 +1345,20 @@ function drawTies(g: Graphics, entry: CatalogEntry, color: number, tieLenHalf = 
     const totalRad = deg2rad(ba);
     const stepRad = deg2rad(1.2 * (tieSpacing / 6.5));
     for (let ang = stepRad * 2.5; ang < totalRad; ang += stepRad) {
-      const curAng = -Math.PI / 2 + ang;
-      const cos = Math.cos(curAng);
-      const sin = Math.sin(curAng);
-      g.moveTo((br - tieLenHalf) * cos, br + (br - tieLenHalf) * sin);
-      g.lineTo((br + tieLenHalf) * cos, br + (br + tieLenHalf) * sin);
-    }
-
-    // 3. Schwellen für Abzweigbogen R2 rechts (24224)
-    for (let ang = stepRad * 2.5; ang < totalRad; ang += stepRad) {
       const curAng = Math.PI / 2 - ang;
       const cos = Math.cos(curAng);
       const sin = Math.sin(curAng);
       g.moveTo((br - tieLenHalf) * cos, -br + (br - tieLenHalf) * sin);
       g.lineTo((br + tieLenHalf) * cos, -br + (br + tieLenHalf) * sin);
+    }
+
+    // 3. Schwellen für Abzweigbogen R2 rechts (24224)
+    for (let ang = stepRad * 2.5; ang < totalRad; ang += stepRad) {
+      const curAng = -Math.PI / 2 + ang;
+      const cos = Math.cos(curAng);
+      const sin = Math.sin(curAng);
+      g.moveTo((br - tieLenHalf) * cos, br + (br - tieLenHalf) * sin);
+      g.lineTo((br + tieLenHalf) * cos, br + (br + tieLenHalf) * sin);
     }
     g.stroke({ width: tieWidth, color, cap: "butt" });
     return;
@@ -1441,14 +1441,14 @@ function drawRails(g: Graphics, entry: CatalogEntry, color: number, gaugeHalf: n
   const kind = entry.kind;
   const railWidth = Math.max(1.1, gaugeHalf * 0.22);
 
-  if (kind === "straight" || kind === "accessory" || kind === "flex") {
+  if (kind === "straight" || kind === "accessory" || kind === "flex" || kind === "buffer-stop" || isBufferStopPiece(entry)) {
     const l = entry.length ?? 188.3;
     g.moveTo(0, -gaugeHalf).lineTo(l, -gaugeHalf);
     g.moveTo(0, gaugeHalf).lineTo(l, gaugeHalf);
     g.stroke({ width: railWidth, color, cap: "butt", join: "miter" });
 
     // Prellbock-Gleis: Pufferbohle und Puffer am Gleisende (x = l)
-    if (kind === "accessory") {
+    if (isBufferStopPiece(entry)) {
       const bohleW = 4.5;
       const bohleH = gaugeHalf * 2 + 8;
       const bohleX = l - 6;
@@ -1576,38 +1576,6 @@ function drawRails(g: Graphics, entry: CatalogEntry, color: number, gaugeHalf: n
       const lead = entry.branchLength ?? (entry.branchRadius && entry.branchRadius > r1 ? entry.branchRadius - r1 : 0);
       const r2 = entry.branchLength !== undefined ? (entry.branchRadius ?? r1) : (entry.branchRadius && entry.branchRadius > r1 ? r1 : (entry.branchRadius ?? r1));
       const a2 = entry.branchAngle ?? 30;
-      const end1 = -Math.PI / 2 + deg2rad(a1);
-      const end2 = -Math.PI / 2 + deg2rad(a2);
-      drawArcStroke(g, 0, r1, r1 - gaugeHalf, -Math.PI / 2, end1, railWidth, color);
-      drawArcStroke(g, 0, r1, r1 + gaugeHalf, -Math.PI / 2, end1, railWidth, color);
-      if (lead > 0) {
-        g.moveTo(0, -gaugeHalf).lineTo(lead, -gaugeHalf);
-        g.moveTo(0, gaugeHalf).lineTo(lead, gaugeHalf);
-        g.stroke({ width: railWidth, color, cap: "butt", join: "miter" });
-      }
-      drawArcStroke(g, lead, r2, r2 - gaugeHalf, -Math.PI / 2, end2, railWidth, color);
-      drawArcStroke(g, lead, r2, r2 + gaugeHalf, -Math.PI / 2, end2, railWidth, color);
-      return;
-    }
-    const l = entry.length ?? 188.3;
-    const br = entry.branchRadius ?? 437.5;
-    const ba = entry.branchAngle ?? 24.3;
-    g.moveTo(0, -gaugeHalf).lineTo(l, -gaugeHalf);
-    g.moveTo(0, gaugeHalf).lineTo(l, gaugeHalf);
-    g.stroke({ width: railWidth, color, cap: "butt", join: "miter" });
-    const end = -Math.PI / 2 + deg2rad(ba);
-    drawArcStroke(g, 0, br, br - gaugeHalf, -Math.PI / 2, end, railWidth, color);
-    drawArcStroke(g, 0, br, br + gaugeHalf, -Math.PI / 2, end, railWidth, color);
-    return;
-  }
-
-  if (kind === "turnout-right") {
-    if (entry.radius && !entry.length) {
-      const r1 = entry.radius;
-      const a1 = entry.angle ?? 30;
-      const lead = entry.branchLength ?? (entry.branchRadius && entry.branchRadius > r1 ? entry.branchRadius - r1 : 0);
-      const r2 = entry.branchLength !== undefined ? (entry.branchRadius ?? r1) : (entry.branchRadius && entry.branchRadius > r1 ? r1 : (entry.branchRadius ?? r1));
-      const a2 = entry.branchAngle ?? 30;
       const end1 = Math.PI / 2 - deg2rad(a1);
       const end2 = Math.PI / 2 - deg2rad(a2);
       drawArcStroke(g, 0, -r1, r1 - gaugeHalf, Math.PI / 2, end1, railWidth, color, true);
@@ -1633,6 +1601,38 @@ function drawRails(g: Graphics, entry: CatalogEntry, color: number, gaugeHalf: n
     return;
   }
 
+  if (kind === "turnout-right") {
+    if (entry.radius && !entry.length) {
+      const r1 = entry.radius;
+      const a1 = entry.angle ?? 30;
+      const lead = entry.branchLength ?? (entry.branchRadius && entry.branchRadius > r1 ? entry.branchRadius - r1 : 0);
+      const r2 = entry.branchLength !== undefined ? (entry.branchRadius ?? r1) : (entry.branchRadius && entry.branchRadius > r1 ? r1 : (entry.branchRadius ?? r1));
+      const a2 = entry.branchAngle ?? 30;
+      const end1 = -Math.PI / 2 + deg2rad(a1);
+      const end2 = -Math.PI / 2 + deg2rad(a2);
+      drawArcStroke(g, 0, r1, r1 - gaugeHalf, -Math.PI / 2, end1, railWidth, color);
+      drawArcStroke(g, 0, r1, r1 + gaugeHalf, -Math.PI / 2, end1, railWidth, color);
+      if (lead > 0) {
+        g.moveTo(0, -gaugeHalf).lineTo(lead, -gaugeHalf);
+        g.moveTo(0, gaugeHalf).lineTo(lead, gaugeHalf);
+        g.stroke({ width: railWidth, color, cap: "butt", join: "miter" });
+      }
+      drawArcStroke(g, lead, r2, r2 - gaugeHalf, -Math.PI / 2, end2, railWidth, color);
+      drawArcStroke(g, lead, r2, r2 + gaugeHalf, -Math.PI / 2, end2, railWidth, color);
+      return;
+    }
+    const l = entry.length ?? 188.3;
+    const br = entry.branchRadius ?? 437.5;
+    const ba = entry.branchAngle ?? 24.3;
+    g.moveTo(0, -gaugeHalf).lineTo(l, -gaugeHalf);
+    g.moveTo(0, gaugeHalf).lineTo(l, gaugeHalf);
+    g.stroke({ width: railWidth, color, cap: "butt", join: "miter" });
+    const end = -Math.PI / 2 + deg2rad(ba);
+    drawArcStroke(g, 0, br, br - gaugeHalf, -Math.PI / 2, end, railWidth, color);
+    drawArcStroke(g, 0, br, br + gaugeHalf, -Math.PI / 2, end, railWidth, color);
+    return;
+  }
+
   if (kind === "three-way") {
     const l = entry.length ?? 188.3;
     const br = entry.branchRadius ?? 437.5;
@@ -1643,38 +1643,18 @@ function drawRails(g: Graphics, entry: CatalogEntry, color: number, gaugeHalf: n
     g.stroke({ width: railWidth, color, cap: "butt", join: "miter" });
 
     // Abzweigbogen R2 links (24224)
-    const endL = -Math.PI / 2 + deg2rad(ba);
-    drawArcStroke(g, 0, br, br - gaugeHalf, -Math.PI / 2, endL, railWidth, color);
-    drawArcStroke(g, 0, br, br + gaugeHalf, -Math.PI / 2, endL, railWidth, color);
+    const endL = Math.PI / 2 - deg2rad(ba);
+    drawArcStroke(g, 0, -br, br - gaugeHalf, Math.PI / 2, endL, railWidth, color, true);
+    drawArcStroke(g, 0, -br, br + gaugeHalf, Math.PI / 2, endL, railWidth, color, true);
 
     // Abzweigbogen R2 rechts (24224)
-    const endR = Math.PI / 2 - deg2rad(ba);
-    drawArcStroke(g, 0, -br, br - gaugeHalf, Math.PI / 2, endR, railWidth, color, true);
-    drawArcStroke(g, 0, -br, br + gaugeHalf, Math.PI / 2, endR, railWidth, color, true);
+    const endR = -Math.PI / 2 + deg2rad(ba);
+    drawArcStroke(g, 0, br, br - gaugeHalf, -Math.PI / 2, endR, railWidth, color);
+    drawArcStroke(g, 0, br, br + gaugeHalf, -Math.PI / 2, endR, railWidth, color);
     return;
   }
 
   if (kind === "curved-turnout-left") {
-    const r1 = entry.radius ?? 360;
-    const a1 = entry.angle ?? 30;
-    const lead = entry.branchLength ?? (entry.branchRadius && entry.branchRadius > r1 ? entry.branchRadius - r1 : 0);
-    const r2 = entry.branchLength !== undefined ? (entry.branchRadius ?? r1) : (entry.branchRadius && entry.branchRadius > r1 ? r1 : (entry.branchRadius ?? r1));
-    const a2 = entry.branchAngle ?? 30;
-    const end1 = -Math.PI / 2 + deg2rad(a1);
-    const end2 = -Math.PI / 2 + deg2rad(a2);
-    drawArcStroke(g, 0, r1, r1 - gaugeHalf, -Math.PI / 2, end1, railWidth, color);
-    drawArcStroke(g, 0, r1, r1 + gaugeHalf, -Math.PI / 2, end1, railWidth, color);
-    if (lead > 0) {
-      g.moveTo(0, -gaugeHalf).lineTo(lead, -gaugeHalf);
-      g.moveTo(0, gaugeHalf).lineTo(lead, gaugeHalf);
-      g.stroke({ width: railWidth, color, cap: "butt", join: "miter" });
-    }
-    drawArcStroke(g, lead, r2, r2 - gaugeHalf, -Math.PI / 2, end2, railWidth, color);
-    drawArcStroke(g, lead, r2, r2 + gaugeHalf, -Math.PI / 2, end2, railWidth, color);
-    return;
-  }
-
-  if (kind === "curved-turnout-right") {
     const r1 = entry.radius ?? 360;
     const a1 = entry.angle ?? 30;
     const lead = entry.branchLength ?? (entry.branchRadius && entry.branchRadius > r1 ? entry.branchRadius - r1 : 0);
@@ -1691,6 +1671,26 @@ function drawRails(g: Graphics, entry: CatalogEntry, color: number, gaugeHalf: n
     }
     drawArcStroke(g, lead, -r2, r2 - gaugeHalf, Math.PI / 2, end2, railWidth, color, true);
     drawArcStroke(g, lead, -r2, r2 + gaugeHalf, Math.PI / 2, end2, railWidth, color, true);
+    return;
+  }
+
+  if (kind === "curved-turnout-right") {
+    const r1 = entry.radius ?? 360;
+    const a1 = entry.angle ?? 30;
+    const lead = entry.branchLength ?? (entry.branchRadius && entry.branchRadius > r1 ? entry.branchRadius - r1 : 0);
+    const r2 = entry.branchLength !== undefined ? (entry.branchRadius ?? r1) : (entry.branchRadius && entry.branchRadius > r1 ? r1 : (entry.branchRadius ?? r1));
+    const a2 = entry.branchAngle ?? 30;
+    const end1 = -Math.PI / 2 + deg2rad(a1);
+    const end2 = -Math.PI / 2 + deg2rad(a2);
+    drawArcStroke(g, 0, r1, r1 - gaugeHalf, -Math.PI / 2, end1, railWidth, color);
+    drawArcStroke(g, 0, r1, r1 + gaugeHalf, -Math.PI / 2, end1, railWidth, color);
+    if (lead > 0) {
+      g.moveTo(0, -gaugeHalf).lineTo(lead, -gaugeHalf);
+      g.moveTo(0, gaugeHalf).lineTo(lead, gaugeHalf);
+      g.stroke({ width: railWidth, color, cap: "butt", join: "miter" });
+    }
+    drawArcStroke(g, lead, r2, r2 - gaugeHalf, -Math.PI / 2, end2, railWidth, color);
+    drawArcStroke(g, lead, r2, r2 + gaugeHalf, -Math.PI / 2, end2, railWidth, color);
     return;
   }
 
@@ -1755,7 +1755,7 @@ function drawRails(g: Graphics, entry: CatalogEntry, color: number, gaugeHalf: n
 function drawTrackCenterline(g: Graphics, entry: CatalogEntry, color: number, width: number, alpha: number) {
   const kind = entry.kind;
 
-  if (kind === "straight" || kind === "accessory" || kind === "flex") {
+  if (kind === "straight" || kind === "accessory" || kind === "flex" || kind === "buffer-stop" || isBufferStopPiece(entry)) {
     const l = entry.length ?? 188.3;
     g.moveTo(0, 0).lineTo(l, 0);
     g.stroke({ width, color, alpha, cap: "butt", join: "miter" });
@@ -1805,12 +1805,12 @@ function drawTrackCenterline(g: Graphics, entry: CatalogEntry, color: number, wi
     const lead = entry.branchLength ?? (entry.branchRadius && entry.branchRadius > r1 ? entry.branchRadius - r1 : 0);
     const r2 = entry.branchLength !== undefined ? (entry.branchRadius ?? r1) : (entry.branchRadius && entry.branchRadius > r1 ? r1 : (entry.branchRadius ?? r1));
     const a2 = entry.branchAngle ?? 30;
-    drawArcStroke(g, 0, r1, r1, -Math.PI / 2, -Math.PI / 2 + deg2rad(a1), width, color, false, alpha);
+    drawArcStroke(g, 0, -r1, r1, Math.PI / 2, Math.PI / 2 - deg2rad(a1), width, color, true, alpha);
     if (lead > 0) {
       g.moveTo(0, 0).lineTo(lead, 0);
       g.stroke({ width, color, alpha, cap: "butt", join: "miter" });
     }
-    drawArcStroke(g, lead, r2, r2, -Math.PI / 2, -Math.PI / 2 + deg2rad(a2), width, color, false, alpha);
+    drawArcStroke(g, lead, -r2, r2, Math.PI / 2, Math.PI / 2 - deg2rad(a2), width, color, true, alpha);
     return;
   }
 
@@ -1820,12 +1820,12 @@ function drawTrackCenterline(g: Graphics, entry: CatalogEntry, color: number, wi
     const lead = entry.branchLength ?? (entry.branchRadius && entry.branchRadius > r1 ? entry.branchRadius - r1 : 0);
     const r2 = entry.branchLength !== undefined ? (entry.branchRadius ?? r1) : (entry.branchRadius && entry.branchRadius > r1 ? r1 : (entry.branchRadius ?? r1));
     const a2 = entry.branchAngle ?? 30;
-    drawArcStroke(g, 0, -r1, r1, Math.PI / 2, Math.PI / 2 - deg2rad(a1), width, color, true, alpha);
+    drawArcStroke(g, 0, r1, r1, -Math.PI / 2, -Math.PI / 2 + deg2rad(a1), width, color, false, alpha);
     if (lead > 0) {
       g.moveTo(0, 0).lineTo(lead, 0);
       g.stroke({ width, color, alpha, cap: "butt", join: "miter" });
     }
-    drawArcStroke(g, lead, -r2, r2, Math.PI / 2, Math.PI / 2 - deg2rad(a2), width, color, true, alpha);
+    drawArcStroke(g, lead, r2, r2, -Math.PI / 2, -Math.PI / 2 + deg2rad(a2), width, color, false, alpha);
     return;
   }
 
@@ -1836,7 +1836,7 @@ function drawTrackCenterline(g: Graphics, entry: CatalogEntry, color: number, wi
     const ba = entry.branchAngle ?? 24.3;
     g.moveTo(0, 0).lineTo(l, 0);
     g.stroke({ width, color, alpha, cap: "butt", join: "miter" });
-    drawArcStroke(g, 0, br, br, -Math.PI / 2, -Math.PI / 2 + deg2rad(ba), width, color, false, alpha);
+    drawArcStroke(g, 0, -br, br, Math.PI / 2, Math.PI / 2 - deg2rad(ba), width, color, true, alpha);
     return;
   }
 
@@ -1846,7 +1846,7 @@ function drawTrackCenterline(g: Graphics, entry: CatalogEntry, color: number, wi
     const ba = entry.branchAngle ?? 24.3;
     g.moveTo(0, 0).lineTo(l, 0);
     g.stroke({ width, color, alpha, cap: "butt", join: "miter" });
-    drawArcStroke(g, 0, -br, br, Math.PI / 2, Math.PI / 2 - deg2rad(ba), width, color, true, alpha);
+    drawArcStroke(g, 0, br, br, -Math.PI / 2, -Math.PI / 2 + deg2rad(ba), width, color, false, alpha);
     return;
   }
 
@@ -2113,7 +2113,7 @@ function drawCatenary2D(parent: Container, entry: CatalogEntry, powerResult?: Pi
 
   const kind = entry.kind;
   if (kind === "turntable" || kind === "transfer-table") return;
-  if (kind === "straight" || kind === "accessory" || kind === "flex") {
+  if (kind === "straight" || kind === "accessory" || kind === "flex" || kind === "buffer-stop" || isBufferStopPiece(entry)) {
     const l = entry.length ?? 188.3;
     drawMast(0, 0, 0, 1);
     if (l >= 150) {
@@ -2124,10 +2124,74 @@ function drawCatenary2D(parent: Container, entry: CatalogEntry, powerResult?: Pi
     const a = entry.angle ?? 30;
     const absA = Math.abs(a);
     const rad = deg2rad(absA);
-    drawMast(0, 0, 0, 1);
+    const curveSide: 1 | -1 = a < 0 ? -1 : 1;
+    drawMast(0, 0, 0, curveSide);
     const endX = r * Math.sin(rad);
     const endY = a < 0 ? -r * (1 - Math.cos(rad)) : r * (1 - Math.cos(rad));
-    drawMast(endX, endY, a < 0 ? -rad : rad, a < 0 ? -1 : 1);
+    drawMast(endX, endY, a < 0 ? -rad : rad, curveSide);
+  } else if (kind === "curved-turnout-left" || (kind === "turnout-left" && entry.radius && !entry.length)) {
+    const r1 = entry.radius ?? 360;
+    const a1 = entry.angle ?? 30;
+    const lead = entry.branchLength ?? (entry.branchRadius && entry.branchRadius > r1 ? entry.branchRadius - r1 : 0);
+    const r2 = entry.branchLength !== undefined ? (entry.branchRadius ?? r1) : (entry.branchRadius && entry.branchRadius > r1 ? r1 : (entry.branchRadius ?? r1));
+    const a2 = entry.branchAngle ?? 30;
+    const rad1 = deg2rad(a1);
+    const rad2 = deg2rad(a2);
+    const endX1 = r1 * Math.sin(rad1);
+    const endY1 = -r1 * (1 - Math.cos(rad1));
+    const endX2 = lead + r2 * Math.sin(rad2);
+    const endY2 = -r2 * (1 - Math.cos(rad2));
+    drawMast(0, 0, 0, 1);
+    drawMast(endX1, endY1, -rad1, 1);
+    drawMast(endX2, endY2, -rad2, -1);
+  } else if (kind === "curved-turnout-right" || (kind === "turnout-right" && entry.radius && !entry.length)) {
+    const r1 = entry.radius ?? 360;
+    const a1 = entry.angle ?? 30;
+    const lead = entry.branchLength ?? (entry.branchRadius && entry.branchRadius > r1 ? entry.branchRadius - r1 : 0);
+    const r2 = entry.branchLength !== undefined ? (entry.branchRadius ?? r1) : (entry.branchRadius && entry.branchRadius > r1 ? r1 : (entry.branchRadius ?? r1));
+    const a2 = entry.branchAngle ?? 30;
+    const rad1 = deg2rad(a1);
+    const rad2 = deg2rad(a2);
+    const endX1 = r1 * Math.sin(rad1);
+    const endY1 = r1 * (1 - Math.cos(rad1));
+    const endX2 = lead + r2 * Math.sin(rad2);
+    const endY2 = r2 * (1 - Math.cos(rad2));
+    drawMast(0, 0, 0, -1);
+    drawMast(endX1, endY1, rad1, -1);
+    drawMast(endX2, endY2, rad2, 1);
+  } else if (kind === "turnout-left") {
+    const l = entry.length ?? 188.3;
+    const br = entry.branchRadius ?? 437.5;
+    const ba = entry.branchAngle ?? 24.3;
+    const rad = deg2rad(ba);
+    drawMast(0, 0, 0, 1);
+    if (l >= 120) drawMast(l, 0, 0, 1);
+    const endX = br * Math.sin(rad);
+    const endY = -br * (1 - Math.cos(rad));
+    drawMast(endX, endY, -rad, -1);
+  } else if (kind === "turnout-right") {
+    const l = entry.length ?? 188.3;
+    const br = entry.branchRadius ?? 437.5;
+    const ba = entry.branchAngle ?? 24.3;
+    const rad = deg2rad(ba);
+    drawMast(0, 0, 0, -1);
+    if (l >= 120) drawMast(l, 0, 0, -1);
+    const endX = br * Math.sin(rad);
+    const endY = br * (1 - Math.cos(rad));
+    drawMast(endX, endY, rad, 1);
+  } else if (kind === "three-way") {
+    const l = entry.length ?? 188.3;
+    const br = entry.branchRadius ?? 437.5;
+    const ba = entry.branchAngle ?? 24.3;
+    const rad = deg2rad(ba);
+    drawMast(0, 0, 0, 1);
+    if (l >= 120) drawMast(l, 0, 0, 1);
+    const endXL = br * Math.sin(rad);
+    const endYL = -br * (1 - Math.cos(rad));
+    drawMast(endXL, endYL, -rad, -1);
+    const endXR = br * Math.sin(rad);
+    const endYR = br * (1 - Math.cos(rad));
+    drawMast(endXR, endYR, rad, 1);
   } else {
     drawMast(0, 0, 0, 1);
   }

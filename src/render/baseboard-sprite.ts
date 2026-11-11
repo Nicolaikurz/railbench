@@ -1,12 +1,16 @@
 import { Container, Graphics, Text, TextStyle } from "pixi.js";
-import type { BaseboardConfig, BaseboardStyle } from "@/core/types";
+import type { BaseboardConfig, BaseboardStyle, Layout } from "@/core/types";
+import type { Catalog } from "@/catalog/catalog";
 import { getBaseboardBounds, getBaseboardPolygon } from "@/core/layout";
 import type { BaseboardSnapGuide } from "@/core/baseboard-snapping";
+import { computeTableTrackCutouts } from "@/core/table-cutout";
 
 export interface BaseboardRenderOptions {
   isSelected?: boolean;
   isDragging?: boolean;
   snapGuides?: BaseboardSnapGuide[];
+  layout?: Layout;
+  catalog?: Catalog;
 }
 
 interface StyleColorConfig {
@@ -179,6 +183,30 @@ export function createBaseboardGraphics(
   }
 
   container.addChild(g);
+
+  // 3B. Tischdurchbrüche / Ausschnitte für Rampen und Strecken unter der Platte
+  if (options.layout && options.catalog) {
+    const cutouts = computeTableTrackCutouts(options.layout, options.catalog, config);
+    if (cutouts.length > 0) {
+      const cutoutGraphics = new Graphics();
+      for (const cutout of cutouts) {
+        if (cutout.points.length < 3) continue;
+
+        // Dunkle Aussparung / Durchbruch nach unten
+        cutoutGraphics.poly(cutout.points);
+        cutoutGraphics.fill({ color: 0x18181b, alpha: 0.72 });
+
+        // Umleimer- / Schnittkante des Holzausschnitts
+        cutoutGraphics.poly(cutout.points);
+        cutoutGraphics.stroke({ width: 2.2, color: styleConfig.edgeColor, alpha: 0.95 });
+
+        // Schattierte Innenkante
+        cutoutGraphics.poly(cutout.points);
+        cutoutGraphics.stroke({ width: 1.0, color: 0x09090b, alpha: 0.5 });
+      }
+      container.addChild(cutoutGraphics);
+    }
+  }
 
   // 4. Bemaßungslinien und -beschriftungen
   if (config.showDimensions !== false) {

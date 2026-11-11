@@ -283,6 +283,8 @@ export function createDefaultLayers(): Layer[] {
       visible: true,
       locked: false,
       heightMm: 0,
+      woodPlateMode: "table",
+      woodPlateThicknessMm: 12,
     },
   ];
 }
@@ -307,6 +309,11 @@ export function ensureDefaultLayers(layout: Layout): Layout {
   ensureBaseboard(layout);
   if (!layout.layers || layout.layers.length === 0) {
     layout.layers = createDefaultLayers();
+  }
+  for (const layer of layout.layers) {
+    if ((layer.heightMm ?? 0) === 0 && !layer.woodPlateMode) {
+      layer.woodPlateMode = "table";
+    }
   }
   layout.layers = sortLayers(layout.layers);
   if (!layout.activeLayerId || !layout.layers.some((l) => l.id === layout.activeLayerId)) {

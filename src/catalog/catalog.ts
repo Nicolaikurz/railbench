@@ -45,6 +45,15 @@ export const cGleisCatalog: C_Gleise[] = maerklinCEntries.map((e) => ({
   description: e.description,
 }));
 
+/** Prüft, ob ein Gleisstück ein Prellbock / Buffer Stop ist. */
+export function isBufferStopPiece(entry?: CatalogEntry | null): boolean {
+  if (!entry || entry.isRoad) return false;
+  if (entry.kind === "buffer-stop" || entry.kind === "accessory") return true;
+  const name = entry.name || "";
+  const desc = entry.description || "";
+  return /prellbock|buffer\s*stop/i.test(name) || /prellbock|buffer\s*stop/i.test(desc);
+}
+
 /**
  * Berechnet die relativen Connector-Positionen und -Winkel (im lokalen Koordinatensystem des Gleisstücks).
  * Funktioniert universell für alle Gleissysteme und Spurweiten.
@@ -62,6 +71,10 @@ export function getLocalConnectors(entry?: CatalogEntry | null): LocalConnector[
   }
 
   const kind = entry.kind;
+
+  if (kind === "buffer-stop" || (isBufferStopPiece(entry) && (!entry.localConnectors || entry.localConnectors.length === 0))) {
+    return [{ x: 0, y: 0, angle: 180 }];
+  }
 
   if (kind === "transfer-table") {
     const l = entry.length ?? 360;
@@ -131,35 +144,6 @@ export function getLocalConnectors(entry?: CatalogEntry | null): LocalConnector[
       const rad2 = deg2rad(a2);
       return [
         { x: 0, y: 0, angle: 180 },
-        { x: r1 * Math.sin(rad1), y: r1 * (1 - Math.cos(rad1)), angle: normAngle(a1) },
-        { x: lead + r2 * Math.sin(rad2), y: r2 * (1 - Math.cos(rad2)), angle: normAngle(a2) },
-      ];
-    }
-    const l = entry.length ?? 188.3;
-    const br = entry.branchRadius ?? 437.5;
-    const ba = entry.branchAngle ?? 24.3;
-    const rad = deg2rad(ba);
-    const bx = br * Math.sin(rad);
-    const by = br * (1 - Math.cos(rad));
-    return [
-      { x: 0, y: 0, angle: 180 },
-      { x: l, y: 0, angle: 0 },
-      { x: bx, y: by, angle: normAngle(ba) },
-    ];
-  }
-
-  if (kind === "turnout-right") {
-    // Falls keine Länge, aber Radius definiert ist, als Bogenweiche behandeln
-    if (entry.radius && !entry.length) {
-      const r1 = entry.radius;
-      const a1 = entry.angle ?? 30;
-      const lead = entry.branchLength ?? (entry.branchRadius && entry.branchRadius > r1 ? entry.branchRadius - r1 : 0);
-      const r2 = entry.branchLength !== undefined ? (entry.branchRadius ?? r1) : (entry.branchRadius && entry.branchRadius > r1 ? r1 : (entry.branchRadius ?? r1));
-      const a2 = entry.branchAngle ?? 30;
-      const rad1 = deg2rad(a1);
-      const rad2 = deg2rad(a2);
-      return [
-        { x: 0, y: 0, angle: 180 },
         { x: r1 * Math.sin(rad1), y: -r1 * (1 - Math.cos(rad1)), angle: normAngle(-a1) },
         { x: lead + r2 * Math.sin(rad2), y: -r2 * (1 - Math.cos(rad2)), angle: normAngle(-a2) },
       ];
@@ -177,22 +161,36 @@ export function getLocalConnectors(entry?: CatalogEntry | null): LocalConnector[
     ];
   }
 
-  if (kind === "curved-turnout-left") {
-    const r1 = entry.radius ?? 360;
-    const a1 = entry.angle ?? 30;
-    const lead = entry.branchLength ?? (entry.branchRadius && entry.branchRadius > r1 ? entry.branchRadius - r1 : 0);
-    const r2 = entry.branchLength !== undefined ? (entry.branchRadius ?? r1) : (entry.branchRadius && entry.branchRadius > r1 ? r1 : (entry.branchRadius ?? r1));
-    const a2 = entry.branchAngle ?? 30;
-    const rad1 = deg2rad(a1);
-    const rad2 = deg2rad(a2);
+  if (kind === "turnout-right") {
+    // Falls keine Länge, aber Radius definiert ist, als Bogenweiche behandeln
+    if (entry.radius && !entry.length) {
+      const r1 = entry.radius;
+      const a1 = entry.angle ?? 30;
+      const lead = entry.branchLength ?? (entry.branchRadius && entry.branchRadius > r1 ? entry.branchRadius - r1 : 0);
+      const r2 = entry.branchLength !== undefined ? (entry.branchRadius ?? r1) : (entry.branchRadius && entry.branchRadius > r1 ? r1 : (entry.branchRadius ?? r1));
+      const a2 = entry.branchAngle ?? 30;
+      const rad1 = deg2rad(a1);
+      const rad2 = deg2rad(a2);
+      return [
+        { x: 0, y: 0, angle: 180 },
+        { x: r1 * Math.sin(rad1), y: r1 * (1 - Math.cos(rad1)), angle: normAngle(a1) },
+        { x: lead + r2 * Math.sin(rad2), y: r2 * (1 - Math.cos(rad2)), angle: normAngle(a2) },
+      ];
+    }
+    const l = entry.length ?? 188.3;
+    const br = entry.branchRadius ?? 437.5;
+    const ba = entry.branchAngle ?? 24.3;
+    const rad = deg2rad(ba);
+    const bx = br * Math.sin(rad);
+    const by = br * (1 - Math.cos(rad));
     return [
       { x: 0, y: 0, angle: 180 },
-      { x: r1 * Math.sin(rad1), y: r1 * (1 - Math.cos(rad1)), angle: normAngle(a1) },
-      { x: lead + r2 * Math.sin(rad2), y: r2 * (1 - Math.cos(rad2)), angle: normAngle(a2) },
+      { x: l, y: 0, angle: 0 },
+      { x: bx, y: by, angle: normAngle(ba) },
     ];
   }
 
-  if (kind === "curved-turnout-right") {
+  if (kind === "curved-turnout-left") {
     const r1 = entry.radius ?? 360;
     const a1 = entry.angle ?? 30;
     const lead = entry.branchLength ?? (entry.branchRadius && entry.branchRadius > r1 ? entry.branchRadius - r1 : 0);
@@ -207,19 +205,34 @@ export function getLocalConnectors(entry?: CatalogEntry | null): LocalConnector[
     ];
   }
 
+  if (kind === "curved-turnout-right") {
+    const r1 = entry.radius ?? 360;
+    const a1 = entry.angle ?? 30;
+    const lead = entry.branchLength ?? (entry.branchRadius && entry.branchRadius > r1 ? entry.branchRadius - r1 : 0);
+    const r2 = entry.branchLength !== undefined ? (entry.branchRadius ?? r1) : (entry.branchRadius && entry.branchRadius > r1 ? r1 : (entry.branchRadius ?? r1));
+    const a2 = entry.branchAngle ?? 30;
+    const rad1 = deg2rad(a1);
+    const rad2 = deg2rad(a2);
+    return [
+      { x: 0, y: 0, angle: 180 },
+      { x: r1 * Math.sin(rad1), y: r1 * (1 - Math.cos(rad1)), angle: normAngle(a1) },
+      { x: lead + r2 * Math.sin(rad2), y: r2 * (1 - Math.cos(rad2)), angle: normAngle(a2) },
+    ];
+  }
+
   if (kind === "three-way") {
     const l = entry.length ?? 188.3;
     const br = entry.branchRadius ?? 437.5;
     const ba = entry.branchAngle ?? 24.3;
     const rad = deg2rad(ba);
     const bx = br * Math.sin(rad);
-    const byL = br * (1 - Math.cos(rad));
-    const byR = -br * (1 - Math.cos(rad));
+    const byL = -br * (1 - Math.cos(rad));
+    const byR = br * (1 - Math.cos(rad));
     return [
       { x: 0, y: 0, angle: 180 },
       { x: l, y: 0, angle: 0 },
-      { x: bx, y: byL, angle: normAngle(ba) },
-      { x: bx, y: byR, angle: normAngle(-ba) },
+      { x: bx, y: byL, angle: normAngle(-ba) },
+      { x: bx, y: byR, angle: normAngle(ba) },
     ];
   }
 

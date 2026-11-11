@@ -461,6 +461,40 @@ export class MovePiecesToLayerCommand implements Command {
   }
 }
 
+export class ApplyRampElevationsCommand implements Command {
+  private prevStates: {
+    pieceId: string;
+    oldElevation?: { start: number; end: number };
+  }[] = [];
+
+  constructor(
+    private pieceElevations: Map<string, { start: number; end: number }>,
+  ) {}
+
+  do(layout: Layout): void {
+    this.prevStates = [];
+    for (const [id, elev] of this.pieceElevations) {
+      const piece = layout.pieces.find((p) => p.id === id);
+      if (piece) {
+        this.prevStates.push({
+          pieceId: id,
+          oldElevation: piece.elevation ? { ...piece.elevation } : undefined,
+        });
+        piece.elevation = { ...elev };
+      }
+    }
+  }
+
+  undo(layout: Layout): void {
+    for (const prev of this.prevStates) {
+      const piece = layout.pieces.find((p) => p.id === prev.pieceId);
+      if (piece) {
+        piece.elevation = prev.oldElevation ? { ...prev.oldElevation } : undefined;
+      }
+    }
+  }
+}
+
 export class AddModelCommand implements Command {
   constructor(private model: Model3D) {}
 
