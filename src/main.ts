@@ -154,6 +154,19 @@ async function main() {
     sync();
   }
 
+  function toggleSelectionLock(forcedState?: boolean) {
+    selectionLockDisabled = forcedState !== undefined ? forcedState : !selectionLockDisabled;
+    const isDe = getLanguage() === "de";
+    showToast(
+      selectionLockDisabled
+        ? (isDe ? "Auswahlsperre aufgehoben (alle Ebenen wählbar)" : "Selection lock disabled (all layers selectable)")
+        : (isDe ? "Auswahlsperre aktiviert (nur aktive Ebene)" : "Selection lock enabled (active layer only)"),
+      selectionLockDisabled ? "🔓" : "🔒",
+    );
+    saveSettingsState();
+    sync();
+  }
+
   function isPieceLockedOrHidden(piece: TrackPiece): boolean {
     if (selectionLockDisabled) return false;
     if (!layout.layers) return false;
