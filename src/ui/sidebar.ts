@@ -322,6 +322,8 @@ export class Sidebar {
   activeBoardId?: string;
   openPlateLayers = new Set<string>();
   surfaceOpen = false;
+  mountainsOpen = true;
+  activeMountainId?: string;
   activePartsCategory: "all" | "tracks" | "roads" | "buildings" = "all";
   host: HTMLElement;
   catalog: Catalog;

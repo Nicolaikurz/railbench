@@ -173,6 +173,18 @@ export const BUILTIN_MODELS: BuiltinModelDef[] = [
     badgeBg: "#475569",
     badgeColor: "#ffffff",
   },
+  {
+    id: "mountain",
+    name: "Berg / Gebirgsmassiv",
+    category: "nature",
+    icon: "⛰️",
+    description: "Massiver Gebirgszug mit Felsformationen, Schneegipfel und automatischen Tunnelausschnitten für kreuzende Gleise und Straßen.",
+    width: 600,
+    depth: 450,
+    height: 220,
+    badgeBg: "#44403c",
+    badgeColor: "#ffffff",
+  },
 ];
 
 export function findBuiltinModelDef(id: string): BuiltinModelDef | undefined {

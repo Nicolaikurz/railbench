@@ -18,6 +18,7 @@ import { getPieceCenterWorld } from "@/core/geometry";
 import { catalogRegistry } from "@/catalog/registry";
 import { getLanguage, getTranslations } from "@/i18n";
 import type { Sidebar } from "../sidebar";
+import { buildMountainCard } from "./mountain-card";
 
 // =========================================================================
 // BOARD TAB HELPERS
@@ -77,9 +78,9 @@ export function syncWoodMode(layer: Layer) {
   layer.woodPlateMode = ((layer.plates?.length ?? 0) > 0 ? "table" : "none") as LayerWoodPlateMode;
 }
 
-type ElOpts = { cls?: string; text?: string; html?: string; title?: string; style?: string };
+export type ElOpts = { cls?: string; text?: string; html?: string; title?: string; style?: string };
 
-function el<K extends keyof HTMLElementTagNameMap>(
+export function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
   opts: ElOpts = {},
   kids: Array<Node | null | false | undefined> = [],
@@ -94,18 +95,18 @@ function el<K extends keyof HTMLElementTagNameMap>(
   return n;
 }
 
-function btn(label: string, title: string, onClick: () => void, cls = "rb-btn rb-btn-secondary", style = ""): HTMLButtonElement {
+export function btn(label: string, title: string, onClick: () => void, cls = "rb-btn rb-btn-secondary", style = ""): HTMLButtonElement {
   const b = el("button", { cls, text: label, title, style });
   b.type = "button";
   b.addEventListener("click", onClick);
   return b;
 }
 
-function row(kids: Node[]): HTMLElement {
+export function row(kids: Node[]): HTMLElement {
   return el("div", { cls: "board-inputs-row" }, kids);
 }
 
-function numberField(
+export function numberField(
   label: string,
   value: number,
   o: { min?: number; max?: number; step?: number; unit?: string },
@@ -131,7 +132,7 @@ function numberField(
   ]);
 }
 
-function selectField<T extends string>(
+export function selectField<T extends string>(
   label: string,
   options: Array<[T, string]>,
   value: T,
@@ -184,6 +185,7 @@ export function renderBoardTab(sidebar: Sidebar, container: HTMLElement) {
     container.appendChild(buildSurfaceCard(sidebar, ctx));
   }
   container.appendChild(buildWoodCard(sidebar, ctx));
+  container.appendChild(buildMountainCard(sidebar, ctx));
 }
 
 // ---- Card 1: enable, add, select, name ----------------------------------

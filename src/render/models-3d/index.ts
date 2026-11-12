@@ -13,6 +13,7 @@ import { buildGenericBuilding3D } from "./generic-building";
 import { buildTurntableTrainhall3D } from "./turntable-trainhall";
 import { buildSkyscraper3D } from "./skyscraper";
 import { buildIndustryBuilding3D } from "./industry-building";
+import { buildMountain3D, findCollidingTracksForMountain } from "./mountain";
 
 export {
   buildStation3D,
@@ -29,9 +30,11 @@ export {
   buildTurntableTrainhall3D,
   buildSkyscraper3D,
   buildIndustryBuilding3D,
+  buildMountain3D,
+  findCollidingTracksForMountain,
 };
 
-export type Model3DBuilder = (group: THREE.Group) => void;
+export type Model3DBuilder = (group: THREE.Group, model?: any, extraData?: any) => void;
 
 export const BUILTIN_MODEL_BUILDERS: Record<string, Model3DBuilder> = {
   station: buildStation3D,
@@ -47,4 +50,5 @@ export const BUILTIN_MODEL_BUILDERS: Record<string, Model3DBuilder> = {
   "turntable-trainhall": buildTurntableTrainhall3D,
   skyscraper: buildSkyscraper3D,
   "industry-building": buildIndustryBuilding3D,
+  mountain: buildMountain3D,
 };

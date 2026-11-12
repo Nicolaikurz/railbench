@@ -7,7 +7,7 @@ import type { Catalog, CatalogEntry } from "@/catalog/catalog";
 import { catalogRegistry, isBufferStopPiece } from "@/catalog/catalog";
 import { deg2rad, getPieceLocalCenter, transformPoint } from "@/core/geometry";
 import { getTrackBlueprintColor } from "@/render/blueprint-colors";
-import { createBuiltinModel3DMesh, buildBufferStop3D } from "@/render/builtin-models-3d";
+import { createBuiltinModel3DMesh, buildBufferStop3D, findCollidingTracksForMountain } from "@/render/builtin-models-3d";
 import { BUILTIN_MODELS } from "@/core/models-3d";
 import { getScaleFactor, parseModelScale, type ModelScale } from "@/core/model-scale";
 import type { ShortCircuitDetectionResult } from "@/core/simulation";
@@ -776,11 +776,11 @@ export class Viewer3D {
         const baseElevation = layer?.heightMm ?? 0;
         const elev = baseElevation + (model.elevation ?? 0);
 
-        this.buildModel3D(model, elev);
+        this.buildModel3D(model, elev, layout, entryMap);
 
         // Building wood plate (Fundamentplatte)
         const plateMode = layer?.woodPlateMode ?? (baseElevation !== 0 ? "tight" : "none");
-        if (plateMode === "tight") {
+        if (plateMode === "tight" && model.builtinId !== "mountain") {
           const plateThickness = layer?.woodPlateThicknessMm ?? 8;
           this.buildBuildingWoodPlate3D(model, elev, plateThickness);
         }
@@ -874,13 +874,30 @@ export class Viewer3D {
     return getScaleFactor(this.layoutScale);
   }
 
-  private buildModel3D(model: Model3D, elevation: number) {
+  private buildModel3D(
+    model: Model3D,
+    elevation: number,
+    layout?: Layout,
+    entryMap?: Map<string, CatalogEntry>,
+  ) {
     if (model.modelType === "builtin") {
-      const mesh = createBuiltinModel3DMesh(model.builtinId || "station", model);
+      let extraData: any = undefined;
+      if (model.builtinId === "mountain" && layout) {
+        extraData = findCollidingTracksForMountain(
+          model,
+          layout.pieces,
+          (id) => entryMap?.get(id) ?? catalogRegistry.findEntry(id),
+        );
+      }
+      const mesh = createBuiltinModel3DMesh(model.builtinId || "station", model, "H0", extraData);
       mesh.position.set(model.transform.x, elevation, model.transform.y);
       mesh.rotation.y = -deg2rad(model.transform.rotation);
       // Maßstab und manueller Skalierungsfaktor des Nutzers werden multipliziert (nicht überschrieben).
-      mesh.scale.setScalar(this.getBuiltinScaleFactor(model) * (model.scale || 1));
+      if (model.builtinId === "mountain") {
+        mesh.scale.set(model.scale || 1, model.scale || 1, model.scale || 1);
+      } else {
+        mesh.scale.setScalar(this.getBuiltinScaleFactor(model) * (model.scale || 1));
+      }
       this.modelsGroup.add(mesh);
     } else if (model.fileData) {
       // Custom .glb oder .gltf
@@ -1051,19 +1068,28 @@ export class Viewer3D {
           const pt = { x: piece.transform.x, y: piece.transform.y };
           if (!isPointInsideBaseboard(pt, config)) continue;
 
-          const pitR = 140;
+          // Der Gruben-Ausschnitt schneidet die Vertiefung der Drehscheibe in die Tischplatte.
+          // Grubenrand liegt bei pitR + 4 = 143 mm. Durch die Fasung (bevelSize = 2.5 mm)
+          // und Fertigungstoleranz schneiden wir mit Radius 146 mm aus, damit der Grubenrand
+          // und die Grubenwand sauber freiliegen und kein Tischplatten-Material hineinragt.
+          const cutoutR = 146;
           const holePath = new THREE.Path();
-          holePath.absarc(pt.x, pt.y, pitR, 0, Math.PI * 2, true);
+          holePath.absarc(pt.x, pt.y, cutoutR, 0, Math.PI * 2, true);
           shape.holes.push(holePath);
         } else if (entry.kind === "transfer-table") {
           const l = entry.length ?? 360;
           const center = transformPoint({ x: l / 2, y: 154.8 }, piece.transform);
           if (!isPointInsideBaseboard(center, config)) continue;
 
-          const pLeft = 36;
-          const pRight = l - 36;
-          const pTop = -49.2;
-          const pBottom = 358.8;
+          // Der Gruben-Ausschnitt muss den vertieften Bereich der Schiebebühne freischneiden.
+          // Grubenbereich im lokalen Modellraum:
+          // X: pitLeft=36 bis pitRight=l-36 (324)
+          // Y/Z: topZ + 6 (-49.2) bis topZ + plateD - 6 (358.8)
+          // Mit 2 mm Fase/Toleranzzugabe, damit kein Holzboden in die Grubenwände ragt:
+          const pLeft = 34;
+          const pRight = l - 34;
+          const pTop = -51.2;
+          const pBottom = 360.8;
 
           const corners = [
             transformPoint({ x: pLeft, y: pTop }, piece.transform),
@@ -2346,6 +2372,11 @@ export class Viewer3D {
 
     const ballastMat = new THREE.MeshStandardMaterial({ color: ballastColor, roughness: 0.9 });
     const concreteMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.85 });
+    const pitWallMat = new THREE.MeshStandardMaterial({
+      color: 0x475569,
+      roughness: 0.85,
+      side: THREE.DoubleSide,
+    });
     const pitFloorMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.95 });
     const steelMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.5, metalness: 0.7 });
     const woodMat = new THREE.MeshStandardMaterial({ color: 0x451a03, roughness: 0.85 });
@@ -2389,7 +2420,7 @@ export class Viewer3D {
 
     // 4. Grubenwand
     const wallGeo = new THREE.CylinderGeometry(pitR, pitR, pitDepth + 7.5, 36, 1, true);
-    const wallMesh = new THREE.Mesh(wallGeo, concreteMat);
+    const wallMesh = new THREE.Mesh(wallGeo, pitWallMat);
     wallMesh.position.set(0, (-pitDepth + 7.5) / 2, 0);
     group.add(wallMesh);
 
@@ -2504,6 +2535,11 @@ export class Viewer3D {
 
     const ballastMat = new THREE.MeshStandardMaterial({ color: ballastColor, roughness: 0.9 });
     const concreteMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.85 });
+    const pitWallMat = new THREE.MeshStandardMaterial({
+      color: 0x475569,
+      roughness: 0.85,
+      side: THREE.DoubleSide,
+    });
     const pitFloorMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.95 });
     const steelMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.5, metalness: 0.7 });
     const woodMat = new THREE.MeshStandardMaterial({ color: 0x451a03, roughness: 0.85 });
@@ -2537,6 +2573,30 @@ export class Viewer3D {
     floorMesh.position.set(l / 2, -pitDepth, centerZ);
     floorMesh.receiveShadow = true;
     group.add(floorMesh);
+
+    // 2b. Grubenwände (Abschluss nach unten / Seitenwände zur Grube wie bei Drehscheibe)
+    const wallH = pitDepth + 6;
+    const wallY = (-pitDepth + 6) / 2;
+
+    // Linke Wand (an pitLeft)
+    const wallLeft = new THREE.Mesh(new THREE.BoxGeometry(1.5, wallH, pitD), pitWallMat);
+    wallLeft.position.set(pitLeft + 0.75, wallY, centerZ);
+    group.add(wallLeft);
+
+    // Rechte Wand (an pitRight)
+    const wallRight = new THREE.Mesh(new THREE.BoxGeometry(1.5, wallH, pitD), pitWallMat);
+    wallRight.position.set(pitRight - 0.75, wallY, centerZ);
+    group.add(wallRight);
+
+    // Obere Wand (an topZ + 6)
+    const wallTop = new THREE.Mesh(new THREE.BoxGeometry(pitWidth, wallH, 1.5), pitWallMat);
+    wallTop.position.set(l / 2, wallY, topZ + 6 + 0.75);
+    group.add(wallTop);
+
+    // Untere Wand (an topZ + plateD - 6)
+    const wallBottom = new THREE.Mesh(new THREE.BoxGeometry(pitWidth, wallH, 1.5), pitWallMat);
+    wallBottom.position.set(l / 2, wallY, topZ + plateD - 6 - 0.75);
+    group.add(wallBottom);
 
     // 3. Querlaufschienen für die Schiebebühne in der Grube
     for (const qx of [80, 180, 280]) {

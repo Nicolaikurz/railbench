@@ -57,6 +57,8 @@ export function createModel2DGraphics(model: Model3D, isSelected: boolean): Cont
     drawBufferStopTopView(g, w, d, halfW, halfD, isSelected);
   } else if (builtinId === "platform-lamp") {
     drawPlatformLampTopView(g, w, d, halfW, halfD, isSelected);
+  } else if (builtinId === "mountain") {
+    drawMountainTopView(g, w, d, halfW, halfD, isSelected);
   } else {
     drawGenericBuildingTopView(g, w, d, halfW, halfD, model.category, isSelected);
   }
@@ -720,6 +722,32 @@ function drawPlatformLampTopView(g: Graphics, _w: number, _d: number, halfW: num
 }
 
 /** Standard-Gebäude: Architektonisches Walmdach mit 4-Flächen-Schattierung & Firstlinie */
+function drawMountainTopView(g: Graphics, w: number, d: number, halfW: number, halfD: number, isSelected: boolean) {
+  // Äußerer Bergfuß (organische Ellipse mit Fels- und Grünflächen)
+  g.ellipse(0, 0, halfW, halfD);
+  g.fill({ color: 0x292524, alpha: 0.88 });
+  g.stroke({ width: isSelected ? 2.5 : 1.5, color: isSelected ? 0x38bdf8 : 0x44403c });
+
+  // Mittlere Höhenlinie / Felszone
+  g.ellipse(0, 0, halfW * 0.68, halfD * 0.68);
+  g.fill({ color: 0x44403c, alpha: 0.92 });
+  g.stroke({ width: 1.2, color: 0x57534e, alpha: 0.75 });
+
+  // Obere Fels- und Gratschicht
+  g.ellipse(0, 0, halfW * 0.38, halfD * 0.38);
+  g.fill({ color: 0x78716c, alpha: 0.95 });
+
+  // Schneegipfel im Zentrum
+  g.ellipse(0, 0, halfW * 0.18, halfD * 0.18);
+  g.fill({ color: 0xf8fafc, alpha: 0.98 });
+  g.stroke({ width: 1.0, color: 0xe2e8f0 });
+
+  // Gipfelkreuz / Gratlinie
+  g.moveTo(-halfW * 0.3, 0).lineTo(halfW * 0.3, 0);
+  g.moveTo(0, -halfD * 0.25).lineTo(0, halfD * 0.25);
+  g.stroke({ width: 1.4, color: 0xffffff, alpha: 0.9 });
+}
+
 function drawGenericBuildingTopView(
   g: Graphics,
   w: number,

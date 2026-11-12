@@ -7,13 +7,14 @@ export * from "./models-3d";
 
 export function createBuiltinModel3DMesh(
   builtinId: string,
-  _model: Model3D,
+  model?: Model3D,
   scale: ModelScale = "H0",
+  extraData?: any,
 ): THREE.Group {
   const group = new THREE.Group();
 
   const builder = BUILTIN_MODEL_BUILDERS[builtinId] || buildGenericBuilding3D;
-  builder(group);
+  builder(group, model, extraData);
 
   // Schatten für alle Mesh-Bestandteile aktivieren
   group.traverse((obj) => {
@@ -22,6 +23,8 @@ export function createBuiltinModel3DMesh(
       obj.receiveShadow = true;
     }
   });
-  applyModelScale(group, scale);
+  if (builtinId !== "mountain") {
+    applyModelScale(group, scale);
+  }
   return group;
 }
