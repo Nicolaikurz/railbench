@@ -1,119 +1,6 @@
 {
   "name": "Zweigleisige Hauptstrecke",
   "scale": "H0",
-  "feedVoltage": 16,
-  "locoCurrentMa": 450,
-  "locoCount": 2,
-  "turnoutLanternCurrentMa": 20,
-  "turnoutDecoderCurrentMa": 15,
-  "layers": [
-    {
-      "id": "layer-2",
-      "name": "Brücken & Überführung",
-      "heightMm": 80,
-      "color": "#4ade80",
-      "visible": true,
-      "locked": false
-    },
-    {
-      "id": "layer-1",
-      "name": "Hauptstrecke (2-gleisig)",
-      "heightMm": 0,
-      "color": "#38bdf8",
-      "visible": true,
-      "locked": false,
-      "woodPlateMode": "table"
-    },
-    {
-      "id": "layer-0",
-      "name": "Schattenbahnhof",
-      "heightMm": -100,
-      "color": "#94a3b8",
-      "visible": true,
-      "locked": false
-    }
-  ],
-  "activeLayerId": "layer-1",
-  "baseboard": {
-    "id": "bb-mainline",
-    "name": "Hauptplatte (250 x 130 cm)",
-    "enabled": true,
-    "shape": "rect",
-    "width": 2500,
-    "depth": 1300,
-    "style": "wood",
-    "positionMode": "center",
-    "customX": 0,
-    "customY": 0,
-    "cornerRadius": 16,
-    "showDimensions": true
-  },
-  "baseboards": [
-    {
-      "id": "bb-mainline",
-      "name": "Hauptplatte (250 x 130 cm)",
-      "enabled": true,
-      "shape": "rect",
-      "width": 2500,
-      "depth": 1300,
-      "style": "wood",
-      "positionMode": "center",
-      "customX": 0,
-      "customY": 0,
-      "cornerRadius": 16,
-      "showDimensions": true
-    }
-  ],
-  "models": [
-    {
-      "id": "ml-station",
-      "name": "Hauptbahnhof Neustadt",
-      "category": "buildings",
-      "transform": {
-        "x": 0,
-        "y": -230,
-        "rotation": 0
-      },
-      "width": 320,
-      "depth": 140,
-      "height": 120,
-      "modelType": "builtin",
-      "builtinId": "station",
-      "layerId": "layer-1"
-    },
-    {
-      "id": "ml-engine-shed",
-      "name": "Lokschuppen BW",
-      "category": "railway",
-      "transform": {
-        "x": -330,
-        "y": 185,
-        "rotation": 0
-      },
-      "width": 240,
-      "depth": 72,
-      "height": 105,
-      "modelType": "builtin",
-      "builtinId": "engine-shed",
-      "layerId": "layer-1"
-    },
-    {
-      "id": "ml-signal-box",
-      "name": "Stellwerk Ost",
-      "category": "railway",
-      "transform": {
-        "x": 310,
-        "y": 240,
-        "rotation": 180
-      },
-      "width": 120,
-      "depth": 75,
-      "height": 110,
-      "modelType": "builtin",
-      "builtinId": "signal-box",
-      "layerId": "layer-1"
-    }
-  ],
   "pieces": [
     {
       "id": "ml-out-top-1",
@@ -409,36 +296,6 @@
           "y": 437.50388584430806,
           "angle": 180,
           "connectedTo": {
-            "pieceId": "ml-out-bot-1",
-            "connectorIndex": 0
-          }
-        }
-      ],
-      "layerId": "layer-1"
-    },
-    {
-      "id": "ml-out-bot-1",
-      "catalogId": "24188",
-      "transform": {
-        "x": 376.6,
-        "y": 437.5,
-        "rotation": 180
-      },
-      "connectors": [
-        {
-          "x": 376.6,
-          "y": 437.5,
-          "angle": 0,
-          "connectedTo": {
-            "pieceId": "ml-out-cr-6",
-            "connectorIndex": 1
-          }
-        },
-        {
-          "x": 188.3,
-          "y": 437.5,
-          "angle": 180,
-          "connectedTo": {
             "pieceId": "ml-out-turnout",
             "connectorIndex": 0
           }
@@ -450,36 +307,36 @@
       "id": "ml-out-turnout",
       "catalogId": "24612",
       "transform": {
-        "x": 188.3,
-        "y": 437.5,
+        "x": 376.6,
+        "y": 437.50388584430806,
         "rotation": 180
       },
       "connectors": [
         {
-          "x": 188.3,
-          "y": 437.5,
+          "x": 376.6,
+          "y": 437.50388584430806,
           "angle": 0,
           "connectedTo": {
-            "pieceId": "ml-out-bot-1",
+            "pieceId": "ml-out-cr-6",
             "connectorIndex": 1
           }
         },
         {
-          "x": 0,
-          "y": 437.5,
+          "x": 188.3,
+          "y": 437.50388584430806,
           "angle": 180,
           "connectedTo": {
-            "pieceId": "ml-out-bot-3",
+            "pieceId": "ml-in-turnout",
             "connectorIndex": 0
           }
         },
         {
-          "x": 8.262468110264905,
-          "y": 398.73893352800735,
+          "x": 196.56246811026492,
+          "y": 398.7428193723154,
           "angle": 204.29999999999995,
           "connectedTo": {
-            "pieceId": "ml-spur-out-1",
-            "connectorIndex": 0
+            "pieceId": "track-1794593990929-fd7f",
+            "connectorIndex": 3
           }
         }
       ],
@@ -489,59 +346,29 @@
       "turnoutCurrentMa": 35
     },
     {
-      "id": "ml-out-bot-3",
+      "id": "ml-out-bot-4",
       "catalogId": "24188",
       "transform": {
         "x": 0,
-        "y": 437.5,
+        "y": 437.50388584430806,
         "rotation": 180
       },
       "connectors": [
         {
           "x": 0,
-          "y": 437.5,
+          "y": 437.50388584430806,
           "angle": 0,
           "connectedTo": {
-            "pieceId": "ml-out-turnout",
+            "pieceId": "ml-in-turnout",
             "connectorIndex": 1
           }
         },
         {
           "x": -188.3,
-          "y": 437.5,
+          "y": 437.50388584430806,
           "angle": 180,
           "connectedTo": {
-            "pieceId": "ml-out-bot-4",
-            "connectorIndex": 0
-          }
-        }
-      ],
-      "layerId": "layer-1"
-    },
-    {
-      "id": "ml-out-bot-4",
-      "catalogId": "24188",
-      "transform": {
-        "x": -188.3,
-        "y": 437.5,
-        "rotation": 180
-      },
-      "connectors": [
-        {
-          "x": -188.3,
-          "y": 437.5,
-          "angle": 0,
-          "connectedTo": {
-            "pieceId": "ml-out-bot-3",
-            "connectorIndex": 1
-          }
-        },
-        {
-          "x": -376.6,
-          "y": 437.5,
-          "angle": 180,
-          "connectedTo": {
-            "pieceId": "ml-out-cl-1",
+            "pieceId": "ml-in-bot-4",
             "connectorIndex": 0
           }
         }
@@ -562,7 +389,7 @@
           "y": 437.5,
           "angle": 0,
           "connectedTo": {
-            "pieceId": "ml-out-bot-4",
+            "pieceId": "ml-in-bot-4",
             "connectorIndex": 1
           }
         },
@@ -628,7 +455,7 @@
         },
         {
           "x": -814.1038858443083,
-          "y": 2.842170943040401e-14,
+          "y": 5.684341886080802e-14,
           "angle": 270,
           "connectedTo": {
             "pieceId": "ml-out-cl-4",
@@ -1022,38 +849,8 @@
           "y": 360.00085463760206,
           "angle": 180,
           "connectedTo": {
-            "pieceId": "ml-in-bot-1",
-            "connectorIndex": 0
-          }
-        }
-      ],
-      "layerId": "layer-1"
-    },
-    {
-      "id": "ml-in-bot-1",
-      "catalogId": "24188",
-      "transform": {
-        "x": 376.6,
-        "y": 360,
-        "rotation": 180
-      },
-      "connectors": [
-        {
-          "x": 376.6,
-          "y": 360,
-          "angle": 0,
-          "connectedTo": {
-            "pieceId": "ml-in-cr-6",
+            "pieceId": "track-1794594035596-le0o",
             "connectorIndex": 1
-          }
-        },
-        {
-          "x": 188.3,
-          "y": 360,
-          "angle": 180,
-          "connectedTo": {
-            "pieceId": "ml-in-turnout",
-            "connectorIndex": 0
           }
         }
       ],
@@ -1064,35 +861,35 @@
       "catalogId": "24611",
       "transform": {
         "x": 188.3,
-        "y": 360,
+        "y": 437.50388584430806,
         "rotation": 180
       },
       "connectors": [
         {
           "x": 188.3,
-          "y": 360,
+          "y": 437.50388584430806,
           "angle": 0,
           "connectedTo": {
-            "pieceId": "ml-in-bot-1",
+            "pieceId": "ml-out-turnout",
             "connectorIndex": 1
           }
         },
         {
           "x": 0,
-          "y": 360,
+          "y": 437.50388584430806,
           "angle": 180,
           "connectedTo": {
-            "pieceId": "ml-in-bot-3",
+            "pieceId": "ml-out-bot-4",
             "connectorIndex": 0
           }
         },
         {
           "x": 8.262468110264905,
-          "y": 398.7610664719927,
+          "y": 476.26495231630076,
           "angle": 155.70000000000005,
           "connectedTo": {
-            "pieceId": "ml-spur-in-1",
-            "connectorIndex": 1
+            "pieceId": "ml-spur-in-2",
+            "connectorIndex": 0
           }
         }
       ],
@@ -1102,59 +899,29 @@
       "turnoutCurrentMa": 35
     },
     {
-      "id": "ml-in-bot-3",
-      "catalogId": "24188",
-      "transform": {
-        "x": 0,
-        "y": 360,
-        "rotation": 180
-      },
-      "connectors": [
-        {
-          "x": 0,
-          "y": 360,
-          "angle": 0,
-          "connectedTo": {
-            "pieceId": "ml-in-turnout",
-            "connectorIndex": 1
-          }
-        },
-        {
-          "x": -188.3,
-          "y": 360,
-          "angle": 180,
-          "connectedTo": {
-            "pieceId": "ml-in-bot-4",
-            "connectorIndex": 0
-          }
-        }
-      ],
-      "layerId": "layer-1"
-    },
-    {
       "id": "ml-in-bot-4",
       "catalogId": "24188",
       "transform": {
         "x": -188.3,
-        "y": 360,
+        "y": 437.5,
         "rotation": 180
       },
       "connectors": [
         {
           "x": -188.3,
-          "y": 360,
+          "y": 437.5,
           "angle": 0,
           "connectedTo": {
-            "pieceId": "ml-in-bot-3",
+            "pieceId": "ml-out-bot-4",
             "connectorIndex": 1
           }
         },
         {
           "x": -376.6,
-          "y": 360,
+          "y": 437.5,
           "angle": 180,
           "connectedTo": {
-            "pieceId": "ml-in-cl-1",
+            "pieceId": "ml-out-cl-1",
             "connectorIndex": 0
           }
         }
@@ -1175,8 +942,8 @@
           "y": 360,
           "angle": 0,
           "connectedTo": {
-            "pieceId": "ml-in-bot-4",
-            "connectorIndex": 1
+            "pieceId": "track-1794594074451-dxei",
+            "connectorIndex": 0
           }
         },
         {
@@ -1345,24 +1112,24 @@
       "id": "ml-spur-out-1",
       "catalogId": "24224",
       "transform": {
-        "x": 8.26,
-        "y": 398.74,
-        "rotation": 204.3
+        "x": 24.945231119810543,
+        "y": 321.25466564697336,
+        "rotation": 204.29999999999995
       },
       "connectors": [
         {
-          "x": 8.26,
-          "y": 398.74,
-          "angle": 24.30000000000001,
+          "x": 24.945231119810543,
+          "y": 321.25466564697336,
+          "angle": 24.299999999999955,
           "connectedTo": {
-            "pieceId": "ml-out-turnout",
+            "pieceId": "track-1794593990929-fd7f",
             "connectorIndex": 2
           }
         },
         {
-          "x": -139.87606107359096,
-          "y": 289.3250075510904,
-          "angle": 228.60000000000002,
+          "x": -123.19082995378058,
+          "y": 211.83967319806396,
+          "angle": 228.5999999999999,
           "connectedTo": {
             "pieceId": "ml-spur-out-2",
             "connectorIndex": 0
@@ -1375,79 +1142,24 @@
       "id": "ml-spur-out-2",
       "catalogId": "24188",
       "transform": {
-        "x": -139.88,
-        "y": 289.33,
-        "rotation": 228.6
+        "x": -123.19082995378058,
+        "y": 211.83967319806396,
+        "rotation": 228.5999999999999
       },
       "connectors": [
         {
-          "x": -139.88,
-          "y": 289.33,
-          "angle": 48.60000000000002,
+          "x": -123.19082995378058,
+          "y": 211.83967319806396,
+          "angle": 48.59999999999991,
           "connectedTo": {
             "pieceId": "ml-spur-out-1",
             "connectorIndex": 1
           }
         },
         {
-          "x": -264.40502424044365,
-          "y": 148.08408558858446,
-          "angle": 228.60000000000002,
-          "connectedTo": {
-            "pieceId": "ml-spur-out-bumper",
-            "connectorIndex": 0
-          }
-        }
-      ],
-      "layerId": "layer-1"
-    },
-    {
-      "id": "ml-spur-out-bumper",
-      "catalogId": "24977",
-      "transform": {
-        "x": -264.41,
-        "y": 148.08,
-        "rotation": 228.6
-      },
-      "connectors": [
-        {
-          "x": -264.41,
-          "y": 148.08,
-          "angle": 48.60000000000002,
-          "connectedTo": {
-            "pieceId": "ml-spur-out-2",
-            "connectorIndex": 1
-          }
-        }
-      ],
-      "layerId": "layer-1"
-    },
-    {
-      "id": "ml-spur-in-1",
-      "catalogId": "24224",
-      "transform": {
-        "x": -139.87,
-        "y": 508.18,
-        "rotation": 311.4
-      },
-      "connectors": [
-        {
-          "x": -139.87,
-          "y": 508.18,
-          "angle": 131.39999999999998,
-          "connectedTo": {
-            "pieceId": "ml-spur-in-2",
-            "connectorIndex": 0
-          }
-        },
-        {
-          "x": 8.266061073590862,
-          "y": 398.76500755109026,
-          "angle": 335.70000000000005,
-          "connectedTo": {
-            "pieceId": "ml-in-turnout",
-            "connectorIndex": 2
-          }
+          "x": -247.71585419422445,
+          "y": 70.5937587866486,
+          "angle": 228.5999999999999
         }
       ],
       "layerId": "layer-1"
@@ -1456,24 +1168,24 @@
       "id": "ml-spur-in-2",
       "catalogId": "24188",
       "transform": {
-        "x": -139.87,
-        "y": 508.18,
-        "rotation": 131.4
+        "x": 8.262468110264905,
+        "y": 476.26495231630076,
+        "rotation": 155.70000000000005
       },
       "connectors": [
         {
-          "x": -139.87,
-          "y": 508.18,
-          "angle": 311.4,
+          "x": 8.262468110264905,
+          "y": 476.26495231630076,
+          "angle": 335.70000000000005,
           "connectedTo": {
-            "pieceId": "ml-spur-in-1",
-            "connectorIndex": 0
+            "pieceId": "ml-in-turnout",
+            "connectorIndex": 2
           }
         },
         {
-          "x": -264.3950242404437,
-          "y": 649.4259144114155,
-          "angle": 131.39999999999998,
+          "x": -163.35476888018948,
+          "y": 553.7531060416427,
+          "angle": 155.70000000000005,
           "connectedTo": {
             "pieceId": "ml-spur-in-bumper",
             "connectorIndex": 0
@@ -1486,15 +1198,15 @@
       "id": "ml-spur-in-bumper",
       "catalogId": "24977",
       "transform": {
-        "x": -264.4,
-        "y": 649.43,
-        "rotation": 131.4
+        "x": -163.35476888018948,
+        "y": 553.7531060416427,
+        "rotation": 155.70000000000005
       },
       "connectors": [
         {
-          "x": -264.4,
-          "y": 649.43,
-          "angle": 311.4,
+          "x": -163.35476888018948,
+          "y": 553.7531060416427,
+          "angle": 335.70000000000005,
           "connectedTo": {
             "pieceId": "ml-spur-in-2",
             "connectorIndex": 1
@@ -1502,6 +1214,292 @@
         }
       ],
       "layerId": "layer-1"
+    },
+    {
+      "id": "track-1794593990929-fd7f",
+      "catalogId": "24624",
+      "transform": {
+        "x": 16.603849615037717,
+        "y": 359.9987425096444,
+        "rotation": 0
+      },
+      "connectors": [
+        {
+          "x": 16.603849615037717,
+          "y": 359.9987425096444,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "track-1794594066099-qbwx",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": 204.90384961503773,
+          "y": 359.9987425096444,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "track-1794594035596-le0o",
+            "connectorIndex": 0
+          }
+        },
+        {
+          "x": 24.945231119810543,
+          "y": 321.25466564697336,
+          "angle": 204.29999999999995,
+          "connectedTo": {
+            "pieceId": "ml-spur-out-1",
+            "connectorIndex": 0
+          }
+        },
+        {
+          "x": 196.56246811026492,
+          "y": 398.7428193723154,
+          "angle": 24.30000000000001,
+          "connectedTo": {
+            "pieceId": "ml-out-turnout",
+            "connectorIndex": 2
+          }
+        }
+      ],
+      "powerFeed": false,
+      "layerId": "layer-1"
+    },
+    {
+      "id": "track-1794594035596-le0o",
+      "catalogId": "24172",
+      "transform": {
+        "x": 204.90384961503773,
+        "y": 359.9987425096444,
+        "rotation": 0
+      },
+      "connectors": [
+        {
+          "x": 204.90384961503773,
+          "y": 359.9987425096444,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "track-1794593990929-fd7f",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": 376.6038496150377,
+          "y": 359.9987425096444,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "ml-in-cr-6",
+            "connectorIndex": 1
+          }
+        }
+      ],
+      "powerFeed": false,
+      "layerId": "layer-1"
+    },
+    {
+      "id": "track-1794594066099-qbwx",
+      "catalogId": "24236",
+      "transform": {
+        "x": -219.49615038496228,
+        "y": 359.9987425096444,
+        "rotation": 0
+      },
+      "connectors": [
+        {
+          "x": -219.49615038496228,
+          "y": 359.9987425096444,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "track-1794594072960-a9ge",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": 16.603849615037717,
+          "y": 359.9987425096444,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "track-1794593990929-fd7f",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "powerFeed": false,
+      "layerId": "layer-1"
+    },
+    {
+      "id": "track-1794594072960-a9ge",
+      "catalogId": "24077",
+      "transform": {
+        "x": -296.9961503849623,
+        "y": 359.9987425096444,
+        "rotation": 0
+      },
+      "connectors": [
+        {
+          "x": -296.9961503849623,
+          "y": 359.9987425096444,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "track-1794594074451-dxei",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": -219.49615038496228,
+          "y": 359.9987425096444,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "track-1794594066099-qbwx",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "powerFeed": false,
+      "layerId": "layer-1"
+    },
+    {
+      "id": "track-1794594074451-dxei",
+      "catalogId": "24077",
+      "transform": {
+        "x": -374.4961503849623,
+        "y": 359.9987425096444,
+        "rotation": 0
+      },
+      "connectors": [
+        {
+          "x": -374.4961503849623,
+          "y": 359.9987425096444,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "ml-in-cl-1",
+            "connectorIndex": 0
+          }
+        },
+        {
+          "x": -296.9961503849623,
+          "y": 359.9987425096444,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "track-1794594072960-a9ge",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "powerFeed": false,
+      "layerId": "layer-1"
     }
-  ]
+  ],
+  "models": [
+    {
+      "id": "ml-station",
+      "name": "Hauptbahnhof Neustadt",
+      "category": "buildings",
+      "transform": {
+        "x": 0,
+        "y": -230,
+        "rotation": 0
+      },
+      "width": 320,
+      "depth": 140,
+      "height": 120,
+      "modelType": "builtin",
+      "builtinId": "station",
+      "layerId": "layer-1"
+    },
+    {
+      "id": "ml-engine-shed",
+      "name": "Lokschuppen BW",
+      "category": "railway",
+      "transform": {
+        "x": -202.5,
+        "y": 121.8,
+        "rotation": 228.5999999999999
+      },
+      "width": 240,
+      "depth": 72,
+      "height": 105,
+      "modelType": "builtin",
+      "builtinId": "engine-shed",
+      "layerId": "layer-1"
+    },
+    {
+      "id": "ml-signal-box",
+      "name": "Stellwerk Ost",
+      "category": "railway",
+      "transform": {
+        "x": 310,
+        "y": 240,
+        "rotation": 180
+      },
+      "width": 120,
+      "depth": 75,
+      "height": 110,
+      "modelType": "builtin",
+      "builtinId": "signal-box",
+      "layerId": "layer-1"
+    }
+  ],
+  "layers": [
+    {
+      "id": "layer-2",
+      "name": "Brücken & Überführung",
+      "heightMm": 80,
+      "color": "#4ade80",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "id": "layer-1",
+      "name": "Hauptstrecke (2-gleisig)",
+      "heightMm": 0,
+      "color": "#38bdf8",
+      "visible": true,
+      "locked": false,
+      "woodPlateMode": "table"
+    },
+    {
+      "id": "layer-0",
+      "name": "Schattenbahnhof",
+      "heightMm": -100,
+      "color": "#94a3b8",
+      "visible": true,
+      "locked": false
+    }
+  ],
+  "activeLayerId": "layer-1",
+  "baseboard": {
+    "id": "bb-mainline",
+    "name": "Hauptplatte (250 x 130 cm)",
+    "enabled": true,
+    "shape": "rect",
+    "width": 1850,
+    "depth": 1350,
+    "style": "wood",
+    "positionMode": "custom",
+    "customX": -925,
+    "customY": -555,
+    "cornerRadius": 16,
+    "showDimensions": true
+  },
+  "baseboards": [
+    {
+      "id": "bb-mainline",
+      "name": "Hauptplatte (250 x 130 cm)",
+      "enabled": true,
+      "shape": "rect",
+      "width": 1850,
+      "depth": 1350,
+      "style": "wood",
+      "positionMode": "custom",
+      "customX": -925,
+      "customY": -555,
+      "cornerRadius": 16,
+      "showDimensions": true
+    }
+  ],
+  "feedVoltage": 16,
+  "locoCurrentMa": 450,
+  "locoCount": 2,
+  "turnoutLanternCurrentMa": 20,
+  "turnoutDecoderCurrentMa": 15
 }

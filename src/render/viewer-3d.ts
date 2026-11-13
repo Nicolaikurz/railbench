@@ -3282,7 +3282,7 @@ export class Viewer3D {
     const boxW = (maxX - minX) + margin * 2;
     const boxL = (maxZ - minZ) + margin * 2;
     const lineThick = 35;
-    const lineY = floorY + floorElev + 0.8;
+    const lineY = floorY + floorElev + 2.5;
 
     const lineN = new THREE.Mesh(new THREE.BoxGeometry(boxW, 2, lineThick), yellowLineMat);
     lineN.position.set(cx, lineY, minZ - margin);

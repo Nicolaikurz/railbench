@@ -1,9 +1,539 @@
 {
   "name": "Rangieranlage Spur 0 (Inglenook)",
   "scale": "0",
-  "feedVoltage": 18,
-  "locoCurrentMa": 600,
-  "locoCount": 1,
+  "pieces": [
+    {
+      "id": "z0-lead-feed",
+      "catalogId": "45080",
+      "transform": {
+        "x": -1073.3166662348765,
+        "y": -82.22777792170783,
+        "rotation": 0
+      },
+      "connectors": [
+        {
+          "x": -1073.3166662348765,
+          "y": -82.22777792170783,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "z0-lead-bumper",
+            "connectorIndex": 0
+          }
+        },
+        {
+          "x": -852.9466662348765,
+          "y": -82.22777792170783,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "z0-lead-1",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1",
+      "powerFeed": true
+    },
+    {
+      "id": "z0-lead-bumper",
+      "catalogId": "45060",
+      "transform": {
+        "x": -1073.3166662348765,
+        "y": -82.22777792170783,
+        "rotation": 180
+      },
+      "connectors": [
+        {
+          "x": -1073.3166662348765,
+          "y": -82.22777792170783,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "z0-lead-feed",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "z0-lead-1",
+      "catalogId": "45010",
+      "transform": {
+        "x": -852.9466662348766,
+        "y": -82.22777792170783,
+        "rotation": 0
+      },
+      "connectors": [
+        {
+          "x": -852.9466662348766,
+          "y": -82.22777792170783,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "z0-lead-feed",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": -412.2066662348766,
+          "y": -82.22777792170783,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "z0-turnout-1",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "z0-turnout-1",
+      "catalogId": "45031",
+      "transform": {
+        "x": -412.20666623487654,
+        "y": -82.22777792170783,
+        "rotation": 0
+      },
+      "connectors": [
+        {
+          "x": -412.20666623487654,
+          "y": -82.22777792170783,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "z0-lead-1",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": 28.533333765123473,
+          "y": -82.22777792170783,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "z0-siding1-uncoupler",
+            "connectorIndex": 0
+          }
+        },
+        {
+          "x": -90.42664000469472,
+          "y": -50.535211565992064,
+          "angle": 11.25,
+          "connectedTo": {
+            "pieceId": "z0-turnout-2",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1",
+      "hasLantern": true,
+      "hasDecoder": true
+    },
+    {
+      "id": "z0-siding1-uncoupler",
+      "catalogId": "45070",
+      "transform": {
+        "x": 28.53333376512345,
+        "y": -82.22777792170783,
+        "rotation": 0
+      },
+      "connectors": [
+        {
+          "x": 28.53333376512345,
+          "y": -82.22777792170783,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "z0-turnout-1",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": 163.53333376512344,
+          "y": -82.22777792170783,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "z0-siding1-1",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "z0-siding1-1",
+      "catalogId": "45010",
+      "transform": {
+        "x": 163.53333376512344,
+        "y": -82.22777792170783,
+        "rotation": 0
+      },
+      "connectors": [
+        {
+          "x": 163.53333376512344,
+          "y": -82.22777792170783,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "z0-siding1-uncoupler",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": 604.2733337651234,
+          "y": -82.22777792170783,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "z0-siding1-2",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "z0-siding1-2",
+      "catalogId": "45010",
+      "transform": {
+        "x": 604.2733337651234,
+        "y": -82.22777792170783,
+        "rotation": 0
+      },
+      "connectors": [
+        {
+          "x": 604.2733337651234,
+          "y": -82.22777792170783,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "z0-siding1-1",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": 1045.0133337651234,
+          "y": -82.22777792170783,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "z0-siding1-bumper",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "z0-siding1-bumper",
+      "catalogId": "45060",
+      "transform": {
+        "x": 1045.0133337651234,
+        "y": -82.22777792170783,
+        "rotation": 0
+      },
+      "connectors": [
+        {
+          "x": 1045.0133337651234,
+          "y": -82.22777792170783,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "z0-siding1-2",
+            "connectorIndex": 1
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "z0-turnout-2",
+      "catalogId": "45030",
+      "transform": {
+        "x": -90.42666623487655,
+        "y": -50.53777792170783,
+        "rotation": 11.25
+      },
+      "connectors": [
+        {
+          "x": -90.42666623487655,
+          "y": -50.53777792170783,
+          "angle": 191.25,
+          "connectedTo": {
+            "pieceId": "z0-turnout-1",
+            "connectorIndex": 2
+          }
+        },
+        {
+          "x": 341.8446382500432,
+          "y": 35.446330603680536,
+          "angle": 11.25,
+          "connectedTo": {
+            "pieceId": "z0-siding3-curve",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": 231.35335999530525,
+          "y": -18.84521156599213,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "z0-siding2-uncoupler",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1",
+      "hasLantern": true,
+      "hasDecoder": true
+    },
+    {
+      "id": "z0-siding2-uncoupler",
+      "catalogId": "45070",
+      "transform": {
+        "x": 231.35333376512344,
+        "y": -18.847777921707827,
+        "rotation": 0
+      },
+      "connectors": [
+        {
+          "x": 231.35333376512344,
+          "y": -18.847777921707827,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "z0-turnout-2",
+            "connectorIndex": 2
+          }
+        },
+        {
+          "x": 366.35333376512347,
+          "y": -18.847777921707827,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "z0-siding2-1",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "z0-siding2-1",
+      "catalogId": "45010",
+      "transform": {
+        "x": 366.35333376512347,
+        "y": -18.847777921707827,
+        "rotation": 0
+      },
+      "connectors": [
+        {
+          "x": 366.35333376512347,
+          "y": -18.847777921707827,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "z0-siding2-uncoupler",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": 807.0933337651235,
+          "y": -18.847777921707827,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "z0-siding2-2",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "z0-siding2-2",
+      "catalogId": "45011",
+      "transform": {
+        "x": 807.0933337651234,
+        "y": -18.847777921707827,
+        "rotation": 0
+      },
+      "connectors": [
+        {
+          "x": 807.0933337651234,
+          "y": -18.847777921707827,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "z0-siding2-1",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": 1027.4633337651235,
+          "y": -18.847777921707827,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "z0-siding2-bumper",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "z0-siding2-bumper",
+      "catalogId": "45060",
+      "transform": {
+        "x": 1027.4633337651235,
+        "y": -18.847777921707827,
+        "rotation": 0
+      },
+      "connectors": [
+        {
+          "x": 1027.4633337651235,
+          "y": -18.847777921707827,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "z0-siding2-2",
+            "connectorIndex": 1
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "z0-siding3-curve",
+      "catalogId": "45025",
+      "transform": {
+        "x": 663.6233337651236,
+        "y": 67.14222207829218,
+        "rotation": 180
+      },
+      "connectors": [
+        {
+          "x": 663.6233337651236,
+          "y": 67.14222207829218,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "z0-siding3-1",
+            "connectorIndex": 0
+          }
+        },
+        {
+          "x": 341.84330753494174,
+          "y": 35.44965572257645,
+          "angle": 191.25,
+          "connectedTo": {
+            "pieceId": "z0-turnout-2",
+            "connectorIndex": 1
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "z0-siding3-1",
+      "catalogId": "45010",
+      "transform": {
+        "x": 663.6233337651236,
+        "y": 67.14222207829218,
+        "rotation": 0
+      },
+      "connectors": [
+        {
+          "x": 663.6233337651236,
+          "y": 67.14222207829218,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "z0-siding3-curve",
+            "connectorIndex": 0
+          }
+        },
+        {
+          "x": 1104.3633337651236,
+          "y": 67.14222207829218,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "z0-siding3-2",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "z0-siding3-2",
+      "catalogId": "45011",
+      "transform": {
+        "x": 1104.3633337651236,
+        "y": 67.14222207829218,
+        "rotation": 0
+      },
+      "connectors": [
+        {
+          "x": 1104.3633337651236,
+          "y": 67.14222207829218,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "z0-siding3-1",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": 1324.7333337651235,
+          "y": 67.14222207829218,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "z0-siding3-bumper",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "z0-siding3-bumper",
+      "catalogId": "45060",
+      "transform": {
+        "x": 1324.7333337651235,
+        "y": 67.14222207829218,
+        "rotation": 0
+      },
+      "connectors": [
+        {
+          "x": 1324.7333337651235,
+          "y": 67.14222207829218,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "z0-siding3-2",
+            "connectorIndex": 1
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    }
+  ],
+  "models": [
+    {
+      "id": "z0-goods-shed",
+      "name": "Güterschuppen & Rampe",
+      "category": "buildings",
+      "transform": {
+        "x": 426.68333376512345,
+        "y": -222.22777792170783,
+        "rotation": 0
+      },
+      "width": 340,
+      "depth": 130,
+      "height": 150,
+      "modelType": "builtin",
+      "builtinId": "industry-building",
+      "layerId": "layer-1"
+    },
+    {
+      "id": "z0-signal-box",
+      "name": "Weichenwärterbude",
+      "category": "railway",
+      "transform": {
+        "x": -373.31666623487655,
+        "y": 147.77222207829217,
+        "rotation": 0
+      },
+      "width": 150,
+      "depth": 95,
+      "height": 140,
+      "modelType": "builtin",
+      "builtinId": "signal-box",
+      "layerId": "layer-1"
+    }
+  ],
   "layers": [
     {
       "id": "layer-1",
@@ -21,12 +551,12 @@
     "name": "Rangierregal Inglenook (260 x 75 cm)",
     "enabled": true,
     "shape": "rect",
-    "width": 2600,
-    "depth": 750,
+    "width": 2700,
+    "depth": 650,
     "style": "wood",
-    "positionMode": "center",
-    "customX": 0,
-    "customY": 0,
+    "positionMode": "custom",
+    "customX": -1200,
+    "customY": -340,
     "cornerRadius": 12,
     "showDimensions": true
   },
@@ -36,547 +566,17 @@
       "name": "Rangierregal Inglenook (260 x 75 cm)",
       "enabled": true,
       "shape": "rect",
-      "width": 2600,
-      "depth": 750,
+      "width": 2700,
+      "depth": 650,
       "style": "wood",
-      "positionMode": "center",
-      "customX": 0,
-      "customY": 0,
+      "positionMode": "custom",
+      "customX": -1200,
+      "customY": -340,
       "cornerRadius": 12,
       "showDimensions": true
     }
   ],
-  "models": [
-    {
-      "id": "z0-goods-shed",
-      "name": "Güterschuppen & Rampe",
-      "category": "buildings",
-      "transform": {
-        "x": 450,
-        "y": -230,
-        "rotation": 0
-      },
-      "width": 340,
-      "depth": 130,
-      "height": 150,
-      "modelType": "builtin",
-      "builtinId": "industry-building",
-      "layerId": "layer-1"
-    },
-    {
-      "id": "z0-signal-box",
-      "name": "Weichenwärterbude",
-      "category": "railway",
-      "transform": {
-        "x": -350,
-        "y": 140,
-        "rotation": 0
-      },
-      "width": 150,
-      "depth": 95,
-      "height": 140,
-      "modelType": "builtin",
-      "builtinId": "signal-box",
-      "layerId": "layer-1"
-    }
-  ],
-  "pieces": [
-    {
-      "id": "z0-lead-feed",
-      "catalogId": "45080",
-      "transform": {
-        "x": -1050,
-        "y": -90,
-        "rotation": 0
-      },
-      "connectors": [
-        {
-          "x": -1050,
-          "y": -90,
-          "angle": 180,
-          "connectedTo": {
-            "pieceId": "z0-lead-bumper",
-            "connectorIndex": 0
-          }
-        },
-        {
-          "x": -829.63,
-          "y": -90,
-          "angle": 0,
-          "connectedTo": {
-            "pieceId": "z0-lead-1",
-            "connectorIndex": 0
-          }
-        }
-      ],
-      "layerId": "layer-1",
-      "powerFeed": true
-    },
-    {
-      "id": "z0-lead-bumper",
-      "catalogId": "45060",
-      "transform": {
-        "x": -1050,
-        "y": -90,
-        "rotation": 180
-      },
-      "connectors": [
-        {
-          "x": -1050,
-          "y": -90,
-          "angle": 0,
-          "connectedTo": {
-            "pieceId": "z0-lead-feed",
-            "connectorIndex": 0
-          }
-        }
-      ],
-      "layerId": "layer-1"
-    },
-    {
-      "id": "z0-lead-1",
-      "catalogId": "45010",
-      "transform": {
-        "x": -829.63,
-        "y": -90,
-        "rotation": 0
-      },
-      "connectors": [
-        {
-          "x": -829.63,
-          "y": -90,
-          "angle": 180,
-          "connectedTo": {
-            "pieceId": "z0-lead-feed",
-            "connectorIndex": 1
-          }
-        },
-        {
-          "x": -388.89,
-          "y": -90,
-          "angle": 0,
-          "connectedTo": {
-            "pieceId": "z0-turnout-1",
-            "connectorIndex": 0
-          }
-        }
-      ],
-      "layerId": "layer-1"
-    },
-    {
-      "id": "z0-turnout-1",
-      "catalogId": "45031",
-      "transform": {
-        "x": -388.89,
-        "y": -90,
-        "rotation": 0
-      },
-      "connectors": [
-        {
-          "x": -388.89,
-          "y": -90,
-          "angle": 180,
-          "connectedTo": {
-            "pieceId": "z0-lead-1",
-            "connectorIndex": 1
-          }
-        },
-        {
-          "x": 51.85000000000002,
-          "y": -90,
-          "angle": 0,
-          "connectedTo": {
-            "pieceId": "z0-siding1-uncoupler",
-            "connectorIndex": 0
-          }
-        },
-        {
-          "x": -67.10997376981817,
-          "y": -58.30743364428424,
-          "angle": 11.25,
-          "connectedTo": {
-            "pieceId": "z0-turnout-2",
-            "connectorIndex": 0
-          }
-        }
-      ],
-      "layerId": "layer-1",
-      "hasLantern": true,
-      "hasDecoder": true
-    },
-    {
-      "id": "z0-siding1-uncoupler",
-      "catalogId": "45070",
-      "transform": {
-        "x": 51.85,
-        "y": -90,
-        "rotation": 0
-      },
-      "connectors": [
-        {
-          "x": 51.85,
-          "y": -90,
-          "angle": 180,
-          "connectedTo": {
-            "pieceId": "z0-turnout-1",
-            "connectorIndex": 1
-          }
-        },
-        {
-          "x": 186.85,
-          "y": -90,
-          "angle": 0,
-          "connectedTo": {
-            "pieceId": "z0-siding1-1",
-            "connectorIndex": 0
-          }
-        }
-      ],
-      "layerId": "layer-1"
-    },
-    {
-      "id": "z0-siding1-1",
-      "catalogId": "45010",
-      "transform": {
-        "x": 186.85,
-        "y": -90,
-        "rotation": 0
-      },
-      "connectors": [
-        {
-          "x": 186.85,
-          "y": -90,
-          "angle": 180,
-          "connectedTo": {
-            "pieceId": "z0-siding1-uncoupler",
-            "connectorIndex": 1
-          }
-        },
-        {
-          "x": 627.59,
-          "y": -90,
-          "angle": 0,
-          "connectedTo": {
-            "pieceId": "z0-siding1-2",
-            "connectorIndex": 0
-          }
-        }
-      ],
-      "layerId": "layer-1"
-    },
-    {
-      "id": "z0-siding1-2",
-      "catalogId": "45010",
-      "transform": {
-        "x": 627.59,
-        "y": -90,
-        "rotation": 0
-      },
-      "connectors": [
-        {
-          "x": 627.59,
-          "y": -90,
-          "angle": 180,
-          "connectedTo": {
-            "pieceId": "z0-siding1-1",
-            "connectorIndex": 1
-          }
-        },
-        {
-          "x": 1068.33,
-          "y": -90,
-          "angle": 0,
-          "connectedTo": {
-            "pieceId": "z0-siding1-bumper",
-            "connectorIndex": 0
-          }
-        }
-      ],
-      "layerId": "layer-1"
-    },
-    {
-      "id": "z0-siding1-bumper",
-      "catalogId": "45060",
-      "transform": {
-        "x": 1068.33,
-        "y": -90,
-        "rotation": 0
-      },
-      "connectors": [
-        {
-          "x": 1068.33,
-          "y": -90,
-          "angle": 180,
-          "connectedTo": {
-            "pieceId": "z0-siding1-2",
-            "connectorIndex": 1
-          }
-        }
-      ],
-      "layerId": "layer-1"
-    },
-    {
-      "id": "z0-turnout-2",
-      "catalogId": "45030",
-      "transform": {
-        "x": -67.11,
-        "y": -58.31,
-        "rotation": 11.25
-      },
-      "connectors": [
-        {
-          "x": -67.11,
-          "y": -58.31,
-          "angle": 191.25,
-          "connectedTo": {
-            "pieceId": "z0-turnout-1",
-            "connectorIndex": 2
-          }
-        },
-        {
-          "x": 365.16130448491975,
-          "y": 27.674108525388363,
-          "angle": 11.25,
-          "connectedTo": {
-            "pieceId": "z0-siding3-curve",
-            "connectorIndex": 1
-          }
-        },
-        {
-          "x": 254.6700262301818,
-          "y": -26.617433644284304,
-          "angle": 0,
-          "connectedTo": {
-            "pieceId": "z0-siding2-uncoupler",
-            "connectorIndex": 0
-          }
-        }
-      ],
-      "layerId": "layer-1",
-      "hasLantern": true,
-      "hasDecoder": true
-    },
-    {
-      "id": "z0-siding2-uncoupler",
-      "catalogId": "45070",
-      "transform": {
-        "x": 254.67,
-        "y": -26.62,
-        "rotation": 0
-      },
-      "connectors": [
-        {
-          "x": 254.67,
-          "y": -26.62,
-          "angle": 180,
-          "connectedTo": {
-            "pieceId": "z0-turnout-2",
-            "connectorIndex": 2
-          }
-        },
-        {
-          "x": 389.66999999999996,
-          "y": -26.62,
-          "angle": 0,
-          "connectedTo": {
-            "pieceId": "z0-siding2-1",
-            "connectorIndex": 0
-          }
-        }
-      ],
-      "layerId": "layer-1"
-    },
-    {
-      "id": "z0-siding2-1",
-      "catalogId": "45010",
-      "transform": {
-        "x": 389.67,
-        "y": -26.62,
-        "rotation": 0
-      },
-      "connectors": [
-        {
-          "x": 389.67,
-          "y": -26.62,
-          "angle": 180,
-          "connectedTo": {
-            "pieceId": "z0-siding2-uncoupler",
-            "connectorIndex": 1
-          }
-        },
-        {
-          "x": 830.4100000000001,
-          "y": -26.62,
-          "angle": 0,
-          "connectedTo": {
-            "pieceId": "z0-siding2-2",
-            "connectorIndex": 0
-          }
-        }
-      ],
-      "layerId": "layer-1"
-    },
-    {
-      "id": "z0-siding2-2",
-      "catalogId": "45011",
-      "transform": {
-        "x": 830.41,
-        "y": -26.62,
-        "rotation": 0
-      },
-      "connectors": [
-        {
-          "x": 830.41,
-          "y": -26.62,
-          "angle": 180,
-          "connectedTo": {
-            "pieceId": "z0-siding2-1",
-            "connectorIndex": 1
-          }
-        },
-        {
-          "x": 1050.78,
-          "y": -26.62,
-          "angle": 0,
-          "connectedTo": {
-            "pieceId": "z0-siding2-bumper",
-            "connectorIndex": 0
-          }
-        }
-      ],
-      "layerId": "layer-1"
-    },
-    {
-      "id": "z0-siding2-bumper",
-      "catalogId": "45060",
-      "transform": {
-        "x": 1050.78,
-        "y": -26.62,
-        "rotation": 0
-      },
-      "connectors": [
-        {
-          "x": 1050.78,
-          "y": -26.62,
-          "angle": 180,
-          "connectedTo": {
-            "pieceId": "z0-siding2-2",
-            "connectorIndex": 1
-          }
-        }
-      ],
-      "layerId": "layer-1"
-    },
-    {
-      "id": "z0-siding3-curve",
-      "catalogId": "45025",
-      "transform": {
-        "x": 686.94,
-        "y": 59.37,
-        "rotation": 180
-      },
-      "connectors": [
-        {
-          "x": 686.94,
-          "y": 59.37,
-          "angle": 0,
-          "connectedTo": {
-            "pieceId": "z0-siding3-1",
-            "connectorIndex": 0
-          }
-        },
-        {
-          "x": 365.15997376981824,
-          "y": 27.677433644284275,
-          "angle": 191.25,
-          "connectedTo": {
-            "pieceId": "z0-turnout-2",
-            "connectorIndex": 1
-          }
-        }
-      ],
-      "layerId": "layer-1"
-    },
-    {
-      "id": "z0-siding3-1",
-      "catalogId": "45010",
-      "transform": {
-        "x": 686.94,
-        "y": 59.37,
-        "rotation": 0
-      },
-      "connectors": [
-        {
-          "x": 686.94,
-          "y": 59.37,
-          "angle": 180,
-          "connectedTo": {
-            "pieceId": "z0-siding3-curve",
-            "connectorIndex": 0
-          }
-        },
-        {
-          "x": 1127.68,
-          "y": 59.37,
-          "angle": 0,
-          "connectedTo": {
-            "pieceId": "z0-siding3-2",
-            "connectorIndex": 0
-          }
-        }
-      ],
-      "layerId": "layer-1"
-    },
-    {
-      "id": "z0-siding3-2",
-      "catalogId": "45011",
-      "transform": {
-        "x": 1127.68,
-        "y": 59.37,
-        "rotation": 0
-      },
-      "connectors": [
-        {
-          "x": 1127.68,
-          "y": 59.37,
-          "angle": 180,
-          "connectedTo": {
-            "pieceId": "z0-siding3-1",
-            "connectorIndex": 1
-          }
-        },
-        {
-          "x": 1348.0500000000002,
-          "y": 59.37,
-          "angle": 0,
-          "connectedTo": {
-            "pieceId": "z0-siding3-bumper",
-            "connectorIndex": 0
-          }
-        }
-      ],
-      "layerId": "layer-1"
-    },
-    {
-      "id": "z0-siding3-bumper",
-      "catalogId": "45060",
-      "transform": {
-        "x": 1348.05,
-        "y": 59.37,
-        "rotation": 0
-      },
-      "connectors": [
-        {
-          "x": 1348.05,
-          "y": 59.37,
-          "angle": 180,
-          "connectedTo": {
-            "pieceId": "z0-siding3-2",
-            "connectorIndex": 1
-          }
-        }
-      ],
-      "layerId": "layer-1"
-    }
-  ]
+  "feedVoltage": 18,
+  "locoCurrentMa": 600,
+  "locoCount": 1
 }
