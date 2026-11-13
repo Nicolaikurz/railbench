@@ -234,11 +234,6 @@ export function createToolbar(host: HTMLElement, events: ToolbarEvents) {
   actionsRow.appendChild(sidebarTabsContainer);
   actionsRow.appendChild(createDivider());
 
-  if (isMac) {
-    actionsRow.appendChild(createAppBrandBadge(events));
-    actionsRow.appendChild(createDivider());
-  }
-
   // Quick file actions
   const fileActionsGroup = document.createElement("div");
   fileActionsGroup.className = "toolbar-group toolbar-file-quick";

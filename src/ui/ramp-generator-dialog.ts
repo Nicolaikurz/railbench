@@ -2,6 +2,7 @@ import rampGenHtml from "./templates/ramp-generator-dialog.html?raw";
 import type { Layout, Layer, TrackPiece } from "@/core/types";
 import type { Catalog } from "@/catalog/catalog";
 import { getLanguage } from "@/i18n";
+import { getPieceConnectorHeight } from "@/core/snapping";
 import {
   generateRampPieces,
   getMinClearanceHeightForScale,
@@ -14,8 +15,19 @@ export interface RampGeneratorDialogOptions {
   layout: Layout;
   catalog: Catalog;
   anchorPiece: TrackPiece;
+  /** Optional: Index des Anschlusses am Ankergleis, der als Startpunkt vorgewählt wird. */
+  anchorConnectorIndex?: number;
   onApply: (generatedPieces: TrackPiece[], newLayer?: Layer) => void;
 }
+
+interface StartPointOption {
+  piece: TrackPiece;
+  connIdx: number;
+  heightMm: number;
+  label: string;
+}
+
+const MAX_START_OPTIONS = 60;
 
 export function openRampGeneratorDialog(options: RampGeneratorDialogOptions): void {
   const { layout, catalog, anchorPiece, onApply } = options;
@@ -28,16 +40,42 @@ export function openRampGeneratorDialog(options: RampGeneratorDialogOptions): vo
     { id: "layer-1", name: "Hauptebene", visible: true, locked: false, heightMm: 0 },
   ];
 
-  const currentLayerId = anchorPiece.layerId || layout.activeLayerId || layers[0]!.id;
-  const currentLayer = layers.find((l) => l.id === currentLayerId) || layers[0]!;
-  const currentHeight = currentLayer.heightMm ?? 0;
-
   const scale = layout.scale || catalog.scale || "H0";
   const minClearance = getMinClearanceHeightForScale(scale);
 
-  // Check open connectors
-  const openConns = getOpenConnectors(anchorPiece, layout.pieces);
-  if (openConns.length === 0) {
+  // ---- Startpunkte sammeln (freie Anschlüsse; Ankergleis zuerst, dann nach Entfernung) ----
+  const entryName = (p: TrackPiece): string =>
+    catalog.entries.find((e) => e.id === p.catalogId)?.name || p.catalogId;
+  const layerName = (id?: string): string => layers.find((l) => l.id === id)?.name || "—";
+  const endLetter = (i: number): string => String.fromCharCode(65 + (i % 26));
+
+  const startOptions: StartPointOption[] = [];
+  const pushOptions = (piece: TrackPiece): void => {
+    for (const ci of getOpenConnectors(piece, layout.pieces, 8.0, layers)) {
+      const conn = piece.connectors[ci]!;
+      const h = getPieceConnectorHeight(piece, ci, layers);
+      const label =
+        `#${piece.catalogId} ${entryName(piece)} · ${isDe ? "Ende" : "End"} ${endLetter(ci)} ` +
+        `· ${Math.round(h)} mm · (${Math.round(conn.x)}, ${Math.round(conn.y)})`;
+      startOptions.push({ piece, connIdx: ci, heightMm: h, label });
+    }
+  };
+
+  pushOptions(anchorPiece);
+  const others = layout.pieces
+    .filter((p) => p.id !== anchorPiece.id)
+    .filter((p) => layers.find((l) => l.id === p.layerId)?.visible !== false)
+    .map((p) => ({
+      p,
+      d: Math.hypot(p.transform.x - anchorPiece.transform.x, p.transform.y - anchorPiece.transform.y),
+    }))
+    .sort((a, b) => a.d - b.d);
+  for (const { p } of others) {
+    if (startOptions.length >= MAX_START_OPTIONS) break;
+    pushOptions(p);
+  }
+
+  if (startOptions.length === 0) {
     alert(
       isDe
         ? "Dieses Gleis hat keine freien Anschlüsse. Bitte ein Gleis mit offenem Ende wählen."
@@ -46,10 +84,19 @@ export function openRampGeneratorDialog(options: RampGeneratorDialogOptions): vo
     return;
   }
 
-  // Pre-select higher layer if available, otherwise suggest new layer above
-  const higherLayer = layers.find((l) => (l.heightMm ?? 0) > currentHeight);
-  let preselectedLayerId = higherLayer ? higherLayer.id : "__create_above__";
-  let targetHeightMm = higherLayer ? (higherLayer.heightMm ?? 0) : currentHeight + minClearance;
+  // Vorauswahl: gewünschter Anschluss des Ankergleises, sonst erster freier Anschluss
+  let startIdx = Math.max(
+    0,
+    startOptions.findIndex(
+      (o) => o.piece.id === anchorPiece.id && o.connIdx === options.anchorConnectorIndex,
+    ),
+  );
+
+  let startPiece = startOptions[startIdx]!.piece;
+  let startConnIdx = startOptions[startIdx]!.connIdx;
+  let currentHeight = startOptions[startIdx]!.heightMm;
+  let currentLayerId = startPiece.layerId || layout.activeLayerId || layers[0]!.id;
+  let currentLayer = layers.find((l) => l.id === currentLayerId) || layers[0]!;
 
   const availableRadii = getAvailableCurveRadii(catalog);
   let currentCurveId = availableRadii.length > 0 ? availableRadii[0]!.catalogId : undefined;
@@ -63,19 +110,45 @@ export function openRampGeneratorDialog(options: RampGeneratorDialogOptions): vo
   modal.id = "ramp-generator-modal";
   modal.className = "rb-modal-overlay";
 
-  const layerOptions = layers
-    .map((l) => {
-      const cleanName = l.name.replace(/\\s*\\([0-9]+\\s*mm\\)$/, "");
-      const isSel = l.id === preselectedLayerId ? "selected" : "";
-      return `<option value="${l.id}" ${isSel}>${cleanName} (${l.heightMm ?? 0} mm)</option>`;
-    })
-    .join("") + `
-    <option value="__create_above__" ${preselectedLayerId === "__create_above__" ? "selected" : ""}>
+  // FIX: auch Vorzeichen (+/-) und Dezimal-Höhen entfernen, z. B. "Schattenbahnhof (-40 mm)" oder "Bergebene (+80 mm)"
+  const cleanLayerName = (name: string): string =>
+    name.replace(/\s*\(\s*[+-]?[0-9]+(?:[.,][0-9]+)?\s*mm\s*\)$/, "");
+
+  /** Zielebenen-Optionen abhängig von der Starthöhe (höhere Ebene bevorzugt, sonst tiefere). */
+  const computeLayerPreselect = (): { id: string; height: number } => {
+    const higher = layers.find((l) => (l.heightMm ?? 0) > currentHeight + 0.1);
+    if (higher) return { id: higher.id, height: higher.heightMm ?? 0 };
+
+    // Keine höhere Ebene vorhanden: nächst tiefere Ebene anbieten (Abwärtsrampe)
+    const lower = layers
+      .filter((l) => (l.heightMm ?? 0) < currentHeight - 0.1)
+      .sort((a, b) => (b.heightMm ?? 0) - (a.heightMm ?? 0))[0];
+    if (lower) return { id: lower.id, height: lower.heightMm ?? 0 };
+
+    return { id: "__create_above__", height: currentHeight + minClearance };
+  };
+
+  const buildLayerOptions = (preselectedId: string): string =>
+    layers
+      .map((l) => {
+        const isSel = l.id === preselectedId ? "selected" : "";
+        return `<option value="${l.id}" ${isSel}>${cleanLayerName(l.name)} (${l.heightMm ?? 0} mm)</option>`;
+      })
+      .join("") +
+    `
+    <option value="__create_above__" ${preselectedId === "__create_above__" ? "selected" : ""}>
       + ${isDe ? "Neue Ebene oberhalb erstellen" : "Create new layer above"} (+${minClearance} mm)
     </option>
-    <option value="__create_below__">
+    <option value="__create_below__" ${preselectedId === "__create_below__" ? "selected" : ""}>
       + ${isDe ? "Neue Ebene unterhalb erstellen" : "Create new layer below"} (-${minClearance} mm)
     </option>`;
+
+  const initialPreselect = computeLayerPreselect();
+  const targetHeightMm = initialPreselect.height;
+
+  const startOptionsHtml = startOptions
+    .map((o, i) => `<option value="${i}" ${i === startIdx ? "selected" : ""}>${o.label}</option>`)
+    .join("");
 
   let curveRadiusSection = "";
   if (availableRadii.length > 0) {
@@ -98,18 +171,20 @@ export function openRampGeneratorDialog(options: RampGeneratorDialogOptions): vo
 
   modal.innerHTML = rampGenHtml
     .replace("{{HEADER_TITLE}}", isDe ? "Gleisrampe automatisch erstellen" : "Auto-Create Track Ramp")
+    .replace("{{START_POINT_LABEL}}", isDe ? "Startpunkt (freier Anschluss)" : "Start Point (open connector)")
+    .replace("{{START_OPTIONS}}", startOptionsHtml)
     .replace("{{START_TRACK_LABEL}}", isDe ? "Startgleis" : "Start Track")
-    .replace("{{ANCHOR_PIECE_ID}}", anchorPiece.catalogId)
     .replace("{{LAYER_LABEL}}", isDe ? "Ebene" : "Layer")
-    .replace("{{CURRENT_LAYER_NAME}}", currentLayer.name.replace(/\\s*\\([0-9]+\\s*mm\\)$/, ""))
-    .replace("{{CURRENT_HEIGHT}}", String(currentHeight))
     .replace("{{OPEN_ENDS_LABEL}}", isDe ? "Freie Anschlüsse" : "Open Ends")
-    .replace("{{OPEN_CONNS_COUNT}}", String(openConns.length))
     .replace("{{TARGET_LAYER_LABEL}}", isDe ? "Zielebene / Zielhöhe" : "Target Layer / Target Elevation")
-    .replace("{{LAYER_OPTIONS}}", layerOptions)
+    .replace("{{LAYER_OPTIONS}}", buildLayerOptions(initialPreselect.id))
     .replace("{{TARGET_HEIGHT_LABEL}}", isDe ? "Zielhöhe (mm)" : "Target Height (mm)")
     .replace("{{CLEARANCE_HINT}}", isDe ? `Mindesthöhe Spur ${scale}: ${minClearance} mm` : `Min clearance scale ${scale}: ${minClearance} mm`)
-    .replace("{{TARGET_HEIGHT_MM}}", String(targetHeightMm))
+    .replace("{{TARGET_HEIGHT_MM}}", String(Math.round(targetHeightMm)))
+    .replace("{{SLOPE_UP_LABEL}}", isDe ? "Steigung" : "Up")
+    .replace("{{SLOPE_DOWN_LABEL}}", isDe ? "Gefälle" : "Down")
+    .replace("{{SLOPE_UP_TITLE}}", isDe ? "Aufwärtsrampe (+)" : "Ascending ramp (+)")
+    .replace("{{SLOPE_DOWN_TITLE}}", isDe ? "Abwärtsrampe (-)" : "Descending ramp (-)")
     .replace("{{RAMP_SHAPE_LABEL}}", isDe ? "Rampenverlauf / Form" : "Ramp Shape / Geometry")
     .replace("{{SHAPE_STRAIGHT}}", isDe ? "Gerade" : "Straight")
     .replace("{{SHAPE_CURVED}}", isDe ? "Bogen / Kehre" : "Curve / Turn")
@@ -129,8 +204,19 @@ export function openRampGeneratorDialog(options: RampGeneratorDialogOptions): vo
   const cancelBtn = modal.querySelector("#ramp-btn-cancel") as HTMLButtonElement;
   const createBtn = modal.querySelector("#ramp-btn-create") as HTMLButtonElement;
 
+  const startSelect = modal.querySelector("#ramp-start-point") as HTMLSelectElement;
+  const startCount = modal.querySelector("#ramp-start-count") as HTMLElement;
+  const startHint = modal.querySelector("#ramp-start-hint") as HTMLElement;
+  const stripTrack = modal.querySelector("#ramp-strip-track") as HTMLElement;
+  const stripLayer = modal.querySelector("#ramp-strip-layer") as HTMLElement;
+  const stripOpen = modal.querySelector("#ramp-strip-open") as HTMLElement;
+
   const targetLayerSelect = modal.querySelector("#ramp-target-layer") as HTMLSelectElement;
   const targetHeightInput = modal.querySelector("#ramp-target-height-input") as HTMLInputElement;
+  const btnSlopeUp = modal.querySelector("#btn-slope-up") as HTMLButtonElement | null;
+  const btnSlopeDown = modal.querySelector("#btn-slope-down") as HTMLButtonElement | null;
+
+  targetHeightInput.removeAttribute("min");
 
   const curveOptionsRow = modal.querySelector("#curve-options-row") as HTMLElement;
   const curveAngleContainer = modal.querySelector("#curve-angle-container") as HTMLElement;
@@ -143,18 +229,99 @@ export function openRampGeneratorDialog(options: RampGeneratorDialogOptions): vo
   const statusTitle = modal.querySelector("#status-title") as HTMLElement;
   const statusDesc = modal.querySelector("#status-desc") as HTMLElement;
 
-  const closeModal = () => modal.remove();
-  closeBtn.addEventListener("click", closeModal);
-  cancelBtn.addEventListener("click", closeModal);
-
   // Esc closes modal
   const handleKeyDown = (e: KeyboardEvent) => {
-    if (e.key === "Escape") {
-      closeModal();
-      window.removeEventListener("keydown", handleKeyDown);
+    if (e.key === "Escape") closeModal();
+  };
+  const closeModal = () => {
+    window.removeEventListener("keydown", handleKeyDown);
+    modal.remove();
+  };
+  closeBtn.addEventListener("click", closeModal);
+  cancelBtn.addEventListener("click", closeModal);
+  window.addEventListener("keydown", handleKeyDown);
+
+  /** Gemeinsame Generator-Parameter für den aktuell gewählten Startpunkt. */
+  const buildParams = (tH: number, layerId: string, layerList: Layer[]) => ({
+    anchorPiece: startPiece,
+    connectorIndex: startConnIdx,
+    targetHeightMm: tH,
+    targetLayerId: layerId,
+    rampShape: currentShape,
+    curveDirection: currentDirection,
+    curveAngleDeg: currentCurveAngle,
+    selectedCurveCatalogId: currentCurveId,
+    catalog,
+    layers: layerList,
+    allPieces: layout.pieces,
+    targetGradientPercent: currentGradient,
+  });
+
+  const syncSlopeButtons = (tH: number): void => {
+    const isDown = tH < currentHeight - 0.05;
+    if (btnSlopeUp && btnSlopeDown) {
+      btnSlopeUp.classList.toggle("active", !isDown);
+      btnSlopeDown.classList.toggle("active", isDown);
     }
   };
-  window.addEventListener("keydown", handleKeyDown);
+
+  const syncLayerSelectFromHeight = (tH: number): void => {
+    syncSlopeButtons(tH);
+    const matchingLayer = layers.find((l) => Math.abs((l.heightMm ?? 0) - tH) < 0.5 && l.id !== currentLayerId);
+    if (matchingLayer) {
+      targetLayerSelect.value = matchingLayer.id;
+      return;
+    }
+    if (tH < currentHeight - 0.1) {
+      const selLayer = layers.find((l) => l.id === targetLayerSelect.value);
+      if (targetLayerSelect.value === "__create_above__" || (selLayer && (selLayer.heightMm ?? 0) >= currentHeight - 0.1)) {
+        targetLayerSelect.value = "__create_below__";
+      }
+    } else if (tH > currentHeight + 0.1) {
+      const selLayer = layers.find((l) => l.id === targetLayerSelect.value);
+      if (targetLayerSelect.value === "__create_below__" || (selLayer && (selLayer.heightMm ?? 0) <= currentHeight + 0.1)) {
+        targetLayerSelect.value = "__create_above__";
+      }
+    }
+  };
+
+  const calcRamp = (tH: number) => generateRampPieces(buildParams(tH, currentLayerId, layers));
+
+  /** Zusammenfassung + Zielebene an den gewählten Startpunkt anpassen. */
+  function applyStartPoint(resetTarget: boolean): void {
+    const opt = startOptions[startIdx]!;
+    startPiece = opt.piece;
+    startConnIdx = opt.connIdx;
+    currentHeight = opt.heightMm;
+    currentLayerId = startPiece.layerId || layout.activeLayerId || layers[0]!.id;
+    currentLayer = layers.find((l) => l.id === currentLayerId) || layers[0]!;
+
+    const openCount = getOpenConnectors(startPiece, layout.pieces, 8.0, layers).length;
+    stripTrack.textContent = `#${startPiece.catalogId}`;
+    stripLayer.textContent = `${cleanLayerName(currentLayer.name)} (${Math.round(currentHeight)} mm)`;
+    stripOpen.textContent = String(openCount);
+    startCount.textContent = isDe
+      ? `${startOptions.length} Startpunkte verfügbar`
+      : `${startOptions.length} start points available`;
+    startHint.textContent = isDe
+      ? `Ebene: ${cleanLayerName(layerName(startPiece.layerId))} · Starthöhe ${Math.round(currentHeight)} mm · ` +
+        `Richtung ${Math.round(startPiece.connectors[startConnIdx]!.angle)}°`
+      : `Layer: ${cleanLayerName(layerName(startPiece.layerId))} · Start height ${Math.round(currentHeight)} mm · ` +
+        `Heading ${Math.round(startPiece.connectors[startConnIdx]!.angle)}°`;
+
+    if (resetTarget) {
+      const pre = computeLayerPreselect();
+      targetLayerSelect.innerHTML = buildLayerOptions(pre.id);
+      targetHeightInput.value = String(Math.round(pre.height));
+      syncSlopeButtons(pre.height);
+    }
+  }
+
+  startSelect.addEventListener("change", () => {
+    startIdx = parseInt(startSelect.value, 10) || 0;
+    applyStartPoint(true);
+    updateLiveCalculation();
+  });
 
   // Shape switcher
   modal.querySelectorAll<HTMLElement>(".ramp-gen-seg-item").forEach((item) => {
@@ -217,10 +384,21 @@ export function openRampGeneratorDialog(options: RampGeneratorDialogOptions): vo
   if (gradInput) {
     gradInput.addEventListener("input", () => {
       const val = parseFloat(gradInput.value);
-      if (!isNaN(val) && val >= 0.5 && val <= 15) {
-        currentGradient = val;
+      const absVal = Math.abs(val);
+      if (!isNaN(absVal) && absVal >= 0.5 && absVal <= 15) {
+        currentGradient = absVal;
+        if (val < 0) {
+          const parsedH = parseFloat(targetHeightInput.value);
+          const curTH = isNaN(parsedH) ? currentHeight + minClearance : parsedH;
+          if (curTH > currentHeight) {
+            const absDelta = Math.abs(curTH - currentHeight) || minClearance;
+            const newTH = Math.round((currentHeight - absDelta) * 10) / 10;
+            targetHeightInput.value = String(newTH);
+            syncLayerSelectFromHeight(newTH);
+          }
+        }
         modal.querySelectorAll<HTMLButtonElement>("button[data-grad]").forEach((b) => {
-          if (Math.abs(parseFloat(b.dataset.grad || "0") - val) < 0.05) {
+          if (Math.abs(parseFloat(b.dataset.grad || "0") - absVal) < 0.05) {
             b.classList.add("active");
           } else {
             b.classList.remove("active");
@@ -231,41 +409,62 @@ export function openRampGeneratorDialog(options: RampGeneratorDialogOptions): vo
     });
   }
 
+  // Slope direction toggle (↑ Steigung / ↓ Gefälle)
+  if (btnSlopeUp && btnSlopeDown) {
+    btnSlopeUp.addEventListener("click", () => {
+      const parsed = parseFloat(targetHeightInput.value);
+      const curTH = isNaN(parsed) ? currentHeight : parsed;
+      const absDelta = Math.abs(curTH - currentHeight) || minClearance;
+      const newTH = Math.round((currentHeight + absDelta) * 10) / 10;
+      targetHeightInput.value = String(newTH);
+      syncLayerSelectFromHeight(newTH);
+      updateLiveCalculation();
+    });
+    btnSlopeDown.addEventListener("click", () => {
+      const parsed = parseFloat(targetHeightInput.value);
+      const curTH = isNaN(parsed) ? currentHeight : parsed;
+      const absDelta = Math.abs(curTH - currentHeight) || minClearance;
+      const newTH = Math.round((currentHeight - absDelta) * 10) / 10;
+      targetHeightInput.value = String(newTH);
+      syncLayerSelectFromHeight(newTH);
+      updateLiveCalculation();
+    });
+  }
+
   // Target layer change
   targetLayerSelect.addEventListener("change", () => {
     const val = targetLayerSelect.value;
     if (val === "__create_above__") {
-      targetHeightInput.value = String(currentHeight + minClearance);
+      targetHeightInput.value = String(Math.round(currentHeight + minClearance));
     } else if (val === "__create_below__") {
-      targetHeightInput.value = String(currentHeight - minClearance);
+      targetHeightInput.value = String(Math.round(currentHeight - minClearance));
     } else {
       const lay = layers.find((l) => l.id === val);
       if (lay) {
         targetHeightInput.value = String(lay.heightMm ?? 0);
       }
     }
+    const parsed = parseFloat(targetHeightInput.value);
+    syncSlopeButtons(isNaN(parsed) ? 0 : parsed);
     updateLiveCalculation();
   });
 
-  targetHeightInput.addEventListener("input", updateLiveCalculation);
-
-  let latestResult = generateRampPieces({
-    anchorPiece,
-    targetHeightMm,
-    targetLayerId: currentLayerId,
-    rampShape: currentShape,
-    curveDirection: currentDirection,
-    curveAngleDeg: currentCurveAngle,
-    selectedCurveCatalogId: currentCurveId,
-    catalog,
-    layers,
-    allPieces: layout.pieces,
-    targetGradientPercent: currentGradient,
+  targetHeightInput.addEventListener("input", () => {
+    const parsed = parseFloat(targetHeightInput.value);
+    if (!isNaN(parsed)) {
+      syncLayerSelectFromHeight(parsed);
+    }
+    updateLiveCalculation();
   });
 
+  let latestResult = calcRamp(targetHeightMm);
+
   function updateLiveCalculation(): void {
-    const tH = parseFloat(targetHeightInput.value) || 0;
-    const deltaH = Math.abs(tH - currentHeight);
+    const parsed = parseFloat(targetHeightInput.value);
+    const tH = isNaN(parsed) ? 0 : parsed;
+    syncSlopeButtons(tH);
+    const signedDelta = Math.round((tH - currentHeight) * 10) / 10;
+    const deltaH = Math.abs(signedDelta);
 
     const selRadiusOpt = availableRadii.find((r) => r.catalogId === currentCurveId);
     if (radiusCircumHint) {
@@ -277,19 +476,7 @@ export function openRampGeneratorDialog(options: RampGeneratorDialogOptions): vo
       }
     }
 
-    latestResult = generateRampPieces({
-      anchorPiece,
-      targetHeightMm: tH,
-      targetLayerId: currentLayerId,
-      rampShape: currentShape,
-      curveDirection: currentDirection,
-      curveAngleDeg: currentCurveAngle,
-      selectedCurveCatalogId: currentCurveId,
-      catalog,
-      layers,
-      allPieces: layout.pieces,
-      targetGradientPercent: currentGradient,
-    });
+    latestResult = calcRamp(tH);
 
     if (!latestResult.success) {
       statusCard.className = "ramp-status-card danger";
@@ -308,7 +495,8 @@ export function openRampGeneratorDialog(options: RampGeneratorDialogOptions): vo
     createBtn.disabled = false;
     const count = latestResult.pieces.length;
     const lenCm = (latestResult.totalLengthMm / 10).toFixed(1);
-    const grad = latestResult.gradientPercent;
+    const grad = Math.abs(latestResult.gradientPercent);
+    const dirIcon = signedDelta < 0 ? "↘" : "↗";
 
     let turnsText = "";
     if (currentShape === "helix") {
@@ -321,13 +509,13 @@ export function openRampGeneratorDialog(options: RampGeneratorDialogOptions): vo
 
     if (grad <= 3.0) {
       statusCard.className = "ramp-status-card ok";
-      statusTitle.textContent = `✓ ${isDe ? "Sichere Steigung" : "Safe gradient"}: ${grad.toFixed(1)}% (${count} ${isDe ? "Gleise" : "tracks"}${turnsText}, ${lenCm} cm)`;
+      statusTitle.textContent = `✓ ${dirIcon} ${isDe ? "Sichere Steigung" : "Safe gradient"}: ${grad.toFixed(1)}% (${count} ${isDe ? "Gleise" : "tracks"}${turnsText}, ${lenCm} cm)`;
     } else if (grad <= 4.5) {
       statusCard.className = "ramp-status-card warn";
-      statusTitle.textContent = `⚠️ ${isDe ? "Mäßige Steigung" : "Moderate gradient"}: ${grad.toFixed(1)}% (${count} ${isDe ? "Gleise" : "tracks"}${turnsText}, ${lenCm} cm)`;
+      statusTitle.textContent = `⚠️ ${dirIcon} ${isDe ? "Mäßige Steigung" : "Moderate gradient"}: ${grad.toFixed(1)}% (${count} ${isDe ? "Gleise" : "tracks"}${turnsText}, ${lenCm} cm)`;
     } else {
       statusCard.className = "ramp-status-card danger";
-      statusTitle.textContent = `⚠️ ${isDe ? "Steile Rampe" : "Steep ramp"}: ${grad.toFixed(1)}% (${count} ${isDe ? "Gleise" : "tracks"}${turnsText}, ${lenCm} cm)`;
+      statusTitle.textContent = `⚠️ ${dirIcon} ${isDe ? "Steile Rampe" : "Steep ramp"}: ${grad.toFixed(1)}% (${count} ${isDe ? "Gleise" : "tracks"}${turnsText}, ${lenCm} cm)`;
     }
 
     let warningText = "";
@@ -350,24 +538,28 @@ export function openRampGeneratorDialog(options: RampGeneratorDialogOptions): vo
       }
     }
 
-    statusDesc.textContent = `${isDe ? "Verlauf" : "Profile"}: ${currentHeight} mm ➔ ${tH} mm (Δ ${deltaH} mm)${warningText}`;
+    statusDesc.textContent = `${isDe ? "Verlauf" : "Profile"}: ${Math.round(currentHeight * 10) / 10} mm ➔ ${tH} mm (Δ ${signedDelta > 0 ? "+" : ""}${signedDelta} mm)${warningText}`;
   }
 
+  applyStartPoint(false);
   updateLiveCalculation();
 
   createBtn.addEventListener("click", () => {
     if (!latestResult.success || latestResult.pieces.length === 0) return;
 
-    const tH = parseFloat(targetHeightInput.value) || 0;
+    const parsed = parseFloat(targetHeightInput.value);
+    const tH = isNaN(parsed) ? 0 : parsed;
+    syncLayerSelectFromHeight(tH);
     const layerSelectVal = targetLayerSelect.value;
     let targetLayer: Layer;
     let newCreatedLayer: Layer | undefined;
 
     if (layerSelectVal === "__create_above__" || layerSelectVal === "__create_below__") {
-      const isAbove = layerSelectVal === "__create_above__";
+      const isAbove = tH >= currentHeight;
       const newLayerId = `layer-${Date.now()}`;
+      const sign = tH > 0 ? "+" : "";
       const defaultName = isAbove
-        ? (isDe ? `Bergebene (+${Math.round(tH)} mm)` : `Mountain Level (+${Math.round(tH)} mm)`)
+        ? (isDe ? `Bergebene (${sign}${Math.round(tH)} mm)` : `Mountain Level (${sign}${Math.round(tH)} mm)`)
         : (isDe ? `Schattenbahnhof (${Math.round(tH)} mm)` : `Staging Yard (${Math.round(tH)} mm)`);
 
       newCreatedLayer = {
@@ -382,20 +574,8 @@ export function openRampGeneratorDialog(options: RampGeneratorDialogOptions): vo
       targetLayer = layers.find((l) => l.id === layerSelectVal) || currentLayer;
     }
 
-    // Re-run with confirmed targetLayerId
-    const finalResult = generateRampPieces({
-      anchorPiece,
-      targetHeightMm: tH,
-      targetLayerId: targetLayer.id,
-      rampShape: currentShape,
-      curveDirection: currentDirection,
-      curveAngleDeg: currentCurveAngle,
-      selectedCurveCatalogId: currentCurveId,
-      catalog,
-      layers: newCreatedLayer ? [...layers, newCreatedLayer] : layers,
-      allPieces: layout.pieces,
-      targetGradientPercent: currentGradient,
-    });
+    const finalLayers: Layer[] = newCreatedLayer ? [...layers, newCreatedLayer] : layers;
+    const finalResult = generateRampPieces(buildParams(tH, targetLayer.id, finalLayers));
 
     closeModal();
     if (finalResult.success && finalResult.pieces.length > 0) {

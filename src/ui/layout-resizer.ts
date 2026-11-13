@@ -6,8 +6,8 @@ export interface LayoutResizerOptions {
 }
 
 export const DEFAULT_SIDEBAR_WIDTH = 280;
-export const DEFAULT_TOOLBAR_HEIGHT = 68;
-export const DEFAULT_TOOLBAR_HEIGHT_MAC = 42;
+export const DEFAULT_TOOLBAR_HEIGHT = 76;
+export const DEFAULT_TOOLBAR_HEIGHT_MAC = 48;
 export const DEFAULT_RIGHT_SIDEBAR_WIDTH = 290;
 
 export const MIN_SIDEBAR_WIDTH = 180;
@@ -70,8 +70,10 @@ export class LayoutResizer {
       this.appEl?.classList?.contains("has-system-menus")
     );
     const savedToolbarHeight = parseFloat(localStorage.getItem("railbench_toolbar_height") ?? "");
-    if (!isMac && savedToolbarHeight === 42) {
+    if (!isMac && (savedToolbarHeight === 42 || savedToolbarHeight === 68)) {
       this.setToolbarHeight(DEFAULT_TOOLBAR_HEIGHT, false);
+    } else if (isMac && savedToolbarHeight === 42) {
+      this.setToolbarHeight(DEFAULT_TOOLBAR_HEIGHT_MAC, false);
     } else if (!isNaN(savedToolbarHeight) && savedToolbarHeight >= MIN_TOOLBAR_HEIGHT) {
       this.setToolbarHeight(savedToolbarHeight, false);
     }

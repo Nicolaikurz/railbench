@@ -25,6 +25,7 @@ export interface ElectronAPI {
   ) => Promise<{ success: boolean; filePath: string } | null>;
   onMenuAction: (callback: (action: string) => void) => () => void;
   setWindowTitle: (title: string) => void;
+  setMenuLanguage?: (lang: string) => void;
   closeWindow?: () => void;
   startCollabServer: (options?: { port?: number; password?: string; defaultRoom?: string }) => Promise<{
     running: boolean;
@@ -97,6 +98,7 @@ const api: ElectronAPI = {
       ipcRenderer.removeListener("menu:action", handler);
     };
   },
+  setMenuLanguage: (lang: string) => ipcRenderer.send("menu:setLanguage", lang),
   setWindowTitle: (title: string) => {
     ipcRenderer.send("window:setTitle", title);
   },

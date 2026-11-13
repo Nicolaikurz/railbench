@@ -5,11 +5,23 @@
   </div>
 
   <div class="ramp-gen-body">
+    <!-- Start Point Selection -->
+    <div class="ramp-gen-field">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <label>{{START_POINT_LABEL}}</label>
+        <span style="font-size: 11px; color: #94a3b8;" id="ramp-start-count"></span>
+      </div>
+      <select id="ramp-start-point" class="ramp-gen-select">
+        {{START_OPTIONS}}
+      </select>
+      <div id="ramp-start-hint" style="font-size: 11px; color: #94a3b8;"></div>
+    </div>
+
     <!-- Start Piece Summary -->
     <div class="ramp-gen-strip">
-      <span>{{START_TRACK_LABEL}}: <strong>#{{ANCHOR_PIECE_ID}}</strong></span>
-      <span>{{LAYER_LABEL}}: <strong>{{CURRENT_LAYER_NAME}} ({{CURRENT_HEIGHT}} mm)</strong></span>
-      <span>{{OPEN_ENDS_LABEL}}: <strong>{{OPEN_CONNS_COUNT}}</strong></span>
+      <span>{{START_TRACK_LABEL}}: <strong id="ramp-strip-track"></strong></span>
+      <span>{{LAYER_LABEL}}: <strong id="ramp-strip-layer"></strong></span>
+      <span>{{OPEN_ENDS_LABEL}}: <strong id="ramp-strip-open"></strong></span>
     </div>
 
     <!-- Target Layer & Height -->
@@ -27,7 +39,13 @@
           {{CLEARANCE_HINT}}
         </span>
       </div>
-      <input type="number" id="ramp-target-height-input" value="{{TARGET_HEIGHT_MM}}" step="1" class="ramp-gen-input" />
+      <div style="display: flex; gap: 6px; align-items: center;">
+        <input type="number" id="ramp-target-height-input" value="{{TARGET_HEIGHT_MM}}" step="1" class="ramp-gen-input" style="flex: 1;" />
+        <div style="display: flex; gap: 4px; flex-shrink: 0;">
+          <button type="button" class="ramp-btn-pill active" id="btn-slope-up" title="{{SLOPE_UP_TITLE}}">↑ {{SLOPE_UP_LABEL}}</button>
+          <button type="button" class="ramp-btn-pill" id="btn-slope-down" title="{{SLOPE_DOWN_TITLE}}">↓ {{SLOPE_DOWN_LABEL}}</button>
+        </div>
+      </div>
     </div>
 
     <!-- Shape Selector (Straight / Curved / Helix) -->
@@ -72,7 +90,7 @@
           <button type="button" class="ramp-btn-pill active" data-grad="2.8">2.8%</button>
           <button type="button" class="ramp-btn-pill" data-grad="3.5">3.5%</button>
           <button type="button" class="ramp-btn-pill" data-grad="4.0">4.0%</button>
-          <input type="number" id="ramp-custom-grad-input" value="2.8" min="0.5" max="10.0" step="0.1" style="width: 48px; background: #141b2a; border: 1px solid #334155; color: #f8fafc; border-radius: 6px; padding: 4px 6px; font-size: 12px; text-align: center;" />
+          <input type="number" id="ramp-custom-grad-input" value="2.8" min="-15.0" max="15.0" step="0.1" style="width: 52px; background: #141b2a; border: 1px solid #334155; color: #f8fafc; border-radius: 6px; padding: 4px 6px; font-size: 12px; text-align: center;" />
           <span style="font-size: 11px; color: #94a3b8;">%</span>
         </div>
       </div>

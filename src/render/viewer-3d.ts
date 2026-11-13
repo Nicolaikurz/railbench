@@ -892,6 +892,7 @@ export class Viewer3D {
           model,
           layout.pieces,
           (id) => entryMap?.get(id) ?? catalogRegistry.findEntry(id),
+          layout.layers,
         );
       }
       const mesh = createBuiltinModel3DMesh(model.builtinId || "station", model, "H0", extraData);
@@ -1062,9 +1063,11 @@ export class Viewer3D {
       }
 
       for (const piece of layout.pieces) {
-        const startElev = piece.elevation?.start ?? 0;
-        const endElev = piece.elevation?.end ?? 0;
-        if (startElev > 2 || endElev > 2) continue;
+        const pieceLayer = layout.layers?.find((l) => l.id === piece.layerId);
+        const baseElev = pieceLayer?.heightMm ?? 0;
+        const startElev = baseElev + (piece.elevation?.start ?? 0);
+        const endElev = baseElev + (piece.elevation?.end ?? 0);
+        if (Math.abs(startElev) > 2 || Math.abs(endElev) > 2) continue;
 
         const entry = entryMap.get(piece.catalogId) ?? catalogRegistry.findEntry(piece.catalogId);
         if (!entry) continue;

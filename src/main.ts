@@ -986,7 +986,9 @@ async function main() {
   }
 
   // Sprachänderungen dynamisch übernehmen
-  onLanguageChange(() => {
+  window.electronAPI?.setMenuLanguage?.(getLanguage());
+  onLanguageChange((lang) => {
+    window.electronAPI?.setMenuLanguage?.(lang);
     createToolbar(toolbarHost, toolbarEvents);
   sidebar?.render();
     updateToolbarState({

@@ -17,6 +17,26 @@ export interface RenderOptions {
   colorMode?: ColorMode;
   layerColor?: string;
   layerHeightMm?: number;
+  /** True, wenn das Gleis auf einer anderen als der aktuell ausgewählten Ebene liegt */
+  isInactiveLayer?: boolean;
+  /** Minimale Höhe (mm) aller sichtbaren Gleise im Layout für relativen Überführungs-Schatten */
+  minLayoutElev?: number;
+}
+
+/**
+ * Reduziert die Farbsättigung eines 24-Bit-RGB-Farbwerts (0xRRGGBB) Richtung Grauwert
+ * (für Gleise auf nicht-aktiven Ebenen).
+ */
+export function desaturateColor(hex: number, factor = 0.72): number {
+  const r = (hex >> 16) & 0xff;
+  const g = (hex >> 8) & 0xff;
+  const b = hex & 0xff;
+  const luma = 0.299 * r + 0.587 * g + 0.114 * b;
+  const target = luma * 0.85 + 24 * 0.15;
+  const nr = Math.round(Math.max(0, Math.min(255, r + (target - r) * factor)));
+  const ng = Math.round(Math.max(0, Math.min(255, g + (target - g) * factor)));
+  const nb = Math.round(Math.max(0, Math.min(255, b + (target - b) * factor)));
+  return (nr << 16) | (ng << 8) | nb;
 }
 
 /**
@@ -58,6 +78,7 @@ export function createTrackGraphics(
   }
 
   const bpColor = getTrackBlueprintColor(piece.catalogId);
+  const isInactiveLayer = Boolean(options.isInactiveLayer && !isSelected);
 
   let ballastColor = 0x8a8479;
   let tieColor = 0x3d271d;
@@ -91,6 +112,24 @@ export function createTrackGraphics(
     activeBpColor = bpColor;
   }
 
+  // Nicht-aktive Ebenen entsättigen, damit die ausgewählte Ebene visuell klar hervortritt
+  if (isInactiveLayer) {
+    ballastColor = desaturateColor(ballastColor, 0.72);
+    tieColor = desaturateColor(tieColor, 0.72);
+    railColor = desaturateColor(railColor, 0.72);
+    if (activeBpColor) {
+      const desatHex = desaturateColor(activeBpColor.hex, 0.72);
+      const desatCss = `#${desatHex.toString(16).padStart(6, "0")}`;
+      activeBpColor = {
+        ...activeBpColor,
+        hex: desatHex,
+        css: desatCss,
+        badgeBg: desatCss,
+      };
+    }
+    container.alpha = 0.58;
+  }
+
   // Spurweite & Dimensionen (H0 = 16.5mm, TT = 12mm, N = 9mm, etc.)
   const gauge = entry.gauge ?? 16.5;
   const gaugeHalf = gauge / 2;
@@ -105,7 +144,9 @@ export function createTrackGraphics(
   const startElev = baseElev + (piece.elevation?.start ?? 0);
   const endElev = baseElev + (piece.elevation?.end ?? 0);
   const maxElev = Math.max(startElev, endElev);
-  const isElevated = maxElev >= 10;
+  const relAboveLowest = maxElev - (options.minLayoutElev ?? 0);
+  const isElevated = maxElev >= 10 || relAboveLowest >= 10;
+  const shadowElev = Math.max(maxElev, relAboveLowest * 0.65);
   const heightDiff = endElev - startElev;
   const isRamp = Math.abs(heightDiff) >= 0.5;
   const pieceLength = getPieceRunningLength(entry);
@@ -115,7 +156,7 @@ export function createTrackGraphics(
   if (entry.isRoad) {
     const roadWidth = entry.roadWidth ?? 60;
     if (isElevated) {
-      drawRoadElevationShadow(g, entry, roadWidth, maxElev);
+      drawRoadElevationShadow(g, entry, roadWidth, shadowElev);
     }
     if (isSelected) {
       drawRoadSelectionContour(g, entry, roadWidth + 8);
@@ -147,9 +188,9 @@ export function createTrackGraphics(
     return container;
   }
 
-  // --- ELEVATION TIEFEN-SCHATTEN (Wenn Gleis über Grundplatte angehoben ist) ---
+  // --- ELEVATION TIEFEN-SCHATTEN (Wenn Gleis über Grundplatte oder tieferen Gleisen liegt) ---
   if (isElevated) {
-    drawElevationShadow(g, entry, ballastWidth, maxElev);
+    drawElevationShadow(g, entry, ballastWidth, shadowElev);
   }
 
   // --- SELECTION GLOW (Präzise Kontur um den gesamten Gleiskörper) ---

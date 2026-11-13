@@ -1,6 +1,6 @@
 /* --- TOOLBAR --- */
 :root, #app {
-  --toolbar-height: 68px;
+  --toolbar-height: 76px;
   --tb-btn-height: 28px;
   --tb-icon-size: 15px;
   --tb-btn-font-size: 11.5px;
@@ -11,7 +11,7 @@
 body.has-system-menus #app,
 #app.has-system-menus,
 :root.has-system-menus {
-  --toolbar-height: 42px;
+  --toolbar-height: 48px;
 }
 
 #toolbar {
@@ -26,7 +26,7 @@ body.has-system-menus #app,
   z-index: 100;
   overflow: visible;
   position: relative;
-  height: var(--toolbar-height, 68px);
+  height: var(--toolbar-height, 76px);
   min-width: 0;
   width: 100%;
   box-sizing: border-box;
@@ -36,8 +36,8 @@ body.has-system-menus #app,
 body.has-system-menus #toolbar,
 #app.has-system-menus #toolbar {
   padding: 0 10px;
-  height: var(--toolbar-height, 42px);
-  min-height: 34px;
+  height: var(--toolbar-height, 48px);
+  min-height: 38px;
 }
 
 #toolbar::-webkit-scrollbar {
@@ -80,7 +80,7 @@ body.has-system-menus .toolbar-container,
   justify-content: space-between;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   padding-bottom: 2px;
-  height: 26px;
+  height: 34px;
 }
 
 body.has-system-menus .toolbar-menubar-row,
@@ -122,11 +122,11 @@ body.has-system-menus .toolbar-menubar-row,
   background: transparent;
   border: 1px solid transparent;
   color: var(--toolbar-text, #cbd5e1);
-  padding: 1px 7px;
-  font-size: 11.5px;
+  padding: 2px 9px;
+  font-size: 12px;
   font-weight: 500;
   border-radius: 4px;
-  height: 23px;
+  height: 28px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;

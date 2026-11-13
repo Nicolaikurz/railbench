@@ -174,6 +174,7 @@ export function buildMountainCard(sidebar: Sidebar, ctx: BoardCtx): HTMLElement 
     currentMountain,
     sidebar.layout.pieces || [],
     (id) => sidebar.catalog?.entries?.find((e) => e.id === id) ?? catalogRegistry.findEntry(id),
+    sidebar.layout.layers,
   );
 
   const statusBox = el("div", {

@@ -3,6 +3,7 @@ import type { Catalog, CatalogEntry } from "@/catalog/catalog";
 import { getBaseboardBounds, getBaseboardPolygon, isPointInsideBaseboard } from "@/core/layout";
 import { deg2rad, dist, isCurvedTrackEntry, isStraightTrackEntry, normAngle, transformPoint } from "@/core/geometry";
 import { getMinClearanceHeightForScale } from "@/core/ramp-generator";
+import { getPieceConnectorHeight } from "@/core/snapping";
 
 export interface TrackCutoutPolygon {
   points: Array<{ x: number; y: number }>;
@@ -48,8 +49,14 @@ export function isPiecePassingThroughTable(
 
   // Track penetrates below deck top surface
   const goesBelow = minElev < deckElevation - 0.1;
-  // Track or train on it intersects the deck collision volume (deckElevation down to deckElevation - (clearance + deckThickness))
-  const inCollisionZone = maxElev > deckElevation - (clearance + deckThickness);
+  // Flat underground tracks below the physical table deck (e.g. shadow station / tunnel at -80mm or -100mm)
+  // run underneath the table and must not cut open the tabletop above them.
+  const isSloped = Math.abs(maxElev - minElev) >= 0.5;
+  const intersectsDeckSlab = maxElev > deckElevation - deckThickness;
+  // Ramp clearance zone extends from deckElevation down to deckElevation - clearance
+  // (clearance already includes track bed & deck thickness per MIN_CLEARANCE_HEIGHT_BY_SCALE).
+  const inCollisionZone =
+    maxElev > deckElevation - clearance + 0.1 && (isSloped || intersectsDeckSlab);
 
   return {
     passesThrough: goesBelow && inCollisionZone,
@@ -67,17 +74,21 @@ export function getPieceCenterlinePoints(
   fromConnIdx: number,
   toConnIdx: number,
   steps = 8,
+  tStart = 0,
+  tEnd = 1,
 ): Array<{ x: number; y: number }> {
   const conns = piece.connectors || [];
   const cFrom = conns[fromConnIdx] || conns[0] || { x: piece.transform.x, y: piece.transform.y, angle: 0 };
   const cTo = conns[toConnIdx] || conns[conns.length - 1] || cFrom;
+  const t0 = Math.max(0, Math.min(1, tStart));
+  const t1 = Math.max(t0, Math.min(1, tEnd));
 
   if (!entry || isStraightTrackEntry(entry)) {
     // Linear straight segment
     const pts: Array<{ x: number; y: number }> = [];
-    const numSubsteps = Math.max(2, Math.round(dist(cFrom, cTo) / 40));
+    const numSubsteps = Math.max(2, Math.round((dist(cFrom, cTo) * Math.max(0.25, t1 - t0)) / 40));
     for (let i = 0; i <= numSubsteps; i++) {
-      const t = i / numSubsteps;
+      const t = t0 + (t1 - t0) * (i / numSubsteps);
       pts.push({
         x: cFrom.x + (cTo.x - cFrom.x) * t,
         y: cFrom.y + (cTo.y - cFrom.y) * t,
@@ -93,7 +104,7 @@ export function getPieceCenterlinePoints(
 
     const pts: Array<{ x: number; y: number }> = [];
     for (let s = 0; s <= steps; s++) {
-      const progress = s / steps;
+      const progress = t0 + (t1 - t0) * (s / steps);
       const t = isReverse ? 1 - progress : progress;
       const ang = a * t;
       const rad = deg2rad(Math.abs(ang));
@@ -106,11 +117,11 @@ export function getPieceCenterlinePoints(
   }
 
   // Turnout or other complex shape: straight chord
-  return [
-    { x: cFrom.x, y: cFrom.y },
-    { x: (cFrom.x + cTo.x) / 2, y: (cFrom.y + cTo.y) / 2 },
-    { x: cTo.x, y: cTo.y },
-  ];
+  const lerpPt = (u: number) => ({
+    x: cFrom.x + (cTo.x - cFrom.x) * u,
+    y: cFrom.y + (cTo.y - cFrom.y) * u,
+  });
+  return [lerpPt(t0), lerpPt((t0 + t1) / 2), lerpPt(t1)];
 }
 
 interface PieceEdge {
@@ -124,6 +135,7 @@ interface PieceEdge {
  */
 export function groupConnectedPieces(
   pieces: TrackPiece[],
+  layers?: Layer[],
 ): Array<Array<{ piece: TrackPiece; fromConn: number; toConn: number }>> {
   if (pieces.length === 0) return [];
 
@@ -141,9 +153,11 @@ export function groupConnectedPieces(
       const pB = pieces[j]!;
       for (let cA = 0; cA < pA.connectors.length; cA++) {
         const connA = pA.connectors[cA]!;
+        const hA = getPieceConnectorHeight(pA, cA, layers);
         for (let cB = 0; cB < pB.connectors.length; cB++) {
           const connB = pB.connectors[cB]!;
-          if (dist(connA, connB) <= 8.0) {
+          const hB = getPieceConnectorHeight(pB, cB, layers);
+          if (dist(connA, connB) <= 8.0 && Math.abs(hA - hB) <= 5.0) {
             adj.get(pA.id)!.push({ neighborId: pB.id, myConn: cA, neighborConn: cB });
             adj.get(pB.id)!.push({ neighborId: pA.id, myConn: cB, neighborConn: cA });
           }
@@ -292,7 +306,10 @@ export function computeTableTrackCutouts(
   if (qualifyingPieces.length === 0) return [];
 
   // 2. Group into continuous chains
-  const chains = groupConnectedPieces(qualifyingPieces);
+  const clearance = getMinClearanceHeightForScale(layout.scale || catalog.scale);
+  const minCutElev = deckElevation - clearance;
+  const maxCutElev = deckElevation;
+  const chains = groupConnectedPieces(qualifyingPieces, layout.layers);
   const cutouts: TrackCutoutPolygon[] = [];
 
   for (const chain of chains) {
@@ -310,8 +327,8 @@ export function computeTableTrackCutouts(
       const piece = item.piece;
       pieceIds.push(piece.id);
 
-      const pMinH = minElevMap.get(piece.id) ?? 0;
-      const pMaxH = maxElevMap.get(piece.id) ?? 0;
+      const pMinH = Math.max(minCutElev, minElevMap.get(piece.id) ?? 0);
+      const pMaxH = Math.min(maxCutElev, maxElevMap.get(piece.id) ?? 0);
       if (pMinH < overallMinElev) overallMinElev = pMinH;
       if (pMaxH > overallMaxElev) overallMaxElev = pMaxH;
 
@@ -319,7 +336,26 @@ export function computeTableTrackCutouts(
       const pW = getTrackClearanceWidth(entry);
       if (pW > maxCorridorWidth) maxCorridorWidth = pW;
 
-      const pCenterPts = getPieceCenterlinePoints(piece, entry, item.fromConn, item.toConn);
+      // Clip segment to the breakthrough elevation band [deckElevation - clearance, deckElevation]
+      const layer = layout.layers?.find((l) => l.id === piece.layerId);
+      const baseH = layer?.heightMm ?? 0;
+      const h0 = baseH + (piece.elevation?.start ?? 0);
+      const h1 = baseH + (piece.elevation?.end ?? 0);
+      const hFrom = item.fromConn === 0 ? h0 : h1;
+      const hTo = item.toConn === 0 ? h0 : h1;
+      let tStart = 0;
+      let tEnd = 1;
+      const dH = hTo - hFrom;
+      if (Math.abs(dH) >= 0.5) {
+        const tTop = (maxCutElev - hFrom) / dH;
+        const tBot = (minCutElev - hFrom) / dH;
+        tStart = Math.max(0, Math.min(tTop, tBot));
+        tEnd = Math.min(1, Math.max(tTop, tBot));
+      }
+
+      if (tEnd <= tStart + 0.01) continue;
+
+      const pCenterPts = getPieceCenterlinePoints(piece, entry, item.fromConn, item.toConn, 8, tStart, tEnd);
       for (let k = 0; k < pCenterPts.length; k++) {
         const pt = pCenterPts[k]!;
         if (

@@ -76,13 +76,19 @@ export function getOpenConnectors(
   piece: TrackPiece,
   allPieces: TrackPiece[],
   distTolerance = 8.0,
+  layers?: Layer[],
 ): number[] {
   const openIndices: number[] = [];
   for (let i = 0; i < piece.connectors.length; i++) {
     const conn = piece.connectors[i]!;
+    const h1 = getPieceConnectorHeight(piece, i, layers);
     const isConnected = allPieces.some((other) => {
       if (other.id === piece.id) return false;
-      return other.connectors.some((c) => dist(conn, c) <= distTolerance);
+      return other.connectors.some((c, oi) => {
+        if (dist(conn, c) > distTolerance) return false;
+        const h2 = getPieceConnectorHeight(other, oi, layers);
+        return Math.abs(h1 - h2) <= 2.0;
+      });
     });
     if (!isConnected) {
       openIndices.push(i);
@@ -202,12 +208,13 @@ export function generateRampPieces(params: RampGeneratorParams): GeneratedRampRe
 
   const effectiveShape: RampShapeType = shape || rampShape || "straight";
   const effectiveDirection: "left" | "right" = direction || curveDirection || "left";
-  const effectiveGradient = maxGradientPercent || targetGradientPercent || 2.8;
+  const rawGradient = maxGradientPercent ?? targetGradientPercent ?? 2.8;
+  const effectiveGradient = Math.abs(rawGradient) || 2.8;
   const effectiveConnIdx = connectorIndex !== undefined ? connectorIndex : anchorConnectorIndex;
   const pieceList = allPieces && allPieces.length > 0 ? allPieces : [anchorPiece];
 
   // 1. Identify open connector
-  const openConns = getOpenConnectors(anchorPiece, pieceList);
+  const openConns = getOpenConnectors(anchorPiece, pieceList, 8.0, layers);
   if (openConns.length === 0) {
     return {
       success: false,
@@ -269,7 +276,7 @@ export function generateRampPieces(params: RampGeneratorParams): GeneratedRampRe
   const defaultCurve = resolvedCurve || straightEntry!;
 
   // 3. Calculate sequence of pieces based on ramp shape and gradient
-  const maxGrad = Math.max(1.0, effectiveGradient);
+  const maxGrad = Math.max(0.5, effectiveGradient);
   const minReqLength = (Math.abs(totalRise) / (maxGrad / 100));
 
   interface PieceSpec {

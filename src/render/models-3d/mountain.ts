@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import type { Model3D, TrackPiece } from "@/core/types";
+import type { Layer, Model3D, TrackPiece } from "@/core/types";
 import type { CatalogEntry } from "@/catalog/catalog";
 import { getPieceCenterlinePoints, groupConnectedPieces } from "@/core/table-cutout";
 import { deg2rad } from "@/core/geometry";
@@ -40,12 +40,27 @@ const ELLIPSE_TOLERANCE = 1.05;
 const APPROACH_SLOPE = 30; // Böschungsbreite des Einschnitts vor dem Portal
 const PORTAL_LIFT = 1.5; // Portale + Röhre leicht anheben gegen Z-Fighting mit Gelände/Tischplatte
 
+function mountainNoise(nx: number, nz: number): number {
+  const s1 = Math.sin(nx * 3.1415 + 0.5) * Math.cos(nz * 3.1415 + 0.3);
+  const s2 = Math.sin(nx * 6.28 + nz * 4.71) * 0.35;
+  const s3 = Math.cos(nx * 9.42 - nz * 7.85) * 0.15;
+  return s1 + s2 + s3;
+}
+
+function naturalMountainHeightAt(nx: number, nz: number, height: number): number {
+  const rDist = Math.hypot(nx, nz);
+  if (rDist >= 1.0) return 0;
+  const profile = Math.cos(rDist * (Math.PI / 2)) ** 1.35;
+  return Math.max(0, height * profile * (1 + 0.3 * mountainNoise(nx, nz)));
+}
+
 /* ------------------------------------------------------------------ */
 /*  Kollisionserkennung                                                */
 /* ------------------------------------------------------------------ */
 
 /**
- * Ermittelt alle Gleise und Straßen, die durch die Grundfläche des Berges verlaufen.
+ * Ermittelt alle Gleise und Straßen, die tatsächlich durch den Bergkörper verlaufen
+ * (nicht unterhalb der Bergbasis / Tischplatte und nicht oberhalb des Berges).
  * Gleise und Straßen werden getrennt zu Trassenketten gruppiert, damit eine Kette
  * nie gemischt ist und jeweils das passende Tunnelprofil bekommt.
  */
@@ -53,6 +68,7 @@ export function findCollidingTracksForMountain(
   mountain: Model3D,
   pieces: TrackPiece[],
   findEntry: (catalogId: string) => CatalogEntry | undefined,
+  layers?: Layer[],
 ): MountainTrackCollision[] {
   const mPos = mountain.transform;
   const mRotRad = deg2rad(mPos.rotation);
@@ -61,12 +77,41 @@ export function findCollidingTracksForMountain(
 
   const halfW = mountain.width / 2;
   const halfD = mountain.depth / 2;
+  const mHeight = mountain.height ?? 220;
   const boundR = Math.max(halfW, halfD) * 1.15;
 
-  // 1. Grober Filter, getrennt nach Gleis / Straße
+  const layerMap = new Map<string, Layer>();
+  if (layers) {
+    for (const l of layers) layerMap.set(l.id, l);
+  }
+  const mountainLayer = mountain.layerId ? layerMap.get(mountain.layerId) : undefined;
+  const mountainBaseElev = (mountainLayer?.heightMm ?? 0) + (mountain.elevation ?? 0);
+
+  const getPieceRelElev = (piece: TrackPiece): { start: number; end: number; visible: boolean } => {
+    const pLayer = piece.layerId ? layerMap.get(piece.layerId) : undefined;
+    if (pLayer && pLayer.visible === false) {
+      return { start: 0, end: 0, visible: false };
+    }
+    const baseH = pLayer?.heightMm ?? 0;
+    const sWorld = baseH + (piece.elevation?.start ?? 0);
+    const eWorld = baseH + (piece.elevation?.end ?? (piece.elevation?.start ?? 0));
+    return {
+      start: sWorld - mountainBaseElev,
+      end: eWorld - mountainBaseElev,
+      visible: true,
+    };
+  };
+
+  // 1. Grober Filter, getrennt nach Gleis / Straße + Höhenfilter (nicht unter oder über dem Berg)
   const nearbyRail: TrackPiece[] = [];
   const nearbyRoad: TrackPiece[] = [];
   for (const piece of pieces) {
+    const rel = getPieceRelElev(piece);
+    if (!rel.visible) continue;
+    // Komplett unterhalb der Bergbasis (z. B. Schattenbahnhof / Untergrund) oder oberhalb des Berges ignorieren
+    if (Math.max(rel.start, rel.end) < -2) continue;
+    if (Math.min(rel.start, rel.end) > mHeight - 20) continue;
+
     const entry = findEntry(piece.catalogId);
     const maxLen = entry?.length ?? 250;
     const d = Math.hypot(piece.transform.x - mPos.x, piece.transform.y - mPos.y);
@@ -84,7 +129,7 @@ export function findCollidingTracksForMountain(
   for (const [group, isRoad] of groups) {
     if (group.length === 0) continue;
 
-    for (const chain of groupConnectedPieces(group)) {
+    for (const chain of groupConnectedPieces(group, layers)) {
       if (chain.length === 0) continue;
 
       const centerline: Array<{ x: number; y: number; elevation: number }> = [];
@@ -96,23 +141,35 @@ export function findCollidingTracksForMountain(
         const entry = findEntry(piece.catalogId);
         if (!representativeEntry && entry) representativeEntry = entry;
 
-        const startElev = piece.elevation?.start ?? 0;
-        const endElev = piece.elevation?.end ?? 0;
+        const rel = getPieceRelElev(piece);
+        const fromElev = item.fromConn === 0 ? rel.start : rel.end;
+        const toElev = item.toConn === 0 ? rel.start : rel.end;
         const pts = getPieceCenterlinePoints(piece, entry, item.fromConn, item.toConn, 10);
 
         for (let i = 0; i < pts.length; i++) {
           const pt = pts[i]!;
+          const t = pts.length > 1 ? i / (pts.length - 1) : 0;
+          const elev = fromElev + (toElev - fromElev) * t;
+          // Punkte unterhalb der Bergbasis oder über dem Berggipfel gehören nicht zum Bergtunnel
+          if (elev < -2 || elev > mHeight - 20) continue;
+
           const last = centerline[centerline.length - 1];
           if (last && Math.hypot(pt.x - last.x, pt.y - last.y) < 1.0) continue;
 
-          const t = pts.length > 1 ? i / (pts.length - 1) : 0;
           const dx = pt.x - mPos.x;
           const dy = pt.y - mPos.y;
           const lx = dx * cosR - dy * sinR;
           const lz = dx * sinR + dy * cosR;
-          if (Math.hypot(lx / halfW, lz / halfD) <= ELLIPSE_TOLERANCE) insideCount++;
+          const nx = lx / halfW;
+          const nz = lz / halfD;
+          const normR = Math.hypot(nx, nz);
+          const terrainH = naturalMountainHeightAt(nx, nz, mHeight);
+          // Nur zählen, wenn der Punkt tatsächlich im Bergkörper (unter der Bergoberfläche) liegt
+          if (normR <= ELLIPSE_TOLERANCE && elev < terrainH - 4) {
+            insideCount++;
+          }
 
-          centerline.push({ x: pt.x, y: pt.y, elevation: startElev + (endElev - startElev) * t });
+          centerline.push({ x: pt.x, y: pt.y, elevation: elev });
         }
       }
 
@@ -282,13 +339,6 @@ export function buildMountain3D(
     wy: (model?.transform.y ?? 0) + (lx * sinF + lz * cosF),
   });
 
-  function mountainNoise(nx: number, nz: number): number {
-    const s1 = Math.sin(nx * 3.1415 + 0.5) * Math.cos(nz * 3.1415 + 0.3);
-    const s2 = Math.sin(nx * 6.28 + nz * 4.71) * 0.35;
-    const s3 = Math.cos(nx * 9.42 - nz * 7.85) * 0.15;
-    return s1 + s2 + s3;
-  }
-
   // 1. Geländegitter
   const segsX = 40;
   const segsZ = 40;
@@ -305,11 +355,7 @@ export function buildMountain3D(
       const nx = (ix / segsX - 0.5) * 2;
 
       const rDist = Math.hypot(nx, nz);
-      let baseH = 0;
-      if (rDist < 1.0) {
-        const profile = Math.cos(rDist * (Math.PI / 2)) ** 1.35;
-        baseH = Math.max(0, height * profile * (1 + 0.3 * mountainNoise(nx, nz)));
-      }
+      let baseH = naturalMountainHeightAt(nx, nz, height);
 
       if (hasCollisions) {
         const { wx, wy } = toWorld(lx, lz);
@@ -319,6 +365,7 @@ export function buildMountain3D(
           const prof = profileFor(col.isRoad);
           const inner = prof.innerWidth / 2 + prof.pier; // = Breite der Portal-Stirnwand
           for (const pt of col.centerline) {
+            if (pt.elevation < -2 || pt.elevation > height - 20) continue;
             const d = Math.hypot(wx - pt.x, wy - pt.y);
 
             if (insidePortal) {
@@ -593,18 +640,25 @@ function buildTunnel(
   const halfD = mountain.depth / 2;
   const prof = profileFor(collision.isRoad);
 
-  const local: LocalPt[] = pts.map((p) => {
-    const dx = p.x - mPos.x;
-    const dy = p.y - mPos.y;
-    const lx = dx * cosR - dy * sinR;
-    const lz = dx * sinR + dy * cosR;
-    return { lx, lz, elev: p.elevation || 0, normR: Math.hypot(lx / halfW, lz / halfD) };
-  });
+  const mHeight = mountain.height ?? 220;
+  const local: LocalPt[] = pts
+    .filter((p) => (p.elevation ?? 0) >= -2 && (p.elevation ?? 0) <= mHeight - 20)
+    .map((p) => {
+      const dx = p.x - mPos.x;
+      const dy = p.y - mPos.y;
+      const lx = dx * cosR - dy * sinR;
+      const lz = dx * sinR + dy * cosR;
+      return { lx, lz, elev: p.elevation ?? 0, normR: Math.hypot(lx / halfW, lz / halfD) };
+    });
 
   for (const run of extractInsideRuns(local, rPortal, halfW, halfD)) {
-    if (run.openStart) buildPortal(parent, prof, run.pts[0]!, inwardDir(run.pts, true), portalMat);
-    if (run.openEnd) {
-      buildPortal(parent, prof, run.pts[run.pts.length - 1]!, inwardDir(run.pts, false), portalMat);
+    const startPt = run.pts[0]!;
+    const endPt = run.pts[run.pts.length - 1]!;
+    if (run.openStart && startPt.elev >= -2 && startPt.elev <= mHeight - 20) {
+      buildPortal(parent, prof, startPt, inwardDir(run.pts, true), portalMat);
+    }
+    if (run.openEnd && endPt.elev >= -2 && endPt.elev <= mHeight - 20) {
+      buildPortal(parent, prof, endPt, inwardDir(run.pts, false), portalMat);
     }
 
     const path = run.pts.map((p) => new THREE.Vector3(p.lx, p.elev + PORTAL_LIFT, p.lz));

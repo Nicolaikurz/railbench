@@ -143,22 +143,36 @@ describe("table-cutout", () => {
       expect(res.maxElev).toBe(0);
     });
 
-    it("returns false for deep shadow station track (-160 mm, below clearance zone)", () => {
-      const piece: TrackPiece = {
-        id: "p1",
+    it("returns false for track 100mm under the table (-100 mm) and shadow station tracks (-80 mm)", () => {
+      const piece100: TrackPiece = {
+        id: "p-100",
         catalogId: "24188",
         transform: { x: 500, y: 500, rotation: 0 },
         connectors: [],
-        elevation: { start: -160, end: -160 },
+        elevation: { start: -100, end: -100 },
+      };
+      const piece80: TrackPiece = {
+        id: "p-80",
+        catalogId: "24188",
+        transform: { x: 500, y: 500, rotation: 0 },
+        connectors: [],
+        elevation: { start: -80, end: -80 },
+      };
+      const deepRampSegment: TrackPiece = {
+        id: "p-ramp-deep",
+        catalogId: "24188",
+        transform: { x: 500, y: 500, rotation: 0 },
+        connectors: [],
+        elevation: { start: -80, end: -100 },
       };
       const layout: Layout = {
         name: "Test",
         scale: "H0",
-        pieces: [piece],
+        pieces: [piece100, piece80, deepRampSegment],
       };
-      // Clearance is 65mm in H0 + 35mm table thickness = 100mm collision zone
-      const res = isPiecePassingThroughTable(piece, layout, mockCatalog);
-      expect(res.passesThrough).toBe(false);
+      expect(isPiecePassingThroughTable(piece100, layout, mockCatalog).passesThrough).toBe(false);
+      expect(isPiecePassingThroughTable(piece80, layout, mockCatalog).passesThrough).toBe(false);
+      expect(isPiecePassingThroughTable(deepRampSegment, layout, mockCatalog).passesThrough).toBe(false);
     });
 
     it("supports custom intermediate deckElevation (e.g. +100 mm deck plate)", () => {

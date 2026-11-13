@@ -99,6 +99,95 @@ describe("Mountain 3D & Tunnel generation", () => {
     expect(collisions[0]!.centerline.length).toBeGreaterThan(0);
   });
 
+  it("ignores tracks below (e.g. -100mm) and above (e.g. +250mm) the mountain and only includes tracks going through the mountain", () => {
+    const mountainModel: Model3D = {
+      id: "mountain-1",
+      name: "Test Mountain",
+      category: "nature",
+      modelType: "builtin",
+      builtinId: "mountain",
+      layerId: "layer-main",
+      transform: { x: 500, y: 500, rotation: 0 },
+      width: 600,
+      depth: 450,
+      height: 220,
+    };
+
+    const dummyEntry: CatalogEntry = {
+      id: "24188",
+      name: "Gerades Gleis 188.3mm",
+      category: "Geraden",
+      description: "",
+      kind: "straight",
+      length: 188.3,
+      localConnectors: [
+        { x: 0, y: 0, angle: 180 },
+        { x: 188.3, y: 0, angle: 0 },
+      ],
+    };
+
+    const layers = [
+      { id: "layer-main", name: "Hauptebene", visible: true, locked: false, heightMm: 0 },
+      { id: "layer-under", name: "Schattenbahnhof (-100 mm)", visible: true, locked: false, heightMm: -100 },
+      { id: "layer-above", name: "Hochbrücke (+260 mm)", visible: true, locked: false, heightMm: 260 },
+    ];
+
+    const throughTrack: TrackPiece = {
+      id: "track-through",
+      catalogId: "24188",
+      layerId: "layer-main",
+      transform: { x: 500, y: 500, rotation: 0 },
+      connectors: [
+        { x: 405.9, y: 500, angle: 180 },
+        { x: 594.1, y: 500, angle: 0 },
+      ],
+    };
+
+    const underLayerTrack: TrackPiece = {
+      id: "track-under-layer",
+      catalogId: "24188",
+      layerId: "layer-under",
+      transform: { x: 500, y: 500, rotation: 0 },
+      connectors: [
+        { x: 405.9, y: 500, angle: 180 },
+        { x: 594.1, y: 500, angle: 0 },
+      ],
+    };
+
+    const underElevTrack: TrackPiece = {
+      id: "track-under-elev",
+      catalogId: "24188",
+      layerId: "layer-main",
+      transform: { x: 500, y: 520, rotation: 0 },
+      connectors: [
+        { x: 405.9, y: 520, angle: 180 },
+        { x: 594.1, y: 520, angle: 0 },
+      ],
+      elevation: { start: -80, end: -80 },
+    };
+
+    const aboveLayerTrack: TrackPiece = {
+      id: "track-above-layer",
+      catalogId: "24188",
+      layerId: "layer-above",
+      transform: { x: 500, y: 500, rotation: 0 },
+      connectors: [
+        { x: 405.9, y: 500, angle: 180 },
+        { x: 594.1, y: 500, angle: 0 },
+      ],
+    };
+
+    const collisions = findCollidingTracksForMountain(
+      mountainModel,
+      [throughTrack, underLayerTrack, underElevTrack, aboveLayerTrack],
+      () => dummyEntry,
+      layers,
+    );
+
+    expect(collisions.length).toBe(1);
+    expect(collisions[0]!.piece.id).toBe("track-through");
+  });
+
   it("builds tunnel tube and stone portals when tracks collide with mountain", () => {
     const group = new THREE.Group();
     const mountainModel: Model3D = {

@@ -193,6 +193,9 @@ describe("Two-line Toolbar & macOS System Menus", () => {
     expect(elementsById["tb-snap"]).toBeDefined();
     expect(elementsById["tb-3d"]).toBeDefined();
     expect(elementsById["tb-save"]).toBeDefined();
+
+    // RAILbench brand badge is removed from actions row on macOS
+    expect(actionsRow.children.some((c: any) => c.className === "toolbar-brand-badge")).toBe(false);
   });
 
   it("syncs active and warning states to split groups for color and voltage", () => {

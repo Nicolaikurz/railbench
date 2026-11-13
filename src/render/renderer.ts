@@ -183,14 +183,30 @@ export class Renderer {
     const selectedIds = options.selectedIds ?? new Set<string>();
 
     const layerMap = new Map<string, any>();
-    if (layout.layers) {
-      for (const l of layout.layers) layerMap.set(l.id, l);
-    }
+    const layersList = layout.layers ?? [];
+    for (const l of layersList) layerMap.set(l.id, l);
+    const defaultLayerId = layersList[0]?.id || "layer-1";
+    const activeLayerId = layout.activeLayerId || defaultLayerId;
+    const hasMultipleLayers = layersList.length > 1;
 
     if (layout.models && layout.models.length > 0) {
-      for (const model of layout.models) {
-        const layer = model.layerId ? layerMap.get(model.layerId) : undefined;
-        if (layer && !layer.visible) continue;
+      const sortedModels = layout.models
+        .map((model, index) => {
+          const layer = model.layerId ? layerMap.get(model.layerId) : undefined;
+          const elev = (layer?.heightMm ?? 0) + (model.elevation ?? 0);
+          const mLayerId = model.layerId || defaultLayerId;
+          const isInactive = hasMultipleLayers && mLayerId !== activeLayerId;
+          return { model, layer, elev, isInactive, index };
+        })
+        .filter((item) => !item.layer || item.layer.visible !== false)
+        .sort((a, b) => {
+          if (Math.abs(a.elev - b.elev) > 0.05) return a.elev - b.elev;
+          if (a.isInactive !== b.isInactive) return a.isInactive ? -1 : 1;
+          return a.index - b.index;
+        });
+
+      for (const { model, layer, isInactive } of sortedModels) {
+        const isSelected = selectedIds.has(model.id);
 
         // Holzfundamentplatte rendern, wenn Layer im tight-Modus
         if (layer?.woodPlateMode === "tight") {
@@ -199,20 +215,22 @@ export class Renderer {
           const w = (model.width * scale) + 12;
           const d = (model.depth * scale) + 12;
           baseG.rect(-w / 2, -d / 2, w, d);
-          baseG.fill({ color: 0xcbb89d, alpha: 0.35 });
-          baseG.stroke({ width: 1.5, color: 0x8c6d48, alpha: 0.7 });
+          baseG.fill({ color: 0xcbb89d, alpha: isInactive && !isSelected ? 0.18 : 0.35 });
+          baseG.stroke({ width: 1.5, color: 0x8c6d48, alpha: isInactive && !isSelected ? 0.38 : 0.7 });
           baseG.position.set(model.transform.x, model.transform.y);
           baseG.rotation = (model.transform.rotation * Math.PI) / 180;
           this.modelsLayer.addChild(baseG);
         }
 
-        const isSelected = selectedIds.has(model.id);
         const modelSprite = createModel2DGraphics(model, isSelected);
+        if (isInactive && !isSelected) {
+          modelSprite.alpha = 0.58;
+        }
         this.modelsLayer.addChild(modelSprite);
       }
     }
 
-    // 1. Tracks rendern
+    // 1. Tracks rendern (sortiert nach realer 3D-Höhe: tiefere Gleise unten, höhere Gleise darüber)
     this.tracksLayer.removeChildren();
 
     const entryMap = new Map<string, CatalogEntry>();
@@ -225,12 +243,48 @@ export class Renderer {
     const showPowerDrop = options.showPowerDrop ?? false;
     const powerSim = options.powerSimulation;
 
-    for (const piece of layout.pieces) {
-      const layer = piece.layerId ? layerMap.get(piece.layerId) : undefined;
-      // Ebene ausgeblendet?
-      if (layer && !layer.visible) {
-        continue;
-      }
+    const visibleTrackItems = layout.pieces
+      .map((piece, index) => {
+        const layer = piece.layerId ? layerMap.get(piece.layerId) : undefined;
+        const baseElev = layer?.heightMm ?? 0;
+        const startElev = baseElev + (piece.elevation?.start ?? 0);
+        const endElev = baseElev + (piece.elevation?.end ?? (piece.elevation?.start ?? 0));
+        const minElev = Math.min(startElev, endElev);
+        const maxElev = Math.max(startElev, endElev);
+        const avgElev = (startElev + endElev) * 0.5;
+        const pieceLayerId = piece.layerId || defaultLayerId;
+        const isInactiveLayer = hasMultipleLayers && pieceLayerId !== activeLayerId;
+        const isSelected = selectedIds.has(piece.id);
+        return {
+          piece,
+          layer,
+          baseElev,
+          minElev,
+          maxElev,
+          avgElev,
+          isInactiveLayer,
+          isSelected,
+          index,
+        };
+      })
+      .filter((item) => !item.layer || item.layer.visible !== false);
+
+    let minLayoutElev = 0;
+    for (const item of visibleTrackItems) {
+      if (item.minElev < minLayoutElev) minLayoutElev = item.minElev;
+    }
+
+    visibleTrackItems.sort((a, b) => {
+      if (Math.abs(a.avgElev - b.avgElev) > 0.05) return a.avgElev - b.avgElev;
+      if (Math.abs(a.maxElev - b.maxElev) > 0.05) return a.maxElev - b.maxElev;
+      if (Math.abs(a.minElev - b.minElev) > 0.05) return a.minElev - b.minElev;
+      if (a.isInactiveLayer !== b.isInactiveLayer) return a.isInactiveLayer ? -1 : 1;
+      if (a.isSelected !== b.isSelected) return a.isSelected ? 1 : -1;
+      return a.index - b.index;
+    });
+
+    for (const item of visibleTrackItems) {
+      const { piece, layer, baseElev, isInactiveLayer, isSelected } = item;
 
       const entry: CatalogEntry = entryMap.get(piece.catalogId) ?? catalogRegistry.findEntry(piece.catalogId) ?? {
         id: piece.catalogId,
@@ -241,7 +295,6 @@ export class Renderer {
         length: 188.3,
       };
 
-      const isSelected = selectedIds.has(piece.id);
       const powerResult = powerSim?.results.get(piece.id);
       const isShortCircuit = Boolean(options.shortCircuit?.shortCircuitPieces.has(piece.id));
 
@@ -255,7 +308,9 @@ export class Renderer {
         showColorCode: options.showColorCode,
         colorMode: options.colorMode,
         layerColor: layer?.color,
-        layerHeightMm: layer?.heightMm ?? 0,
+        layerHeightMm: baseElev,
+        isInactiveLayer,
+        minLayoutElev,
       });
 
       this.tracksLayer.addChild(sprite);
@@ -268,7 +323,9 @@ export class Renderer {
 
     if (options.showConnectors) {
       const drawnConnected = new Set<string>();
-      for (const piece of layout.pieces) {
+      for (const { piece, isInactiveLayer } of visibleTrackItems) {
+        const alphaMul = isInactiveLayer ? 0.5 : 1.0;
+        const pieceLayerKey = piece.layerId || defaultLayerId;
         for (let cIdx = 0; cIdx < piece.connectors.length; cIdx++) {
           const conn = piece.connectors[cIdx]!;
           const isBuildingSnap = isConnectorConnectedToBuilding(conn, layout.models);
@@ -276,44 +333,44 @@ export class Renderer {
 
           if (isBuildingSnap) {
             // "change the color to blue if an building is snappped"
-            const key = `${Math.round(conn.x * 2) / 2},${Math.round(conn.y * 2) / 2}`;
+            const key = `${pieceLayerKey}:${Math.round(conn.x * 2) / 2},${Math.round(conn.y * 2) / 2}`;
             if (drawnConnected.has(key)) continue;
             drawnConnected.add(key);
 
             ov.circle(conn.x, conn.y, 4.5);
-            ov.fill({ color: 0x0284c7, alpha: 0.95 });
+            ov.fill({ color: 0x0284c7, alpha: 0.95 * alphaMul });
             ov.circle(conn.x, conn.y, 2);
-            ov.fill({ color: 0x38bdf8 });
+            ov.fill({ color: 0x38bdf8, alpha: alphaMul });
             ov.circle(conn.x, conn.y, 7);
-            ov.stroke({ width: 1.2, color: 0x0369a1, alpha: 0.7 });
+            ov.stroke({ width: 1.2, color: 0x0369a1, alpha: 0.7 * alphaMul });
           } else if (info.status === "connected") {
             // "if two tracks are connected color it grey"
-            const key = `${Math.round(conn.x * 2) / 2},${Math.round(conn.y * 2) / 2}`;
+            const key = `${pieceLayerKey}:${Math.round(conn.x * 2) / 2},${Math.round(conn.y * 2) / 2}`;
             if (drawnConnected.has(key)) continue;
             drawnConnected.add(key);
 
             ov.circle(conn.x, conn.y, 4);
-            ov.fill({ color: 0x64748b, alpha: 0.9 });
+            ov.fill({ color: 0x64748b, alpha: 0.9 * alphaMul });
             ov.circle(conn.x, conn.y, 2);
-            ov.fill({ color: 0x94a3b8 });
+            ov.fill({ color: 0x94a3b8, alpha: alphaMul });
             ov.circle(conn.x, conn.y, 6.5);
-            ov.stroke({ width: 1, color: 0x475569, alpha: 0.6 });
+            ov.stroke({ width: 1, color: 0x475569, alpha: 0.6 * alphaMul });
           } else if (info.status === "above") {
             // "add yellow snap point if the track is above an snap point"
             ov.circle(conn.x, conn.y, 5);
-            ov.fill({ color: 0xeab308, alpha: 0.95 });
+            ov.fill({ color: 0xeab308, alpha: 0.95 * alphaMul });
             ov.circle(conn.x, conn.y, 2.2);
-            ov.fill({ color: 0xfef08a });
+            ov.fill({ color: 0xfef08a, alpha: alphaMul });
             ov.circle(conn.x, conn.y, 7.5);
-            ov.stroke({ width: 1.4, color: 0xfacc15, alpha: 0.8 });
+            ov.stroke({ width: 1.4, color: 0xfacc15, alpha: 0.8 * alphaMul });
           } else {
             // Freier Andockpunkt: leuchtend grün
             ov.circle(conn.x, conn.y, 4.5);
-            ov.fill({ color: 0x16a34a, alpha: 0.9 });
+            ov.fill({ color: isInactiveLayer ? 0x4b7a5e : 0x16a34a, alpha: 0.9 * alphaMul });
             ov.circle(conn.x, conn.y, 2);
-            ov.fill({ color: 0xffffff });
+            ov.fill({ color: 0xffffff, alpha: alphaMul });
             ov.circle(conn.x, conn.y, 7);
-            ov.stroke({ width: 1.2, color: 0x22c55e, alpha: 0.5 });
+            ov.stroke({ width: 1.2, color: isInactiveLayer ? 0x648c74 : 0x22c55e, alpha: 0.5 * alphaMul });
           }
         }
       }

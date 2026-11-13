@@ -4,7 +4,7 @@
 @media (max-width: 1366px), (max-height: 800px) {
   :root, #app {
     --sidebar-width: 260px;
-    --toolbar-height: 60px;
+    --toolbar-height: 68px;
   }
 
   #app {
@@ -15,12 +15,18 @@
   body.has-system-menus #app,
   #app.has-system-menus,
   :root.has-system-menus {
-    --toolbar-height: 38px;
+    --toolbar-height: 44px;
   }
 
   .toolbar-menubar-row {
-    height: 24px;
+    height: 30px;
     padding-bottom: 2px;
+  }
+
+  .toolbar-menu-btn {
+    height: 26px;
+    padding: 1px 7px;
+    font-size: 11.5px;
   }
 
   .toolbar-actions-row {
