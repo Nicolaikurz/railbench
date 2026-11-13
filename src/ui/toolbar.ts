@@ -58,6 +58,7 @@ export interface ToolbarEvents {
   onClearLayout?: () => void;
   onOpenCollab?: () => void;
   onTogglePerfMonitor?: () => void;
+  onAutoSelectLanguage?: () => void;
   onResetPersonalConfig?: () => void;
 }
 
@@ -137,29 +138,106 @@ function attachDropdownHoverBridge(
   });
 }
 
+export function isMacOS(): boolean {
+  if (typeof window !== "undefined") {
+    if ((window as any).__FORCE_MAC_MENU__ !== undefined) return Boolean((window as any).__FORCE_MAC_MENU__);
+    if (window.electronAPI?.platform === "darwin") return true;
+    if (typeof navigator !== "undefined") {
+      const p = (navigator.platform || "").toUpperCase();
+      const ua = (navigator.userAgent || "").toUpperCase();
+      return p.includes("MAC") || ua.includes("MACINTOSH");
+    }
+  }
+  return false;
+}
+
 export function createToolbar(host: HTMLElement, events: ToolbarEvents) {
   host.innerHTML = "";
   const t = getTranslations().toolbar;
+  const isMac = isMacOS();
+
+  if (typeof document !== "undefined") {
+    if (isMac) {
+      document.body?.classList?.add?.("has-system-menus");
+      const appEl = document.getElementById("app");
+      appEl?.classList?.add?.("has-system-menus");
+    } else {
+      document.body?.classList?.remove?.("has-system-menus");
+      const appEl = document.getElementById("app");
+      appEl?.classList?.remove?.("has-system-menus");
+    }
+  }
 
   const container = document.createElement("div");
   container.className = "toolbar-container";
 
-  // Top-level dropdown menus: Brand/Plan, Edit, View, Help
-  const menuGroup = document.createElement("div");
-  menuGroup.className = "toolbar-group toolbar-menus";
+  // --- LINE 1: Menubar Row (Layout, Edit, View, Settings, Help) ---
+  const menubarRow = document.createElement("div");
+  menubarRow.className = "toolbar-row toolbar-menubar-row";
+  if (isMac) {
+    menubarRow.style.display = "none";
+  }
 
-  const mainMenu = createBrandMainMenu(t, events);
+  const menubarLeft = document.createElement("div");
+  menubarLeft.className = "toolbar-group toolbar-menubar-left";
+
+  const brandBadge = createAppBrandBadge(events);
+  const layoutMenu = createLayoutMenu(t, events);
   const editMenu = createEditMenu(t, events);
   const viewMenu = createViewMenu(t, events);
+  const settingsMenu = createSettingsMenu(t, events);
   const helpMenu = createHelpMenu(t, events);
 
-  menuGroup.appendChild(mainMenu);
-  menuGroup.appendChild(editMenu);
-  menuGroup.appendChild(viewMenu);
-  menuGroup.appendChild(helpMenu);
+  menubarLeft.appendChild(brandBadge);
+  menubarLeft.appendChild(layoutMenu);
+  menubarLeft.appendChild(editMenu);
+  menubarLeft.appendChild(viewMenu);
+  menubarLeft.appendChild(settingsMenu);
+  menubarLeft.appendChild(helpMenu);
+  menubarRow.appendChild(menubarLeft);
 
-  container.appendChild(menuGroup);
-  container.appendChild(createDivider());
+  const menubarRight = document.createElement("div");
+  menubarRight.className = "toolbar-group toolbar-menubar-right";
+
+  const fileLabel = document.createElement("span");
+  fileLabel.id = "tb-file-name";
+  fileLabel.className = "brand-file";
+  fileLabel.title = "Current layout plan";
+  fileLabel.textContent = "Model Railway.railbench";
+  fileLabel.addEventListener("click", () => {
+    if (fileLabel.classList.contains("dirty")) {
+      events.onSavePlan();
+    }
+  });
+
+  const countBadge = document.createElement("span");
+  countBadge.id = "tb-piece-count";
+  countBadge.className = "brand-badge";
+  countBadge.textContent = `0 ${t.status.tracksUnitPlural}`;
+
+  if (!isMac) {
+    menubarRight.appendChild(fileLabel);
+    menubarRight.appendChild(countBadge);
+    menubarRow.appendChild(menubarRight);
+  }
+
+  container.appendChild(menubarRow);
+
+  // --- LINE 2: Actions Row (Quick buttons & Tools) ---
+  const actionsRow = document.createElement("div");
+  actionsRow.className = "toolbar-row toolbar-actions-row";
+
+  // Register tabs container (mounted on the left of Line 2, at the exact same height and width as the sidebar)
+  const sidebarTabsContainer = document.createElement("div");
+  sidebarTabsContainer.id = "toolbar-sidebar-tabs";
+  sidebarTabsContainer.className = "toolbar-sidebar-tabs";
+  actionsRow.appendChild(sidebarTabsContainer);
+  actionsRow.appendChild(createDivider());
+
+  if (isMac) {
+    actionsRow.appendChild(createAppBrandBadge(events));
+    actionsRow.appendChild(createDivider());
+  }
 
   // Quick file actions
   const fileActionsGroup = document.createElement("div");
@@ -173,8 +251,8 @@ export function createToolbar(host: HTMLElement, events: ToolbarEvents) {
   fileActionsGroup.appendChild(btnOpen);
   fileActionsGroup.appendChild(btnSave);
 
-  container.appendChild(fileActionsGroup);
-  container.appendChild(createDivider());
+  actionsRow.appendChild(fileActionsGroup);
+  actionsRow.appendChild(createDivider());
 
   const featureGroup = document.createElement("div");
   featureGroup.className = "toolbar-group toolbar-features";
@@ -196,7 +274,7 @@ export function createToolbar(host: HTMLElement, events: ToolbarEvents) {
   btnMeasure.title = t.toggles.measureTitle;
 
   const colorsWrapper = document.createElement("div");
-  colorsWrapper.className = "toolbar-split-group";
+  colorsWrapper.className = "toolbar-split-group active";
 
   const btnColors = createToggleBtn(ICONS.palette, t.toggles.colorsLabel, "Col", true, events.onToggleColorCode, "tb-colors");
   btnColors.title = t.toggles.colorsTitle;
@@ -267,26 +345,15 @@ export function createToolbar(host: HTMLElement, events: ToolbarEvents) {
   featureGroup.appendChild(powerWrapper);
   featureGroup.appendChild(btnShortCircuit);
   featureGroup.appendChild(btn3D);
-  container.appendChild(featureGroup);
+  actionsRow.appendChild(featureGroup);
 
   const rightGroup = document.createElement("div");
   rightGroup.className = "toolbar-group toolbar-right";
 
-  const fileLabel = document.createElement("span");
-  fileLabel.id = "tb-file-name";
-  fileLabel.className = "brand-file";
-  fileLabel.title = "Current layout plan";
-  fileLabel.textContent = "Model Railway.railbench";
-  fileLabel.addEventListener("click", () => {
-    if (fileLabel.classList.contains("dirty")) {
-      events.onSavePlan();
-    }
-  });
-
-  const countBadge = document.createElement("span");
-  countBadge.id = "tb-piece-count";
-  countBadge.className = "brand-badge";
-  countBadge.textContent = `0 ${t.status.tracksUnitPlural}`;
+  if (isMac) {
+    rightGroup.appendChild(fileLabel);
+    rightGroup.appendChild(countBadge);
+  }
 
   const currentLang = getLanguage();
   const btnLang = document.createElement("button");
@@ -302,134 +369,46 @@ export function createToolbar(host: HTMLElement, events: ToolbarEvents) {
   const btnTheme = createThemeButton(t, events);
   const btnRightSidebar = createIconButton(ICONS.layers, t.status.toggleRightSidebar, () => events.onToggleRightSidebar?.(), "tb-right-sidebar-toggle", "toolbar-toggle active");
 
-  rightGroup.appendChild(fileLabel);
-  rightGroup.appendChild(countBadge);
   rightGroup.appendChild(btnCollab);
   rightGroup.appendChild(btnTheme);
   rightGroup.appendChild(btnLang);
   rightGroup.appendChild(btnRightSidebar);
-  container.appendChild(rightGroup);
+  actionsRow.appendChild(rightGroup);
+
+  container.appendChild(actionsRow);
 
   host.appendChild(container);
   setupDropdownGlobalDismiss();
 }
 
-function createBrandMainMenu(t: any, events: ToolbarEvents): HTMLElement {
-  const brandMenuWrapper = document.createElement("div");
-  brandMenuWrapper.className = "toolbar-dropdown brand-main-menu";
-
-  const trigger = document.createElement("button");
-  trigger.type = "button";
-  trigger.id = "tb-brand-trigger";
-  trigger.className = "toolbar-btn toolbar-brand-btn dropdown-trigger";
-  
-  trigger.style.display = "inline-flex";
-  trigger.style.alignItems = "center";
-  trigger.style.gap = "6px";
-  trigger.style.background = "rgba(255, 255, 255, 0.08)";
-  trigger.style.border = "1px solid rgba(255, 255, 255, 0.12)";
-  trigger.style.color = "#ffffff";
-  trigger.style.padding = "0 8px";
-  trigger.style.borderRadius = "4px";
-  trigger.style.height = "var(--tb-btn-height, 28px)";
-  trigger.style.cursor = "pointer";
-
-  trigger.title = getFullAppTitle();
-  trigger.innerHTML = `
-    <span class="brand-icon" style="display:inline-flex; align-items:center; color:#ffffff;">${ICONS.train}</span>
-    <span class="brand-title" style="color:#ffffff; font-weight:600; font-size:12px;">RAILbench</span>
-    <span class="brand-version" style="color:rgba(255,255,255,0.6); font-size:10px; margin-left:3px; font-variant-numeric: tabular-nums;">${getAppVersionTag()}</span>
-    <span class="dropdown-arrow" style="display:inline-flex; align-items:center; color:#ffffff;">${ICONS.chevronDown}</span>
+function createAppBrandBadge(events: ToolbarEvents): HTMLElement {
+  const brand = document.createElement("div");
+  brand.id = "tb-brand-trigger";
+  brand.className = "toolbar-brand-badge";
+  brand.style.display = "inline-flex";
+  brand.style.alignItems = "center";
+  brand.style.gap = "5px";
+  brand.style.padding = "0 6px";
+  brand.style.cursor = "pointer";
+  brand.title = getFullAppTitle();
+  brand.innerHTML = `
+    <span class="brand-icon" style="display:inline-flex; align-items:center; color:#38bdf8;">${ICONS.train}</span>
+    <span class="brand-title" style="color:#ffffff; font-weight:700; font-size:12px; letter-spacing:-0.02em;">RAILbench</span>
+    <span class="brand-version" style="color:rgba(255,255,255,0.5); font-size:10px; font-variant-numeric: tabular-nums;">${getAppVersionTag()}</span>
   `;
-
-  // Attach safe-hover bridge with delayed close
-  attachDropdownHoverBridge(
-    brandMenuWrapper,
-    () => { trigger.style.background = "rgba(255, 255, 255, 0.15)"; },
-    () => { trigger.style.background = "rgba(255, 255, 255, 0.08)"; }
-  );
-
-  // Keep click behavior for mobile/touch or explicit clicks
-  trigger.addEventListener("pointerdown", (e) => e.stopPropagation());
-  trigger.addEventListener("click", (e) => {
-    e.stopPropagation();
-    const isOpen = brandMenuWrapper.classList.contains("open");
-    document.querySelectorAll(".toolbar-dropdown.open").forEach((d) => d.classList.remove("open"));
-    if (!isOpen) {
-      brandMenuWrapper.classList.add("open");
-      trigger.style.background = "rgba(255, 255, 255, 0.15)";
-    } else {
-      trigger.style.background = "rgba(255, 255, 255, 0.08)";
-    }
+  brand.addEventListener("click", () => {
+    events.onOpenWelcome?.();
   });
-
-  brandMenuWrapper.appendChild(trigger);
-
-  const menuItems: DropdownItemConfig[] = [
-    { sectionHeader: t.menus.plan },
-    { label: t.fileMenu.newPlan, shortcut: "Ctrl+N", onClick: events.onNewPlan },
-    { label: t.fileMenu.openPlan, shortcut: "Ctrl+O", onClick: events.onOpenPlan },
-    { label: t.fileMenu.demoTracks, onClick: () => events.onOpenDemoTracks?.() },
-    { label: t.fileMenu.savePlan, shortcut: "Ctrl+S", onClick: events.onSavePlan },
-    { label: t.fileMenu.saveAs, shortcut: "Ctrl+Shift+S", onClick: events.onSavePlanAs },
-    { label: t.fileMenu.importCatalog, onClick: () => events.onImportCatalog?.() },
-    { label: t.fileMenu.import3d, onClick: events.onImportModel },
-    { label: t.fileMenu.exportXml, onClick: events.onSaveXML },
-    { label: t.fileMenu.exportCsv, shortcut: "Ctrl+E", onClick: events.onExportCSV },
-    { label: t.fileMenu.printPlan, shortcut: "Ctrl+P", onClick: () => events.onPrintPlan?.() },
-    { label: t.fileMenu.collaborate, onClick: () => events.onOpenCollab?.() },
-
-    { isDivider: true },
-    { sectionHeader: t.menus.settings },
-    {
-      label: t.menus.resetPersonalConfig,
-      id: "item-reset-personal-config",
-      isDanger: true,
-      onClick: () => events.onResetPersonalConfig?.(),
-    },
-  ];
-
-  const menu = buildDropdownItems(menuItems, () => brandMenuWrapper.classList.remove("open"));
-  brandMenuWrapper.appendChild(menu);
-  return brandMenuWrapper;
+  return brand;
 }
 
-function createEditMenu(t: any, events: ToolbarEvents): HTMLElement {
-  return createIconDropdownMenu(
-    ICONS.edit,
-    t.menus.edit,
-    [
-      { label: t.editMenu.undo, shortcut: "Ctrl+Z", onClick: events.onUndo, id: "item-undo" },
-      { label: t.editMenu.redo, shortcut: "Ctrl+Y", onClick: events.onRedo, id: "item-redo" },
-      { isDivider: true },
-      { label: t.editMenu.copy, shortcut: "Ctrl+C", onClick: () => events.onCopy?.(), id: "item-copy" },
-      { label: t.editMenu.paste, shortcut: "Ctrl+V", onClick: () => events.onPaste?.(), id: "item-paste" },
-      { label: t.editMenu.duplicate, shortcut: "Ctrl+D", onClick: () => events.onDuplicate?.(), id: "item-duplicate" },
-      { isDivider: true },
-      { label: t.editMenu.selectAll, shortcut: "Ctrl+A", onClick: () => events.onSelectAll?.(), id: "item-select-all" },
-      { label: t.editMenu.deselectAll, shortcut: "Esc", onClick: () => events.onDeselectAll?.(), id: "item-deselect-all" },
-      { isDivider: true },
-      { label: t.editMenu.rotateCw, shortcut: "R", onClick: () => events.onRotateSelected(7.5) },
-      { label: t.editMenu.rotateCcw, shortcut: "Shift+R", onClick: () => events.onRotateSelected(-7.5) },
-      { label: t.editMenu.changeHeight, shortcut: "M", onClick: () => events.onMoveSelectedToLayerPrompt?.() },
-      { isDivider: true },
-      { label: t.editMenu.deleteSelected, shortcut: "Del", onClick: events.onDeleteSelected, isDanger: true },
-    ],
-    "tb-edit",
-  );
-}
-
-function createIconDropdownMenu(iconSvg: string, tooltip: string, items: DropdownItemConfig[], id?: string): HTMLElement {
+function createTextDropdownMenu(label: string, items: DropdownItemConfig[], id?: string): HTMLElement {
   const trigger = document.createElement("button");
   trigger.type = "button";
-  trigger.className = "toolbar-btn btn-icon-only";
-  trigger.title = tooltip;
-  trigger.style.display = "inline-flex";
-  trigger.style.alignItems = "center";
-  trigger.style.justifyContent = "center";
-  trigger.style.boxSizing = "border-box";
+  trigger.className = "toolbar-btn toolbar-menu-btn dropdown-trigger";
+  trigger.title = label;
   if (id) trigger.id = id;
-  trigger.innerHTML = `<span class="tb-icon">${iconSvg}</span>`;
+  trigger.innerHTML = `<span class="tb-menu-label">${label}</span>`;
 
   const wrapper = document.createElement("div");
   wrapper.className = "toolbar-dropdown";
@@ -437,7 +416,6 @@ function createIconDropdownMenu(iconSvg: string, tooltip: string, items: Dropdow
   wrapper.style.position = "relative";
   wrapper.style.alignItems = "center";
 
-  // Attach safe-hover bridge
   attachDropdownHoverBridge(wrapper);
 
   trigger.addEventListener("pointerdown", (e) => e.stopPropagation());
@@ -453,12 +431,61 @@ function createIconDropdownMenu(iconSvg: string, tooltip: string, items: Dropdow
   return wrapper;
 }
 
+function createLayoutMenu(t: any, events: ToolbarEvents): HTMLElement {
+  return createTextDropdownMenu(
+    t.menus.plan,
+    [
+      { label: t.fileMenu.newPlan, shortcut: "Ctrl+N", onClick: events.onNewPlan },
+      { label: t.fileMenu.openPlan, shortcut: "Ctrl+O", onClick: events.onOpenPlan },
+      { label: t.fileMenu.demoTracks, onClick: () => events.onOpenDemoTracks?.() },
+      { isDivider: true },
+      { label: t.fileMenu.savePlan, shortcut: "Ctrl+S", onClick: events.onSavePlan },
+      { label: t.fileMenu.saveAs, shortcut: "Ctrl+Shift+S", onClick: events.onSavePlanAs },
+      { isDivider: true },
+      { label: t.fileMenu.importCatalog, onClick: () => events.onImportCatalog?.() },
+      { label: t.fileMenu.import3d, onClick: events.onImportModel },
+      { label: t.fileMenu.exportXml, onClick: events.onSaveXML },
+      { label: t.fileMenu.exportCsv, shortcut: "Ctrl+E", onClick: events.onExportCSV },
+      { label: t.fileMenu.printPlan, shortcut: "Ctrl+P", onClick: () => events.onPrintPlan?.() },
+      { isDivider: true },
+      { label: t.fileMenu.collaborate, onClick: () => events.onOpenCollab?.() },
+    ],
+    "tb-layout",
+  );
+}
+
+function createEditMenu(t: any, events: ToolbarEvents): HTMLElement {
+  return createTextDropdownMenu(
+    t.menus.edit,
+    [
+      { label: t.editMenu.undo, shortcut: "Ctrl+Z", onClick: events.onUndo, id: "item-undo" },
+      { label: t.editMenu.redo, shortcut: "Ctrl+Y", onClick: events.onRedo, id: "item-redo" },
+      { isDivider: true },
+      { label: t.editMenu.copy, shortcut: "Ctrl+C", onClick: () => events.onCopy?.(), id: "item-copy" },
+      { label: t.editMenu.paste, shortcut: "Ctrl+V", onClick: () => events.onPaste?.(), id: "item-paste" },
+      { label: t.editMenu.duplicate, shortcut: "Ctrl+D", onClick: () => events.onDuplicate?.(), id: "item-duplicate" },
+      { isDivider: true },
+      { label: t.editMenu.selectAll, shortcut: "Ctrl+A", onClick: () => events.onSelectAll?.(), id: "item-select-all" },
+      { label: t.editMenu.deselectAll, shortcut: "Esc", onClick: () => events.onDeselectAll?.(), id: "item-deselect-all" },
+      { isDivider: true },
+      { label: t.editMenu.rotateCw, shortcut: "R", onClick: () => events.onRotateSelected(7.5) },
+      { label: t.editMenu.rotateCcw, shortcut: "Shift+R", onClick: () => events.onRotateSelected(-7.5) },
+      { label: t.editMenu.changeHeight, shortcut: "M", onClick: () => events.onMoveSelectedToLayerPrompt?.() },
+      { label: t.powerMenu.toggleFeeder, shortcut: "F", onClick: events.onToggleFeeder },
+      { isDivider: true },
+      { label: t.editMenu.deleteSelected, shortcut: "Del", onClick: events.onDeleteSelected, isDanger: true },
+    ],
+    "tb-edit",
+  );
+}
+
 function createViewMenu(t: any, events: ToolbarEvents): HTMLElement {
-  return createIconDropdownMenu(
-    ICONS.eye,
+  const isDe = getLanguage() === "de";
+  return createTextDropdownMenu(
     t.menus.view,
     [
       { label: t.viewMenu.resetView, shortcut: "Ctrl+0", onClick: events.onResetView },
+      { label: isDe ? "3D-Ansicht umschalten" : "Toggle 3D View", shortcut: "3", onClick: () => events.onToggle3D?.() },
       { isDivider: true },
       { label: t.viewMenu.toggleRulers, shortcut: "Shift+L", onClick: events.onToggleRulers, id: "item-rulers" },
       { label: t.viewMenu.woodPlate, onClick: () => events.onToggleWoodPlate?.(), id: "item-woodplate" },
@@ -475,15 +502,46 @@ function createViewMenu(t: any, events: ToolbarEvents): HTMLElement {
   );
 }
 
+function createSettingsMenu(t: any, events: ToolbarEvents): HTMLElement {
+  return createTextDropdownMenu(
+    t.menus.settings,
+    [
+      { label: t.powerMenu.configPower, onClick: () => events.onOpenPowerSettings?.("voltage") },
+      { isDivider: true },
+      { label: t.toggles.snapLabel + " (" + t.toggles.snapTitle + ")", shortcut: "S", onClick: events.onToggleSnapping },
+      { label: t.toggles.selectionLockLabel + " (" + t.toggles.selectionLockTitle + ")", onClick: () => events.onToggleSelectionLock?.() },
+      { label: t.toggles.labelsLabel + " (" + t.toggles.labelsTitle + ")", shortcut: "N", onClick: events.onToggleTrackLabels },
+      { label: t.toggles.voltageLabel + " (" + t.toggles.voltageTitle + ")", shortcut: "P", onClick: events.onTogglePowerSim },
+      { isDivider: true },
+      { label: t.colorsMenu.types, onClick: () => events.onSetColorMode?.("types") },
+      { label: t.colorsMenu.layers, onClick: () => events.onSetColorMode?.("layers") },
+      { label: t.colorsMenu.off, onClick: () => events.onSetColorMode?.("off") },
+      { isDivider: true },
+      {
+        label: getLanguage() === "de" ? "Sprache automatisch wählen (System)" : "Auto-select language (System)",
+        onClick: () => events.onAutoSelectLanguage?.(),
+      },
+      { isDivider: true },
+      {
+        label: t.menus.resetPersonalConfig,
+        id: "item-reset-personal-config",
+        isDanger: true,
+        onClick: () => events.onResetPersonalConfig?.(),
+      },
+    ],
+    "tb-settings",
+  );
+}
+
 function createHelpMenu(t: any, events: ToolbarEvents): HTMLElement {
-  return createIconDropdownMenu(
-    ICONS.helpCircle,
+  const isDe = getLanguage() === "de";
+  return createTextDropdownMenu(
     t.menus.help,
     [
       { label: t.helpMenu.helpGuide, shortcut: "F1", onClick: () => events.onOpenHelp?.("overview") },
       { label: t.helpMenu.shortcuts, shortcut: "?", onClick: () => events.onOpenHelp?.("shortcuts") },
       { isDivider: true },
-      { label: getLanguage() === "de" ? "Willkommens-Bildschirm…" : "Welcome Screen…", onClick: () => events.onOpenWelcome?.() },
+      { label: isDe ? "Willkommens-Bildschirm…" : "Welcome Screen…", onClick: () => events.onOpenWelcome?.() },
       { isDivider: true },
       { label: t.helpMenu.layersGuide, onClick: () => events.onOpenHelp?.("layers") },
       { label: t.helpMenu.voltageGuide, onClick: () => events.onOpenHelp?.("power") },
@@ -617,8 +675,15 @@ export function updateToolbarState(state: ToolbarState) {
   if (btnColors) {
     const mode = state.colorMode ?? (state.colorCodeEnabled ? "types" : "off");
     setBtnLabel(btnColors, ICONS.palette, t.toggles.colorsLabel, "Col");
-    btnColors.classList.toggle("active", mode !== "off");
-    btnColors.classList.toggle("mode-layers", mode === "layers");
+    const isActive = mode !== "off";
+    const isLayers = mode === "layers";
+    btnColors.classList.toggle("active", isActive);
+    btnColors.classList.toggle("mode-layers", isLayers);
+    const colorsGroup = (btnColors.closest?.(".toolbar-split-group") as HTMLElement | null) || btnColors.parentElement;
+    if (colorsGroup) {
+      colorsGroup.classList.toggle("active", isActive);
+      colorsGroup.classList.toggle("mode-layers", isLayers);
+    }
     btnColors.title = mode === "layers"
       ? `${t.toggles.colorsTitle} (${t.colorsMenu.layers})`
       : (mode === "types" ? `${t.toggles.colorsTitle} (${t.colorsMenu.types})` : t.toggles.colorsTitle);
@@ -644,7 +709,12 @@ export function updateToolbarState(state: ToolbarState) {
   const btnPower = document.getElementById("tb-power");
   if (btnPower) {
     setBtnLabel(btnPower, ICONS.zap, t.toggles.voltageLabel, "Volt");
-    btnPower.classList.toggle("active-warning", !!state.powerSimEnabled);
+    const isPowerActive = !!state.powerSimEnabled;
+    btnPower.classList.toggle("active-warning", isPowerActive);
+    const powerGroup = (btnPower.closest?.(".toolbar-split-group") as HTMLElement | null) || btnPower.parentElement;
+    if (powerGroup) {
+      powerGroup.classList.toggle("active-warning", isPowerActive);
+    }
   }
 
   const btnShortCircuit = document.getElementById("tb-short-circuit");

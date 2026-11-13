@@ -183,7 +183,7 @@ describe("RightSidebar - Buttons for Auswahlsperre & Woodplatte", () => {
     (globalThis as any).document = originalDocument;
   });
 
-  it("renders Auswahlsperre and Woodplatte as proper buttons without switch knobs", () => {
+  it("renders Woodplatte button and verifies selection lock button was removed from right sidebar", () => {
     const onToggleSelectionLock = vi.fn();
     const onToggleWoodPlate = vi.fn();
     let lockDisabled = false;
@@ -201,11 +201,11 @@ describe("RightSidebar - Buttons for Auswahlsperre & Woodplatte", () => {
     const lockBtn = host.querySelector("#cl-toggle-selection-lock");
     const woodBtn = host.querySelector("#cl-toggle-woodplate");
 
-    expect(lockBtn).toBeTruthy();
+    // Selection lock button should not be present in the right sidebar
+    expect(lockBtn).toBeNull();
     expect(woodBtn).toBeTruthy();
 
-    // Verify both are styled as buttons
-    expect(lockBtn?.className).toContain("cl-btn");
+    // Verify wood button is styled as button
     expect(woodBtn?.className).toContain("cl-btn");
 
     // Verify there are no old switch sliders
@@ -213,22 +213,16 @@ describe("RightSidebar - Buttons for Auswahlsperre & Woodplatte", () => {
     expect(host.querySelector(".cl-switch-knob")).toBeNull();
 
     // Verify click triggers callback
-    lockBtn?.dispatchEvent({ type: "click" });
-    expect(onToggleSelectionLock).toHaveBeenCalledTimes(1);
-
     woodBtn?.dispatchEvent({ type: "click" });
     expect(onToggleWoodPlate).toHaveBeenCalledTimes(1);
   });
 
-  it("shows active state and badge on buttons when toggled on", () => {
-    let lockDisabled = true;
+  it("shows active state and badge on Woodplatte button when toggled on", () => {
     let woodActive = true;
 
     new RightSidebar(host as unknown as HTMLElement, layout, {
       onLayerChange: vi.fn(),
       selectedPieceIds: () => [],
-      onToggleSelectionLock: vi.fn(),
-      isSelectionLockDisabled: () => lockDisabled,
       onToggleWoodPlate: vi.fn(),
       isWoodPlateActive: () => woodActive,
     });
@@ -236,9 +230,8 @@ describe("RightSidebar - Buttons for Auswahlsperre & Woodplatte", () => {
     const lockBtn = host.querySelector("#cl-toggle-selection-lock");
     const woodBtn = host.querySelector("#cl-toggle-woodplate");
 
-    expect(lockBtn?.className).toContain("is-active");
+    expect(lockBtn).toBeNull();
     expect(woodBtn?.className).toContain("is-active");
-    expect(lockBtn?.innerHTML).toMatch(/Aufgehoben|Unlocked/);
     expect(woodBtn?.innerHTML).toMatch(/An|On/);
   });
 });

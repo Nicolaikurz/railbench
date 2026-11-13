@@ -11,10 +11,10 @@
 
 #right-sidebar {
   position: absolute;
-  top: calc(var(--toolbar-height, 42px) + 8px);
+  top: calc(var(--toolbar-height, 68px) + 8px);
   right: 14px;
   width: var(--right-sidebar-width, 290px);
-  max-height: calc(100vh - var(--toolbar-height, 42px) - 24px);
+  max-height: calc(100vh - var(--toolbar-height, 68px) - 24px);
   background: var(--bg-card);
   border: 1px solid var(--border-main);
   border-radius: 10px;
@@ -78,9 +78,12 @@
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: 1fr;
-  background: var(--bg-surface);
-  border-bottom: 1px solid var(--border-main);
-  min-height: 38px;
+  background: var(--bg-toolbar);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  height: 32px;
+  min-height: 32px;
+  max-height: 32px;
+  box-sizing: border-box;
 }
 
 .tab-btn {
@@ -89,23 +92,25 @@
   justify-content: center;
   background: transparent;
   border: none;
-  padding: 6px 2px;
-  color: var(--text-muted);
+  padding: 0 4px;
+  height: 100%;
+  color: var(--toolbar-text, #cbd5e1);
   cursor: pointer;
   border-bottom: 2px solid transparent;
   transition: all 0.15s;
   min-width: 0;
+  user-select: none;
 }
 
 .tab-btn:hover {
-  background: rgba(255, 255, 255, 0.04);
-  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.09);
+  color: #ffffff;
 }
 
 .tab-btn.active {
-  color: var(--primary-color);
-  background: var(--bg-sidebar);
-  border-bottom-color: var(--primary-color);
+  color: var(--primary-color, #38bdf8);
+  background: rgba(255, 255, 255, 0.14);
+  border-bottom-color: var(--primary-color, #38bdf8);
 }
 
 .tab-icon {
@@ -150,25 +155,26 @@
   width: 100%;
 }
 
+/* Light mode (default): etwas dunkler als zuvor, Dark-Mode-Overrides folgen weiter unten */
 .catalog-dropdown-trigger {
   width: 100%;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 6px 10px;
-  border: 1px solid var(--border-main);
+  border: 1px solid #94a3b8;
   border-radius: 6px;
-  background: var(--bg-card);
+  background: #004eb4;
   color: var(--text-main);
   cursor: pointer;
   text-align: left;
   transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
 }
 
 .catalog-dropdown-trigger:hover {
   border-color: var(--primary-color);
-  background: var(--bg-card-hover);
+  background: #cbd5e1;
 }
 
 .catalog-dropdown.open .catalog-dropdown-trigger {
@@ -223,10 +229,10 @@
   width: 100%;
   max-height: 380px;
   overflow-y: auto;
-  background: var(--bg-card);
-  border: 1px solid var(--border-main);
+  background: #e2e8f0;
+  border: 1px solid #94a3b8;
   border-radius: 6px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
   z-index: 1000;
   padding: 4px;
   flex-direction: column;
@@ -265,7 +271,7 @@
 }
 
 .catalog-dropdown-item.active {
-  background: rgba(2, 132, 199, 0.1);
+  background: rgba(2, 132, 199, 0.18);
 }
 
 .catalog-item-info {
@@ -301,7 +307,7 @@
   color: #ffffff;
 }
 
-/* Dark Mode Overrides for Catalog Dropdown */
+/* Dark Mode Overrides for Catalog Dropdown (unverändert) */
 [data-theme="dark"] .catalog-dropdown-trigger {
   background: #1e293b;
   border-color: #334155;
@@ -1055,4 +1061,3 @@
   font-size: 14px;
   line-height: 1;
 }
-

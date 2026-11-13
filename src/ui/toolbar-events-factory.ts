@@ -14,7 +14,7 @@ import { themeManager } from "@/theme/theme-manager";
 import { openPowerSettingsDialog } from "@/ui/power-dialog";
 import { openHelpDialog, type HelpTab } from "@/ui/help-dialog";
 import { openPrintDialog } from "@/io/print";
-import { getTranslations, getLanguage } from "@/i18n";
+import { getTranslations, getLanguage, autoSelectLanguage } from "@/i18n";
 import { ensureDefaultLayers, getBaseboards } from "@/core/layout";
 import { isTurnoutEntry, type ShortCircuitDetectionResult } from "@/core/simulation";
 import { resetPersonalConfig } from "@/settings/settings-manager";
@@ -239,6 +239,14 @@ export function buildToolbarEvents(deps: ToolbarFactoryDeps): ToolbarEvents {
     onTogglePerfMonitor: () => deps.getPerfMonitor().toggle(),
     onResetUiSizes: () => deps.onResetUiSizes?.(),
     onToggleLockBars: () => deps.onToggleLockBars?.(),
+    onAutoSelectLanguage: () => {
+      const lang = autoSelectLanguage();
+      deps.showToast(
+        lang === "de" ? "Sprache automatisch auf Deutsch gesetzt" : "Language automatically set to English",
+        "🌐"
+      );
+      deps.sync();
+    },
     onResetPersonalConfig: () => {
       const t = getTranslations();
       if (confirm(t.dialogs.confirmResetConfig)) {

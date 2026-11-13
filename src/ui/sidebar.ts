@@ -606,7 +606,15 @@ export class Sidebar {
     );
     tabHeader.appendChild(this.createTabButton("board", t.tabs.board, t.board.title));
     tabHeader.appendChild(this.createTabButton("bom", t.tabs.bom, `${t.bom.title} (${bomSummary.totalObjects})`));
-    this.host.appendChild(tabHeader);
+    
+    // Mount the register tabs into the toolbar row 2 (same height) if present, else fallback to host
+    const targetTabsHost = document.getElementById("toolbar-sidebar-tabs");
+    if (targetTabsHost) {
+      targetTabsHost.innerHTML = "";
+      targetTabsHost.appendChild(tabHeader);
+    } else {
+      this.host.appendChild(tabHeader);
+    }
 
     // 2. Tab Content Container
     const content = document.createElement("div");

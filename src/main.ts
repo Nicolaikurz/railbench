@@ -19,7 +19,7 @@ import { Selection } from "@/editor/selection";
 import { History, AddPiecesCommand } from "@/editor/commands";
 import { createToolbar, updateToolbarState, type ToolbarEvents } from "@/ui/toolbar";
 import { buildToolbarEvents } from "@/ui/toolbar-events-factory";
-import { getTranslations, onLanguageChange, getLanguage } from "@/i18n";
+import { getTranslations, onLanguageChange, getLanguage, setLanguage } from "@/i18n";
 import { Sidebar } from "@/ui/sidebar";
 import { RightSidebar } from "@/ui/right-sidebar";
 import { PlanManager } from "@/io/plan-manager";
@@ -827,6 +827,7 @@ async function main() {
   });
 
   createToolbar(toolbarHost, toolbarEvents);
+  sidebar?.render();
 
   themeManager.onChange((resolved, pref) => {
     renderer.setTheme(resolved);
@@ -933,16 +934,24 @@ async function main() {
       switch (action) {
         case "newPlan": operations.triggerNewPlan(); break;
         case "openPlan": operations.triggerOpenPlan(); break;
+        case "demoTracks": triggerDemoTracks(); break;
         case "savePlan": operations.triggerSavePlan(); break;
         case "savePlanAs": operations.triggerSavePlanAs("railbench"); break;
+        case "importCatalog": triggerImportCatalog(); break;
+        case "import3d": toolbarEvents.onImportModel?.(); break;
+        case "exportXml": toolbarEvents.onSaveXML(); break;
         case "exportCSV": operations.triggerExportCSV(); break;
+        case "printPlan": openPrintDialog(layout, catalog, renderer); break;
+        case "collaborate": triggerCollabDialog(); break;
         case "copy": operations.copySelected(); break;
         case "paste": operations.pasteClipboard(); break;
         case "duplicate": operations.duplicateSelected(); break;
         case "selectAll": operations.selectAll(); break;
+        case "deselectAll": selection.clear(); sync(); break;
         case "undo": history.undo(); sync(true); break;
         case "redo": history.redo(); sync(true); break;
         case "rotate": operations.rotateSelected(7.5); break;
+        case "rotateCcw": operations.rotateSelected(-7.5); break;
         case "delete": operations.deleteSelected(); break;
         case "toggleFeeder": operations.toggleSelectedFeeder(); break;
         case "resetView": renderer.resetView(); sync(); break;
@@ -951,10 +960,27 @@ async function main() {
         case "toggleTrackLabels": trackLabelsEnabled = !trackLabelsEnabled; sync(); break;
         case "togglePowerSim": powerSimEnabled = !powerSimEnabled; sync(); break;
         case "toggle3D": toggle3D(); break;
-        case "printPlan": openPrintDialog(layout, catalog, renderer); break;
+        case "toggleRulers": ruler?.toggle(); sync(); break;
+        case "toggleWoodPlate": toolbarEvents.onToggleWoodPlate?.(); break;
+        case "togglePerfMonitor": perfMonitor?.toggle(); sync(); break;
+        case "lockBars": toolbarEvents.onToggleLockBars?.(); break;
+        case "resetUiSizes": toolbarEvents.onResetUiSizes?.(); break;
+        case "themeSystem": themeManager.setPreference("system"); break;
+        case "themeDark": themeManager.setPreference("dark"); break;
+        case "themeLight": themeManager.setPreference("light"); break;
+        case "configPower": toolbarEvents.onOpenPowerSettings?.("voltage"); break;
+        case "langAuto": toolbarEvents.onAutoSelectLanguage?.(); break;
+        case "langDe": setLanguage("de"); break;
+        case "langEn": setLanguage("en"); break;
+        case "resetPersonalConfig": toolbarEvents.onResetPersonalConfig?.(); break;
         case "changeHeight": openHeightDialogForSelection(); break;
         case "help": openHelpDialog("overview"); break;
         case "shortcuts": openHelpDialog("shortcuts"); break;
+        case "welcome": triggerWelcome(); break;
+        case "layersGuide": openHelpDialog("layers"); break;
+        case "voltageGuide": openHelpDialog("power"); break;
+        case "printGuide": openHelpDialog("print"); break;
+        case "about": openHelpDialog("about"); break;
       }
     });
   }
@@ -962,6 +988,7 @@ async function main() {
   // Sprachänderungen dynamisch übernehmen
   onLanguageChange(() => {
     createToolbar(toolbarHost, toolbarEvents);
+  sidebar?.render();
     updateToolbarState({
       themePref: themeManager.getPreference(),
       resolvedTheme: themeManager.getResolvedTheme(),

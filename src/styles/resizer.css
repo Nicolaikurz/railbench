@@ -1,10 +1,10 @@
 /* --- RESIZER SPLITTERS --- */
 #sidebar-resizer.ui-resizer-v {
   position: absolute;
-  top: var(--toolbar-height, 42px);
+  top: var(--toolbar-height, 68px);
   left: calc(var(--sidebar-width, 280px) - 4px);
   width: 8px;
-  height: calc(100vh - var(--toolbar-height, 42px));
+  height: calc(100vh - var(--toolbar-height, 68px));
   cursor: col-resize;
   z-index: 105;
   touch-action: none;
@@ -27,7 +27,7 @@
 
 #toolbar-resizer.ui-resizer-h {
   position: absolute;
-  top: calc(var(--toolbar-height, 42px) - 4px);
+  top: calc(var(--toolbar-height, 68px) - 4px);
   left: 0;
   width: 100vw;
   height: 8px;

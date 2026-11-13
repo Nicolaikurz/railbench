@@ -6,14 +6,15 @@ export interface LayoutResizerOptions {
 }
 
 export const DEFAULT_SIDEBAR_WIDTH = 280;
-export const DEFAULT_TOOLBAR_HEIGHT = 42;
+export const DEFAULT_TOOLBAR_HEIGHT = 68;
+export const DEFAULT_TOOLBAR_HEIGHT_MAC = 42;
 export const DEFAULT_RIGHT_SIDEBAR_WIDTH = 290;
 
 export const MIN_SIDEBAR_WIDTH = 180;
 export const MAX_SIDEBAR_WIDTH = 700;
 
 export const MIN_TOOLBAR_HEIGHT = 34;
-export const MAX_TOOLBAR_HEIGHT = 75;
+export const MAX_TOOLBAR_HEIGHT = 110;
 
 export const MIN_RIGHT_SIDEBAR_WIDTH = 200;
 export const MAX_RIGHT_SIDEBAR_WIDTH = 600;
@@ -64,8 +65,14 @@ export class LayoutResizer {
       this.setSidebarWidth(savedSidebarWidth, false);
     }
 
+    const isMac = typeof document !== "undefined" && (
+      document.body?.classList?.contains("has-system-menus") ||
+      this.appEl?.classList?.contains("has-system-menus")
+    );
     const savedToolbarHeight = parseFloat(localStorage.getItem("railbench_toolbar_height") ?? "");
-    if (!isNaN(savedToolbarHeight) && savedToolbarHeight >= MIN_TOOLBAR_HEIGHT) {
+    if (!isMac && savedToolbarHeight === 42) {
+      this.setToolbarHeight(DEFAULT_TOOLBAR_HEIGHT, false);
+    } else if (!isNaN(savedToolbarHeight) && savedToolbarHeight >= MIN_TOOLBAR_HEIGHT) {
       this.setToolbarHeight(savedToolbarHeight, false);
     }
 
@@ -413,8 +420,13 @@ export class LayoutResizer {
   }
 
   resetToolbarHeight(): void {
+    const isMac = typeof document !== "undefined" && (
+      document.body?.classList?.contains("has-system-menus") ||
+      this.appEl?.classList?.contains("has-system-menus")
+    );
+    const defaultH = isMac ? DEFAULT_TOOLBAR_HEIGHT_MAC : DEFAULT_TOOLBAR_HEIGHT;
     if (this.appEl) {
-      this.appEl.style.setProperty("--toolbar-height", `${DEFAULT_TOOLBAR_HEIGHT}px`);
+      this.appEl.style.setProperty("--toolbar-height", `${defaultH}px`);
     }
     if (typeof localStorage !== "undefined") {
       try {

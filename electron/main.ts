@@ -125,9 +125,32 @@ function setupMenu() {
   }
 
   const template: Electron.MenuItemConstructorOptions[] = [
-    ...(isMac ? [{ role: "appMenu" as const }] : []),
+    ...(isMac
+      ? [
+          {
+            role: "appMenu" as const,
+            submenu: [
+              { role: "about" as const },
+              { type: "separator" as const },
+              {
+                label: "Einstellungen...",
+                accelerator: "CmdOrCtrl+,",
+                click: () => mainWindow?.webContents.send("menu:action", "configPower"),
+              },
+              { type: "separator" as const },
+              { role: "services" as const },
+              { type: "separator" as const },
+              { role: "hide" as const },
+              { role: "hideOthers" as const },
+              { role: "unhide" as const },
+              { type: "separator" as const },
+              { role: "quit" as const },
+            ],
+          },
+        ]
+      : []),
     {
-      label: "Datei",
+      label: "Gleisplan",
       submenu: [
         {
           label: "Neuer Plan",
@@ -138,6 +161,10 @@ function setupMenu() {
           label: "Plan öffnen...",
           accelerator: "CmdOrCtrl+O",
           click: () => mainWindow?.webContents.send("menu:action", "openPlan"),
+        },
+        {
+          label: "Demo-Layouts...",
+          click: () => mainWindow?.webContents.send("menu:action", "demoTracks"),
         },
         { type: "separator" },
         {
@@ -152,15 +179,31 @@ function setupMenu() {
         },
         { type: "separator" },
         {
+          label: "Gleiskatalog importieren (JSON)...",
+          click: () => mainWindow?.webContents.send("menu:action", "importCatalog"),
+        },
+        {
+          label: "3D-Modell einfügen (.glb / .gltf)...",
+          click: () => mainWindow?.webContents.send("menu:action", "import3d"),
+        },
+        {
+          label: "Gleisplan als XML exportieren...",
+          click: () => mainWindow?.webContents.send("menu:action", "exportXml"),
+        },
+        {
           label: "Stückliste exportieren (CSV)...",
           accelerator: "CmdOrCtrl+E",
           click: () => mainWindow?.webContents.send("menu:action", "exportCSV"),
         },
-        { type: "separator" },
         {
           label: "Plan drucken (Ebenen getrennt)...",
           accelerator: "CmdOrCtrl+P",
           click: () => mainWindow?.webContents.send("menu:action", "printPlan"),
+        },
+        { type: "separator" },
+        {
+          label: "Live-Zusammenarbeit (Multi-User)...",
+          click: () => mainWindow?.webContents.send("menu:action", "collaborate"),
         },
         { type: "separator" },
         isMac ? { role: "close" } : { role: "quit" },
@@ -176,7 +219,7 @@ function setupMenu() {
         },
         {
           label: "Wiederholen",
-          accelerator: "CmdOrCtrl+Y",
+          accelerator: "CmdOrCtrl+Shift+Z",
           click: () => mainWindow?.webContents.send("menu:action", "redo"),
         },
         { type: "separator" },
@@ -195,20 +238,31 @@ function setupMenu() {
           accelerator: "CmdOrCtrl+D",
           click: () => mainWindow?.webContents.send("menu:action", "duplicate"),
         },
+        { type: "separator" },
         {
           label: "Alles auswählen",
           accelerator: "CmdOrCtrl+A",
           click: () => mainWindow?.webContents.send("menu:action", "selectAll"),
         },
+        {
+          label: "Auswahl aufheben",
+          accelerator: "Esc",
+          click: () => mainWindow?.webContents.send("menu:action", "deselectAll"),
+        },
         { type: "separator" },
         {
-          label: "Ausgewähltes Gleis drehen",
+          label: "Ausgewähltes Gleis im Uhrzeigersinn drehen",
           accelerator: "R",
           click: () => mainWindow?.webContents.send("menu:action", "rotate"),
         },
         {
+          label: "Ausgewähltes Gleis gegen den Uhrzeigersinn drehen",
+          accelerator: "Shift+R",
+          click: () => mainWindow?.webContents.send("menu:action", "rotateCcw"),
+        },
+        {
           label: "Ausgewähltes Gleis löschen",
-          accelerator: "Delete",
+          accelerator: "Backspace",
           click: () => mainWindow?.webContents.send("menu:action", "delete"),
         },
         { type: "separator" },
@@ -233,9 +287,46 @@ function setupMenu() {
           click: () => mainWindow?.webContents.send("menu:action", "resetView"),
         },
         {
-          label: "3D Ansicht umschalten (Alpha)",
+          label: "3D-Ansicht umschalten",
           accelerator: "3",
           click: () => mainWindow?.webContents.send("menu:action", "toggle3D"),
+        },
+        { type: "separator" },
+        {
+          label: "Lineale ein/aus",
+          accelerator: "Shift+L",
+          click: () => mainWindow?.webContents.send("menu:action", "toggleRulers"),
+        },
+        {
+          label: "Trassenbretter / Unterbau ein/aus",
+          click: () => mainWindow?.webContents.send("menu:action", "toggleWoodPlate"),
+        },
+        { type: "separator" },
+        {
+          label: "Design: System",
+          click: () => mainWindow?.webContents.send("menu:action", "themeSystem"),
+        },
+        {
+          label: "Design: Dunkel",
+          click: () => mainWindow?.webContents.send("menu:action", "themeDark"),
+        },
+        {
+          label: "Design: Hell",
+          click: () => mainWindow?.webContents.send("menu:action", "themeLight"),
+        },
+        { type: "separator" },
+        {
+          label: "Performance-Monitor ein/aus",
+          accelerator: "F3",
+          click: () => mainWindow?.webContents.send("menu:action", "togglePerfMonitor"),
+        },
+        {
+          label: "Menüleisten fixieren",
+          click: () => mainWindow?.webContents.send("menu:action", "lockBars"),
+        },
+        {
+          label: "UI-Größen zurücksetzen",
+          click: () => mainWindow?.webContents.send("menu:action", "resetUiSizes"),
         },
         { type: "separator" },
         { role: "reload" },
@@ -250,7 +341,7 @@ function setupMenu() {
       ],
     },
     {
-      label: "Werkzeuge",
+      label: "Einstellungen",
       submenu: [
         {
           label: "Snapping ein/aus",
@@ -267,8 +358,36 @@ function setupMenu() {
           accelerator: "P",
           click: () => mainWindow?.webContents.send("menu:action", "togglePowerSim"),
         },
+        {
+          label: "Farbcodierung umschalten",
+          click: () => mainWindow?.webContents.send("menu:action", "toggleColorCode"),
+        },
+        { type: "separator" },
+        {
+          label: "Stromversorgung & Spannung konfigurieren...",
+          click: () => mainWindow?.webContents.send("menu:action", "configPower"),
+        },
+        { type: "separator" },
+        {
+          label: "Sprache: Automatisch (System)",
+          click: () => mainWindow?.webContents.send("menu:action", "langAuto"),
+        },
+        {
+          label: "Sprache: Deutsch",
+          click: () => mainWindow?.webContents.send("menu:action", "langDe"),
+        },
+        {
+          label: "Sprache: English",
+          click: () => mainWindow?.webContents.send("menu:action", "langEn"),
+        },
+        { type: "separator" },
+        {
+          label: "Persönliche Konfiguration zurücksetzen...",
+          click: () => mainWindow?.webContents.send("menu:action", "resetPersonalConfig"),
+        },
       ],
     },
+    ...(isMac ? [{ role: "windowMenu" as const }] : []),
     {
       label: "Hilfe",
       submenu: [
@@ -282,12 +401,29 @@ function setupMenu() {
           accelerator: "?",
           click: () => mainWindow?.webContents.send("menu:action", "shortcuts"),
         },
-        ...(isMac
-          ? []
-          : [
-              { type: "separator" as const },
-              { role: "about" as const },
-            ]),
+        { type: "separator" },
+        {
+          label: "Willkommens-Bildschirm...",
+          click: () => mainWindow?.webContents.send("menu:action", "welcome"),
+        },
+        { type: "separator" },
+        {
+          label: "Ebenen-Handbuch...",
+          click: () => mainWindow?.webContents.send("menu:action", "layersGuide"),
+        },
+        {
+          label: "Stromversorgungs-Handbuch...",
+          click: () => mainWindow?.webContents.send("menu:action", "voltageGuide"),
+        },
+        {
+          label: "Druck-Handbuch...",
+          click: () => mainWindow?.webContents.send("menu:action", "printGuide"),
+        },
+        { type: "separator" },
+        {
+          label: "Über RAILbench...",
+          click: () => mainWindow?.webContents.send("menu:action", "about"),
+        },
       ],
     },
   ];

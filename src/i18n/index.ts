@@ -15,6 +15,89 @@ const dictionaries: Record<Language, Translations> = {
 let currentLanguage: Language = detectInitialLanguage();
 const listeners = new Set<(lang: Language) => void>();
 
+/**
+ * Detects the system/browser/environment language.
+ * If system language is German (e.g. de, de-DE, de-AT, de-CH) returns "de", else "en".
+ */
+export function detectSystemLanguage(): Language {
+  // 1. Check navigator.languages (preferred languages array)
+  if (typeof navigator !== "undefined") {
+    if (Array.isArray(navigator.languages) && navigator.languages.length > 0) {
+      for (const lang of navigator.languages) {
+        if (typeof lang === "string" && lang.trim().length > 0) {
+          if (lang.toLowerCase().trim().startsWith("de")) {
+            return "de";
+          }
+          break;
+        }
+      }
+    }
+
+    // 2. Check navigator.language
+    if (typeof navigator.language === "string" && navigator.language.trim().length > 0) {
+      if (navigator.language.toLowerCase().trim().startsWith("de")) {
+        return "de";
+      }
+    }
+
+    // 3. Legacy navigator properties
+    const navAny = navigator as Record<string, any>;
+    if (typeof navAny.userLanguage === "string" && navAny.userLanguage.toLowerCase().trim().startsWith("de")) {
+      return "de";
+    }
+    if (typeof navAny.browserLanguage === "string" && navAny.browserLanguage.toLowerCase().trim().startsWith("de")) {
+      return "de";
+    }
+  }
+
+  // 4. Check Intl locale
+  try {
+    const intlLocale = Intl.DateTimeFormat().resolvedOptions().locale;
+    if (typeof intlLocale === "string" && intlLocale.toLowerCase().trim().startsWith("de")) {
+      return "de";
+    }
+  } catch {}
+
+  // 5. Check Node / Electron process.env
+  if (typeof process !== "undefined" && process?.env) {
+    const envLang = process.env.LANG || process.env.LC_ALL || process.env.LC_MESSAGES || process.env.LANGUAGE;
+    if (typeof envLang === "string" && envLang.toLowerCase().trim().startsWith("de")) {
+      return "de";
+    }
+  }
+
+  return "en";
+}
+
+/**
+ * Automatically selects the language based on system language.
+ * If system language is German then selects German ("de"), else English ("en").
+ *
+ * @param persist Whether to persist the selected language to localStorage (default: true)
+ * @returns The selected Language ("de" or "en")
+ */
+export function autoSelectLanguage(persist = true): Language {
+  const target = detectSystemLanguage();
+  if (persist) {
+    setLanguage(target);
+  } else {
+    if (currentLanguage !== target) {
+      currentLanguage = target;
+      if (typeof document !== "undefined" && document.documentElement) {
+        document.documentElement.lang = target;
+      }
+      for (const listener of listeners) {
+        try {
+          listener(target);
+        } catch (e) {
+          console.error("Error in language listener:", e);
+        }
+      }
+    }
+  }
+  return target;
+}
+
 function detectInitialLanguage(): Language {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -23,13 +106,7 @@ function detectInitialLanguage(): Language {
     }
   } catch {}
 
-  // System/Browser-Sprache prüfen
-  if (typeof navigator !== "undefined" && navigator.language) {
-    if (navigator.language.toLowerCase().startsWith("de")) {
-      return "de";
-    }
-  }
-  return "en";
+  return detectSystemLanguage();
 }
 
 /** Aktuell gewählte Sprache ("en" oder "de") abfragen */
