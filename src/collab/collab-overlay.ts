@@ -1,5 +1,6 @@
 import type { Renderer } from "@/render/renderer";
 import type { CollabUser } from "./types";
+import { ICONS } from "@/ui/icons";
 
 export class CollabOverlay {
   private container: HTMLElement;
@@ -89,11 +90,7 @@ export class CollabOverlay {
     el.style.zIndex = "88";
 
     // SVG Cursor arrow
-    const svg = `
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="${user.color}" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">
-        <polygon points="3 3 10.07 19.97 12.58 12.58 19.97 10.07 3 3"/>
-      </svg>
-    `;
+    const svg = ICONS.collabCursor(user.color);
 
     // Name badge
     const badge = document.createElement("span");
