@@ -2,7 +2,7 @@ import { Container, Graphics, Text, TextStyle } from "pixi.js";
 import type { TrackPiece, ColorMode } from "@/core/types";
 import { Catalog, getLocalConnectors, isFeederEntry, isIsolatingEntry, isBufferStopPiece, type CatalogEntry } from "@/catalog/catalog";
 import type { PiecePowerResult } from "@/core/simulation";
-import { deg2rad, getPieceLocalCenter, getUprightTextRotation } from "@/core/geometry";
+import { deg2rad, getPieceLocalCenter, getUprightTextRotation, isCurvedTrackEntry, isStraightTrackEntry } from "@/core/geometry";
 import { getTrackBlueprintColor, type BlueprintColor } from "./blueprint-colors";
 import { getEffectiveFlexEntry } from "@/core/flextrack";
 
@@ -419,7 +419,7 @@ function drawElevationShadow(g: Graphics, entry: CatalogEntry, ballastWidth: num
   const shadowAlpha = Math.min(0.4, 0.12 + elevation * 0.003);
   const shadowColor = 0x000000;
 
-  if (kind === "straight" || kind === "accessory" || kind === "flex" || kind === "buffer-stop" || isBufferStopPiece(entry)) {
+  if (isStraightTrackEntry(entry)) {
     const l = entry.length ?? 188.3;
     g.rect(shadowDist * 0.5, -ballastHalf + shadowDist, l, ballastWidth);
     g.fill({ color: shadowColor, alpha: shadowAlpha });
@@ -442,7 +442,7 @@ function drawElevationShadow(g: Graphics, entry: CatalogEntry, ballastWidth: num
     return;
   }
 
-  if (kind === "curve") {
+  if (isCurvedTrackEntry(entry)) {
     const r = entry.radius ?? 437.5;
     const a = entry.angle ?? 30;
     if (a < 0) {
@@ -505,10 +505,9 @@ function drawRampChevrons(
     chevronColor = 0xf59e0b;
   }
 
-  const kind = entry.kind;
   const climbingForward = heightDiff > 0;
 
-  if (kind === "curve") {
+  if (isCurvedTrackEntry(entry)) {
     const r = entry.radius ?? 437.5;
     const a = entry.angle ?? 30;
     const absA = Math.abs(a);
@@ -612,7 +611,7 @@ function drawSelectionContour(g: Graphics, entry: CatalogEntry, contourWidth = 4
   const glowAlpha = 0.5;
   const contourHalf = contourWidth / 2;
 
-  if (kind === "straight" || kind === "accessory" || kind === "flex" || kind === "buffer-stop" || isBufferStopPiece(entry)) {
+  if (isStraightTrackEntry(entry)) {
     const l = entry.length ?? 188.3;
     g.rect(-4, -contourHalf, l + 8, contourWidth);
     g.stroke({ width: 3.5, color: glowColor, alpha: 0.9, join: "miter" });
@@ -638,7 +637,7 @@ function drawSelectionContour(g: Graphics, entry: CatalogEntry, contourWidth = 4
     return;
   }
 
-  if (kind === "curve") {
+  if (isCurvedTrackEntry(entry)) {
     const r = entry.radius ?? 437.5;
     const a = entry.angle ?? 30;
     if (a < 0) {
@@ -857,7 +856,15 @@ function drawSelectionGizmo(container: Container, entry: CatalogEntry) {
 
   const g = new Graphics();
   const center = getPieceLocalCenter(entry);
-  const stemOffset = entry.kind === "turntable" ? 220 : entry.kind === "transfer-table" ? 240 : entry.kind === "double-slip" ? 62 : entry.isRoad ? 50 : 48;
+  const stemOffset = entry.kind === "turntable"
+    ? 220
+    : entry.kind === "transfer-table"
+      ? 240
+      : entry.kind === "double-slip"
+        ? 62
+        : entry.isRoad
+          ? 50
+          : Math.max(48, Math.round((entry.gauge ?? 16.5) * 1.09 + 20));
   const handlePos = { x: center.x, y: center.y - stemOffset };
 
   // 1. Verbindungsschaft zum Drehgriff
@@ -897,7 +904,7 @@ function drawBallast(g: Graphics, entry: CatalogEntry, color: number, ballastWid
   const kind = entry.kind;
   const ballastHalf = ballastWidth / 2;
 
-  if (kind === "straight" || kind === "accessory" || kind === "flex" || kind === "buffer-stop" || isBufferStopPiece(entry)) {
+  if (isStraightTrackEntry(entry)) {
     const l = entry.length ?? 188.3;
     g.rect(0, -ballastHalf, l, ballastWidth);
     g.fill({ color, alpha: 0.95 });
@@ -960,7 +967,7 @@ function drawBallast(g: Graphics, entry: CatalogEntry, color: number, ballastWid
     return;
   }
 
-  if (kind === "curve") {
+  if (isCurvedTrackEntry(entry)) {
     const r = entry.radius ?? 437.5;
     const a = entry.angle ?? 30;
     if (a < 0) {
@@ -1111,7 +1118,7 @@ function drawBallast(g: Graphics, entry: CatalogEntry, color: number, ballastWid
 function drawTies(g: Graphics, entry: CatalogEntry, color: number, tieLenHalf = 13, tieWidth = 2.6, tieSpacing = 6.5) {
   const kind = entry.kind;
 
-  if (kind === "straight" || kind === "accessory" || kind === "flex" || kind === "buffer-stop" || isBufferStopPiece(entry)) {
+  if (isStraightTrackEntry(entry)) {
     const l = entry.length ?? 188.3;
     for (let x = 4; x <= l - 4; x += tieSpacing) {
       g.moveTo(x, -tieLenHalf);
@@ -1177,7 +1184,7 @@ function drawTies(g: Graphics, entry: CatalogEntry, color: number, tieLenHalf = 
     return;
   }
 
-  if (kind === "curve") {
+  if (isCurvedTrackEntry(entry)) {
     const r = entry.radius ?? 437.5;
     const a = entry.angle ?? 30;
     const absA = Math.abs(a);
@@ -1441,7 +1448,7 @@ function drawRails(g: Graphics, entry: CatalogEntry, color: number, gaugeHalf: n
   const kind = entry.kind;
   const railWidth = Math.max(1.1, gaugeHalf * 0.22);
 
-  if (kind === "straight" || kind === "accessory" || kind === "flex" || kind === "buffer-stop" || isBufferStopPiece(entry)) {
+  if (isStraightTrackEntry(entry)) {
     const l = entry.length ?? 188.3;
     g.moveTo(0, -gaugeHalf).lineTo(l, -gaugeHalf);
     g.moveTo(0, gaugeHalf).lineTo(l, gaugeHalf);
@@ -1469,6 +1476,36 @@ function drawRails(g: Graphics, entry: CatalogEntry, color: number, gaugeHalf: n
       // Rotes Sh0 Signal-Schild in der Mitte
       g.rect(bohleX - 0.5, -2.5, 2, 5);
       g.fill({ color: 0xef4444 });
+    } else if (isFeederEntry(entry)) {
+      // Anschlussgleis: Anschlussklemmen / Schraubklemmen am Gleisrand in der Mitte
+      const midX = l / 2;
+      const boxW = Math.max(8, gaugeHalf * 0.65);
+      const boxH = Math.max(4.5, gaugeHalf * 0.42);
+      const boxY = gaugeHalf + Math.max(1.5, gaugeHalf * 0.14);
+      const termOffset = boxW * 0.26;
+      const termRad = Math.max(1.2, boxH * 0.26);
+
+      // Zuleitungen zu den beiden Schienenprofilen
+      g.moveTo(midX - termOffset, boxY).lineTo(midX - termOffset, -gaugeHalf);
+      g.moveTo(midX + termOffset, boxY).lineTo(midX + termOffset, gaugeHalf);
+      g.stroke({ width: Math.max(1, railWidth * 0.55), color: 0xb45309, alpha: 0.85 });
+
+      // Klemmengehäuse
+      g.roundRect(midX - boxW / 2, boxY, boxW, boxH, 1.5);
+      g.fill({ color: 0x1e293b });
+      g.stroke({ width: 0.9, color: 0x475569 });
+
+      // Zwei Messing-/Kupfer-Schraubklemmen
+      g.circle(midX - termOffset, boxY + boxH / 2, termRad);
+      g.circle(midX + termOffset, boxY + boxH / 2, termRad);
+      g.fill({ color: 0xf59e0b });
+    } else if (kind === "uncoupler") {
+      // Entkupplungsgleis: Entkupplungsbohle zwischen den Schienen
+      const plateLen = Math.min(l * 0.42, Math.max(22, gaugeHalf * 3.2));
+      const plateH = Math.max(4, gaugeHalf * 1.15);
+      g.roundRect((l - plateLen) / 2, -plateH / 2, plateLen, plateH, 1.5);
+      g.fill({ color: 0x475569, alpha: 0.9 });
+      g.stroke({ width: 0.8, color: 0x94a3b8 });
     }
     return;
   }
@@ -1553,7 +1590,7 @@ function drawRails(g: Graphics, entry: CatalogEntry, color: number, gaugeHalf: n
     return;
   }
 
-  if (kind === "curve") {
+  if (isCurvedTrackEntry(entry)) {
     const r = entry.radius ?? 437.5;
     const a = entry.angle ?? 30;
     if (a < 0) {
@@ -1755,7 +1792,7 @@ function drawRails(g: Graphics, entry: CatalogEntry, color: number, gaugeHalf: n
 function drawTrackCenterline(g: Graphics, entry: CatalogEntry, color: number, width: number, alpha: number) {
   const kind = entry.kind;
 
-  if (kind === "straight" || kind === "accessory" || kind === "flex" || kind === "buffer-stop" || isBufferStopPiece(entry)) {
+  if (isStraightTrackEntry(entry)) {
     const l = entry.length ?? 188.3;
     g.moveTo(0, 0).lineTo(l, 0);
     g.stroke({ width, color, alpha, cap: "butt", join: "miter" });
@@ -1788,7 +1825,7 @@ function drawTrackCenterline(g: Graphics, entry: CatalogEntry, color: number, wi
     return;
   }
 
-  if (kind === "curve") {
+  if (isCurvedTrackEntry(entry)) {
     const r = entry.radius ?? 437.5;
     const a = entry.angle ?? 30;
     if (a < 0) {
@@ -1923,12 +1960,18 @@ function drawArcStroke(
 
 function drawPowerFeederMarker(parent: Container, entry: CatalogEntry, isGrey = false) {
   const center = getPieceLocalCenter(entry);
+  const gauge = entry.gauge ?? 16.5;
+  const hasRoadbed = entry.hasRoadbed ?? true;
+  const ballastWidth = hasRoadbed ? (gauge >= 30 ? gauge * 2.18 : (gauge >= 16 ? 36 : gauge * 2.2)) : gauge * 1.5;
+  const ballastHalf = ballastWidth / 2;
+  const stemStartOffset = Math.max(12, ballastHalf - 6);
+  const badgeOffset = Math.max(26, ballastHalf + 8);
   const badgeX = center.x;
-  const badgeY = center.y - 26;
+  const badgeY = center.y - badgeOffset;
 
   // Verbindungssteg senkrecht zum Gleis (von Gleisrand bis Plakette)
   const stem = new Graphics();
-  stem.moveTo(badgeX, center.y - 12).lineTo(badgeX, badgeY + 11);
+  stem.moveTo(badgeX, center.y - stemStartOffset).lineTo(badgeX, badgeY + 11);
   stem.stroke({
     width: 2,
     color: isGrey ? 0x94a3b8 : 0xeab308,
@@ -1977,28 +2020,36 @@ function drawIsolatorMarker(parent: Container, entry: CatalogEntry, isoIdx = 0, 
   const cx = lc.x + inwardX * 5;
   const cy = lc.y + inwardY * 5;
 
+  const gauge = entry.gauge ?? 16.5;
+  const hasRoadbed = entry.hasRoadbed ?? true;
+  const ballastWidth = hasRoadbed ? (gauge >= 30 ? gauge * 2.18 : (gauge >= 16 ? 36 : gauge * 2.2)) : gauge * 1.5;
+  const ballastHalf = ballastWidth / 2;
+  const cutHalf = Math.max(18, ballastHalf);
+  const stemStartOffset = Math.max(12, ballastHalf - 6);
+  const badgeOffset = Math.max(26, ballastHalf + 8);
+
   const cut = new Graphics();
   if (isGrey) {
-    cut.moveTo(cx - perpX * 18, cy - perpY * 18).lineTo(cx + perpX * 18, cy + perpY * 18);
+    cut.moveTo(cx - perpX * cutHalf, cy - perpY * cutHalf).lineTo(cx + perpX * cutHalf, cy + perpY * cutHalf);
     cut.stroke({ width: 3, color: 0x64748b, alpha: 0.6 });
   } else {
     // Markante rote Trennlinie quer über das Gleisprofil
-    cut.moveTo(cx - perpX * 18, cy - perpY * 18).lineTo(cx + perpX * 18, cy + perpY * 18);
+    cut.moveTo(cx - perpX * cutHalf, cy - perpY * cutHalf).lineTo(cx + perpX * cutHalf, cy + perpY * cutHalf);
     cut.stroke({ width: 4, color: 0xdc2626, alpha: 0.95 });
     // Helle Reflexionslinie
-    cut.moveTo(cx + inwardX * 1.5 - perpX * 18, cy + inwardY * 1.5 - perpY * 18)
-      .lineTo(cx + inwardX * 1.5 + perpX * 18, cy + inwardY * 1.5 + perpY * 18);
+    cut.moveTo(cx + inwardX * 1.5 - perpX * cutHalf, cy + inwardY * 1.5 - perpY * cutHalf)
+      .lineTo(cx + inwardX * 1.5 + perpX * cutHalf, cy + inwardY * 1.5 + perpY * cutHalf);
     cut.stroke({ width: 1.5, color: 0xffffff, alpha: 0.85 });
   }
   parent.addChild(cut);
 
   // Plakette senkrecht zum Gleis und über dem Gleis (oben: negatives y)
   const badgeX = cx;
-  const badgeY = cy - 26;
+  const badgeY = cy - badgeOffset;
 
   // Verbindungssteg senkrecht zum Gleis von der Trennlinie nach oben zur Plakette
   const stem = new Graphics();
-  stem.moveTo(badgeX, cy - 12).lineTo(badgeX, badgeY + 11);
+  stem.moveTo(badgeX, cy - stemStartOffset).lineTo(badgeX, badgeY + 11);
   stem.stroke({
     width: 2,
     color: isGrey ? 0x94a3b8 : 0xdc2626,
@@ -2082,7 +2133,7 @@ function drawCatenary2D(parent: Container, entry: CatalogEntry, powerResult?: Pi
 
   // 2. Streckenmasten mit Auslegern
   const drawMast = (x: number, y: number, angleRad: number, side: 1 | -1 = 1) => {
-    const mastDist = 22 * side;
+    const mastDist = Math.max(22, (entry.gauge ?? 16.5) * 1.15) * side;
     const sin = Math.sin(angleRad);
     const cos = Math.cos(angleRad);
     const perpX = -sin * mastDist;
@@ -2113,13 +2164,13 @@ function drawCatenary2D(parent: Container, entry: CatalogEntry, powerResult?: Pi
 
   const kind = entry.kind;
   if (kind === "turntable" || kind === "transfer-table") return;
-  if (kind === "straight" || kind === "accessory" || kind === "flex" || kind === "buffer-stop" || isBufferStopPiece(entry)) {
+  if (isStraightTrackEntry(entry)) {
     const l = entry.length ?? 188.3;
     drawMast(0, 0, 0, 1);
     if (l >= 150) {
       drawMast(l, 0, 0, 1);
     }
-  } else if (kind === "curve") {
+  } else if (isCurvedTrackEntry(entry)) {
     const r = entry.radius ?? 437.5;
     const a = entry.angle ?? 30;
     const absA = Math.abs(a);

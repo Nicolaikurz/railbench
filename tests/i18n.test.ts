@@ -64,7 +64,7 @@ describe("i18n Module", () => {
       return Object.keys(obj).flatMap((key) => {
         const val = obj[key];
         const currentPath = prefix ? `${prefix}.${key}` : key;
-        if (typeof val === "object" && val !== null && !Array.isArray(val)) {
+        if (typeof val === "object" && val !== null) {
           return getDeepKeys(val, currentPath);
         }
         return [currentPath];
@@ -202,5 +202,23 @@ describe("i18n Module", () => {
         configurable: true,
       });
     });
+  });
+
+  it("should render all Help Dialog tabs in both German and English from separated language files", async () => {
+    const { HELP_TABS, renderHelpTab } = await import("@/ui/help-dialog");
+    const { helpDe } = await import("@/i18n/help-de");
+    const { helpEn } = await import("@/i18n/help-en");
+
+    for (const tab of HELP_TABS) {
+      const containerDe = { innerHTML: "" } as unknown as HTMLElement;
+      const containerEn = { innerHTML: "" } as unknown as HTMLElement;
+
+      renderHelpTab(tab, containerDe, helpDe);
+      renderHelpTab(tab, containerEn, helpEn);
+
+      expect(containerDe.innerHTML).toContain("help-topic-section");
+      expect(containerEn.innerHTML).toContain("help-topic-section");
+      expect(containerDe.innerHTML).not.toBe(containerEn.innerHTML);
+    }
   });
 });

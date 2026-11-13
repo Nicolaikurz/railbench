@@ -203,25 +203,57 @@ export function showTrackContextMenu(options: TrackContextMenuOptions): void {
     }
   `;
 
+  menu.style.left = "0px";
+  menu.style.top = "0px";
   document.body.appendChild(menu);
 
-  // Position clamping to keep on screen
-  const menuWidth = 270;
-  const menuHeight = isTurnout ? 330 : 270;
-  let posX = screenX + 6;
-  let posY = screenY + 6;
+  // Position clamping to keep every entry visible on screen
+  const positionMenuOnScreen = () => {
+    const margin = 12;
+    const vw = (typeof window !== "undefined" && window.innerWidth) || 1024;
+    const vh = (typeof window !== "undefined" && window.innerHeight) || 768;
 
-  if (posX + menuWidth > window.innerWidth - 10) {
-    posX = screenX - menuWidth - 6;
-  }
-  if (posY + menuHeight > window.innerHeight - 10) {
-    posY = window.innerHeight - menuHeight - 10;
-  }
-  if (posX < 10) posX = 10;
-  if (posY < 10) posY = 10;
+    const fallbackWidth = 280;
+    const fallbackHeight = isTurnout ? 430 : 370;
+    const rect = menu.getBoundingClientRect?.();
+    const measuredWidth = Math.max(menu.scrollWidth || 0, menu.offsetWidth || 0, rect?.width || 0);
+    const measuredHeight = Math.max(menu.scrollHeight || 0, menu.offsetHeight || 0, rect?.height || 0);
 
-  menu.style.left = `${posX}px`;
-  menu.style.top = `${posY}px`;
+    const menuWidth = measuredWidth > 0 ? Math.ceil(measuredWidth) + 4 : fallbackWidth;
+    const menuHeight = measuredHeight > 0 ? Math.ceil(measuredHeight) + 4 : fallbackHeight;
+
+    let posX = screenX + 6;
+    let posY = screenY + 6;
+
+    if (posX + menuWidth > vw - margin) {
+      posX = screenX - menuWidth - 6;
+    }
+    if (posX + menuWidth > vw - margin) {
+      posX = vw - menuWidth - margin;
+    }
+    if (posX < margin) {
+      posX = margin;
+    }
+
+    if (posY + menuHeight > vh - margin) {
+      posY = vh - menuHeight - margin;
+    }
+    if (posY < margin) {
+      posY = margin;
+    }
+
+    menu.style.left = `${Math.round(posX)}px`;
+    menu.style.top = `${Math.round(posY)}px`;
+  };
+
+  positionMenuOnScreen();
+  if (typeof requestAnimationFrame === "function") {
+    requestAnimationFrame(() => {
+      if (menu.isConnected !== false) {
+        positionMenuOnScreen();
+      }
+    });
+  }
 
   // Handle actions
   menu.addEventListener("click", (e) => {

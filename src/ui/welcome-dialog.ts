@@ -1,7 +1,5 @@
 import { getLanguage } from "@/i18n";
 import { getAppVersionTag } from "@/version";
-import welcomeHtml from "./templates/welcome-dialog.html?raw";
-import recentBtnHtml from "./templates/welcome-recent-button.html?raw";
 
 export type StartupAction = "recent" | "new" | "demo" | "open" | "ask";
 
@@ -17,31 +15,70 @@ export function showWelcomeDialog(
   return new Promise((resolve) => {
     const isDe = getLanguage() === "de";
 
-    let recentButtonHtml = "";
-    if (hasRecent) {
-      recentButtonHtml = recentBtnHtml
-        .replace("{{RECENT_TITLE}}", isDe ? "Letzten Plan fortsetzen" : "Continue Last Plan")
-        .replace("{{RECENT_DESC}}", recentName || (isDe ? "Zuletzt bearbeitetes Layout" : "Last edited layout"));
-    }
-
-    const filledHtml = welcomeHtml
-      .replace("{{CLOSE_TITLE}}", isDe ? "Schließen (Esc)" : "Close (Esc)")
-      .replace("{{VERSION}}", getAppVersionTag())
-      .replace("{{SUBTITLE}}", isDe ? "Wähle, wie du heute starten möchtest:" : "Choose how you want to get started:")
-      .replace("{{RECENT_BUTTON}}", recentButtonHtml)
-      .replace("{{NEW_CLASS}}", !hasRecent ? "primary" : "")
-      .replace("{{NEW_AUTOFOCUS}}", !hasRecent ? "autofocus" : "")
-      .replace("{{NEW_TITLE}}", isDe ? "Neuer Plan" : "New Plan")
-      .replace("{{NEW_DESC}}", isDe ? "Leere Platte mit Standard-Ebenen" : "Empty baseboard with default layers")
-      .replace("{{DEMO_TITLE}}", isDe ? "Demo-Layout" : "Demo Layout")
-      .replace("{{DEMO_DESC}}", isDe ? "Musterstrecke zum Testen & Planen (Alpenland H0)" : "Sample layout for testing & planning (Alpenland H0)")
-      .replace("{{OPEN_TITLE}}", isDe ? "Plan von Festplatte öffnen…" : "Open Plan from File…")
-      .replace("{{OPEN_DESC}}", isDe ? ".railbench Datei auswählen" : "Select .railbench file")
-      .replace("{{REMEMBER_LABEL}}", isDe ? "Auswahl merken (nicht mehr fragen)" : "Remember choice (don't ask again)");
+    const recentBtnHtml = hasRecent
+      ? `
+        <button type="button" class="welcome-btn primary" id="welcome-btn-recent" autofocus>
+          <span class="welcome-btn-icon">⏱️</span>
+          <span class="welcome-btn-text">
+            <strong>${isDe ? "Letzten Plan fortsetzen" : "Continue Last Plan"}</strong>
+            <small>${recentName || (isDe ? "Zuletzt bearbeitetes Layout" : "Last edited layout")}</small>
+          </span>
+          <span class="welcome-btn-arrow" aria-hidden="true">→</span>
+        </button>
+      `
+      : "";
 
     const modal = document.createElement("div");
     modal.className = "welcome-dialog-backdrop";
-    modal.innerHTML = filledHtml;
+    modal.innerHTML = `
+      <div class="welcome-card" role="dialog" aria-modal="true" aria-labelledby="welcome-title">
+        <div class="welcome-header">
+          <h2 id="welcome-title">
+            <span>🚆</span>
+            <span>Railbench</span>
+            <span class="welcome-version">${getAppVersionTag()}</span>
+          </h2>
+          <button type="button" class="welcome-close-btn" id="welcome-close-btn" title="${isDe ? "Schließen (Esc)" : "Close (Esc)"}">×</button>
+        </div>
+
+        <div class="welcome-actions">
+          ${recentBtnHtml}
+          <button type="button" class="welcome-btn ${!hasRecent ? "primary" : ""}" id="welcome-btn-new" ${!hasRecent ? "autofocus" : ""}>
+            <span class="welcome-btn-icon">✨</span>
+            <span class="welcome-btn-text">
+              <strong>${isDe ? "Neuer Plan" : "New Plan"}</strong>
+              <small>${isDe ? "Leere Platte mit Standard-Ebenen" : "Empty baseboard with default layers"}</small>
+            </span>
+            <span class="welcome-btn-arrow" aria-hidden="true">→</span>
+          </button>
+
+          <button type="button" class="welcome-btn" id="welcome-btn-demo">
+            <span class="welcome-btn-icon">🏔️</span>
+            <span class="welcome-btn-text">
+              <strong>${isDe ? "Demo-Layout" : "Demo Layout"}</strong>
+              <small>${isDe ? "Musterstrecke zum Testen & Planen" : "Sample layout for testing & planning"}</small>
+            </span>
+            <span class="welcome-btn-arrow" aria-hidden="true">→</span>
+          </button>
+
+          <button type="button" class="welcome-btn" id="welcome-btn-open">
+            <span class="welcome-btn-icon">📂</span>
+            <span class="welcome-btn-text">
+              <strong>${isDe ? "Plan öffnen…" : "Open Plan…"}</strong>
+              <small>${isDe ? ".railbench Datei von Festplatte laden" : "Load .railbench file from disk"}</small>
+            </span>
+            <span class="welcome-btn-arrow" aria-hidden="true">→</span>
+          </button>
+        </div>
+
+        <div class="welcome-footer">
+          <label class="welcome-remember-label">
+            <input type="checkbox" id="welcome-remember-check" />
+            <span>${isDe ? "Auswahl merken (nicht mehr fragen)" : "Remember choice (don't ask again)"}</span>
+          </label>
+        </div>
+      </div>
+    `;
 
     document.body.appendChild(modal);
 
@@ -55,11 +92,8 @@ export function showWelcomeDialog(
       resolved = true;
       document.removeEventListener("keydown", onKeyDown);
       const dontAskAgain = checkbox?.checked ?? false;
-      modal.classList.add("fade-out");
-      setTimeout(() => {
-        modal.remove();
-        resolve({ action, dontAskAgain });
-      }, 150);
+      modal.remove();
+      resolve({ action, dontAskAgain });
     };
 
     const onKeyDown = (e: KeyboardEvent) => {
@@ -69,6 +103,12 @@ export function showWelcomeDialog(
       }
     };
     document.addEventListener("keydown", onKeyDown);
+
+    modal.addEventListener?.("click", (e: MouseEvent) => {
+      if (e.target === modal) {
+        cleanup(hasRecent ? "recent" : "demo");
+      }
+    });
 
     modal
       .querySelector("#welcome-close-btn")

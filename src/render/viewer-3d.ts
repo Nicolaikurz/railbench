@@ -5,7 +5,7 @@ import type { Layout, TrackPiece, Layer, LayerPlate, BaseboardConfig, Model3D, C
 import { getBaseboardPolygon, getBaseboardBounds, getBaseboards, computeBaseboardLegPositions, isPointInsideBaseboard, getLayerPlatePolygon } from "@/core/layout";
 import type { Catalog, CatalogEntry } from "@/catalog/catalog";
 import { catalogRegistry, isBufferStopPiece } from "@/catalog/catalog";
-import { deg2rad, getPieceLocalCenter, transformPoint } from "@/core/geometry";
+import { deg2rad, getPieceLocalCenter, isCurvedTrackEntry, isStraightTrackEntry, transformPoint } from "@/core/geometry";
 import { getTrackBlueprintColor } from "@/render/blueprint-colors";
 import { createBuiltinModel3DMesh, buildBufferStop3D, findCollidingTracksForMountain } from "@/render/builtin-models-3d";
 import { BUILTIN_MODELS } from "@/core/models-3d";
@@ -1649,7 +1649,7 @@ export class Viewer3D {
     // 1. GERADES GLEIS & ZUBEHÖR (PRELLBOCK)
     // =========================================================================
     const isBufferStop = isBufferStopPiece(entry);
-    if (kind === "straight" || kind === "accessory" || kind === "flex" || kind === "buffer-stop" || isBufferStop) {
+    if (isStraightTrackEntry(entry)) {
       const len = entry.length ?? (kind === "flex" ? 900 : 188.3);
       const straightGroup = new THREE.Group();
       if (Math.abs(heightDiff) > 0.01) {
@@ -1661,7 +1661,7 @@ export class Viewer3D {
     // =========================================================================
     // 2. GEBOGENES GLEIS (Helix / Kurven-Rampe)
     // =========================================================================
-    else if (kind === "curve") {
+    else if (isCurvedTrackEntry(entry)) {
       const r = entry.radius ?? 437.5;
       const a = entry.angle ?? 30;
       const dir: 1 | -1 = a < 0 ? -1 : 1;
@@ -2168,7 +2168,7 @@ export class Viewer3D {
       metalness: 0.05,
     });
 
-    if (entry.kind === "straight" || entry.kind === "accessory" || entry.kind === "flex" || entry.kind === "buffer-stop" || isBufferStopPiece(entry)) {
+    if (isStraightTrackEntry(entry)) {
       const len = entry.length ?? (entry.kind === "flex" ? 900 : isRoad ? 200 : 180);
       const geo = new THREE.BoxGeometry(len, thickness, plateWidth);
       const mesh = new THREE.Mesh(geo, woodPlateMat);
@@ -2179,7 +2179,7 @@ export class Viewer3D {
       mesh.castShadow = true;
       mesh.receiveShadow = true;
       group.add(mesh);
-    } else if (entry.kind === "curve") {
+    } else if (isCurvedTrackEntry(entry)) {
       const r = entry.radius ?? 360;
       const angleVal = entry.angle ?? 30;
       const dir: 1 | -1 = angleVal < 0 ? -1 : 1;
@@ -2905,10 +2905,10 @@ export class Viewer3D {
       ((kind === "turnout-left" || kind === "turnout-right") && !!entry.radius && !entry.length);
     const heightDiff = endElev - startElev;
 
-    if (kind === "straight" || kind === "accessory" || kind === "flex" || kind === "buffer-stop" || isBufferStopPiece(entry)) {
+    if (isStraightTrackEntry(entry)) {
       const len = entry.length ?? (kind === "flex" ? 900 : 188.3);
       addStraightWire(0, 0, len, 0, true, 1, 0, heightDiff);
-    } else if (kind === "curve") {
+    } else if (isCurvedTrackEntry(entry)) {
       const r = entry.radius ?? 437.5;
       const a = entry.angle ?? 30;
       const dir: 1 | -1 = a < 0 ? -1 : 1;

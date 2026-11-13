@@ -1,7 +1,7 @@
 import type { BaseboardConfig, Layout, TrackPiece, Layer } from "@/core/types";
 import type { Catalog, CatalogEntry } from "@/catalog/catalog";
 import { getBaseboardBounds, getBaseboardPolygon, isPointInsideBaseboard } from "@/core/layout";
-import { deg2rad, dist, normAngle, transformPoint } from "@/core/geometry";
+import { deg2rad, dist, isCurvedTrackEntry, isStraightTrackEntry, normAngle, transformPoint } from "@/core/geometry";
 import { getMinClearanceHeightForScale } from "@/core/ramp-generator";
 
 export interface TrackCutoutPolygon {
@@ -72,7 +72,7 @@ export function getPieceCenterlinePoints(
   const cFrom = conns[fromConnIdx] || conns[0] || { x: piece.transform.x, y: piece.transform.y, angle: 0 };
   const cTo = conns[toConnIdx] || conns[conns.length - 1] || cFrom;
 
-  if (!entry || entry.kind === "straight" || entry.kind === "accessory" || (entry.kind === "flex" && !entry.radius)) {
+  if (!entry || isStraightTrackEntry(entry)) {
     // Linear straight segment
     const pts: Array<{ x: number; y: number }> = [];
     const numSubsteps = Math.max(2, Math.round(dist(cFrom, cTo) / 40));
@@ -86,7 +86,7 @@ export function getPieceCenterlinePoints(
     return pts;
   }
 
-  if (entry.kind === "curve" || (entry.kind === "flex" && entry.radius)) {
+  if (isCurvedTrackEntry(entry)) {
     const r = entry.radius ?? 437.5;
     const a = entry.angle ?? 30;
     const isReverse = fromConnIdx === 1 && toConnIdx === 0;

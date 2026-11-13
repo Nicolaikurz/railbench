@@ -1,4 +1,5 @@
 import type { Translations } from "./types";
+import { helpDe } from "./help-de";
 
 export const de: Translations = {
   toolbar: {
@@ -555,4 +556,5 @@ export const de: Translations = {
     unsavedWarning: "Der aktuelle Plan hat ungespeicherte Änderungen. Möchtest du das Demo-Layout trotzdem laden?",
     autoSwitchHint: "Hinweis: Das Laden eines Demo-Plans stellt automatisch das passende Gleissystem und die Spurweite ein.",
   },
+  helpDialog: helpDe,
 };

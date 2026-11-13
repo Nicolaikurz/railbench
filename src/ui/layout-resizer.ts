@@ -474,6 +474,16 @@ export class LayoutResizer {
     }
   }
 
+  private getMinRightSidebarHeight(): number {
+    if (this.rightSidebarEl) {
+      const cards = (this.rightSidebarEl as any).querySelectorAll?.(".cl-card");
+      if (cards && cards.length > 0) {
+        return Math.max(MIN_RIGHT_SIDEBAR_HEIGHT, cards.length * 38 + 68);
+      }
+    }
+    return MIN_RIGHT_SIDEBAR_HEIGHT;
+  }
+
   getRightSidebarHeight(): number {
     if (this.rightSidebarEl) {
       const explicit = parseFloat(this.rightSidebarEl.style.height);
@@ -484,17 +494,18 @@ export class LayoutResizer {
       const rectH = this.rightSidebarEl.getBoundingClientRect?.().height ?? 0;
       if (rectH > 0) return rectH;
     }
-    return MIN_RIGHT_SIDEBAR_HEIGHT;
+    return this.getMinRightSidebarHeight();
   }
 
   setRightSidebarHeight(height: number, saveToStorage = false): void {
+    const minH = this.getMinRightSidebarHeight();
     const toolbarH = this.getToolbarHeight();
-    const maxAllowed = typeof window !== "undefined" ? Math.max(MIN_RIGHT_SIDEBAR_HEIGHT, window.innerHeight - toolbarH - 24) : 900;
-    const clamped = Math.round(Math.max(MIN_RIGHT_SIDEBAR_HEIGHT, Math.min(height, maxAllowed)));
+    const maxAllowed = typeof window !== "undefined" ? Math.max(minH, window.innerHeight - toolbarH - 24) : 900;
+    const clamped = Math.round(Math.max(minH, Math.min(height, maxAllowed)));
 
     if (this.rightSidebarEl) {
       this.rightSidebarEl.style.height = `${clamped}px`;
-      this.rightSidebarEl.style.maxHeight = `${clamped}px`;
+      this.rightSidebarEl.style.maxHeight = "";
       this.rightSidebarEl.style.setProperty("--right-sidebar-height", `${clamped}px`);
     }
     if (saveToStorage && typeof localStorage !== "undefined") {

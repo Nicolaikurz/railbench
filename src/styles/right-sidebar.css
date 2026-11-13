@@ -850,14 +850,14 @@
 }
 #right-sidebar.crystal-panel {
   width: var(--right-sidebar-width, 290px);
+  height: var(--right-sidebar-height, auto);
   overflow: visible;
   display: flex;
   flex-direction: column;
 }
 .crystal-panel-inner {
-  flex: 1 1 auto;
+  flex: 1 0 auto;
   width: 100%;
-  height: 100%;
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -940,9 +940,8 @@
 .crystal-panel :focus-visible { outline: 2px solid var(--cl-accent); outline-offset: 1px; }
 
 .cl-body {
-  flex: 1 1 auto;
+  flex: 1 0 auto;
   min-height: 0;
-  height: 100%;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -951,12 +950,12 @@
   overflow-y: auto;
 }
 .cl-list {
-  flex: 1 1 auto;
+  flex: 1 0 auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 4px;
-  overflow-y: auto;
+  overflow-y: visible;
 }
 
 /* Icon buttons */
@@ -990,8 +989,9 @@
 
 /* Layer card */
 .cl-card {
-  flex: 1 1 auto;
+  flex: 1 0 auto;
   min-height: 34px;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -1012,8 +1012,8 @@
 
 .cl-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; width: 100%; }
 .cl-info { min-width: 0; flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 2px; }
-.cl-name-row { display: flex; align-items: center; gap: 2px; }
-.cl-name { font-weight: 600; white-space: nowrap; }
+.cl-name-row { min-width: 0; display: flex; align-items: center; gap: 2px; }
+.cl-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cl-name-input {
   width: 100px; padding: 0 5px; font: inherit; font-weight: 600; color: var(--cl-text);
   background: var(--cl-input-bg); border: 1px solid var(--cl-accent); border-radius: 5px;

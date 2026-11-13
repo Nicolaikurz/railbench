@@ -23,6 +23,7 @@ export class RightSidebar {
   private host: HTMLElement;
   private layout: Layout;
   private callbacks: RightSidebarCallbacks;
+  private lastLayerCount = -1;
 
   constructor(host: HTMLElement, layout: Layout, callbacks: RightSidebarCallbacks) {
     this.host = host;
@@ -71,10 +72,36 @@ export class RightSidebar {
       container = document.createElement("div");
       container.className = "crystal-panel-inner";
       container.style.cssText =
-        "flex: 1 1 auto; width: 100%; height: 100%; min-height: 0; display: flex; flex-direction: column; overflow: hidden;";
+        "flex: 1 0 auto; width: 100%; min-height: 0; display: flex; flex-direction: column; overflow: hidden;";
       this.host.appendChild(container);
     }
     return container;
+  }
+
+  /**
+   * Ensures the right sidebar auto-fits every layer in the menu without clipping.
+   */
+  public autoFitLayers(forceReset = false): void {
+    const layerCount = (this.layout.layers || []).length;
+    const hasWoodBtn = Boolean(this.callbacks.onToggleWoodPlate);
+    const minRequiredHeight = layerCount * 38 + (hasWoodBtn ? 68 : 36);
+
+    const layerCountChanged = this.lastLayerCount !== -1 && this.lastLayerCount !== layerCount;
+    this.lastLayerCount = layerCount;
+
+    const explicitHeight = parseFloat(this.host.style?.height || "");
+    if (forceReset || layerCountChanged || (!isNaN(explicitHeight) && explicitHeight < minRequiredHeight)) {
+      if (this.host.style) {
+        this.host.style.height = "";
+        this.host.style.maxHeight = "";
+        this.host.style.setProperty?.("--right-sidebar-height", "");
+      }
+      if (typeof localStorage !== "undefined") {
+        try {
+          localStorage.removeItem("railbench_right_sidebar_height");
+        } catch {}
+      }
+    }
   }
 
   private render() {
@@ -161,6 +188,7 @@ export class RightSidebar {
     }
 
     container.appendChild(body);
+    this.autoFitLayers();
   }
 
   private renderLayer(layer: Layer, isActive: boolean, t: ReturnType<typeof getTranslations>["rightSidebar"]) {

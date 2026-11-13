@@ -1,4 +1,5 @@
 import type { Translations } from "./types";
+import { helpEn } from "./help-en";
 
 export const en: Translations = {
   toolbar: {
@@ -555,4 +556,5 @@ export const en: Translations = {
     unsavedWarning: "The current layout has unsaved changes. Do you want to load the demo layout anyway?",
     autoSwitchHint: "Note: Loading a demo plan automatically switches to the matching track system and scale.",
   },
+  helpDialog: helpEn,
 };

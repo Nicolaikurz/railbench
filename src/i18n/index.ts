@@ -4,6 +4,8 @@ import { de } from "./de";
 
 export * from "./types";
 export * from "./catalog";
+export { helpDe } from "./help-de";
+export { helpEn } from "./help-en";
 
 const STORAGE_KEY = "railbench_language";
 
