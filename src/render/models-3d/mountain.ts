@@ -38,6 +38,7 @@ const profileFor = (isRoad: boolean): TunnelProfile => (isRoad ? ROAD_PROFILE : 
 export const R_PORTAL = 0.82;
 const ELLIPSE_TOLERANCE = 1.05;
 const APPROACH_SLOPE = 30; // Böschungsbreite des Einschnitts vor dem Portal
+const PORTAL_LIFT = 1.5; // Portale + Röhre leicht anheben gegen Z-Fighting mit Gelände/Tischplatte
 
 /* ------------------------------------------------------------------ */
 /*  Kollisionserkennung                                                */
@@ -241,15 +242,35 @@ export function buildMountain3D(
   const hasCollisions = !!(collisions && collisions.length > 0 && model);
 
   const mountainGroup = new THREE.Group();
+  // Höhen-Offset in der vertikalen Z-Achse zur Beseitigung von Z-Fighting und Artefakten mit der Tischplatte
+  mountainGroup.position.y = 0.5;
 
   const stonePortalMat = new THREE.MeshStandardMaterial({
-    color: 0x52525b, roughness: 0.85, metalness: 0.12, side: THREE.DoubleSide,
+    color: 0x52525b,
+    roughness: 0.85,
+    metalness: 0.12,
+    side: THREE.DoubleSide,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -1,
   });
   const tunnelLiningMat = new THREE.MeshStandardMaterial({
-    color: 0x27272a, roughness: 0.96, metalness: 0.05, side: THREE.DoubleSide,
+    color: 0x27272a,
+    roughness: 0.96,
+    metalness: 0.05,
+    side: THREE.DoubleSide,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -1,
   });
   const mountainMat = new THREE.MeshStandardMaterial({
-    vertexColors: true, roughness: 0.9, metalness: 0.08, flatShading: true,
+    vertexColors: true,
+    roughness: 0.9,
+    metalness: 0.08,
+    flatShading: true,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -1,
   });
 
   // lokal -> Welt
@@ -482,7 +503,7 @@ function buildPortal(
   mat: THREE.Material,
 ): void {
   const g = new THREE.Group();
-  g.position.set(at.lx, at.elev, at.lz);
+  g.position.set(at.lx, at.elev + PORTAL_LIFT, at.lz);
   g.rotation.y = Math.atan2(dir.x, dir.z); // lokale +Z zeigt in den Berg
 
   const c = prof.innerWidth / 2;
@@ -586,7 +607,7 @@ function buildTunnel(
       buildPortal(parent, prof, run.pts[run.pts.length - 1]!, inwardDir(run.pts, false), portalMat);
     }
 
-    const path = run.pts.map((p) => new THREE.Vector3(p.lx, p.elev, p.lz));
+    const path = run.pts.map((p) => new THREE.Vector3(p.lx, p.elev + PORTAL_LIFT, p.lz));
     const tube = buildTunnelSweep(path, prof, liningMat);
     if (tube) parent.add(tube);
   }

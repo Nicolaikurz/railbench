@@ -33,6 +33,12 @@ describe("Mountain 3D & Tunnel generation", () => {
     expect(mesh?.geometry).toBeInstanceOf(THREE.BufferGeometry);
     expect(mesh?.geometry.getAttribute("position")).toBeDefined();
     expect(mesh?.geometry.getAttribute("color")).toBeDefined();
+
+    // Verify vertical offset and polygonOffset to prevent Z-fighting artifacts with the table
+    expect(mountainSubgroup.position.y).toBeGreaterThan(0);
+    const mat = mesh?.material as THREE.MeshStandardMaterial;
+    expect(mat.polygonOffset).toBe(true);
+    expect(mat.polygonOffsetFactor).toBeLessThan(0);
   });
 
   it("detects colliding tracks that cross through the mountain footprint", () => {
