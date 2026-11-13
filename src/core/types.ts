@@ -63,6 +63,7 @@ export interface LayerPlate {
   y?: number; // in mm (Offset relativ zum Tisch)
   thicknessMm?: number; // in mm, Standard: 10 oder 12
   positionMode?: "center" | "top-left" | "custom";
+  style?: BaseboardStyle;
 }
 
 export interface Layer {
@@ -74,6 +75,7 @@ export interface Layer {
   heightMm?: number;
   woodPlateMode?: LayerWoodPlateMode;
   woodPlateThicknessMm?: number;
+  woodPlateStyle?: BaseboardStyle;
   plates?: LayerPlate[];
 }
 

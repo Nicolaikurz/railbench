@@ -702,7 +702,12 @@ export class Viewer3D {
     const baseboards = getBaseboards(layout);
     const tableLayer = layout.layers?.find((l) => (l.heightMm ?? 0) === 0);
     const tableVisible = tableLayer ? tableLayer.visible : true;
-    const tablePlateMode: LayerWoodPlateMode = tableLayer?.woodPlateMode ?? "table";
+    // Ground table layer represents the main baseboard tabletop; ensure it defaults to "table"
+    // so the main table plate never disappears when plates are configured for other layers.
+    const tablePlateMode: LayerWoodPlateMode =
+      tableLayer?.woodPlateMode && tableLayer.woodPlateMode !== "none"
+        ? tableLayer.woodPlateMode
+        : "table";
     const tableThickness: number | undefined = tableLayer?.woodPlateThicknessMm;
 
     if (tableVisible) {
@@ -1217,11 +1222,13 @@ export class Viewer3D {
     // Oberkante der Platte liegt exakt auf layerH
     geometry.translate(0, layerH - bevelThickness, 0);
 
-    const woodColor = 0xcbb89d; // Echtes Schichtholz / Birke Multiplex
+    const plateStyle = layer.woodPlateStyle ?? config.style ?? "wood";
+    const woodColor = this.getStyleColor(plateStyle);
+    const isGrass = plateStyle === "grass";
     const material = new THREE.MeshStandardMaterial({
       color: woodColor,
-      roughness: 0.75,
-      metalness: 0.04,
+      roughness: isGrass ? 0.9 : 0.65,
+      metalness: isGrass ? 0.02 : 0.05,
     });
 
     const deckMesh = new THREE.Mesh(geometry, material);
@@ -1281,6 +1288,8 @@ export class Viewer3D {
     }
     shape.closePath();
 
+    const plateStyle = plate.style ?? targetBoard?.style ?? "wood";
+
     const dummyConfig: BaseboardConfig = {
       enabled: true,
       width,
@@ -1299,7 +1308,7 @@ export class Viewer3D {
       customX: originX,
       customY: originY,
       rotation: rot,
-      style: "wood",
+      style: plateStyle,
     };
 
     const cutouts = computeTableTrackCutouts(layout, catalog, dummyConfig, layerH, thickness);
@@ -1332,11 +1341,12 @@ export class Viewer3D {
     geometry.rotateX(Math.PI / 2);
     geometry.translate(0, layerH - bevelThickness, 0);
 
-    const woodColor = 0xcbb89d;
+    const woodColor = this.getStyleColor(plateStyle);
+    const isGrass = plateStyle === "grass";
     const material = new THREE.MeshStandardMaterial({
       color: woodColor,
-      roughness: 0.75,
-      metalness: 0.04,
+      roughness: isGrass ? 0.9 : 0.65,
+      metalness: isGrass ? 0.02 : 0.05,
     });
 
     const deckMesh = new THREE.Mesh(geometry, material);

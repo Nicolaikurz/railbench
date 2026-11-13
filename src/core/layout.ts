@@ -296,7 +296,7 @@ export function getLayerPlatePolygon(
     tBarDepth: plate.tBarDepth,
     tStemWidth: plate.tStemWidth,
     rotation: plate.rotation ?? 0,
-    style: "wood",
+    style: plate.style ?? "wood",
   };
 
   let poly = getBaseboardPolygon(dummyBb);

@@ -13,7 +13,7 @@ export interface BaseboardRenderOptions {
   catalog?: Catalog;
 }
 
-interface StyleColorConfig {
+export interface StyleColorConfig {
   surfaceColor: number;
   edgeColor: number;
   highlightColor: number;
@@ -22,7 +22,7 @@ interface StyleColorConfig {
   isGrass?: boolean;
 }
 
-function getStyleColors(style: BaseboardStyle): StyleColorConfig {
+export function getStyleColors(style: BaseboardStyle): StyleColorConfig {
   switch (style) {
     case "grass":
     case "gras" as any:

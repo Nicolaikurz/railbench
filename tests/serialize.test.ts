@@ -423,4 +423,49 @@ describe("Layout Serialization", () => {
     expect(parsedJson.pieces[0]?.hasDecoder).toBe(true);
     expect(parsedJson.pieces[0]?.turnoutCurrentMa).toBe(43);
   });
+
+  it("serialisiert und deserialisiert Layer-Platten mit Stil/Textur in XML und JSON", () => {
+    const layoutWithPlates: Layout = {
+      name: "Platten Layout",
+      scale: "H0",
+      pieces: [],
+      layers: [
+        {
+          id: "l-upper",
+          name: "Obere Ebene",
+          heightMm: 120,
+          visible: true,
+          locked: false,
+          woodPlateMode: "table",
+          plates: [
+            {
+              id: "pl-1",
+              name: "Wiesen-Platte",
+              width: 1200,
+              depth: 600,
+              thicknessMm: 12,
+              style: "grass",
+            },
+            {
+              id: "pl-2",
+              name: "Schiefer-Platte",
+              width: 800,
+              depth: 400,
+              thicknessMm: 10,
+              style: "slate",
+            },
+          ],
+        },
+      ],
+    };
+
+    const xml = toXML(layoutWithPlates);
+    expect(xml).toContain('style="grass"');
+    expect(xml).toContain('style="slate"');
+
+    const json = toJSON(layoutWithPlates);
+    const parsedJson = fromJSON(json);
+    expect(parsedJson.layers?.[0]?.plates?.[0]?.style).toBe("grass");
+    expect(parsedJson.layers?.[0]?.plates?.[1]?.style).toBe("slate");
+  });
 });

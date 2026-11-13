@@ -4,7 +4,7 @@ import { catalogRegistry, type Catalog, type CatalogEntry } from "@/catalog/cata
 import type { SimulationSummary, ShortCircuitDetectionResult } from "@/core/simulation";
 import { getTranslations } from "@/i18n";
 import { createTrackGraphics } from "./track-sprite";
-import { createBaseboardGraphics } from "./baseboard-sprite";
+import { createBaseboardGraphics, getStyleColors } from "./baseboard-sprite";
 import { createModel2DGraphics } from "./model-sprite";
 import { getBaseboards, getBaseboardBounds, getBaseboardPolygon, getLayerPlatePolygon } from "@/core/layout";
 import type { BaseboardSnapGuide } from "@/core/baseboard-snapping";
@@ -154,20 +154,24 @@ export class Renderer {
           for (const plate of layer.plates) {
             const targetBoard = (plate.baseboardId ? baseboards.find((b) => b.id === plate.baseboardId) : undefined) || baseboards[0];
             const poly = getLayerPlatePolygon(plate, targetBoard);
+            const style = plate.style ?? targetBoard?.style ?? "wood";
+            const styleConfig = getStyleColors(style);
             const deckG = new Graphics();
             deckG.poly(poly);
-            deckG.stroke({ width: 2, color: 0xcbb89d, alpha: 0.75 });
-            deckG.fill({ color: 0xcbb89d, alpha: 0.14 });
+            deckG.stroke({ width: 2, color: styleConfig.edgeColor, alpha: 0.75 });
+            deckG.fill({ color: styleConfig.surfaceColor, alpha: 0.22 });
             this.baseboardLayer.addChild(deckG);
           }
         } else if (layer.woodPlateMode === "table" && (layer.heightMm ?? 0) !== 0) {
           for (const bb of baseboards) {
             if (!bb.enabled) continue;
             const poly = getBaseboardPolygon(bb);
+            const style = layer.woodPlateStyle ?? bb.style ?? "wood";
+            const styleConfig = getStyleColors(style);
             const deckG = new Graphics();
             deckG.poly(poly);
-            deckG.stroke({ width: 2, color: 0xcbb89d, alpha: 0.65 });
-            deckG.fill({ color: 0xcbb89d, alpha: 0.08 });
+            deckG.stroke({ width: 2, color: styleConfig.edgeColor, alpha: 0.65 });
+            deckG.fill({ color: styleConfig.surfaceColor, alpha: 0.12 });
             this.baseboardLayer.addChild(deckG);
           }
         }

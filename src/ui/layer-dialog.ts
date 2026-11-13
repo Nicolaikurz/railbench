@@ -181,6 +181,8 @@ export function openLayerDialog(options: LayerDialogOptions): void {
       locked: isEdit && layer ? layer.locked === true : false,
       woodPlateMode: currentWoodPlateMode,
       woodPlateThicknessMm: finalThickness,
+      woodPlateStyle: isEdit && layer?.woodPlateStyle ? layer.woodPlateStyle : undefined,
+      plates: isEdit && layer?.plates ? layer.plates : undefined,
     };
 
     closeDialog();

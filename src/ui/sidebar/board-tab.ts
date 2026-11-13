@@ -1,6 +1,7 @@
 import type {
   BaseboardConfig,
   BaseboardShape,
+  BaseboardStyle,
   Layer,
   LayerPlate,
   LayerWoodPlateMode,
@@ -60,6 +61,15 @@ export function applyShapeDefaults(t: any) {
   }
 }
 
+export const getSurfaceStyleOptions = (isDe: boolean): [BaseboardStyle, string][] => [
+  ["wood", `🌲 ${isDe ? "Sperrholz hell" : "Birch Plywood"}`],
+  ["dark-wood", `🪵 ${isDe ? "Eiche dunkel" : "Dark Walnut"}`],
+  ["plywood", `🪵 ${isDe ? "Kiefer" : "Multiplex Pine"}`],
+  ["slate", `🪨 ${isDe ? "Schiefergrau" : "Slate Anthracite"}`],
+  ["white", `⬜ ${isDe ? "Weiß" : "Blueprint White"}`],
+  ["grass", `🌿 ${isDe ? "Gras / Wiese" : "Grass / Meadow"}`],
+];
+
 export function makePlate(bb: BaseboardConfig, layer: Layer, name: string, thicknessMm?: number): LayerPlate {
   const plate: any = {
     id: `plate-${Date.now()}-${Math.floor(Math.random() * 100000)}`,
@@ -69,13 +79,26 @@ export function makePlate(bb: BaseboardConfig, layer: Layer, name: string, thick
     y: 0,
     thicknessMm: thicknessMm ?? layer.woodPlateThicknessMm ?? 12,
     positionMode: "custom",
+    style: bb.style ?? "wood",
   };
   copyShape(bb, plate);
   return plate as LayerPlate;
 }
 
 export function syncWoodMode(layer: Layer) {
-  layer.woodPlateMode = ((layer.plates?.length ?? 0) > 0 ? "table" : "none") as LayerWoodPlateMode;
+  // Ground table layer (height 0) represents the baseboard table itself.
+  // It must always remain in "table" mode so the main table plate stays visible when plates are added to other layers.
+  if ((layer.heightMm ?? 0) === 0) {
+    if (!layer.woodPlateMode || layer.woodPlateMode === "none") {
+      layer.woodPlateMode = "table";
+    }
+    return;
+  }
+  if ((layer.plates?.length ?? 0) > 0) {
+    layer.woodPlateMode = "table";
+  } else if (layer.woodPlateMode === "table") {
+    layer.woodPlateMode = "none";
+  }
 }
 
 export type ElOpts = { cls?: string; text?: string; html?: string; title?: string; style?: string };
@@ -498,18 +521,11 @@ export function buildSurfaceCard(sidebar: Sidebar, ctx: BoardCtx): HTMLElement {
         bb.positionMode ?? "center",
         (v) => { bb.positionMode = v as any; ctx.notifyBoard(); ctx.refresh(); },
       ),
-      selectField<string>(
+      selectField<BaseboardStyle>(
         tb.style,
-        [
-          ["wood", `🌲 ${isDe ? "Sperrholz hell" : "Birch Plywood"}`],
-          ["dark-wood", `🪵 ${isDe ? "Eiche dunkel" : "Dark Walnut"}`],
-          ["plywood", `🪵 ${isDe ? "Kiefer" : "Multiplex Pine"}`],
-          ["slate", `🪨 ${isDe ? "Schiefergrau" : "Slate Anthracite"}`],
-          ["white", `⬜ ${isDe ? "Weiß" : "Blueprint White"}`],
-          ["grass", `🌿 ${isDe ? "Gras / Wiese" : "Grass / Meadow"}`],
-        ],
+        getSurfaceStyleOptions(isDe),
         bb.style ?? "wood",
-        (v) => { bb.style = v as any; ctx.notifyBoard(); },
+        (v) => { bb.style = v; ctx.notifyBoard(); },
       ),
     ]),
   );
@@ -667,6 +683,7 @@ export function buildPlateEditor(
   commit: (showWood: boolean) => void,
 ): HTMLElement {
   const { isDe, bb } = ctx;
+  const tb = getTranslations().sidebar.board;
   const box = el("div", { cls: "board-plate-item-card", style: "display:flex;flex-direction:column;gap:6px;" });
 
   const name = el("input", { cls: "board-text-input", style: "flex:1;min-width:0;height:23px;font-size:11px;font-weight:600;" });
@@ -687,10 +704,21 @@ export function buildPlateEditor(
   box.appendChild(buildShapeEditor(plate, isDe, ctx.notifyLayer, ctx.refresh, 50));
 
   box.appendChild(
-    numberField(isDe ? "Stärke" : "Thickness", plate.thicknessMm ?? layer.woodPlateThicknessMm ?? 10, { min: 2, max: 50, step: 1, unit: "mm" }, (v) => {
-      plate.thicknessMm = v;
-      ctx.notifyLayer();
-    }),
+    row([
+      selectField<BaseboardStyle>(
+        tb.style,
+        getSurfaceStyleOptions(isDe),
+        plate.style ?? bb.style ?? "wood",
+        (v) => {
+          plate.style = v;
+          ctx.notifyLayer();
+        },
+      ),
+      numberField(isDe ? "Stärke" : "Thickness", plate.thicknessMm ?? layer.woodPlateThicknessMm ?? 10, { min: 2, max: 50, step: 1, unit: "mm" }, (v) => {
+        plate.thicknessMm = v;
+        ctx.notifyLayer();
+      }),
+    ]),
   );
   box.appendChild(
     row([
@@ -709,6 +737,7 @@ export function buildPlateEditor(
         plate.x = 0;
         plate.y = 0;
         plate.positionMode = "custom";
+        if (bb.style) plate.style = bb.style;
         commit(true);
       },
       "board-btn-fit",

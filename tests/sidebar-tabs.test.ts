@@ -6,7 +6,7 @@ import { renderCatalogTab } from "@/ui/sidebar/catalog-tab";
 import { renderRoadsTab } from "@/ui/sidebar/roads-tab";
 import { renderModelsTab } from "@/ui/sidebar/models-tab";
 import { renderLayersTab } from "@/ui/sidebar/layers-tab";
-import { renderBoardTab } from "@/ui/sidebar/board-tab";
+import { renderBoardTab, syncWoodMode, makePlate } from "@/ui/sidebar/board-tab";
 import { renderBomTab } from "@/ui/sidebar/bom-tab";
 import { getPieceListSummary } from "@/io/export";
 
@@ -110,5 +110,37 @@ describe("Sidebar Tab Splitting & Modular Tabs", () => {
 
     const bomSummary = getPieceListSummary(sidebar.layout, sidebar.catalog);
     expect(() => renderBomTab(sidebar, container, bomSummary)).not.toThrow();
+  });
+
+  it("does not cause the ground table plate (height 0) to disappear when a plate is added to another layer", () => {
+    const groundLayer: any = { id: "l1", name: "Grundebene (0 mm)", heightMm: 0, woodPlateMode: "table", plates: [] };
+    const upperLayer: any = { id: "l2", name: "Ebene 2 (+80 mm)", heightMm: 80, woodPlateMode: "none", plates: [] };
+    const layers = [groundLayer, upperLayer];
+
+    // Simulate adding a plate to the upper layer
+    const bb: any = { id: "bb-1", width: 2400, depth: 1200, shape: "rect" };
+    upperLayer.plates.push(makePlate(bb, upperLayer, "Upper Deck Plate"));
+
+    // Run syncWoodMode across all layers
+    layers.forEach(syncWoodMode);
+
+    // Upper layer should have table mode because it has plates
+    expect(upperLayer.woodPlateMode).toBe("table");
+
+    // Ground layer MUST keep "table" mode so the main table baseboard does not vanish
+    expect(groundLayer.woodPlateMode).toBe("table");
+  });
+
+  it("supports texture/style option on plates matching the table", () => {
+    const bb: any = { id: "bb-1", width: 2400, depth: 1200, shape: "rect", style: "dark-wood" };
+    const layer: any = { id: "l2", name: "Ebene 2", heightMm: 80, woodPlateMode: "table", plates: [] };
+
+    const plate = makePlate(bb, layer, "Texture Test Plate");
+    // Should inherit the table's style
+    expect(plate.style).toBe("dark-wood");
+
+    // Can be changed to other styles
+    plate.style = "grass";
+    expect(plate.style).toBe("grass");
   });
 });
