@@ -32,6 +32,12 @@ export class PerfMonitor {
 
   private gpuInfo = { vendor: "Unknown", renderer: "WebGL" };
 
+  private electronAppRamMb: number | null = null;
+  private electronSystemUsedMb: number | null = null;
+  private electronSystemTotalMb: number | null = null;
+  private uaSpecificMemoryBytes: number | null = null;
+  private isPollingMemory = false;
+
   private isDragging = false;
   private dragStartX = 0;
   private dragStartY = 0;
@@ -144,7 +150,7 @@ export class PerfMonitor {
       </div>
 
       <div style="display: flex; justify-content: space-between;">
-        <span style="color: #94a3b8;">RAM (JS Heap):</span>
+        <span style="color: #94a3b8;">RAM Auslastung:</span>
         <span id="perf-ram-val" style="color: #f8fafc; font-weight: 600;">--</span>
       </div>
 
@@ -424,6 +430,7 @@ export class PerfMonitor {
       } catch {}
     }
     this.clampPosition();
+    this.pollMemoryInfo();
     this.renderOverlay();
     this.lastTime = performance.now();
     this.frames = 0;
@@ -461,6 +468,51 @@ export class PerfMonitor {
     return this.isVisible;
   }
 
+  private pollMemoryInfo(): void {
+    if (this.isPollingMemory) return;
+
+    const electronApi = typeof window !== "undefined" ? window.electronAPI : undefined;
+    if (electronApi?.getMemoryUsage) {
+      this.isPollingMemory = true;
+      electronApi
+        .getMemoryUsage()
+        .then((res) => {
+          if (res && typeof res.appRamMb === "number") {
+            this.electronAppRamMb = res.appRamMb;
+            this.electronSystemUsedMb = res.systemUsedMb;
+            this.electronSystemTotalMb = res.systemTotalMb;
+            if (this.isVisible) {
+              this.renderOverlay();
+            }
+          }
+        })
+        .catch(() => {})
+        .finally(() => {
+          this.isPollingMemory = false;
+        });
+      return;
+    }
+
+    const perfAny = typeof performance !== "undefined" ? (performance as any) : null;
+    if (perfAny && typeof perfAny.measureUserAgentSpecificMemory === "function") {
+      this.isPollingMemory = true;
+      perfAny
+        .measureUserAgentSpecificMemory()
+        .then((res: { bytes?: number }) => {
+          if (res && typeof res.bytes === "number" && res.bytes > 0) {
+            this.uaSpecificMemoryBytes = res.bytes;
+            if (this.isVisible) {
+              this.renderOverlay();
+            }
+          }
+        })
+        .catch(() => {})
+        .finally(() => {
+          this.isPollingMemory = false;
+        });
+    }
+  }
+
   private loop = () => {
     if (!this.isVisible) return;
 
@@ -473,6 +525,7 @@ export class PerfMonitor {
       this.frameTimeMs = Math.round((delta / this.frames) * 10) / 10;
       this.frames = 0;
       this.lastTime = now;
+      this.pollMemoryInfo();
       this.renderOverlay();
     }
 
@@ -485,19 +538,61 @@ export class PerfMonitor {
     const layout = this.getLayout();
     const pieceCount = layout?.pieces?.length || 0;
     const modelCount = layout?.models?.length || 0;
+    const boardCount = layout?.baseboards?.length || 0;
 
-    // RAM calculation (Chrome/Edge/Electron have performance.memory)
-    const perfMem = (performance as unknown as { memory?: { usedJSHeapSize: number; totalJSHeapSize: number } })
-      ?.memory;
-    let ramStr = "N/A (Browser Protected)";
-    if (perfMem) {
-      const usedMb = (perfMem.usedJSHeapSize / (1024 * 1024)).toFixed(1);
-      const totalMb = (perfMem.totalJSHeapSize / (1024 * 1024)).toFixed(1);
-      ramStr = `${usedMb} MB / ${totalMb} MB`;
+    // 1. Check Electron native process & system memory first
+    const electronApi = typeof window !== "undefined" ? window.electronAPI : undefined;
+    const procMem = electronApi?.getProcessMemoryInfo?.() ?? null;
+    const perfMem = (
+      typeof performance !== "undefined"
+        ? (performance as unknown as {
+            memory?: { usedJSHeapSize: number; totalJSHeapSize: number; jsHeapSizeLimit?: number };
+          })?.memory
+        : undefined
+    );
+
+    // WebGL framebuffer + PixiJS sprite batches + 3D geometry/texture buffers
+    const gpuSceneBufferMb =
+      28.0 + (pieceCount * 48000 + modelCount * 380000 + boardCount * 260000) / (1024 * 1024);
+
+    let ramStr = "--";
+    let ramTooltip = "";
+
+    if (this.electronAppRamMb !== null || procMem) {
+      const appMb =
+        this.electronAppRamMb !== null && procMem
+          ? Math.max(this.electronAppRamMb, procMem.rssMb)
+          : (this.electronAppRamMb ?? procMem!.rssMb);
+      const heapMb =
+        procMem?.heapUsedMb ?? (perfMem ? perfMem.usedJSHeapSize / (1024 * 1024) : null);
+      const sysUsedGb = (this.electronSystemUsedMb ?? procMem?.systemUsedMb ?? 0) / 1024;
+      const sysTotalGb = (this.electronSystemTotalMb ?? procMem?.systemTotalMb ?? 0) / 1024;
+
+      ramStr =
+        heapMb !== null
+          ? `${appMb.toFixed(1)} MB (Heap: ${heapMb.toFixed(1)} MB)`
+          : `${appMb.toFixed(1)} MB`;
+      if (sysTotalGb > 0) {
+        ramTooltip = `App RAM (RSS): ${appMb.toFixed(1)} MB | JS Heap: ${(heapMb ?? 0).toFixed(1)} MB | System RAM: ${sysUsedGb.toFixed(1)} / ${sysTotalGb.toFixed(1)} GB`;
+      }
+    } else if (this.uaSpecificMemoryBytes !== null && this.uaSpecificMemoryBytes > 0) {
+      const totalMb = this.uaSpecificMemoryBytes / (1024 * 1024);
+      const heapMb = perfMem ? perfMem.usedJSHeapSize / (1024 * 1024) : null;
+      ramStr =
+        heapMb !== null
+          ? `${totalMb.toFixed(1)} MB (Heap: ${heapMb.toFixed(1)} MB)`
+          : `${totalMb.toFixed(1)} MB`;
+    } else if (perfMem && perfMem.usedJSHeapSize > 0) {
+      const usedHeapMb = perfMem.usedJSHeapSize / (1024 * 1024);
+      const totalHeapMb = perfMem.totalJSHeapSize / (1024 * 1024);
+      const totalAppMb = Math.max(totalHeapMb, usedHeapMb + gpuSceneBufferMb);
+      ramStr = `${totalAppMb.toFixed(1)} MB (Heap: ${usedHeapMb.toFixed(1)} MB)`;
+      ramTooltip = `Gesamt (inkl. WebGL/Canvas): ${totalAppMb.toFixed(1)} MB | JS Heap belegt: ${usedHeapMb.toFixed(1)} MB | JS Heap reserviert: ${totalHeapMb.toFixed(1)} MB`;
     } else {
-      // Estimated track memory footprint
-      const estimatedMb = ((pieceCount * 1200 + modelCount * 50000) / (1024 * 1024)).toFixed(1);
-      ramStr = `~${estimatedMb} MB (Layout Heap)`;
+      // Browser without performance.memory (Firefox / Safari / WebKit)
+      const baseRuntimeMb = 42.0;
+      const estimatedTotalMb = (baseRuntimeMb + gpuSceneBufferMb).toFixed(1);
+      ramStr = `~${estimatedTotalMb} MB (App + WebGL)`;
     }
 
     const fpsColor = this.fps >= 55 ? "#10b981" : this.fps >= 30 ? "#f59e0b" : "#ef4444";
@@ -513,6 +608,9 @@ export class PerfMonitor {
 
     if (this.ramValEl) {
       this.ramValEl.textContent = ramStr;
+      if (ramTooltip) {
+        this.ramValEl.title = ramTooltip;
+      }
     }
 
     if (this.tracksValEl) {

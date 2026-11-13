@@ -70,7 +70,8 @@ export class RightSidebar {
     if (!container) {
       container = document.createElement("div");
       container.className = "crystal-panel-inner";
-      container.style.cssText = "width: 100%; height: 100%; display: flex; flex-direction: column; overflow: hidden;";
+      container.style.cssText =
+        "flex: 1 1 auto; width: 100%; height: 100%; min-height: 0; display: flex; flex-direction: column; overflow: hidden;";
       this.host.appendChild(container);
     }
     return container;

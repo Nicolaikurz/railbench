@@ -640,15 +640,17 @@ export function updateToolbarState(state: ToolbarState) {
   }
 
   const btnRotate = document.getElementById("tb-rotate") as HTMLButtonElement | null;
-  if (btnRotate) btnRotate.disabled = !state.hasSelection;
+  if (btnRotate && state.hasSelection !== undefined) btnRotate.disabled = !state.hasSelection;
 
   const btnDelete = document.getElementById("tb-delete") as HTMLButtonElement | null;
-  if (btnDelete) btnDelete.disabled = !state.hasSelection;
+  if (btnDelete && state.hasSelection !== undefined) btnDelete.disabled = !state.hasSelection;
 
   const btnSnap = document.getElementById("tb-snap");
   if (btnSnap) {
     setBtnLabel(btnSnap, ICONS.magnet, t.toggles.snapLabel, "Snap");
-    btnSnap.classList.toggle("active", !!state.snappingEnabled);
+    if (state.snappingEnabled !== undefined) {
+      btnSnap.classList.toggle("active", !!state.snappingEnabled);
+    }
   }
 
   const btnSelectionLock = document.getElementById("tb-selection-lock");
@@ -668,57 +670,65 @@ export function updateToolbarState(state: ToolbarState) {
   const btnMeasure = document.getElementById("tb-measure");
   if (btnMeasure) {
     setBtnLabel(btnMeasure, ICONS.ruler, t.toggles.measureLabel, "Dist");
-    btnMeasure.classList.toggle("active", !!state.measureToolActive);
+    if (state.measureToolActive !== undefined) {
+      btnMeasure.classList.toggle("active", !!state.measureToolActive);
+    }
   }
 
   const btnColors = document.getElementById("tb-colors");
   if (btnColors) {
-    const mode = state.colorMode ?? (state.colorCodeEnabled ? "types" : "off");
     setBtnLabel(btnColors, ICONS.palette, t.toggles.colorsLabel, "Col");
-    const isActive = mode !== "off";
-    const isLayers = mode === "layers";
-    btnColors.classList.toggle("active", isActive);
-    btnColors.classList.toggle("mode-layers", isLayers);
-    const colorsGroup = (btnColors.closest?.(".toolbar-split-group") as HTMLElement | null) || btnColors.parentElement;
-    if (colorsGroup) {
-      colorsGroup.classList.toggle("active", isActive);
-      colorsGroup.classList.toggle("mode-layers", isLayers);
+    if (state.colorMode !== undefined || state.colorCodeEnabled !== undefined) {
+      const mode = state.colorMode ?? (state.colorCodeEnabled ? "types" : "off");
+      const isActive = mode !== "off";
+      const isLayers = mode === "layers";
+      btnColors.classList.toggle("active", isActive);
+      btnColors.classList.toggle("mode-layers", isLayers);
+      const colorsGroup = (btnColors.closest?.(".toolbar-split-group") as HTMLElement | null) || btnColors.parentElement;
+      if (colorsGroup) {
+        colorsGroup.classList.toggle("active", isActive);
+        colorsGroup.classList.toggle("mode-layers", isLayers);
+      }
+      btnColors.title = mode === "layers"
+        ? `${t.toggles.colorsTitle} (${t.colorsMenu.layers})`
+        : (mode === "types" ? `${t.toggles.colorsTitle} (${t.colorsMenu.types})` : t.toggles.colorsTitle);
+
+      const updateCheck = (id: string, isSelected: boolean, text: string) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const span = el.querySelector(".dropdown-item-left span:last-child");
+        if (span) span.textContent = (isSelected ? "✓ " : "") + text;
+      };
+
+      updateCheck("split-color-types", mode === "types", t.colorsMenu.types);
+      updateCheck("split-color-layers", mode === "layers", t.colorsMenu.layers);
+      updateCheck("split-color-off", mode === "off", t.colorsMenu.off);
     }
-    btnColors.title = mode === "layers"
-      ? `${t.toggles.colorsTitle} (${t.colorsMenu.layers})`
-      : (mode === "types" ? `${t.toggles.colorsTitle} (${t.colorsMenu.types})` : t.toggles.colorsTitle);
-
-    const updateCheck = (id: string, isSelected: boolean, text: string) => {
-      const el = document.getElementById(id);
-      if (!el) return;
-      const span = el.querySelector(".dropdown-item-left span:last-child");
-      if (span) span.textContent = (isSelected ? "✓ " : "") + text;
-    };
-
-    updateCheck("split-color-types", mode === "types", t.colorsMenu.types);
-    updateCheck("split-color-layers", mode === "layers", t.colorsMenu.layers);
-    updateCheck("split-color-off", mode === "off", t.colorsMenu.off);
   }
 
   const btnLabels = document.getElementById("tb-labels");
   if (btnLabels) {
     setBtnLabel(btnLabels, ICONS.tag, t.toggles.labelsLabel, "Labels");
-    btnLabels.classList.toggle("active", !!state.trackLabelsEnabled);
+    if (state.trackLabelsEnabled !== undefined) {
+      btnLabels.classList.toggle("active", !!state.trackLabelsEnabled);
+    }
   }
 
   const btnPower = document.getElementById("tb-power");
   if (btnPower) {
     setBtnLabel(btnPower, ICONS.zap, t.toggles.voltageLabel, "Volt");
-    const isPowerActive = !!state.powerSimEnabled;
-    btnPower.classList.toggle("active-warning", isPowerActive);
-    const powerGroup = (btnPower.closest?.(".toolbar-split-group") as HTMLElement | null) || btnPower.parentElement;
-    if (powerGroup) {
-      powerGroup.classList.toggle("active-warning", isPowerActive);
+    if (state.powerSimEnabled !== undefined) {
+      const isPowerActive = !!state.powerSimEnabled;
+      btnPower.classList.toggle("active-warning", isPowerActive);
+      const powerGroup = (btnPower.closest?.(".toolbar-split-group") as HTMLElement | null) || btnPower.parentElement;
+      if (powerGroup) {
+        powerGroup.classList.toggle("active-warning", isPowerActive);
+      }
     }
   }
 
   const btnShortCircuit = document.getElementById("tb-short-circuit");
-  if (btnShortCircuit) {
+  if (btnShortCircuit && state.hasShortCircuit !== undefined) {
     if (state.hasShortCircuit) {
       btnShortCircuit.style.display = "inline-flex";
       btnShortCircuit.title = t.status.shortCircuitTooltip;
@@ -758,7 +768,7 @@ export function updateToolbarState(state: ToolbarState) {
   }
 
   const btnSave = document.getElementById("tb-save");
-  if (btnSave) {
+  if (btnSave && state.isDirty !== undefined) {
     const isDe = getLanguage() === "de";
     btnSave.classList.toggle("has-unsaved", !!state.isDirty);
     btnSave.title = state.isDirty

@@ -478,9 +478,13 @@ export class LayoutResizer {
     if (this.rightSidebarEl) {
       const explicit = parseFloat(this.rightSidebarEl.style.height);
       if (!isNaN(explicit) && explicit > 0) return explicit;
+      const customProp = parseFloat(getComputedStyle(this.rightSidebarEl).getPropertyValue("--right-sidebar-height"));
+      if (!isNaN(customProp) && customProp > 0) return customProp;
       if (this.rightSidebarEl.offsetHeight > 0) return this.rightSidebarEl.offsetHeight;
+      const rectH = this.rightSidebarEl.getBoundingClientRect?.().height ?? 0;
+      if (rectH > 0) return rectH;
     }
-    return 0;
+    return MIN_RIGHT_SIDEBAR_HEIGHT;
   }
 
   setRightSidebarHeight(height: number, saveToStorage = false): void {
@@ -491,6 +495,7 @@ export class LayoutResizer {
     if (this.rightSidebarEl) {
       this.rightSidebarEl.style.height = `${clamped}px`;
       this.rightSidebarEl.style.maxHeight = `${clamped}px`;
+      this.rightSidebarEl.style.setProperty("--right-sidebar-height", `${clamped}px`);
     }
     if (saveToStorage && typeof localStorage !== "undefined") {
       try {
@@ -503,6 +508,7 @@ export class LayoutResizer {
     if (this.rightSidebarEl) {
       this.rightSidebarEl.style.height = "";
       this.rightSidebarEl.style.maxHeight = "";
+      this.rightSidebarEl.style.setProperty("--right-sidebar-height", "");
     }
     if (typeof localStorage !== "undefined") {
       try {

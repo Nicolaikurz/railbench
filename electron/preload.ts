@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
+import * as os from "node:os";
 
 export interface ElectronAPI {
   isElectron: boolean;
@@ -60,6 +61,19 @@ export interface ElectronAPI {
     autoConnect: boolean;
   }>;
   setThemeSource?: (source: "system" | "dark" | "light") => void;
+  getMemoryUsage?: () => Promise<{
+    appRamMb: number;
+    systemUsedMb: number;
+    systemTotalMb: number;
+  }>;
+  getProcessMemoryInfo?: () => {
+    rssMb: number;
+    heapUsedMb: number;
+    heapTotalMb: number;
+    externalMb: number;
+    systemUsedMb: number;
+    systemTotalMb: number;
+  } | null;
 }
 
 const api: ElectronAPI = {
@@ -93,6 +107,24 @@ const api: ElectronAPI = {
   stopCollabServer: () => ipcRenderer.invoke("collab:stopServer"),
   getCollabServerStatus: () => ipcRenderer.invoke("collab:getServerStatus"),
   getServerLaunchConfig: () => ipcRenderer.invoke("collab:getLaunchConfig"),
+  getMemoryUsage: () => ipcRenderer.invoke("system:getMemoryUsage"),
+  getProcessMemoryInfo: () => {
+    try {
+      const mem = process.memoryUsage();
+      const totalMb = os.totalmem() / (1024 * 1024);
+      const freeMb = os.freemem() / (1024 * 1024);
+      return {
+        rssMb: mem.rss / (1024 * 1024),
+        heapUsedMb: mem.heapUsed / (1024 * 1024),
+        heapTotalMb: mem.heapTotal / (1024 * 1024),
+        externalMb: ((mem.external || 0) + (mem.arrayBuffers || 0)) / (1024 * 1024),
+        systemUsedMb: totalMb - freeMb,
+        systemTotalMb: totalMb,
+      };
+    } catch {
+      return null;
+    }
+  },
 };
 
 contextBridge.exposeInMainWorld("electronAPI", api);

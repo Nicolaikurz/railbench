@@ -22,21 +22,22 @@ body.has-system-menus #app,
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: 3px 10px;
+  padding: 2px 10px;
   z-index: 100;
   overflow: visible;
   position: relative;
   height: var(--toolbar-height, 68px);
-  min-height: fit-content;
+  min-width: 0;
+  width: 100%;
   box-sizing: border-box;
-  gap: 3px;
+  gap: 2px;
 }
 
 body.has-system-menus #toolbar,
 #app.has-system-menus #toolbar {
   padding: 0 10px;
   height: var(--toolbar-height, 42px);
-  min-height: 38px;
+  min-height: 34px;
 }
 
 #toolbar::-webkit-scrollbar {
@@ -56,7 +57,7 @@ body.has-system-menus #toolbar,
   display: flex;
   flex-direction: column;
   width: 100%;
-  min-width: max-content;
+  min-width: 0;
   gap: 2px;
 }
 
@@ -69,7 +70,7 @@ body.has-system-menus .toolbar-container,
   display: flex;
   align-items: center;
   width: 100%;
-  min-width: max-content;
+  min-width: 0;
   gap: 5px;
 }
 
@@ -78,8 +79,8 @@ body.has-system-menus .toolbar-container,
   align-items: center;
   justify-content: space-between;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  padding-bottom: 3px;
-  height: 27px;
+  padding-bottom: 2px;
+  height: 26px;
 }
 
 body.has-system-menus .toolbar-menubar-row,
@@ -326,6 +327,22 @@ body.has-system-menus .toolbar-menubar-row,
   color: #ffffff;
 }
 
+.toolbar-split-group.active > .toolbar-toggle,
+.toolbar-split-group:has(.toolbar-toggle.active) > .toolbar-toggle {
+  background: #15803d !important;
+  border-color: #22c55e !important;
+  border-right: none !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 6px rgba(34, 197, 94, 0.35);
+}
+
+.toolbar-split-group.active > .toolbar-toggle:hover:not(:disabled),
+.toolbar-split-group:has(.toolbar-toggle.active) > .toolbar-toggle:hover:not(:disabled) {
+  background: #16a34a !important;
+  border-color: #4ade80 !important;
+  color: #ffffff !important;
+}
+
 .toolbar-split-group.active .dropdown-trigger,
 .toolbar-split-group:has(.toolbar-toggle.active) .dropdown-trigger {
   background: #15803d !important;
@@ -341,6 +358,22 @@ body.has-system-menus .toolbar-menubar-row,
   border-color: #4ade80 !important;
 }
 
+.toolbar-split-group.mode-layers > .toolbar-toggle,
+.toolbar-split-group:has(.toolbar-toggle.mode-layers) > .toolbar-toggle {
+  background: #0284c7 !important;
+  border-color: #38bdf8 !important;
+  border-right: none !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 6px rgba(56, 189, 248, 0.45);
+}
+
+.toolbar-split-group.mode-layers > .toolbar-toggle:hover:not(:disabled),
+.toolbar-split-group:has(.toolbar-toggle.mode-layers) > .toolbar-toggle:hover:not(:disabled) {
+  background: #0369a1 !important;
+  border-color: #7dd3fc !important;
+  color: #ffffff !important;
+}
+
 .toolbar-split-group.mode-layers .dropdown-trigger,
 .toolbar-split-group:has(.toolbar-toggle.mode-layers) .dropdown-trigger {
   background: #0284c7 !important;
@@ -354,6 +387,22 @@ body.has-system-menus .toolbar-menubar-row,
 .toolbar-split-group:has(.toolbar-toggle.mode-layers) .dropdown-trigger:hover {
   background: #0369a1 !important;
   border-color: #7dd3fc !important;
+}
+
+.toolbar-split-group.active-warning > .toolbar-toggle,
+.toolbar-split-group:has(.toolbar-toggle.active-warning) > .toolbar-toggle {
+  background: #b45309 !important;
+  border-color: #f59e0b !important;
+  border-right: none !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 6px rgba(245, 158, 11, 0.35);
+}
+
+.toolbar-split-group.active-warning > .toolbar-toggle:hover:not(:disabled),
+.toolbar-split-group:has(.toolbar-toggle.active-warning) > .toolbar-toggle:hover:not(:disabled) {
+  background: #d97706 !important;
+  border-color: #fbbf24 !important;
+  color: #ffffff !important;
 }
 
 .toolbar-split-group.active-warning .dropdown-trigger,
@@ -531,24 +580,86 @@ body.has-system-menus .toolbar-menubar-row,
   border-color: #38bdf8;
 }
 
+[data-theme="dark"] .toolbar-toggle.active,
+[data-theme="dark"] .toolbar-btn.toolbar-toggle.active,
+[data-theme="dark"] .toolbar-btn.active {
+  background: #15803d;
+  border-color: #22c55e;
+  color: #ffffff;
+  box-shadow: 0 0 6px rgba(34, 197, 94, 0.35);
+}
+
+[data-theme="dark"] .toolbar-toggle.active:hover:not(:disabled),
+[data-theme="dark"] .toolbar-btn.toolbar-toggle.active:hover:not(:disabled),
+[data-theme="dark"] .toolbar-btn.active:hover:not(:disabled) {
+  background: #16a34a;
+  border-color: #4ade80;
+  color: #ffffff;
+}
+
+[data-theme="dark"] #tb-colors.active.mode-layers {
+  background: #0284c7;
+  border-color: #38bdf8;
+  color: #ffffff;
+  box-shadow: 0 0 6px rgba(56, 189, 248, 0.45);
+}
+
+[data-theme="dark"] #tb-colors.active.mode-layers:hover:not(:disabled) {
+  background: #0369a1;
+  border-color: #7dd3fc;
+  color: #ffffff;
+}
+
+[data-theme="dark"] #tb-sidebar-toggle.active,
+[data-theme="dark"] #tb-right-sidebar-toggle.active {
+  background: #0284c7;
+  border-color: #38bdf8;
+  color: #ffffff;
+  box-shadow: 0 0 6px rgba(56, 189, 248, 0.35);
+}
+
+[data-theme="dark"] #tb-sidebar-toggle.active:hover:not(:disabled),
+[data-theme="dark"] #tb-right-sidebar-toggle.active:hover:not(:disabled) {
+  background: #0369a1;
+  border-color: #7dd3fc;
+  color: #ffffff;
+}
+
+[data-theme="dark"] .toolbar-toggle.active-warning,
+[data-theme="dark"] .toolbar-btn.toolbar-toggle.active-warning,
+[data-theme="dark"] .toolbar-btn.active-warning {
+  background: #b45309;
+  border-color: #f59e0b;
+  color: #ffffff;
+  box-shadow: 0 0 6px rgba(245, 158, 11, 0.35);
+}
+
+[data-theme="dark"] .toolbar-toggle.active-warning:hover:not(:disabled),
+[data-theme="dark"] .toolbar-btn.toolbar-toggle.active-warning:hover:not(:disabled),
+[data-theme="dark"] .toolbar-btn.active-warning:hover:not(:disabled) {
+  background: #d97706;
+  border-color: #fbbf24;
+  color: #ffffff;
+}
+
 [data-theme="dark"] .toolbar-divider {
   background: #24344d;
 }
 
-[data-theme="dark"] .toolbar-dropdown > .dropdown-trigger {
+[data-theme="dark"] .toolbar-menubar-row .toolbar-dropdown > .dropdown-trigger {
   background: transparent;
   border-color: transparent;
   color: #e2e8f0;
   font-weight: 600;
 }
 
-[data-theme="dark"] .toolbar-dropdown > .dropdown-trigger:hover {
+[data-theme="dark"] .toolbar-menubar-row .toolbar-dropdown > .dropdown-trigger:hover {
   background: rgba(255, 255, 255, 0.08);
   border-color: rgba(255, 255, 255, 0.15);
   color: #ffffff;
 }
 
-[data-theme="dark"] .toolbar-dropdown.open > .dropdown-trigger {
+[data-theme="dark"] .toolbar-menubar-row .toolbar-dropdown.open > .dropdown-trigger {
   background: #1e293b;
   color: #38bdf8;
   border-color: #38bdf8;

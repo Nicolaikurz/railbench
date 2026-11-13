@@ -1030,7 +1030,7 @@ async function main() {
       getLanguage() === "de"
         ? `Demo-Layout "${demo.name}" geladen!`
         : `Demo layout "${demo.nameEn}" loaded!`,
-      "🚆"
+      ""
     );
   }
 

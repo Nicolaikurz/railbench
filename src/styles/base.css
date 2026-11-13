@@ -10,6 +10,10 @@ html, body {
   user-select: none;
 }
 
+:root, #app {
+  --sidebar-width: 280px;
+}
+
 #app {
   display: grid;
   grid-template-columns: var(--sidebar-width, 280px) 1fr;
@@ -236,11 +240,21 @@ html, body {
   box-sizing: border-box;
 }
 
-.toolbar-toggle.active {
+.toolbar-toggle.active,
+.toolbar-btn.toolbar-toggle.active,
+.toolbar-btn.active {
   background: #15803d;
   border-color: #22c55e;
   color: #ffffff;
   box-shadow: 0 0 6px rgba(34, 197, 94, 0.35);
+}
+
+.toolbar-toggle.active:hover:not(:disabled),
+.toolbar-btn.toolbar-toggle.active:hover:not(:disabled),
+.toolbar-btn.active:hover:not(:disabled) {
+  background: #16a34a;
+  border-color: #4ade80;
+  color: #ffffff;
 }
 
 #tb-colors.active.mode-layers {
@@ -250,18 +264,42 @@ html, body {
   box-shadow: 0 0 6px rgba(56, 189, 248, 0.45);
 }
 
-#tb-sidebar-toggle.active {
+#tb-colors.active.mode-layers:hover:not(:disabled) {
+  background: #0369a1;
+  border-color: #7dd3fc;
+  color: #ffffff;
+}
+
+#tb-sidebar-toggle.active,
+#tb-right-sidebar-toggle.active {
   background: #0284c7;
   border-color: #38bdf8;
   color: #ffffff;
   box-shadow: 0 0 6px rgba(56, 189, 248, 0.35);
 }
 
-.toolbar-toggle.active-warning, .toolbar-btn.active-warning {
+#tb-sidebar-toggle.active:hover:not(:disabled),
+#tb-right-sidebar-toggle.active:hover:not(:disabled) {
+  background: #0369a1;
+  border-color: #7dd3fc;
+  color: #ffffff;
+}
+
+.toolbar-toggle.active-warning,
+.toolbar-btn.toolbar-toggle.active-warning,
+.toolbar-btn.active-warning {
   background: #b45309;
   border-color: #f59e0b;
   color: #ffffff;
   box-shadow: 0 0 6px rgba(245, 158, 11, 0.35);
+}
+
+.toolbar-toggle.active-warning:hover:not(:disabled),
+.toolbar-btn.toolbar-toggle.active-warning:hover:not(:disabled),
+.toolbar-btn.active-warning:hover:not(:disabled) {
+  background: #d97706;
+  border-color: #fbbf24;
+  color: #ffffff;
 }
 
 .btn-danger:hover:not(:disabled) {

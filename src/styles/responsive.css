@@ -2,13 +2,14 @@
    RESPONSIVE ANPASSUNGEN (720p / 1280x720 & kleinere Bildschirme)
    ========================================================================== */
 @media (max-width: 1366px), (max-height: 800px) {
-  #app {
-    grid-template-columns: 260px 1fr;
-    grid-template-rows: auto 1fr;
+  :root, #app {
+    --sidebar-width: 260px;
+    --toolbar-height: 60px;
   }
 
-  :root, #app {
-    --toolbar-height: 60px;
+  #app {
+    grid-template-columns: var(--sidebar-width, 260px) 1fr;
+    grid-template-rows: auto 1fr;
   }
 
   body.has-system-menus #app,
@@ -215,19 +216,21 @@
 }
 
 @media (max-width: 860px) {
+  :root, #app {
+    --sidebar-width: 240px;
+  }
   #app {
-    grid-template-columns: 240px 1fr;
+    grid-template-columns: var(--sidebar-width, 240px) 1fr;
+  }
+  .toolbar-sidebar-tabs {
+    width: calc(var(--sidebar-width, 240px) - 6px);
+    min-width: calc(var(--sidebar-width, 240px) - 6px);
+    max-width: calc(var(--sidebar-width, 240px) - 6px);
   }
   #right-sidebar {
     right: 8px;
-    width: calc(100vw - 16px);
-    max-width: 300px;
-  }
-}
-
-@media (max-width: 768px) {
-  .toolbar-sidebar-tabs {
-    display: none;
+    width: var(--right-sidebar-width, 260px);
+    max-width: calc(100vw - 16px);
   }
 }
 

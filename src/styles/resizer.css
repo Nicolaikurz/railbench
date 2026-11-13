@@ -1,14 +1,20 @@
 /* --- RESIZER SPLITTERS --- */
 #sidebar-resizer.ui-resizer-v {
   position: absolute;
-  top: var(--toolbar-height, 68px);
+  top: calc(var(--toolbar-height, 68px) - 34px);
   left: calc(var(--sidebar-width, 280px) - 4px);
   width: 8px;
-  height: calc(100vh - var(--toolbar-height, 68px));
+  height: calc(100vh - var(--toolbar-height, 68px) + 34px);
   cursor: col-resize;
   z-index: 105;
   touch-action: none;
   user-select: none;
+}
+
+body.has-system-menus #sidebar-resizer.ui-resizer-v,
+#app.has-system-menus #sidebar-resizer.ui-resizer-v {
+  top: 0;
+  height: 100vh;
 }
 #sidebar-resizer.ui-resizer-v::after {
   content: "";

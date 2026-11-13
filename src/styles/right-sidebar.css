@@ -848,6 +848,21 @@
   box-shadow: var(--cl-panel-shadow);
   overflow: hidden;
 }
+#right-sidebar.crystal-panel {
+  width: var(--right-sidebar-width, 290px);
+  overflow: visible;
+  display: flex;
+  flex-direction: column;
+}
+.crystal-panel-inner {
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
 @supports (backdrop-filter: blur(1px)) {
   .crystal-panel {
     background: var(--cl-bg-glass);
@@ -924,8 +939,25 @@
 .crystal-panel button { font: inherit; color: inherit; cursor: pointer; }
 .crystal-panel :focus-visible { outline: 2px solid var(--cl-accent); outline-offset: 1px; }
 
-.cl-body { display: flex; flex-direction: column; gap: 3px; padding: 4px; }
-.cl-list { display: flex; flex-direction: column; gap: 2px; }
+.cl-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 5px;
+  overflow-y: auto;
+}
+.cl-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-y: auto;
+}
 
 /* Icon buttons */
 .cl-icon-btn {
@@ -945,8 +977,10 @@
 
 /* Add layer */
 .cl-add {
+  flex: 0.6 0 auto;
+  min-height: 26px;
   display: flex; align-items: center; justify-content: center; gap: 4px;
-  padding: 3px 8px;
+  padding: 4px 8px;
   background: transparent; border: 1px dashed var(--cl-edge); border-radius: 8px;
   color: var(--cl-text-dim);
   transition: background 0.15s, color 0.15s;
@@ -956,7 +990,12 @@
 
 /* Layer card */
 .cl-card {
-  padding: 4px 4px 4px 7px;
+  flex: 1 1 auto;
+  min-height: 34px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 5px 6px 5px 8px;
   background: var(--cl-glass);
   border: 1px solid transparent;
   border-radius: 8px;
@@ -971,8 +1010,8 @@
 }
 .cl-card.is-hidden .cl-info { opacity: 0.5; }
 
-.cl-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
-.cl-info { min-width: 0; flex: 1; }
+.cl-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; width: 100%; }
+.cl-info { min-width: 0; flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 2px; }
 .cl-name-row { display: flex; align-items: center; gap: 2px; }
 .cl-name { font-weight: 600; white-space: nowrap; }
 .cl-name-input {
@@ -1001,11 +1040,13 @@
 
 /* Action buttons (Auswahlsperre, Woodplatte) */
 .cl-btn {
+  flex: 1 1 auto;
+  min-height: 28px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 4px 8px;
+  padding: 5px 8px;
   font-size: 11px;
   font-weight: 500;
   text-align: left;
@@ -1064,10 +1105,11 @@
   color: #ffffff;
 }
 .cl-btn-group {
+  flex: 0.6 0 auto;
   display: flex;
   flex-direction: column;
   gap: 4px;
-  margin-top: 4px;
+  margin-top: 2px;
   border-top: 1px solid var(--cl-edge);
   padding-top: 4px;
 }

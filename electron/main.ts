@@ -1,7 +1,12 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme } from "electron";
 import * as path from "node:path";
 import * as fs from "node:fs/promises";
+import * as os from "node:os";
 import { EmbeddedCollabServer } from "./collab-server";
+
+try {
+  app.commandLine.appendSwitch("enable-precise-memory-info");
+} catch {}
 
 let mainWindow: BrowserWindow | null = null;
 const collabServer = new EmbeddedCollabServer();
@@ -677,6 +682,36 @@ ipcMain.handle("collab:getServerStatus", async () => {
 
 ipcMain.handle("collab:getLaunchConfig", async () => {
   return serverLaunchConfig || parseServerLaunchConfig();
+});
+
+ipcMain.handle("system:getMemoryUsage", () => {
+  const totalMemMb = os.totalmem() / (1024 * 1024);
+  const freeMemMb = os.freemem() / (1024 * 1024);
+  const usedMemMb = totalMemMb - freeMemMb;
+
+  try {
+    const metrics = app.getAppMetrics();
+    let appWorkingSetKb = 0;
+    let appPrivateKb = 0;
+    for (const m of metrics) {
+      if (m.memory) {
+        appWorkingSetKb += m.memory.workingSetSize || 0;
+        appPrivateKb += m.memory.privateBytes || m.memory.workingSetSize || 0;
+      }
+    }
+    const appRamMb = (appWorkingSetKb > 0 ? appWorkingSetKb : appPrivateKb) / 1024;
+    return {
+      appRamMb: appRamMb > 0 ? appRamMb : process.memoryUsage().rss / (1024 * 1024),
+      systemUsedMb: usedMemMb,
+      systemTotalMb: totalMemMb,
+    };
+  } catch {
+    return {
+      appRamMb: process.memoryUsage().rss / (1024 * 1024),
+      systemUsedMb: usedMemMb,
+      systemTotalMb: totalMemMb,
+    };
+  }
 });
 
 app.whenReady().then(async () => {

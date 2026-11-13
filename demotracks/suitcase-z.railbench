@@ -1,0 +1,569 @@
+{
+  "name": "Koffer-Anlage Spur Z",
+  "scale": "Z",
+  "feedVoltage": 10,
+  "locoCurrentMa": 80,
+  "locoCount": 1,
+  "layers": [
+    {
+      "id": "layer-1",
+      "name": "Kofferstrecke (Spur Z)",
+      "heightMm": 0,
+      "color": "#8b5cf6",
+      "visible": true,
+      "locked": false,
+      "woodPlateMode": "table"
+    }
+  ],
+  "activeLayerId": "layer-1",
+  "baseboard": {
+    "id": "bb-z",
+    "name": "Alukoffer-Anlage (75 x 50 cm)",
+    "enabled": true,
+    "shape": "rect",
+    "width": 750,
+    "depth": 500,
+    "style": "slate",
+    "positionMode": "center",
+    "customX": 0,
+    "customY": 0,
+    "cornerRadius": 14,
+    "showDimensions": true
+  },
+  "baseboards": [
+    {
+      "id": "bb-z",
+      "name": "Alukoffer-Anlage (75 x 50 cm)",
+      "enabled": true,
+      "shape": "rect",
+      "width": 750,
+      "depth": 500,
+      "style": "slate",
+      "positionMode": "center",
+      "customX": 0,
+      "customY": 0,
+      "cornerRadius": 14,
+      "showDimensions": true
+    }
+  ],
+  "models": [
+    {
+      "id": "z-station",
+      "name": "Haltepunkt Bergblick",
+      "category": "buildings",
+      "transform": {
+        "x": 0,
+        "y": -115,
+        "rotation": 0
+      },
+      "width": 120,
+      "depth": 55,
+      "height": 50,
+      "modelType": "builtin",
+      "builtinId": "station",
+      "layerId": "layer-1"
+    },
+    {
+      "id": "z-town-house",
+      "name": "Alpenchalet",
+      "category": "buildings",
+      "transform": {
+        "x": 95,
+        "y": 15,
+        "rotation": 0
+      },
+      "width": 50,
+      "depth": 40,
+      "height": 55,
+      "modelType": "builtin",
+      "builtinId": "town-house",
+      "layerId": "layer-1"
+    }
+  ],
+  "pieces": [
+    {
+      "id": "z-top-feed",
+      "catalogId": "8590",
+      "transform": {
+        "x": -110,
+        "y": -195,
+        "rotation": 0
+      },
+      "connectors": [
+        {
+          "x": -110,
+          "y": -195,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "z-cl-4",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": 0,
+          "y": -195,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "z-top-2",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1",
+      "powerFeed": true
+    },
+    {
+      "id": "z-top-2",
+      "catalogId": "8500",
+      "transform": {
+        "x": 0,
+        "y": -195,
+        "rotation": 0
+      },
+      "connectors": [
+        {
+          "x": 0,
+          "y": -195,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "z-top-feed",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": 110,
+          "y": -195,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "z-cr-1",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "z-cr-1",
+      "catalogId": "8520",
+      "transform": {
+        "x": 110,
+        "y": -195,
+        "rotation": 0
+      },
+      "connectors": [
+        {
+          "x": 110,
+          "y": -195,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "z-top-2",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": 247.88582233137674,
+          "y": -137.88582233137677,
+          "angle": 45,
+          "connectedTo": {
+            "pieceId": "z-cr-2",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "z-cr-2",
+      "catalogId": "8520",
+      "transform": {
+        "x": 247.89,
+        "y": -137.89,
+        "rotation": 45
+      },
+      "connectors": [
+        {
+          "x": 247.89,
+          "y": -137.89,
+          "angle": 225,
+          "connectedTo": {
+            "pieceId": "z-cr-1",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": 305.00417766862324,
+          "y": -0.004177668623242425,
+          "angle": 90,
+          "connectedTo": {
+            "pieceId": "z-cr-3",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "z-cr-3",
+      "catalogId": "8520",
+      "transform": {
+        "x": 305,
+        "y": 0,
+        "rotation": 90
+      },
+      "connectors": [
+        {
+          "x": 305,
+          "y": 0,
+          "angle": 270,
+          "connectedTo": {
+            "pieceId": "z-cr-2",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": 247.8858223313768,
+          "y": 137.88582233137674,
+          "angle": 135,
+          "connectedTo": {
+            "pieceId": "z-cr-4",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "z-cr-4",
+      "catalogId": "8520",
+      "transform": {
+        "x": 247.89,
+        "y": 137.89,
+        "rotation": 135
+      },
+      "connectors": [
+        {
+          "x": 247.89,
+          "y": 137.89,
+          "angle": 315,
+          "connectedTo": {
+            "pieceId": "z-cr-3",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": 110.00417766862324,
+          "y": 195.0041776686232,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "z-bot-turnout",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "z-bot-turnout",
+      "catalogId": "8562",
+      "transform": {
+        "x": 110,
+        "y": 195,
+        "rotation": 180
+      },
+      "connectors": [
+        {
+          "x": 110,
+          "y": 195,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "z-cr-4",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": 0,
+          "y": 195,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "z-bot-isolator",
+            "connectorIndex": 0
+          }
+        },
+        {
+          "x": -45.56349186104043,
+          "y": 259.43650813895954,
+          "angle": 135,
+          "connectedTo": {
+            "pieceId": "z-siding-curve",
+            "connectorIndex": 1
+          }
+        }
+      ],
+      "layerId": "layer-1",
+      "hasDecoder": true
+    },
+    {
+      "id": "z-bot-isolator",
+      "catalogId": "8588",
+      "transform": {
+        "x": 0,
+        "y": 195,
+        "rotation": 180
+      },
+      "connectors": [
+        {
+          "x": 0,
+          "y": 195,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "z-bot-turnout",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": -55,
+          "y": 195,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "z-bot-contact",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1",
+      "isIsolator": true,
+      "isolatedConnectorIndex": 0
+    },
+    {
+      "id": "z-bot-contact",
+      "catalogId": "8589",
+      "transform": {
+        "x": -55,
+        "y": 195,
+        "rotation": 180
+      },
+      "connectors": [
+        {
+          "x": -55,
+          "y": 195,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "z-bot-isolator",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": -110,
+          "y": 195,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "z-cl-1",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "z-cl-1",
+      "catalogId": "8520",
+      "transform": {
+        "x": -110,
+        "y": 195,
+        "rotation": 180
+      },
+      "connectors": [
+        {
+          "x": -110,
+          "y": 195,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "z-bot-contact",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": -247.88582233137674,
+          "y": 137.8858223313768,
+          "angle": 225,
+          "connectedTo": {
+            "pieceId": "z-cl-2",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "z-cl-2",
+      "catalogId": "8520",
+      "transform": {
+        "x": -247.89,
+        "y": 137.89,
+        "rotation": 225
+      },
+      "connectors": [
+        {
+          "x": -247.89,
+          "y": 137.89,
+          "angle": 45,
+          "connectedTo": {
+            "pieceId": "z-cl-1",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": -305.00417766862324,
+          "y": 0.004177668623242425,
+          "angle": 270,
+          "connectedTo": {
+            "pieceId": "z-cl-3",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "z-cl-3",
+      "catalogId": "8520",
+      "transform": {
+        "x": -305,
+        "y": 0,
+        "rotation": 270
+      },
+      "connectors": [
+        {
+          "x": -305,
+          "y": 0,
+          "angle": 90,
+          "connectedTo": {
+            "pieceId": "z-cl-2",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": -247.8858223313768,
+          "y": -137.88582233137674,
+          "angle": 315,
+          "connectedTo": {
+            "pieceId": "z-cl-4",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "z-cl-4",
+      "catalogId": "8520",
+      "transform": {
+        "x": -247.89,
+        "y": -137.89,
+        "rotation": 315
+      },
+      "connectors": [
+        {
+          "x": -247.89,
+          "y": -137.89,
+          "angle": 135,
+          "connectedTo": {
+            "pieceId": "z-cl-3",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": -110.00417766862327,
+          "y": -195.00417766862324,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "z-top-feed",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "z-siding-curve",
+      "catalogId": "8530",
+      "transform": {
+        "x": -110,
+        "y": 415,
+        "rotation": 270
+      },
+      "connectors": [
+        {
+          "x": -110,
+          "y": 415,
+          "angle": 90,
+          "connectedTo": {
+            "pieceId": "z-siding-uncoupler",
+            "connectorIndex": 0
+          }
+        },
+        {
+          "x": -45.56349186104049,
+          "y": 259.43650813895954,
+          "angle": 315,
+          "connectedTo": {
+            "pieceId": "z-bot-turnout",
+            "connectorIndex": 2
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "z-siding-uncoupler",
+      "catalogId": "8597",
+      "transform": {
+        "x": -110,
+        "y": 415,
+        "rotation": 90
+      },
+      "connectors": [
+        {
+          "x": -110,
+          "y": 415,
+          "angle": 270,
+          "connectedTo": {
+            "pieceId": "z-siding-curve",
+            "connectorIndex": 0
+          }
+        },
+        {
+          "x": -110,
+          "y": 525,
+          "angle": 90,
+          "connectedTo": {
+            "pieceId": "z-siding-bumper",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "z-siding-bumper",
+      "catalogId": "8598",
+      "transform": {
+        "x": -110,
+        "y": 525,
+        "rotation": 90
+      },
+      "connectors": [
+        {
+          "x": -110,
+          "y": 525,
+          "angle": 270,
+          "connectedTo": {
+            "pieceId": "z-siding-uncoupler",
+            "connectorIndex": 1
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    }
+  ]
+}

@@ -1,0 +1,1507 @@
+{
+  "name": "Zweigleisige Hauptstrecke",
+  "scale": "H0",
+  "feedVoltage": 16,
+  "locoCurrentMa": 450,
+  "locoCount": 2,
+  "turnoutLanternCurrentMa": 20,
+  "turnoutDecoderCurrentMa": 15,
+  "layers": [
+    {
+      "id": "layer-2",
+      "name": "Brücken & Überführung",
+      "heightMm": 80,
+      "color": "#4ade80",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "id": "layer-1",
+      "name": "Hauptstrecke (2-gleisig)",
+      "heightMm": 0,
+      "color": "#38bdf8",
+      "visible": true,
+      "locked": false,
+      "woodPlateMode": "table"
+    },
+    {
+      "id": "layer-0",
+      "name": "Schattenbahnhof",
+      "heightMm": -100,
+      "color": "#94a3b8",
+      "visible": true,
+      "locked": false
+    }
+  ],
+  "activeLayerId": "layer-1",
+  "baseboard": {
+    "id": "bb-mainline",
+    "name": "Hauptplatte (250 x 130 cm)",
+    "enabled": true,
+    "shape": "rect",
+    "width": 2500,
+    "depth": 1300,
+    "style": "wood",
+    "positionMode": "center",
+    "customX": 0,
+    "customY": 0,
+    "cornerRadius": 16,
+    "showDimensions": true
+  },
+  "baseboards": [
+    {
+      "id": "bb-mainline",
+      "name": "Hauptplatte (250 x 130 cm)",
+      "enabled": true,
+      "shape": "rect",
+      "width": 2500,
+      "depth": 1300,
+      "style": "wood",
+      "positionMode": "center",
+      "customX": 0,
+      "customY": 0,
+      "cornerRadius": 16,
+      "showDimensions": true
+    }
+  ],
+  "models": [
+    {
+      "id": "ml-station",
+      "name": "Hauptbahnhof Neustadt",
+      "category": "buildings",
+      "transform": {
+        "x": 0,
+        "y": -230,
+        "rotation": 0
+      },
+      "width": 320,
+      "depth": 140,
+      "height": 120,
+      "modelType": "builtin",
+      "builtinId": "station",
+      "layerId": "layer-1"
+    },
+    {
+      "id": "ml-engine-shed",
+      "name": "Lokschuppen BW",
+      "category": "railway",
+      "transform": {
+        "x": -330,
+        "y": 185,
+        "rotation": 0
+      },
+      "width": 240,
+      "depth": 72,
+      "height": 105,
+      "modelType": "builtin",
+      "builtinId": "engine-shed",
+      "layerId": "layer-1"
+    },
+    {
+      "id": "ml-signal-box",
+      "name": "Stellwerk Ost",
+      "category": "railway",
+      "transform": {
+        "x": 310,
+        "y": 240,
+        "rotation": 180
+      },
+      "width": 120,
+      "depth": 75,
+      "height": 110,
+      "modelType": "builtin",
+      "builtinId": "signal-box",
+      "layerId": "layer-1"
+    }
+  ],
+  "pieces": [
+    {
+      "id": "ml-out-top-1",
+      "catalogId": "24188",
+      "transform": {
+        "x": -376.6,
+        "y": -437.5,
+        "rotation": 0
+      },
+      "connectors": [
+        {
+          "x": -376.6,
+          "y": -437.5,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "ml-out-cl-6",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": -188.3,
+          "y": -437.5,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "ml-out-feed",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "ml-out-feed",
+      "catalogId": "24088",
+      "transform": {
+        "x": -188.3,
+        "y": -437.5,
+        "rotation": 0
+      },
+      "connectors": [
+        {
+          "x": -188.3,
+          "y": -437.5,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "ml-out-top-1",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": 0,
+          "y": -437.5,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "ml-out-top-3",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1",
+      "powerFeed": true
+    },
+    {
+      "id": "ml-out-top-3",
+      "catalogId": "24188",
+      "transform": {
+        "x": 0,
+        "y": -437.5,
+        "rotation": 0
+      },
+      "connectors": [
+        {
+          "x": 0,
+          "y": -437.5,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "ml-out-feed",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": 188.3,
+          "y": -437.5,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "ml-out-top-4",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "ml-out-top-4",
+      "catalogId": "24188",
+      "transform": {
+        "x": 188.3,
+        "y": -437.5,
+        "rotation": 0
+      },
+      "connectors": [
+        {
+          "x": 188.3,
+          "y": -437.5,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "ml-out-top-3",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": 376.6,
+          "y": -437.5,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "ml-out-cr-1",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "ml-out-cr-1",
+      "catalogId": "24230",
+      "transform": {
+        "x": 376.6,
+        "y": -437.5,
+        "rotation": 0
+      },
+      "connectors": [
+        {
+          "x": 376.6,
+          "y": -437.5,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "ml-out-top-4",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": 595.35,
+          "y": -378.8861141556919,
+          "angle": 30,
+          "connectedTo": {
+            "pieceId": "ml-out-cr-2",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "ml-out-cr-2",
+      "catalogId": "24230",
+      "transform": {
+        "x": 595.35,
+        "y": -378.89,
+        "rotation": 30
+      },
+      "connectors": [
+        {
+          "x": 595.35,
+          "y": -378.89,
+          "angle": 210,
+          "connectedTo": {
+            "pieceId": "ml-out-cr-1",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": 755.4861141556919,
+          "y": -218.75388584430812,
+          "angle": 60,
+          "connectedTo": {
+            "pieceId": "ml-out-cr-3",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "ml-out-cr-3",
+      "catalogId": "24230",
+      "transform": {
+        "x": 755.49,
+        "y": -218.75,
+        "rotation": 60
+      },
+      "connectors": [
+        {
+          "x": 755.49,
+          "y": -218.75,
+          "angle": 240,
+          "connectedTo": {
+            "pieceId": "ml-out-cr-2",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": 814.1038858443081,
+          "y": -5.684341886080802e-14,
+          "angle": 90,
+          "connectedTo": {
+            "pieceId": "ml-out-cr-4",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "ml-out-cr-4",
+      "catalogId": "24230",
+      "transform": {
+        "x": 814.1,
+        "y": 0,
+        "rotation": 90
+      },
+      "connectors": [
+        {
+          "x": 814.1,
+          "y": 0,
+          "angle": 270,
+          "connectedTo": {
+            "pieceId": "ml-out-cr-3",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": 755.486114155692,
+          "y": 218.74999999999997,
+          "angle": 120,
+          "connectedTo": {
+            "pieceId": "ml-out-cr-5",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "ml-out-cr-5",
+      "catalogId": "24230",
+      "transform": {
+        "x": 755.49,
+        "y": 218.75,
+        "rotation": 120
+      },
+      "connectors": [
+        {
+          "x": 755.49,
+          "y": 218.75,
+          "angle": 300,
+          "connectedTo": {
+            "pieceId": "ml-out-cr-4",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": 595.3538858443083,
+          "y": 378.8861141556919,
+          "angle": 150,
+          "connectedTo": {
+            "pieceId": "ml-out-cr-6",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "ml-out-cr-6",
+      "catalogId": "24230",
+      "transform": {
+        "x": 595.35,
+        "y": 378.89,
+        "rotation": 150
+      },
+      "connectors": [
+        {
+          "x": 595.35,
+          "y": 378.89,
+          "angle": 330,
+          "connectedTo": {
+            "pieceId": "ml-out-cr-5",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": 376.6,
+          "y": 437.50388584430806,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "ml-out-bot-1",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "ml-out-bot-1",
+      "catalogId": "24188",
+      "transform": {
+        "x": 376.6,
+        "y": 437.5,
+        "rotation": 180
+      },
+      "connectors": [
+        {
+          "x": 376.6,
+          "y": 437.5,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "ml-out-cr-6",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": 188.3,
+          "y": 437.5,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "ml-out-turnout",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "ml-out-turnout",
+      "catalogId": "24612",
+      "transform": {
+        "x": 188.3,
+        "y": 437.5,
+        "rotation": 180
+      },
+      "connectors": [
+        {
+          "x": 188.3,
+          "y": 437.5,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "ml-out-bot-1",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": 0,
+          "y": 437.5,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "ml-out-bot-3",
+            "connectorIndex": 0
+          }
+        },
+        {
+          "x": 8.262468110264905,
+          "y": 398.73893352800735,
+          "angle": 204.29999999999995,
+          "connectedTo": {
+            "pieceId": "ml-spur-out-1",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1",
+      "hasLantern": true,
+      "hasDecoder": true,
+      "turnoutCurrentMa": 35
+    },
+    {
+      "id": "ml-out-bot-3",
+      "catalogId": "24188",
+      "transform": {
+        "x": 0,
+        "y": 437.5,
+        "rotation": 180
+      },
+      "connectors": [
+        {
+          "x": 0,
+          "y": 437.5,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "ml-out-turnout",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": -188.3,
+          "y": 437.5,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "ml-out-bot-4",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "ml-out-bot-4",
+      "catalogId": "24188",
+      "transform": {
+        "x": -188.3,
+        "y": 437.5,
+        "rotation": 180
+      },
+      "connectors": [
+        {
+          "x": -188.3,
+          "y": 437.5,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "ml-out-bot-3",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": -376.6,
+          "y": 437.5,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "ml-out-cl-1",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "ml-out-cl-1",
+      "catalogId": "24230",
+      "transform": {
+        "x": -376.6,
+        "y": 437.5,
+        "rotation": 180
+      },
+      "connectors": [
+        {
+          "x": -376.6,
+          "y": 437.5,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "ml-out-bot-4",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": -595.35,
+          "y": 378.886114155692,
+          "angle": 210,
+          "connectedTo": {
+            "pieceId": "ml-out-cl-2",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "ml-out-cl-2",
+      "catalogId": "24230",
+      "transform": {
+        "x": -595.35,
+        "y": 378.89,
+        "rotation": 210
+      },
+      "connectors": [
+        {
+          "x": -595.35,
+          "y": 378.89,
+          "angle": 30,
+          "connectedTo": {
+            "pieceId": "ml-out-cl-1",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": -755.4861141556919,
+          "y": 218.7538858443081,
+          "angle": 240,
+          "connectedTo": {
+            "pieceId": "ml-out-cl-3",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "ml-out-cl-3",
+      "catalogId": "24230",
+      "transform": {
+        "x": -755.49,
+        "y": 218.75,
+        "rotation": 240
+      },
+      "connectors": [
+        {
+          "x": -755.49,
+          "y": 218.75,
+          "angle": 60,
+          "connectedTo": {
+            "pieceId": "ml-out-cl-2",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": -814.1038858443083,
+          "y": 2.842170943040401e-14,
+          "angle": 270,
+          "connectedTo": {
+            "pieceId": "ml-out-cl-4",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "ml-out-cl-4",
+      "catalogId": "24230",
+      "transform": {
+        "x": -814.1,
+        "y": 0,
+        "rotation": 270
+      },
+      "connectors": [
+        {
+          "x": -814.1,
+          "y": 0,
+          "angle": 90,
+          "connectedTo": {
+            "pieceId": "ml-out-cl-3",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": -755.486114155692,
+          "y": -218.74999999999997,
+          "angle": 300,
+          "connectedTo": {
+            "pieceId": "ml-out-cl-5",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "ml-out-cl-5",
+      "catalogId": "24230",
+      "transform": {
+        "x": -755.49,
+        "y": -218.75,
+        "rotation": 300
+      },
+      "connectors": [
+        {
+          "x": -755.49,
+          "y": -218.75,
+          "angle": 120,
+          "connectedTo": {
+            "pieceId": "ml-out-cl-4",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": -595.3538858443081,
+          "y": -378.88611415569187,
+          "angle": 330,
+          "connectedTo": {
+            "pieceId": "ml-out-cl-6",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "ml-out-cl-6",
+      "catalogId": "24230",
+      "transform": {
+        "x": -595.35,
+        "y": -378.89,
+        "rotation": 330
+      },
+      "connectors": [
+        {
+          "x": -595.35,
+          "y": -378.89,
+          "angle": 150,
+          "connectedTo": {
+            "pieceId": "ml-out-cl-5",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": -376.6000000000001,
+          "y": -437.50388584430823,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "ml-out-top-1",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "ml-in-top-1",
+      "catalogId": "24188",
+      "transform": {
+        "x": -376.6,
+        "y": -360,
+        "rotation": 0
+      },
+      "connectors": [
+        {
+          "x": -376.6,
+          "y": -360,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "ml-in-cl-6",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": -188.3,
+          "y": -360,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "ml-in-feed",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "ml-in-feed",
+      "catalogId": "24088",
+      "transform": {
+        "x": -188.3,
+        "y": -360,
+        "rotation": 0
+      },
+      "connectors": [
+        {
+          "x": -188.3,
+          "y": -360,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "ml-in-top-1",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": 0,
+          "y": -360,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "ml-in-top-3",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1",
+      "powerFeed": true
+    },
+    {
+      "id": "ml-in-top-3",
+      "catalogId": "24188",
+      "transform": {
+        "x": 0,
+        "y": -360,
+        "rotation": 0
+      },
+      "connectors": [
+        {
+          "x": 0,
+          "y": -360,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "ml-in-feed",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": 188.3,
+          "y": -360,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "ml-in-top-4",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "ml-in-top-4",
+      "catalogId": "24188",
+      "transform": {
+        "x": 188.3,
+        "y": -360,
+        "rotation": 0
+      },
+      "connectors": [
+        {
+          "x": 188.3,
+          "y": -360,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "ml-in-top-3",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": 376.6,
+          "y": -360,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "ml-in-cr-1",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "ml-in-cr-1",
+      "catalogId": "24130",
+      "transform": {
+        "x": 376.6,
+        "y": -360,
+        "rotation": 0
+      },
+      "connectors": [
+        {
+          "x": 376.6,
+          "y": -360,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "ml-in-top-4",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": 556.6,
+          "y": -311.7691453623979,
+          "angle": 30,
+          "connectedTo": {
+            "pieceId": "ml-in-cr-2",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "ml-in-cr-2",
+      "catalogId": "24130",
+      "transform": {
+        "x": 556.6,
+        "y": -311.77,
+        "rotation": 30
+      },
+      "connectors": [
+        {
+          "x": 556.6,
+          "y": -311.77,
+          "angle": 210,
+          "connectedTo": {
+            "pieceId": "ml-in-cr-1",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": 688.369145362398,
+          "y": -180.00085463760212,
+          "angle": 60,
+          "connectedTo": {
+            "pieceId": "ml-in-cr-3",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "ml-in-cr-3",
+      "catalogId": "24130",
+      "transform": {
+        "x": 688.37,
+        "y": -180,
+        "rotation": 60
+      },
+      "connectors": [
+        {
+          "x": 688.37,
+          "y": -180,
+          "angle": 240,
+          "connectedTo": {
+            "pieceId": "ml-in-cr-2",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": 736.6008546376021,
+          "y": -2.842170943040401e-14,
+          "angle": 90,
+          "connectedTo": {
+            "pieceId": "ml-in-cr-4",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "ml-in-cr-4",
+      "catalogId": "24130",
+      "transform": {
+        "x": 736.6,
+        "y": 0,
+        "rotation": 90
+      },
+      "connectors": [
+        {
+          "x": 736.6,
+          "y": 0,
+          "angle": 270,
+          "connectedTo": {
+            "pieceId": "ml-in-cr-3",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": 688.369145362398,
+          "y": 179.99999999999997,
+          "angle": 120,
+          "connectedTo": {
+            "pieceId": "ml-in-cr-5",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "ml-in-cr-5",
+      "catalogId": "24130",
+      "transform": {
+        "x": 688.37,
+        "y": 180,
+        "rotation": 120
+      },
+      "connectors": [
+        {
+          "x": 688.37,
+          "y": 180,
+          "angle": 300,
+          "connectedTo": {
+            "pieceId": "ml-in-cr-4",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": 556.6008546376022,
+          "y": 311.7691453623979,
+          "angle": 150,
+          "connectedTo": {
+            "pieceId": "ml-in-cr-6",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "ml-in-cr-6",
+      "catalogId": "24130",
+      "transform": {
+        "x": 556.6,
+        "y": 311.77,
+        "rotation": 150
+      },
+      "connectors": [
+        {
+          "x": 556.6,
+          "y": 311.77,
+          "angle": 330,
+          "connectedTo": {
+            "pieceId": "ml-in-cr-5",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": 376.6,
+          "y": 360.00085463760206,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "ml-in-bot-1",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "ml-in-bot-1",
+      "catalogId": "24188",
+      "transform": {
+        "x": 376.6,
+        "y": 360,
+        "rotation": 180
+      },
+      "connectors": [
+        {
+          "x": 376.6,
+          "y": 360,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "ml-in-cr-6",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": 188.3,
+          "y": 360,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "ml-in-turnout",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "ml-in-turnout",
+      "catalogId": "24611",
+      "transform": {
+        "x": 188.3,
+        "y": 360,
+        "rotation": 180
+      },
+      "connectors": [
+        {
+          "x": 188.3,
+          "y": 360,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "ml-in-bot-1",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": 0,
+          "y": 360,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "ml-in-bot-3",
+            "connectorIndex": 0
+          }
+        },
+        {
+          "x": 8.262468110264905,
+          "y": 398.7610664719927,
+          "angle": 155.70000000000005,
+          "connectedTo": {
+            "pieceId": "ml-spur-in-1",
+            "connectorIndex": 1
+          }
+        }
+      ],
+      "layerId": "layer-1",
+      "hasLantern": true,
+      "hasDecoder": true,
+      "turnoutCurrentMa": 35
+    },
+    {
+      "id": "ml-in-bot-3",
+      "catalogId": "24188",
+      "transform": {
+        "x": 0,
+        "y": 360,
+        "rotation": 180
+      },
+      "connectors": [
+        {
+          "x": 0,
+          "y": 360,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "ml-in-turnout",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": -188.3,
+          "y": 360,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "ml-in-bot-4",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "ml-in-bot-4",
+      "catalogId": "24188",
+      "transform": {
+        "x": -188.3,
+        "y": 360,
+        "rotation": 180
+      },
+      "connectors": [
+        {
+          "x": -188.3,
+          "y": 360,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "ml-in-bot-3",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": -376.6,
+          "y": 360,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "ml-in-cl-1",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "ml-in-cl-1",
+      "catalogId": "24130",
+      "transform": {
+        "x": -376.6,
+        "y": 360,
+        "rotation": 180
+      },
+      "connectors": [
+        {
+          "x": -376.6,
+          "y": 360,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "ml-in-bot-4",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": -556.6,
+          "y": 311.769145362398,
+          "angle": 210,
+          "connectedTo": {
+            "pieceId": "ml-in-cl-2",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "ml-in-cl-2",
+      "catalogId": "24130",
+      "transform": {
+        "x": -556.6,
+        "y": 311.77,
+        "rotation": 210
+      },
+      "connectors": [
+        {
+          "x": -556.6,
+          "y": 311.77,
+          "angle": 30,
+          "connectedTo": {
+            "pieceId": "ml-in-cl-1",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": -688.369145362398,
+          "y": 180.0008546376021,
+          "angle": 240,
+          "connectedTo": {
+            "pieceId": "ml-in-cl-3",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "ml-in-cl-3",
+      "catalogId": "24130",
+      "transform": {
+        "x": -688.37,
+        "y": 180,
+        "rotation": 240
+      },
+      "connectors": [
+        {
+          "x": -688.37,
+          "y": 180,
+          "angle": 60,
+          "connectedTo": {
+            "pieceId": "ml-in-cl-2",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": -736.6008546376022,
+          "y": 5.684341886080802e-14,
+          "angle": 270,
+          "connectedTo": {
+            "pieceId": "ml-in-cl-4",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "ml-in-cl-4",
+      "catalogId": "24130",
+      "transform": {
+        "x": -736.6,
+        "y": 0,
+        "rotation": 270
+      },
+      "connectors": [
+        {
+          "x": -736.6,
+          "y": 0,
+          "angle": 90,
+          "connectedTo": {
+            "pieceId": "ml-in-cl-3",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": -688.369145362398,
+          "y": -179.99999999999997,
+          "angle": 300,
+          "connectedTo": {
+            "pieceId": "ml-in-cl-5",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "ml-in-cl-5",
+      "catalogId": "24130",
+      "transform": {
+        "x": -688.37,
+        "y": -180,
+        "rotation": 300
+      },
+      "connectors": [
+        {
+          "x": -688.37,
+          "y": -180,
+          "angle": 120,
+          "connectedTo": {
+            "pieceId": "ml-in-cl-4",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": -556.6008546376021,
+          "y": -311.7691453623979,
+          "angle": 330,
+          "connectedTo": {
+            "pieceId": "ml-in-cl-6",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "ml-in-cl-6",
+      "catalogId": "24130",
+      "transform": {
+        "x": -556.6,
+        "y": -311.77,
+        "rotation": 330
+      },
+      "connectors": [
+        {
+          "x": -556.6,
+          "y": -311.77,
+          "angle": 150,
+          "connectedTo": {
+            "pieceId": "ml-in-cl-5",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": -376.6000000000001,
+          "y": -360.0008546376022,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "ml-in-top-1",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "ml-spur-out-1",
+      "catalogId": "24224",
+      "transform": {
+        "x": 8.26,
+        "y": 398.74,
+        "rotation": 204.3
+      },
+      "connectors": [
+        {
+          "x": 8.26,
+          "y": 398.74,
+          "angle": 24.30000000000001,
+          "connectedTo": {
+            "pieceId": "ml-out-turnout",
+            "connectorIndex": 2
+          }
+        },
+        {
+          "x": -139.87606107359096,
+          "y": 289.3250075510904,
+          "angle": 228.60000000000002,
+          "connectedTo": {
+            "pieceId": "ml-spur-out-2",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "ml-spur-out-2",
+      "catalogId": "24188",
+      "transform": {
+        "x": -139.88,
+        "y": 289.33,
+        "rotation": 228.6
+      },
+      "connectors": [
+        {
+          "x": -139.88,
+          "y": 289.33,
+          "angle": 48.60000000000002,
+          "connectedTo": {
+            "pieceId": "ml-spur-out-1",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": -264.40502424044365,
+          "y": 148.08408558858446,
+          "angle": 228.60000000000002,
+          "connectedTo": {
+            "pieceId": "ml-spur-out-bumper",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "ml-spur-out-bumper",
+      "catalogId": "24977",
+      "transform": {
+        "x": -264.41,
+        "y": 148.08,
+        "rotation": 228.6
+      },
+      "connectors": [
+        {
+          "x": -264.41,
+          "y": 148.08,
+          "angle": 48.60000000000002,
+          "connectedTo": {
+            "pieceId": "ml-spur-out-2",
+            "connectorIndex": 1
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "ml-spur-in-1",
+      "catalogId": "24224",
+      "transform": {
+        "x": -139.87,
+        "y": 508.18,
+        "rotation": 311.4
+      },
+      "connectors": [
+        {
+          "x": -139.87,
+          "y": 508.18,
+          "angle": 131.39999999999998,
+          "connectedTo": {
+            "pieceId": "ml-spur-in-2",
+            "connectorIndex": 0
+          }
+        },
+        {
+          "x": 8.266061073590862,
+          "y": 398.76500755109026,
+          "angle": 335.70000000000005,
+          "connectedTo": {
+            "pieceId": "ml-in-turnout",
+            "connectorIndex": 2
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "ml-spur-in-2",
+      "catalogId": "24188",
+      "transform": {
+        "x": -139.87,
+        "y": 508.18,
+        "rotation": 131.4
+      },
+      "connectors": [
+        {
+          "x": -139.87,
+          "y": 508.18,
+          "angle": 311.4,
+          "connectedTo": {
+            "pieceId": "ml-spur-in-1",
+            "connectorIndex": 0
+          }
+        },
+        {
+          "x": -264.3950242404437,
+          "y": 649.4259144114155,
+          "angle": 131.39999999999998,
+          "connectedTo": {
+            "pieceId": "ml-spur-in-bumper",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "ml-spur-in-bumper",
+      "catalogId": "24977",
+      "transform": {
+        "x": -264.4,
+        "y": 649.43,
+        "rotation": 131.4
+      },
+      "connectors": [
+        {
+          "x": -264.4,
+          "y": 649.43,
+          "angle": 311.4,
+          "connectedTo": {
+            "pieceId": "ml-spur-in-2",
+            "connectorIndex": 1
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    }
+  ]
+}

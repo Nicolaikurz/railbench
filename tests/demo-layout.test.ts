@@ -6,10 +6,16 @@ import {
   DEMO_LAYOUTS,
   getDemoLayout,
 } from "@/editor/demo-tracks";
+import { showDemoTracksDialog } from "@/ui/demo-tracks-dialog";
 import { createLayout } from "@/core/layout";
 import { toJSON, fromJSON } from "@/io/serialize";
 import { dist } from "@/core/geometry";
-import rawDemoLayout from "@/editor/demo-layout.railbench?raw";
+import rawDemoLayout from "../demotracks/alpenland-h0.railbench?raw";
+import rawMainlineH0 from "../demotracks/mainline-h0.railbench?raw";
+import rawSwitchingN from "../demotracks/switching-n.railbench?raw";
+import rawGardenG from "../demotracks/garden-g.railbench?raw";
+import rawShunting0 from "../demotracks/shunting-0.railbench?raw";
+import rawSuitcaseZ from "../demotracks/suitcase-z.railbench?raw";
 import { isFeederEntry, isIsolatingEntry } from "@/catalog/types";
 import { TrackOperations, type EditorContext } from "@/editor/track-operations";
 import { catalogRegistry } from "@/catalog/catalog";
@@ -123,17 +129,37 @@ describe("Demo Layout", () => {
     expect(scales.has("Z")).toBe(true);
   });
 
-  it("erzeugt jedes Demo-Layout fehlerfrei über getDemoLayout", () => {
+  it("erzeugt jedes Demo-Layout fehlerfrei aus dem Ordner demotracks/ ohne unverbundene Gleisenden", () => {
+    const rawFiles: Record<string, string> = {
+      "alpenland-h0": rawDemoLayout,
+      "mainline-h0": rawMainlineH0,
+      "switching-n": rawSwitchingN,
+      "garden-g": rawGardenG,
+      "shunting-0": rawShunting0,
+      "suitcase-z": rawSuitcaseZ,
+    };
+
     for (const demo of DEMO_LAYOUTS) {
+      expect(typeof rawFiles[demo.id]).toBe("string");
       const def = getDemoLayout(demo.id);
       expect(def).toBeDefined();
       expect(def!.scale).toBe(demo.scale);
       const layout = def!.createLayout();
       expect(layout).toBeDefined();
       expect(layout.scale).toBe(demo.scale);
-      expect(layout.pieces.length).toBeGreaterThan(0);
+      expect(layout.pieces.length).toBe(demo.pieceCount);
       expect(layout.baseboards?.length).toBeGreaterThan(0);
+      expect(layout.baseboard?.positionMode).toBe("center");
+      expect(layout.baseboard?.width).toBe(demo.dimensionsMm.width);
+      expect(layout.baseboard?.depth).toBe(demo.dimensionsMm.height);
       expect(layout.layers?.length).toBeGreaterThan(0);
+      expect(layout.models?.length).toBeGreaterThan(0);
+
+      // Jedes Gleisstück in jedem Demo-Layout ist an allen Anschlüssen lückenlos verbunden
+      const unconnected = layout.pieces.flatMap((p) =>
+        p.connectors.filter((c) => !c.connectedTo),
+      );
+      expect(unconnected).toHaveLength(0);
     }
   });
 
@@ -227,5 +253,67 @@ describe("Demo Layout", () => {
     const piece6 = layout.pieces[5]!;
     expect(piece6.powerFeed).toBe(false);
     expect(piece6.isIsolator).toBeUndefined();
+  });
+
+  it("zeigt das vereinfachte Demo-Menü an und lädt den gewählten Plan per Klick", async () => {
+    const items: Array<{ dataset: Record<string, string>; click: () => void }> = [];
+    let overlayRemoved = false;
+
+    const createEl = (tag: string): any => {
+      const listeners: Record<string, Array<(e?: any) => void>> = {};
+      const el: any = {
+        tagName: tag.toUpperCase(),
+        id: "",
+        className: "",
+        type: "",
+        innerHTML: "",
+        dataset: {},
+        children: [] as any[],
+        setAttribute: vi.fn(),
+        addEventListener: (ev: string, fn: (e?: any) => void) => {
+          (listeners[ev] ??= []).push(fn);
+        },
+        click: () => {
+          for (const fn of listeners["click"] ?? []) fn({ target: el });
+        },
+        appendChild: (child: any) => {
+          el.children.push(child);
+          if (child.className === "demo-track-item") items.push(child);
+        },
+        append: (...children: any[]) => {
+          el.children.push(...children);
+        },
+        querySelector: () => createEl("button"),
+        remove: () => {
+          overlayRemoved = true;
+        },
+      };
+      return el;
+    };
+
+    const prevDoc = (globalThis as any).document;
+    (globalThis as any).document = {
+      getElementById: () => null,
+      createElement: (tag: string) => createEl(tag),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      body: { appendChild: vi.fn() },
+    };
+
+    try {
+      const onSelect = vi.fn();
+      const promise = showDemoTracksDialog({ onSelect });
+
+      expect(items.length).toBe(6);
+      expect(items.map((i) => i.dataset.demoId)).toEqual(DEMO_LAYOUTS.map((d) => d.id));
+
+      items[1]!.click();
+      const selected = await promise;
+      expect(selected?.id).toBe("mainline-h0");
+      expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ id: "mainline-h0" }));
+      expect(overlayRemoved).toBe(true);
+    } finally {
+      (globalThis as any).document = prevDoc;
+    }
   });
 });

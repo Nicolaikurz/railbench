@@ -64,6 +64,10 @@ describe("Two-line Toolbar & macOS System Menus", () => {
     return new Proxy(el, {
       set(target, prop, value) {
         target[prop] = value;
+        if (prop === "className" && typeof value === "string") {
+          classes.clear();
+          value.split(/\s+/).filter(Boolean).forEach((c) => classes.add(c));
+        }
         if (prop === "id" && value) {
           elementsById[value] = target;
         }
@@ -229,5 +233,41 @@ describe("Two-line Toolbar & macOS System Menus", () => {
     updateToolbarState({ powerSimEnabled: false });
     expect(btnPower.classList.contains("active-warning")).toBe(false);
     expect(powerGroup.classList.contains("active-warning")).toBe(false);
+  });
+
+  it("preserves active states on snap, labels, colors, and power during partial updateToolbarState calls", () => {
+    const host = createMockElement("div");
+    createToolbar(host, dummyEvents);
+
+    const btnSnap = elementsById["tb-snap"];
+    const btnLabels = elementsById["tb-labels"];
+    const btnColors = elementsById["tb-colors"];
+    const btnPower = elementsById["tb-power"];
+
+    updateToolbarState({
+      snappingEnabled: true,
+      trackLabelsEnabled: true,
+      colorMode: "types",
+      powerSimEnabled: true,
+    });
+
+    expect(btnSnap.classList.contains("active")).toBe(true);
+    expect(btnLabels.classList.contains("active")).toBe(true);
+    expect(btnColors.classList.contains("active")).toBe(true);
+    expect(btnPower.classList.contains("active-warning")).toBe(true);
+
+    // Partial update (e.g. theme change or right sidebar toggle) must NOT clear active classes
+    updateToolbarState({ themePref: "dark", resolvedTheme: "dark" });
+    updateToolbarState({ rightSidebarCollapsed: false });
+
+    expect(btnSnap.classList.contains("active")).toBe(true);
+    expect(btnLabels.classList.contains("active")).toBe(true);
+    expect(btnColors.classList.contains("active")).toBe(true);
+    expect(btnPower.classList.contains("active-warning")).toBe(true);
+
+    // Explicit toggle off works for snap and labels
+    updateToolbarState({ snappingEnabled: false, trackLabelsEnabled: false });
+    expect(btnSnap.classList.contains("active")).toBe(false);
+    expect(btnLabels.classList.contains("active")).toBe(false);
   });
 });

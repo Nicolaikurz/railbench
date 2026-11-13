@@ -1,0 +1,900 @@
+{
+  "name": "Gartenbahn Rundkurs (G)",
+  "scale": "G",
+  "feedVoltage": 22,
+  "locoCurrentMa": 1500,
+  "locoCount": 2,
+  "layers": [
+    {
+      "id": "layer-1",
+      "name": "Gartenstrecke (45 mm)",
+      "heightMm": 0,
+      "color": "#16a34a",
+      "visible": true,
+      "locked": false,
+      "woodPlateMode": "table"
+    }
+  ],
+  "activeLayerId": "layer-1",
+  "baseboard": {
+    "id": "bb-g",
+    "name": "Gartenanlage (320 x 200 cm)",
+    "enabled": true,
+    "shape": "rect",
+    "width": 3200,
+    "depth": 2000,
+    "style": "grass",
+    "positionMode": "center",
+    "customX": 0,
+    "customY": 0,
+    "cornerRadius": 24,
+    "showDimensions": true
+  },
+  "baseboards": [
+    {
+      "id": "bb-g",
+      "name": "Gartenanlage (320 x 200 cm)",
+      "enabled": true,
+      "shape": "rect",
+      "width": 3200,
+      "depth": 2000,
+      "style": "grass",
+      "positionMode": "center",
+      "customX": 0,
+      "customY": 0,
+      "cornerRadius": 24,
+      "showDimensions": true
+    }
+  ],
+  "models": [
+    {
+      "id": "g-station",
+      "name": "Gartenbahnhof Sonnenblick",
+      "category": "buildings",
+      "transform": {
+        "x": 100,
+        "y": 0,
+        "rotation": 0
+      },
+      "width": 520,
+      "depth": 220,
+      "height": 240,
+      "modelType": "builtin",
+      "builtinId": "station",
+      "layerId": "layer-1"
+    },
+    {
+      "id": "g-water-tower",
+      "name": "Historischer Wasserturm",
+      "category": "railway",
+      "transform": {
+        "x": -450,
+        "y": -120,
+        "rotation": 0
+      },
+      "width": 160,
+      "depth": 160,
+      "height": 310,
+      "modelType": "builtin",
+      "builtinId": "water-tower",
+      "layerId": "layer-1"
+    }
+  ],
+  "pieces": [
+    {
+      "id": "g-top-feed",
+      "catalogId": "10005",
+      "transform": {
+        "x": -600,
+        "y": -600,
+        "rotation": 0
+      },
+      "connectors": [
+        {
+          "x": -600,
+          "y": -600,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "g-cl-6",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": -300,
+          "y": -600,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "g-top-turnout",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1",
+      "powerFeed": true
+    },
+    {
+      "id": "g-top-turnout",
+      "catalogId": "12150",
+      "transform": {
+        "x": -300,
+        "y": -600,
+        "rotation": 0
+      },
+      "connectors": [
+        {
+          "x": -300,
+          "y": -600,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "g-top-feed",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": 0,
+          "y": -600,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "g-top-3",
+            "connectorIndex": 0
+          }
+        },
+        {
+          "x": -5.684341886080802e-14,
+          "y": -519.6152422706632,
+          "angle": 30,
+          "connectedTo": {
+            "pieceId": "g-spur1-curve",
+            "connectorIndex": 1
+          }
+        }
+      ],
+      "layerId": "layer-1",
+      "hasLantern": true,
+      "hasDecoder": true
+    },
+    {
+      "id": "g-top-3",
+      "catalogId": "10000",
+      "transform": {
+        "x": 0,
+        "y": -600,
+        "rotation": 0
+      },
+      "connectors": [
+        {
+          "x": 0,
+          "y": -600,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "g-top-turnout",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": 300,
+          "y": -600,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "g-top-4",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "g-top-4",
+      "catalogId": "10000",
+      "transform": {
+        "x": 300,
+        "y": -600,
+        "rotation": 0
+      },
+      "connectors": [
+        {
+          "x": 300,
+          "y": -600,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "g-top-3",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": 600,
+          "y": -600,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "g-cr-1",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "g-cr-1",
+      "catalogId": "11000",
+      "transform": {
+        "x": 600,
+        "y": -600,
+        "rotation": 0
+      },
+      "connectors": [
+        {
+          "x": 600,
+          "y": -600,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "g-top-4",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": 900,
+          "y": -519.6152422706632,
+          "angle": 30,
+          "connectedTo": {
+            "pieceId": "g-cr-2",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "g-cr-2",
+      "catalogId": "11000",
+      "transform": {
+        "x": 900,
+        "y": -519.62,
+        "rotation": 30
+      },
+      "connectors": [
+        {
+          "x": 900,
+          "y": -519.62,
+          "angle": 210,
+          "connectedTo": {
+            "pieceId": "g-cr-1",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": 1119.6152422706632,
+          "y": -300.0047577293369,
+          "angle": 60,
+          "connectedTo": {
+            "pieceId": "g-cr-3",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "g-cr-3",
+      "catalogId": "11000",
+      "transform": {
+        "x": 1119.62,
+        "y": -300,
+        "rotation": 60
+      },
+      "connectors": [
+        {
+          "x": 1119.62,
+          "y": -300,
+          "angle": 240,
+          "connectedTo": {
+            "pieceId": "g-cr-2",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": 1200.0047577293367,
+          "y": -5.684341886080802e-14,
+          "angle": 90,
+          "connectedTo": {
+            "pieceId": "g-cr-4",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "g-cr-4",
+      "catalogId": "11000",
+      "transform": {
+        "x": 1200,
+        "y": 0,
+        "rotation": 90
+      },
+      "connectors": [
+        {
+          "x": 1200,
+          "y": 0,
+          "angle": 270,
+          "connectedTo": {
+            "pieceId": "g-cr-3",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": 1119.6152422706632,
+          "y": 299.99999999999994,
+          "angle": 120,
+          "connectedTo": {
+            "pieceId": "g-cr-5",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "g-cr-5",
+      "catalogId": "11000",
+      "transform": {
+        "x": 1119.62,
+        "y": 300,
+        "rotation": 120
+      },
+      "connectors": [
+        {
+          "x": 1119.62,
+          "y": 300,
+          "angle": 300,
+          "connectedTo": {
+            "pieceId": "g-cr-4",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": 900.0047577293368,
+          "y": 519.6152422706632,
+          "angle": 150,
+          "connectedTo": {
+            "pieceId": "g-cr-6",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "g-cr-6",
+      "catalogId": "11000",
+      "transform": {
+        "x": 900,
+        "y": 519.62,
+        "rotation": 150
+      },
+      "connectors": [
+        {
+          "x": 900,
+          "y": 519.62,
+          "angle": 330,
+          "connectedTo": {
+            "pieceId": "g-cr-5",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": 600,
+          "y": 600.0047577293368,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "g-bot-turnout",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "g-bot-turnout",
+      "catalogId": "12050",
+      "transform": {
+        "x": 600,
+        "y": 600,
+        "rotation": 180
+      },
+      "connectors": [
+        {
+          "x": 600,
+          "y": 600,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "g-cr-6",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": 300,
+          "y": 600,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "g-bot-2",
+            "connectorIndex": 0
+          }
+        },
+        {
+          "x": 300.00000000000006,
+          "y": 680.3847577293368,
+          "angle": 150,
+          "connectedTo": {
+            "pieceId": "g-spur2-curve",
+            "connectorIndex": 1
+          }
+        }
+      ],
+      "layerId": "layer-1",
+      "hasLantern": true,
+      "hasDecoder": true
+    },
+    {
+      "id": "g-bot-2",
+      "catalogId": "10000",
+      "transform": {
+        "x": 300,
+        "y": 600,
+        "rotation": 180
+      },
+      "connectors": [
+        {
+          "x": 300,
+          "y": 600,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "g-bot-turnout",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": 0,
+          "y": 600,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "g-bot-3",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "g-bot-3",
+      "catalogId": "10000",
+      "transform": {
+        "x": 0,
+        "y": 600,
+        "rotation": 180
+      },
+      "connectors": [
+        {
+          "x": 0,
+          "y": 600,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "g-bot-2",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": -300,
+          "y": 600,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "g-bot-4",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "g-bot-4",
+      "catalogId": "10000",
+      "transform": {
+        "x": -300,
+        "y": 600,
+        "rotation": 180
+      },
+      "connectors": [
+        {
+          "x": -300,
+          "y": 600,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "g-bot-3",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": -600,
+          "y": 600,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "g-cl-1",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "g-cl-1",
+      "catalogId": "11000",
+      "transform": {
+        "x": -600,
+        "y": 600,
+        "rotation": 180
+      },
+      "connectors": [
+        {
+          "x": -600,
+          "y": 600,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "g-bot-4",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": -900,
+          "y": 519.6152422706633,
+          "angle": 210,
+          "connectedTo": {
+            "pieceId": "g-cl-2",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "g-cl-2",
+      "catalogId": "11000",
+      "transform": {
+        "x": -900,
+        "y": 519.62,
+        "rotation": 210
+      },
+      "connectors": [
+        {
+          "x": -900,
+          "y": 519.62,
+          "angle": 30,
+          "connectedTo": {
+            "pieceId": "g-cl-1",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": -1119.6152422706632,
+          "y": 300.00475772933686,
+          "angle": 240,
+          "connectedTo": {
+            "pieceId": "g-cl-3",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "g-cl-3",
+      "catalogId": "11000",
+      "transform": {
+        "x": -1119.62,
+        "y": 300,
+        "rotation": 240
+      },
+      "connectors": [
+        {
+          "x": -1119.62,
+          "y": 300,
+          "angle": 60,
+          "connectedTo": {
+            "pieceId": "g-cl-2",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": -1200.004757729337,
+          "y": 1.1368683772161603e-13,
+          "angle": 270,
+          "connectedTo": {
+            "pieceId": "g-cl-4",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "g-cl-4",
+      "catalogId": "11000",
+      "transform": {
+        "x": -1200,
+        "y": 0,
+        "rotation": 270
+      },
+      "connectors": [
+        {
+          "x": -1200,
+          "y": 0,
+          "angle": 90,
+          "connectedTo": {
+            "pieceId": "g-cl-3",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": -1119.6152422706632,
+          "y": -299.99999999999994,
+          "angle": 300,
+          "connectedTo": {
+            "pieceId": "g-cl-5",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "g-cl-5",
+      "catalogId": "11000",
+      "transform": {
+        "x": -1119.62,
+        "y": -300,
+        "rotation": 300
+      },
+      "connectors": [
+        {
+          "x": -1119.62,
+          "y": -300,
+          "angle": 120,
+          "connectedTo": {
+            "pieceId": "g-cl-4",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": -900.0047577293367,
+          "y": -519.6152422706632,
+          "angle": 330,
+          "connectedTo": {
+            "pieceId": "g-cl-6",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "g-cl-6",
+      "catalogId": "11000",
+      "transform": {
+        "x": -900,
+        "y": -519.62,
+        "rotation": 330
+      },
+      "connectors": [
+        {
+          "x": -900,
+          "y": -519.62,
+          "angle": 150,
+          "connectedTo": {
+            "pieceId": "g-cl-5",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": -600.0000000000001,
+          "y": -600.004757729337,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "g-top-feed",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "g-spur1-curve",
+      "catalogId": "11000",
+      "transform": {
+        "x": 300,
+        "y": -439.23,
+        "rotation": 180
+      },
+      "connectors": [
+        {
+          "x": 300,
+          "y": -439.23,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "g-spur1-straight",
+            "connectorIndex": 0
+          }
+        },
+        {
+          "x": 5.684341886080802e-14,
+          "y": -519.6147577293367,
+          "angle": 210,
+          "connectedTo": {
+            "pieceId": "g-top-turnout",
+            "connectorIndex": 2
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "g-spur1-straight",
+      "catalogId": "10000",
+      "transform": {
+        "x": 300,
+        "y": -439.23,
+        "rotation": 0
+      },
+      "connectors": [
+        {
+          "x": 300,
+          "y": -439.23,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "g-spur1-curve",
+            "connectorIndex": 0
+          }
+        },
+        {
+          "x": 600,
+          "y": -439.23,
+          "angle": 0,
+          "connectedTo": {
+            "pieceId": "g-spur1-bumper",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "g-spur1-bumper",
+      "catalogId": "10310",
+      "transform": {
+        "x": 600,
+        "y": -439.23,
+        "rotation": 0
+      },
+      "connectors": [
+        {
+          "x": 600,
+          "y": -439.23,
+          "angle": 180,
+          "connectedTo": {
+            "pieceId": "g-spur1-straight",
+            "connectorIndex": 1
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "g-spur2-curve",
+      "catalogId": "11000",
+      "transform": {
+        "x": 80.38,
+        "y": 900,
+        "rotation": 300
+      },
+      "connectors": [
+        {
+          "x": 80.38,
+          "y": 900,
+          "angle": 120,
+          "connectedTo": {
+            "pieceId": "g-spur2-straight-1",
+            "connectorIndex": 0
+          }
+        },
+        {
+          "x": 299.99524227066314,
+          "y": 680.3847577293368,
+          "angle": 330,
+          "connectedTo": {
+            "pieceId": "g-bot-turnout",
+            "connectorIndex": 2
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "g-spur2-straight-1",
+      "catalogId": "10000",
+      "transform": {
+        "x": 80.38,
+        "y": 900,
+        "rotation": 120
+      },
+      "connectors": [
+        {
+          "x": 80.38,
+          "y": 900,
+          "angle": 300,
+          "connectedTo": {
+            "pieceId": "g-spur2-curve",
+            "connectorIndex": 0
+          }
+        },
+        {
+          "x": -69.61999999999995,
+          "y": 1159.8076211353316,
+          "angle": 120,
+          "connectedTo": {
+            "pieceId": "g-spur2-straight-2",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "g-spur2-straight-2",
+      "catalogId": "10150",
+      "transform": {
+        "x": -69.62,
+        "y": 1159.81,
+        "rotation": 120
+      },
+      "connectors": [
+        {
+          "x": -69.62,
+          "y": 1159.81,
+          "angle": 300,
+          "connectedTo": {
+            "pieceId": "g-spur2-straight-1",
+            "connectorIndex": 1
+          }
+        },
+        {
+          "x": -144.61999999999998,
+          "y": 1289.7138105676659,
+          "angle": 120,
+          "connectedTo": {
+            "pieceId": "g-spur2-bumper",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    },
+    {
+      "id": "g-spur2-bumper",
+      "catalogId": "10310",
+      "transform": {
+        "x": -144.62,
+        "y": 1289.71,
+        "rotation": 120
+      },
+      "connectors": [
+        {
+          "x": -144.62,
+          "y": 1289.71,
+          "angle": 300,
+          "connectedTo": {
+            "pieceId": "g-spur2-straight-2",
+            "connectorIndex": 1
+          }
+        }
+      ],
+      "layerId": "layer-1"
+    }
+  ]
+}
