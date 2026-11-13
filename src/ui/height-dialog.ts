@@ -1,3 +1,4 @@
+import heightDialogHtml from "./templates/height-dialog.html?raw";
 import type { Layout, Layer, TrackPiece } from "@/core/types";
 import type { Catalog } from "@/catalog/catalog";
 import { getTranslations } from "@/i18n";
@@ -53,313 +54,29 @@ export function openChangeHeightDialog(options: ChangeHeightDialogOptions) {
   modal.className = "rb-modal-overlay";
   const t = getTranslations().heightDialog;
 
-  modal.innerHTML = `
-    <style>
-      #height-modal {
-        position: fixed;
-        inset: 0;
-        background: rgba(10, 15, 26, 0.7);
-        backdrop-filter: blur(4px);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 9999;
-      }
-      .rb-dialog-card {
-        width: 440px;
-        max-height: 90vh;
-        display: flex;
-        flex-direction: column;
-        background: #1e2638;
-        color: #e2e8f0;
-        border-radius: 12px;
-        overflow: hidden;
-        box-shadow: 0 20px 45px rgba(0, 0, 0, 0.5);
-        font-size: 13px;
-        font-family: inherit;
-      }
-      .rb-dialog-header {
-        padding: 12px 18px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        border-bottom: 1px solid #2d3748;
-      }
-      .rb-dialog-body {
-        padding: 16px 18px;
-        overflow-y: auto;
-        display: flex;
-        flex-direction: column;
-        gap: 14px;
-        scrollbar-width: thin;
-      }
-      .rb-dialog-body::-webkit-scrollbar,
-      #height-modal #ramp-piece-list::-webkit-scrollbar {
-        width: 6px;
-      }
-      .rb-dialog-body::-webkit-scrollbar-thumb,
-      #height-modal #ramp-piece-list::-webkit-scrollbar-thumb {
-        background: rgba(148, 163, 184, 0.35);
-        border-radius: 3px;
-      }
-      .rb-meta-strip {
-        display: flex;
-        justify-content: space-between;
-        background: #141b2a;
-        padding: 8px 12px;
-        border-radius: 6px;
-        font-size: 12px;
-        color: #94a3b8;
-      }
-      .rb-meta-strip strong { color: #f8fafc; }
-      
-      /* Segmented 3-Way Mode Switch */
-      .rb-segmented-control {
-        display: grid;
-        grid-template-columns: 1fr 1fr 1fr;
-        background: #141b2a;
-        border-radius: 8px;
-        padding: 3px;
-        gap: 3px;
-      }
-      .rb-segmented-item {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 7px 4px;
-        cursor: pointer;
-        border-radius: 6px;
-        font-size: 12px;
-        color: #94a3b8;
-        transition: all 0.15s ease;
-        user-select: none;
-      }
-      .rb-segmented-item input { display: none; }
-      .rb-segmented-item.active {
-        background: #0284c7;
-        color: #ffffff;
-        font-weight: 600;
-      }
+  const layerOptions = layers
+    .map((l) => {
+      const cleanName = l.name.replace(/\\s*\\([0-9]+\\s*mm\\)$/, "");
+      const isSel = l.id === targetLayerId ? "selected" : "";
+      return `<option value="${l.id}" ${isSel}>${cleanName} (${l.heightMm ?? 0} mm)</option>`;
+    })
+    .join("");
 
-      .ramp-field-input, .height-field-select {
-        background: #141b2a;
-        border: 1px solid #334155;
-        color: #f8fafc;
-        border-radius: 6px;
-        padding: 6px 10px;
-        font-size: 13px;
-        width: 100%;
-        box-sizing: border-box;
-      }
-      .btn-icon-subtle {
-        background: #242f44;
-        border: 1px solid #3b4963;
-        color: #cbd5e1;
-        border-radius: 6px;
-        padding: 6px 10px;
-        cursor: pointer;
-        font-size: 12.5px;
-        transition: background 0.15s;
-      }
-      .btn-icon-subtle:hover { background: #323f5b; color: #fff; }
-      .btn-icon-subtle.active {
-        background: #0284c7;
-        border-color: #0284c7;
-        color: #ffffff;
-      }
-
-      .ramp-inputs-grid {
-        display: grid;
-        grid-template-columns: 1fr auto 1fr auto;
-        gap: 8px;
-        align-items: center;
-      }
-      .steep-row {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        justify-content: space-between;
-      }
-      .pill-btn {
-        background: #242f44;
-        border: 1px solid transparent;
-        color: #94a3b8;
-        padding: 3px 8px;
-        border-radius: 4px;
-        font-size: 11px;
-        cursor: pointer;
-      }
-      .pill-btn.active {
-        background: #0284c7;
-        color: #fff;
-      }
-
-      /* Status Badge */
-      .badge-status {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 8px 12px;
-        border-radius: 6px;
-        font-weight: 500;
-        font-size: 12px;
-      }
-      .badge-status.ok { background: rgba(34, 197, 94, 0.15); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3); }
-      .badge-status.warn { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
-      .badge-status.danger { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
-
-      /* Collapsible Details */
-      details.ramp-breakdown-details {
-        background: #141b2a;
-        border-radius: 6px;
-        padding: 8px 12px;
-        font-size: 12px;
-      }
-      details.ramp-breakdown-details summary {
-        cursor: pointer;
-        color: #94a3b8;
-        font-weight: 500;
-        user-select: none;
-      }
-      .ramp-piece-list {
-        max-height: 140px;
-        overflow-y: auto;
-        margin-top: 8px;
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-        scrollbar-width: thin;
-      }
-      .ramp-piece-row {
-        display: flex;
-        justify-content: space-between;
-        font-size: 11.5px;
-        color: #cbd5e1;
-        padding: 2px 0;
-      }
-
-      .rb-dialog-footer {
-        display: flex;
-        justify-content: flex-end;
-        gap: 10px;
-        padding: 12px 18px;
-        border-top: 1px solid #2d3748;
-        background: #171e2e;
-      }
-    </style>
-
-    <div class="rb-dialog-card">
-      <div class="rb-dialog-header">
-        <strong>📐 ${t.title}</strong>
-        <button class="btn-icon-subtle" id="height-modal-close" style="padding: 2px 7px;">✕</button>
-      </div>
-
-      <div class="rb-dialog-body">
-        <!-- Selection Summary -->
-        <div class="rb-meta-strip">
-          <span><strong>${selectedPieces.length}</strong> tracks</span>
-          <span id="summary-total-length">...</span>
-          <span>${currentLayer.name.replace(/\s*\([0-9]+\s*mm\)$/, "")}</span>
-        </div>
-
-        <!-- Target Layer -->
-        <div>
-          <label style="display:block; font-size:11px; color:#94a3b8; margin-bottom:5px;">${t.targetLayer}</label>
-          <select id="height-layer-select" class="height-field-select">
-            ${layers
-              .map((l) => {
-                const cleanName = l.name.replace(/\s*\([0-9]+\s*mm\)$/, "");
-                const isSel = l.id === targetLayerId ? "selected" : "";
-                return `<option value="${l.id}" ${isSel}>${cleanName} (${l.heightMm ?? 0} mm)</option>`;
-              })
-              .join("")}
-            <option value="__create_new__">${t.createNewOption}</option>
-          </select>
-        </div>
-
-        <!-- Segmented Mode Control -->
-        <div class="rb-segmented-control">
-          <label class="rb-segmented-item active" id="card-mode-match">
-            <input type="radio" name="height-mode" value="match" checked />
-            Flat on Layer
-          </label>
-          <label class="rb-segmented-item" id="card-mode-custom">
-            <input type="radio" name="height-mode" value="custom" />
-            Custom
-          </label>
-          <label class="rb-segmented-item" id="card-mode-ramp">
-            <input type="radio" name="height-mode" value="ramp" />
-            Incline (Ramp)
-          </label>
-        </div>
-
-        <!-- Mode Custom Input -->
-        <div id="custom-inputs-row" style="display: none;">
-          <label style="display:block; font-size:11px; color:#94a3b8; margin-bottom:5px;">Elevation Height (mm)</label>
-          <input type="number" id="input-custom-height" value="${targetBaseHeight}" step="1" class="ramp-field-input" />
-        </div>
-
-        <!-- Mode Ramp Controls -->
-        <div id="ramp-inputs-row" style="display: none; flex-direction: column; gap: 12px;">
-          <!-- Start / End Row -->
-          <div class="ramp-inputs-grid">
-            <div>
-              <span style="font-size:11px; color:#94a3b8;">${t.rampStart}</span>
-              <input type="number" id="input-ramp-start" value="${defaultStartH}" step="1" class="ramp-field-input" />
-            </div>
-            <span style="color:#64748b; font-size:14px; margin-top:14px;">➔</span>
-            <div>
-              <span style="font-size:11px; color:#94a3b8;">${t.rampEnd}</span>
-              <input type="number" id="input-ramp-end" value="${defaultEndH}" step="1" class="ramp-field-input" />
-            </div>
-            <button type="button" class="btn-icon-subtle" id="btn-ramp-reverse" title="Reverse Direction" style="margin-top:14px;">⇄</button>
-          </div>
-
-          <!-- Max Gradient and Auto-Fit -->
-          <div class="steep-row">
-            <div style="display:flex; align-items:center; gap:6px;">
-              <span style="color:#94a3b8; font-size:11px;">Max Slope:</span>
-              <input type="number" id="input-target-max-steep" value="2.5" step="0.1" style="width:52px; padding:3px 6px; background:#141b2a; border:1px solid #334155; color:#fff; border-radius:4px;" />
-              <span style="color:#94a3b8; font-size:11px;">%</span>
-            </div>
-            <div style="display:flex; gap:4px;">
-              <button type="button" class="pill-btn" data-steep="2.0">2.0%</button>
-              <button type="button" class="pill-btn active" data-steep="2.5">2.5%</button>
-              <button type="button" class="pill-btn" data-steep="3.0">3.0%</button>
-            </div>
-            <label style="font-size:11px; display:inline-flex; align-items:center; gap:4px; cursor:pointer; color:#94a3b8; user-select:none;">
-              <input type="checkbox" id="chk-auto-clamp-steep" checked /> Auto-Fit
-            </label>
-          </div>
-
-          <!-- Profile Selectors -->
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
-            <button type="button" class="btn-icon-subtle active" id="btn-profile-linear">Linear</button>
-            <button type="button" class="btn-icon-subtle" id="btn-profile-eased">Eased (S-Curve)</button>
-          </div>
-
-          <!-- Live Slope Badge -->
-          <div class="badge-status ok" id="ramp-gradient-calc">
-            <span id="ramp-gradient-text">Slope: 0.0%</span>
-            <span id="ramp-gradient-badge" style="font-size:11px;">Gentle</span>
-          </div>
-
-          <!-- Collapsible Pieces List -->
-          <details class="ramp-breakdown-details">
-            <summary id="ramp-chain-title-text">▸ Piece breakdown (${selectedPieces.length} tracks)</summary>
-            <div class="ramp-piece-list" id="ramp-piece-list"></div>
-          </details>
-        </div>
-      </div>
-
-      <div class="rb-dialog-footer">
-        <button class="btn-icon-subtle" id="height-btn-cancel">${t.cancelBtn}</button>
-        <button class="rb-btn rb-btn-primary" id="height-btn-apply" style="background:#0284c7; color:#fff; border:none; padding:7px 16px; border-radius:6px; cursor:pointer; font-weight:600;">
-          <span id="apply-btn-label">${t.applyBtn}</span>
-        </button>
-      </div>
-    </div>
-  `;
+  modal.innerHTML = heightDialogHtml
+    .replace("{{TITLE}}", t.title)
+    .replace("{{SELECTED_COUNT}}", String(selectedPieces.length))
+    .replace("{{CURRENT_LAYER_NAME}}", currentLayer.name.replace(/\\s*\\([0-9]+\\s*mm\\)$/, ""))
+    .replace("{{TARGET_LAYER_LABEL}}", t.targetLayer)
+    .replace("{{LAYER_OPTIONS}}", layerOptions)
+    .replace("{{CREATE_NEW_OPTION}}", t.createNewOption)
+    .replace("{{TARGET_BASE_HEIGHT}}", String(targetBaseHeight))
+    .replace("{{RAMP_START_LABEL}}", t.rampStart)
+    .replace("{{DEFAULT_START_H}}", String(defaultStartH))
+    .replace("{{RAMP_END_LABEL}}", t.rampEnd)
+    .replace("{{DEFAULT_END_H}}", String(defaultEndH))
+    .replace("{{SELECTED_COUNT}}", String(selectedPieces.length))
+    .replace("{{CANCEL_BTN}}", t.cancelBtn)
+    .replace("{{APPLY_BTN}}", t.applyBtn);
 
   document.body.appendChild(modal);
 

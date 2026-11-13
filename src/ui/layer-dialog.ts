@@ -1,3 +1,4 @@
+import layerDialogHtml from "./templates/layer-dialog.html?raw";
 import type { Layout, Layer, LayerWoodPlateMode } from "@/core/types";
 import { getTranslations } from "@/i18n";
 
@@ -64,128 +65,50 @@ export function openLayerDialog(options: LayerDialogOptions): void {
   modal.id = "layer-modal";
   modal.className = "rb-modal-overlay";
 
-  modal.innerHTML = `
-    <div class="rb-modal-card layer-modal-card" style="width: 460px;">
-      <div class="rb-modal-header">
-        <div class="rb-modal-title">
-          <span>${isEdit ? t.editTitle : t.addTitle}</span>
-        </div>
-        <button class="rb-modal-close-btn" id="layer-modal-close" title="✕">✕</button>
-      </div>
+  const swatchesHtml = LAYER_COLOR_PALETTE.map(
+    (hex) => `
+    <button
+      type="button"
+      class="layer-swatch-btn ${hex.toLowerCase() === currentColor.toLowerCase() ? "active" : ""}"
+      data-color="${hex}"
+      style="background-color: ${hex};"
+      title="${hex}"
+    >
+      <span class="swatch-check">✓</span>
+    </button>
+  `,
+  ).join("");
 
-      <div class="layer-modal-body" style="padding: 18px 20px; display: flex; flex-direction: column; gap: 14px;">
-        <!-- 1. Layer Name -->
-        <div class="layer-dialog-section">
-          <div class="layer-input-row">
-            <label for="layer-input-name" class="layer-dialog-label">${t.nameLabel}</label>
-            <input
-              type="text"
-              id="layer-input-name"
-              class="rb-input layer-text-input"
-              value="${escapeHtml(currentName)}"
-              placeholder="${t.namePlaceholder}"
-              maxlength="50"
-            />
-          </div>
-        </div>
-
-        <!-- 2. Layer Height -->
-        <div class="layer-dialog-section">
-          <div class="layer-input-row">
-            <label for="layer-input-height" class="layer-dialog-label">${t.elevationLabel}</label>
-            <div class="layer-unit-input-group" style="width: 100%;">
-              <input
-                type="number"
-                id="layer-input-height"
-                class="rb-input layer-height-field"
-                value="${currentHeight}"
-                step="1"
-              />
-              <span class="unit-addon" style="position: absolute; right: 12px; font-size: 13px; color: var(--text-muted); font-weight: 600;">${t.elevationUnit}</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- 3. Layer Color -->
-        <div class="layer-dialog-section">
-          <div class="layer-color-row">
-            <span class="layer-dialog-label">${t.colorLabel}</span>
-            <div class="layer-color-swatches" id="layer-color-swatches">
-              ${LAYER_COLOR_PALETTE.map(
-                (hex) => `
-                <button
-                  type="button"
-                  class="layer-swatch-btn ${hex.toLowerCase() === currentColor.toLowerCase() ? "active" : ""}"
-                  data-color="${hex}"
-                  style="background-color: ${hex};"
-                  title="${hex}"
-                >
-                  <span class="swatch-check">✓</span>
-                </button>
-              `,
-              ).join("")}
-              <label class="layer-custom-color-picker" title="${t.customColorTooltip}">
-                <input type="color" id="layer-custom-color-input" value="${currentColor}" />
-                <span class="picker-icon">🎨</span>
-              </label>
-            </div>
-          </div>
-        </div>
-
-        <!-- 4. Wood Plate (Holzplatte unter Ebene) -->
-        <div class="layer-dialog-section">
-          <label class="layer-dialog-label" style="margin-bottom: 6px; display: block;">${t.woodPlateLabel}</label>
-          <div class="layer-woodplate-options" style="display: flex; flex-direction: column; gap: 6px;">
-            <label class="layer-woodplate-choice ${currentWoodPlateMode === "none" ? "active" : ""}" style="display: flex; align-items: flex-start; gap: 10px; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-color, #cbd5e1); cursor: pointer;">
-              <input type="radio" name="layer-woodplate-mode" value="none" ${currentWoodPlateMode === "none" ? "checked" : ""} style="margin-top: 3px;" />
-              <div style="display: flex; flex-direction: column;">
-                <span style="font-weight: 600; font-size: 13px;">${t.woodPlateNoneTitle}</span>
-                <span style="font-size: 11px; color: var(--text-muted, #64748b);">${t.woodPlateNoneDesc}</span>
-              </div>
-            </label>
-
-            <label class="layer-woodplate-choice ${currentWoodPlateMode === "table" ? "active" : ""}" style="display: flex; align-items: flex-start; gap: 10px; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-color, #cbd5e1); cursor: pointer;">
-              <input type="radio" name="layer-woodplate-mode" value="table" ${currentWoodPlateMode === "table" ? "checked" : ""} style="margin-top: 3px;" />
-              <div style="display: flex; flex-direction: column;">
-                <span style="font-weight: 600; font-size: 13px;">${t.woodPlateTableTitle}</span>
-                <span style="font-size: 11px; color: var(--text-muted, #64748b);">${t.woodPlateTableDesc}</span>
-              </div>
-            </label>
-
-            <label class="layer-woodplate-choice ${currentWoodPlateMode === "tight" ? "active" : ""}" style="display: flex; align-items: flex-start; gap: 10px; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-color, #cbd5e1); cursor: pointer;">
-              <input type="radio" name="layer-woodplate-mode" value="tight" ${currentWoodPlateMode === "tight" ? "checked" : ""} style="margin-top: 3px;" />
-              <div style="display: flex; flex-direction: column;">
-                <span style="font-weight: 600; font-size: 13px;">${t.woodPlateTightTitle}</span>
-                <span style="font-size: 11px; color: var(--text-muted, #64748b);">${t.woodPlateTightDesc}</span>
-              </div>
-            </label>
-          </div>
-
-          <div id="layer-woodplate-thickness-row" style="margin-top: 8px; display: ${currentWoodPlateMode === "none" ? "none" : "flex"}; align-items: center; justify-content: space-between; gap: 12px;">
-            <label for="layer-input-thickness" style="font-size: 12px; color: var(--text-muted, #64748b);">${t.woodPlateThicknessLabel}</label>
-            <div style="position: relative; width: 120px;">
-              <input
-                type="number"
-                id="layer-input-thickness"
-                class="rb-input"
-                style="width: 100%; padding-right: 32px;"
-                value="${currentWoodPlateThickness}"
-                min="2"
-                max="50"
-                step="1"
-              />
-              <span style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); font-size: 12px; color: var(--text-muted, #64748b);">mm</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="rb-modal-footer">
-        <button type="button" class="rb-btn rb-btn-secondary" id="layer-btn-cancel">${t.cancelBtn}</button>
-        <button type="button" class="rb-btn rb-btn-primary" id="layer-btn-submit">${isEdit ? t.saveBtn : t.createBtn}</button>
-      </div>
-    </div>
-  `;
+  modal.innerHTML = layerDialogHtml
+    .replace("{{TITLE}}", isEdit ? t.editTitle : t.addTitle)
+    .replace("{{NAME_LABEL}}", t.nameLabel)
+    .replace("{{CURRENT_NAME}}", escapeHtml(currentName))
+    .replace("{{NAME_PLACEHOLDER}}", t.namePlaceholder)
+    .replace("{{ELEVATION_LABEL}}", t.elevationLabel)
+    .replace("{{CURRENT_HEIGHT}}", String(currentHeight))
+    .replace("{{ELEVATION_UNIT}}", t.elevationUnit)
+    .replace("{{COLOR_LABEL}}", t.colorLabel)
+    .replace("{{SWATCHES}}", swatchesHtml)
+    .replace("{{CUSTOM_COLOR_TOOLTIP}}", t.customColorTooltip)
+    .replace("{{CURRENT_COLOR}}", currentColor)
+    .replace("{{WOOD_PLATE_LABEL}}", t.woodPlateLabel)
+    .replace("{{WOOD_PLATE_NONE_ACTIVE}}", currentWoodPlateMode === "none" ? "active" : "")
+    .replace("{{WOOD_PLATE_NONE_CHECKED}}", currentWoodPlateMode === "none" ? "checked" : "")
+    .replace("{{WOOD_PLATE_NONE_TITLE}}", t.woodPlateNoneTitle)
+    .replace("{{WOOD_PLATE_NONE_DESC}}", t.woodPlateNoneDesc)
+    .replace("{{WOOD_PLATE_TABLE_ACTIVE}}", currentWoodPlateMode === "table" ? "active" : "")
+    .replace("{{WOOD_PLATE_TABLE_CHECKED}}", currentWoodPlateMode === "table" ? "checked" : "")
+    .replace("{{WOOD_PLATE_TABLE_TITLE}}", t.woodPlateTableTitle)
+    .replace("{{WOOD_PLATE_TABLE_DESC}}", t.woodPlateTableDesc)
+    .replace("{{WOOD_PLATE_TIGHT_ACTIVE}}", currentWoodPlateMode === "tight" ? "active" : "")
+    .replace("{{WOOD_PLATE_TIGHT_CHECKED}}", currentWoodPlateMode === "tight" ? "checked" : "")
+    .replace("{{WOOD_PLATE_TIGHT_TITLE}}", t.woodPlateTightTitle)
+    .replace("{{WOOD_PLATE_TIGHT_DESC}}", t.woodPlateTightDesc)
+    .replace("{{THICKNESS_ROW_DISPLAY}}", currentWoodPlateMode === "none" ? "none" : "flex")
+    .replace("{{WOOD_PLATE_THICKNESS_LABEL}}", t.woodPlateThicknessLabel)
+    .replace("{{CURRENT_THICKNESS}}", String(currentWoodPlateThickness))
+    .replace("{{CANCEL_BTN}}", t.cancelBtn)
+    .replace("{{SUBMIT_BTN}}", isEdit ? t.saveBtn : t.createBtn);
 
   document.body.appendChild(modal);
 

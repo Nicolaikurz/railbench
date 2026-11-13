@@ -1,0 +1,94 @@
+<div class="ramp-gen-card">
+  <div class="ramp-gen-header">
+    <span>📐 {{HEADER_TITLE}}</span>
+    <button id="ramp-gen-close" style="background:transparent; border:none; color:#94a3b8; cursor:pointer; font-size:16px;">✕</button>
+  </div>
+
+  <div class="ramp-gen-body">
+    <!-- Start Piece Summary -->
+    <div class="ramp-gen-strip">
+      <span>{{START_TRACK_LABEL}}: <strong>#{{ANCHOR_PIECE_ID}}</strong></span>
+      <span>{{LAYER_LABEL}}: <strong>{{CURRENT_LAYER_NAME}} ({{CURRENT_HEIGHT}} mm)</strong></span>
+      <span>{{OPEN_ENDS_LABEL}}: <strong>{{OPEN_CONNS_COUNT}}</strong></span>
+    </div>
+
+    <!-- Target Layer & Height -->
+    <div class="ramp-gen-field">
+      <label>{{TARGET_LAYER_LABEL}}</label>
+      <select id="ramp-target-layer" class="ramp-gen-select">
+        {{LAYER_OPTIONS}}
+      </select>
+    </div>
+
+    <div class="ramp-gen-field" id="custom-height-container">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <label>{{TARGET_HEIGHT_LABEL}}</label>
+        <span style="font-size: 11px; color: #94a3b8;" id="clearance-hint">
+          {{CLEARANCE_HINT}}
+        </span>
+      </div>
+      <input type="number" id="ramp-target-height-input" value="{{TARGET_HEIGHT_MM}}" step="1" class="ramp-gen-input" />
+    </div>
+
+    <!-- Shape Selector (Straight / Curved / Helix) -->
+    <div class="ramp-gen-field">
+      <label>{{RAMP_SHAPE_LABEL}}</label>
+      <div class="ramp-gen-segmented">
+        <div class="ramp-gen-seg-item active" data-shape="straight">{{SHAPE_STRAIGHT}}</div>
+        <div class="ramp-gen-seg-item" data-shape="curved">{{SHAPE_CURVED}}</div>
+        <div class="ramp-gen-seg-item" data-shape="helix">{{SHAPE_HELIX}}</div>
+      </div>
+    </div>
+
+    <!-- Curve / Helix Options -->
+    <div id="curve-options-row" style="display: none; flex-direction: column; gap: 10px;">
+      {{CURVE_RADIUS_SECTION}}
+
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-size: 11.5px; color: #94a3b8; font-weight: 600;">{{CURVE_DIR_LABEL}}</span>
+        <div style="display: flex; gap: 6px;">
+          <button type="button" class="ramp-btn-pill active" id="btn-dir-left">↰ {{DIR_LEFT}}</button>
+          <button type="button" class="ramp-btn-pill" id="btn-dir-right">↱ {{DIR_RIGHT}}</button>
+        </div>
+      </div>
+
+      <div id="curve-angle-container" style="display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-size: 11.5px; color: #94a3b8; font-weight: 600;">{{TURN_ANGLE_LABEL}}</span>
+        <div style="display: flex; gap: 4px;">
+          <button type="button" class="ramp-btn-pill" data-angle="90">90°</button>
+          <button type="button" class="ramp-btn-pill active" data-angle="180">180° (U)</button>
+          <button type="button" class="ramp-btn-pill" data-angle="270">270°</button>
+          <button type="button" class="ramp-btn-pill" data-angle="360">360°</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Target Max Gradient Selector -->
+    <div class="ramp-gen-field">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <label>{{TARGET_GRADIENT_LABEL}}</label>
+        <div style="display: flex; gap: 4px; align-items: center;">
+          <button type="button" class="ramp-btn-pill" data-grad="2.0">2.0%</button>
+          <button type="button" class="ramp-btn-pill active" data-grad="2.8">2.8%</button>
+          <button type="button" class="ramp-btn-pill" data-grad="3.5">3.5%</button>
+          <button type="button" class="ramp-btn-pill" data-grad="4.0">4.0%</button>
+          <input type="number" id="ramp-custom-grad-input" value="2.8" min="0.5" max="10.0" step="0.1" style="width: 48px; background: #141b2a; border: 1px solid #334155; color: #f8fafc; border-radius: 6px; padding: 4px 6px; font-size: 12px; text-align: center;" />
+          <span style="font-size: 11px; color: #94a3b8;">%</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Live Preview Status -->
+    <div class="ramp-status-card ok" id="ramp-live-status">
+      <strong id="status-title">...</strong>
+      <span id="status-desc" style="font-size: 11.5px;">...</span>
+    </div>
+  </div>
+
+  <div class="ramp-gen-footer">
+    <button class="ramp-btn-pill" id="ramp-btn-cancel" style="padding: 7px 14px;">{{CANCEL_LABEL}}</button>
+    <button id="ramp-btn-create" style="background:#0284c7; color:#fff; border:none; padding:7px 18px; border-radius:6px; cursor:pointer; font-weight:700;">
+      📐 {{CREATE_LABEL}}
+    </button>
+  </div>
+</div>

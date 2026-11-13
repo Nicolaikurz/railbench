@@ -1,3 +1,4 @@
+import powerDialogHtml from "./templates/power-dialog.html?raw";
 import type { Layout } from "@/core/types";
 import {
   getDefaultLocoCurrentMa,
@@ -92,236 +93,117 @@ export function openPowerSettingsDialog(options: PowerSettingsDialogOptions): vo
   modal.id = "power-settings-modal";
   modal.className = "rb-modal-overlay";
 
-  modal.innerHTML = `
-    <div class="rb-modal-card power-dialog-card">
-      <div class="rb-modal-header">
-        <div class="rb-modal-title">
-          <span>${t.title}</span>
+  let scBannerHtml = "";
+  if (shortCircuitRes.hasShortCircuit) {
+    scBannerHtml = `
+      <div class="power-dialog-short-circuit-banner" style="padding: 6px 10px; margin-bottom: 2px;">
+        <div class="sc-banner-icon">⚠️</div>
+        <div class="sc-banner-body">
+          <strong>${t.shortCircuitHeader}</strong>
+          <p style="font-size: 11px; margin: 2px 0 0 0;">${t.shortCircuitSub}</p>
         </div>
-        <button class="rb-modal-close-btn" id="power-modal-close" title="✕">✕</button>
-      </div>
+      </div>`;
+  }
 
-      <div class="power-dialog-body">
-        ${
-          shortCircuitRes.hasShortCircuit
-            ? `
-        <div class="power-dialog-short-circuit-banner" style="padding: 6px 10px; margin-bottom: 2px;">
-          <div class="sc-banner-icon">⚠️</div>
-          <div class="sc-banner-body">
-            <strong>${t.shortCircuitHeader}</strong>
-            <p style="font-size: 11px; margin: 2px 0 0 0;">${t.shortCircuitSub}</p>
-          </div>
-        </div>
-        `
-            : ""
-        }
-
-        <!-- 1. GLEIS- & OBERLEITUNGSSPANNUNG -->
-        <div class="power-dialog-section">
-          <div class="power-dialog-section-header">
-            <strong>${t.feederHeader}</strong>
-            <span class="power-highlight-val" id="power-lbl-voltage"><strong>${currentVoltage.toFixed(1)}</strong> V</span>
-          </div>
-
-          <div class="power-dialog-slider-row">
-            <input type="range" id="power-slider-voltage" min="8" max="24" step="0.5" value="${currentVoltage.toFixed(1)}" class="power-slider" />
-            <div class="power-dialog-unit-input">
-              <input type="number" id="power-input-voltage" min="4" max="28" step="0.5" value="${currentVoltage.toFixed(1)}" class="rb-input power-num-field" />
-              <span class="unit-addon">${t.voltageUnit}</span>
+  let turnoutSectionHtml = "";
+  if (totalTurnoutCount > 0) {
+    turnoutSectionHtml = `
+      <details id="power-turnout-details" style="margin-top: 4px; font-size: 11px; border-top: 1px solid var(--border-main); padding-top: 4px;">
+        <summary style="cursor: pointer; color: var(--text-muted); font-weight: 600; user-select: none;">
+          ⚙️ ${t.turnoutHeader} (${totalTurnoutCount})
+        </summary>
+        <div style="margin-top: 6px; display: flex; flex-direction: column; gap: 6px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span id="power-turnout-stats-text">${t.turnoutStats.replace("{count}", String(totalTurnoutCount)).replace("{lanterns}", String(activeLanternCount)).replace("{decoders}", String(activeDecoderCount))}</span>
+            <div style="display: flex; gap: 4px;">
+              <button type="button" class="rb-btn rb-btn-secondary" id="power-btn-equip-all-turnouts" style="font-size: 10px; padding: 2px 6px;">${t.turnoutEquipAllBtn}</button>
+              <button type="button" class="rb-btn rb-btn-secondary" id="power-btn-clear-all-turnouts" style="font-size: 10px; padding: 2px 6px;">✕ ${t.turnoutClearAllBtn}</button>
             </div>
           </div>
-          <div class="power-slider-ticks" id="power-ticks-voltage">
-            <div class="power-tick-item ${Math.abs(currentVoltage - 12) < 0.25 ? "active" : ""}" data-voltage="12">
-              <span class="power-tick-val">12 V</span>
-              <span class="power-tick-desc">(${t.preset12VDesc})</span>
-            </div>
-            <div class="power-tick-item ${Math.abs(currentVoltage - 14) < 0.25 ? "active" : ""}" data-voltage="14">
-              <span class="power-tick-val">14 V</span>
-              <span class="power-tick-desc">(${t.preset14VDesc})</span>
-            </div>
-            <div class="power-tick-item ${Math.abs(currentVoltage - 16) < 0.25 ? "active" : ""}" data-voltage="16">
-              <span class="power-tick-val">16 V</span>
-              <span class="power-tick-desc">(${t.preset16VDesc})</span>
-            </div>
-            <div class="power-tick-item ${Math.abs(currentVoltage - 18) < 0.25 ? "active" : ""}" data-voltage="18">
-              <span class="power-tick-val">18 V</span>
-              <span class="power-tick-desc">(${t.preset18VDesc})</span>
-            </div>
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+            <span style="font-size: 11px;">${t.turnoutLanternLabel} <span id="power-lbl-lantern-ma" class="power-highlight-val"><strong>${currentLanternMa}</strong> mA</span></span>
+            <input type="range" id="power-slider-lantern" min="5" max="80" step="5" value="${currentLanternMa}" class="power-slider" style="flex: 1; max-width: 140px;" />
+            <input type="number" id="power-input-lantern-ma" min="5" max="150" step="5" value="${currentLanternMa}" class="rb-input power-num-field" style="width: 52px; padding: 2px 4px;" />
           </div>
-
-          <!-- Integrierter Oberleitungs-Block -->
-          <div class="power-catenary-subblock ${!hasCatenary ? "power-catenary-disabled" : ""}" style="border-top: 1px solid var(--border-main); margin-top: 6px; padding-top: 6px;">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-              <div style="display: flex; align-items: center; gap: 4px;">
-                <span style="font-size: 11px; font-weight: 600; color: var(--text-sub);">${t.catenaryHeader}</span>
-                <span style="font-size: 9.5px; color: var(--text-muted);">
-                  ${hasCatenary ? `(${catenaryTracks.length})` : `(${t.catenaryNoTracks})`}
-                </span>
-              </div>
-              <div class="power-toggle-group" id="power-catenary-toggle-group">
-                <button type="button" class="power-toggle-btn ${currentCatenaryMode === "separate" ? "active" : ""}" data-cat-mode="separate" ${!hasCatenary ? "disabled" : ""} style="padding: 2.5px 7px; font-size: 10.5px;">
-                  <span>${t.catenaryModeSeparate}</span>
-                </button>
-                <button type="button" class="power-toggle-btn ${currentCatenaryMode === "parallel" ? "active" : ""}" data-cat-mode="parallel" ${!hasCatenary ? "disabled" : ""} style="padding: 2.5px 7px; font-size: 10.5px;">
-                  <span>${t.catenaryModeParallel}</span>
-                </button>
-              </div>
-            </div>
-
-            <!-- Getrennter Oberleitungs-Spannungsregler -->
-            <div id="power-catenary-voltage-container" style="margin-top: 4px; ${!hasCatenary || currentCatenaryMode === "parallel" ? "display: none;" : ""}">
-              <div class="power-dialog-slider-header" style="margin-bottom: 2px;">
-                <span style="font-size: 10.5px; color: var(--text-sub);">${t.catenaryVoltageLabel}</span>
-                <span class="power-highlight-val" id="power-lbl-catenary-voltage" style="font-size: 10.5px;"><strong>${currentCatenaryVoltage.toFixed(1)}</strong> V</span>
-              </div>
-              <div class="power-dialog-slider-row">
-                <input type="range" id="power-slider-catenary-voltage" min="8" max="24" step="0.5" value="${currentCatenaryVoltage.toFixed(1)}" class="power-slider" ${!hasCatenary ? "disabled" : ""} />
-                <div class="power-dialog-unit-input">
-                  <input type="number" id="power-input-catenary-voltage" min="4" max="28" step="0.5" value="${currentCatenaryVoltage.toFixed(1)}" class="rb-input power-num-field" ${!hasCatenary ? "disabled" : ""} />
-                  <span class="unit-addon">${t.voltageUnit}</span>
-                </div>
-              </div>
-              <div class="power-slider-ticks" id="power-ticks-catenary-voltage">
-                <div class="power-tick-item ${Math.abs(currentCatenaryVoltage - 12) < 0.25 ? "active" : ""}" data-catenary-voltage="12">
-                  <span class="power-tick-val">12 V</span>
-                  <span class="power-tick-desc">(${t.preset12VDesc})</span>
-                </div>
-                <div class="power-tick-item ${Math.abs(currentCatenaryVoltage - 14) < 0.25 ? "active" : ""}" data-catenary-voltage="14">
-                  <span class="power-tick-val">14 V</span>
-                  <span class="power-tick-desc">(${t.preset14VDesc})</span>
-                </div>
-                <div class="power-tick-item ${Math.abs(currentCatenaryVoltage - 16) < 0.25 ? "active" : ""}" data-catenary-voltage="16">
-                  <span class="power-tick-val">16 V</span>
-                  <span class="power-tick-desc">(${t.preset16VDesc})</span>
-                </div>
-                <div class="power-tick-item ${Math.abs(currentCatenaryVoltage - 18) < 0.25 ? "active" : ""}" data-catenary-voltage="18">
-                  <span class="power-tick-val">18 V</span>
-                  <span class="power-tick-desc">(${t.preset18VDesc})</span>
-                </div>
-              </div>
-            </div>
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+            <span style="font-size: 11px;">${t.turnoutDecoderLabel} <span id="power-lbl-decoder-ma" class="power-highlight-val"><strong>${currentDecoderMa}</strong> mA</span></span>
+            <input type="range" id="power-slider-decoder" min="5" max="60" step="5" value="${currentDecoderMa}" class="power-slider" style="flex: 1; max-width: 140px;" />
+            <input type="number" id="power-input-decoder-ma" min="5" max="100" step="5" value="${currentDecoderMa}" class="rb-input power-num-field" style="width: 52px; padding: 2px 4px;" />
           </div>
         </div>
+      </details>`;
+  } else {
+    turnoutSectionHtml = `
+      <div style="display:none;">
+        <span id="power-turnout-stats-text"></span>
+        <button id="power-btn-equip-all-turnouts"></button>
+        <button id="power-btn-clear-all-turnouts"></button>
+        <input type="range" id="power-slider-lantern" value="${currentLanternMa}" />
+        <input type="number" id="power-input-lantern-ma" value="${currentLanternMa}" />
+        <span id="power-lbl-lantern-ma"></span>
+        <input type="range" id="power-slider-decoder" value="${currentDecoderMa}" />
+        <input type="number" id="power-input-decoder-ma" value="${currentDecoderMa}" />
+        <span id="power-lbl-decoder-ma"></span>
+      </div>`;
+  }
 
-        <!-- 2. LOK-FAHRSTROM -->
-        <div class="power-dialog-section">
-          <div class="power-dialog-section-header">
-            <strong>${t.locoHeader}</strong>
-            <span class="power-highlight-val" id="power-lbl-loco-ma">
-              <strong>${(currentLocoMa / 1000).toFixed(2)} A</strong> (${currentLocoMa} mA)
-            </span>
-          </div>
-          <div class="power-dialog-slider-row">
-            <input type="range" id="power-slider-loco" min="${MIN_LOCO_CURRENT_MA}" max="${MAX_LOCO_CURRENT_MA}" step="10" value="${currentLocoMa}" class="power-slider" />
-            <div class="power-dialog-unit-input">
-              <input type="number" id="power-input-loco-ma" min="${MIN_LOCO_CURRENT_MA}" max="${MAX_LOCO_CURRENT_MA}" step="10" value="${currentLocoMa}" class="rb-input power-num-field" />
-              <span class="unit-addon">mA</span>
-            </div>
-          </div>
-          <div class="power-slider-ticks" id="power-ticks-loco">
-            <div class="power-tick-item ${Math.abs(currentLocoMa - 150) < 25 ? "active" : ""}" data-loco-ma="150">
-              <span class="power-tick-val">0.15 A</span>
-              <span class="power-tick-desc">(${t.preset150Desc})</span>
-            </div>
-            <div class="power-tick-item ${Math.abs(currentLocoMa - 300) < 25 ? "active" : ""}" data-loco-ma="300">
-              <span class="power-tick-val">0.30 A</span>
-              <span class="power-tick-desc">(${t.preset300Desc})</span>
-            </div>
-            <div class="power-tick-item ${Math.abs(currentLocoMa - 450) < 25 ? "active" : ""}" data-loco-ma="450">
-              <span class="power-tick-val">0.45 A</span>
-              <span class="power-tick-desc">(${t.preset450Desc})</span>
-            </div>
-            <div class="power-tick-item ${Math.abs(currentLocoMa - 750) < 25 ? "active" : ""}" data-loco-ma="750">
-              <span class="power-tick-val">0.75 A</span>
-              <span class="power-tick-desc">(${t.preset750Desc})</span>
-            </div>
-            <div class="power-tick-item ${Math.abs(currentLocoMa - 1000) < 25 ? "active" : ""}" data-loco-ma="1000">
-              <span class="power-tick-val">1.0 A</span>
-              <span class="power-tick-desc">(${t.preset1000Desc})</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- 3. FAHRBETRIEB & GESAMTLAST -->
-        <div class="power-dialog-section">
-          <div class="power-dialog-section-header">
-            <strong>${t.trafficHeader}</strong>
-            <div class="power-dialog-stepper" style="display: flex; align-items: center; gap: 4px;">
-              <span style="font-size: 11px; color: var(--text-muted); margin-right: 4px;">${t.activeLocosLabel}</span>
-              <button type="button" class="power-step-btn" id="power-btn-dec-count" ${currentLocoCount <= 1 ? "disabled" : ""} style="padding: 2px 7px;">−</button>
-              <input type="number" id="power-input-loco-count" min="1" max="10" value="${currentLocoCount}" class="rb-input power-count-field" style="width: 38px; padding: 2px 4px; font-size: 12px;" />
-              <button type="button" class="power-step-btn" id="power-btn-inc-count" ${currentLocoCount >= 10 ? "disabled" : ""} style="padding: 2px 7px;">+</button>
-            </div>
-          </div>
-
-          <!-- Gesamtzuglast Box -->
-          <div class="power-dialog-summary-card" style="padding: 6px 10px; margin-top: 2px; border-radius: 6px;">
-            <div class="power-summary-left">
-              <span class="summary-lbl" style="font-size: 11px;">${t.totalCombinedCurrentLabel}</span>
-              <span class="summary-sub" id="power-summary-details" style="font-size: 10px;">${currentLocoCount}x ${currentLocoMa} mA</span>
-            </div>
-            <div class="power-summary-right" style="display: flex; align-items: baseline; gap: 4px;">
-              <span class="summary-total-amps" id="power-summary-total-amps" style="font-size: 14px; font-weight: 700;">${((currentLocoMa * currentLocoCount) / 1000).toFixed(2)} A</span>
-              <span class="summary-total-ma" id="power-summary-total-ma" style="font-size: 11px; color: var(--text-muted);">(${currentLocoMa * currentLocoCount} mA)</span>
-            </div>
-          </div>
-
-          <!-- Einklappbares Weichen-Zubehör -->
-          ${
-            totalTurnoutCount > 0
-              ? `
-          <details id="power-turnout-details" style="margin-top: 4px; font-size: 11px; border-top: 1px solid var(--border-main); padding-top: 4px;">
-            <summary style="cursor: pointer; color: var(--text-muted); font-weight: 600; user-select: none;">
-              ⚙️ ${t.turnoutHeader} (${totalTurnoutCount})
-            </summary>
-            <div style="margin-top: 6px; display: flex; flex-direction: column; gap: 6px;">
-              <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span id="power-turnout-stats-text">${t.turnoutStats.replace("{count}", String(totalTurnoutCount)).replace("{lanterns}", String(activeLanternCount)).replace("{decoders}", String(activeDecoderCount))}</span>
-                <div style="display: flex; gap: 4px;">
-                  <button type="button" class="rb-btn rb-btn-secondary" id="power-btn-equip-all-turnouts" style="font-size: 10px; padding: 2px 6px;">${t.turnoutEquipAllBtn}</button>
-                  <button type="button" class="rb-btn rb-btn-secondary" id="power-btn-clear-all-turnouts" style="font-size: 10px; padding: 2px 6px;">✕ ${t.turnoutClearAllBtn}</button>
-                </div>
-              </div>
-              <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
-                <span style="font-size: 11px;">${t.turnoutLanternLabel} <span id="power-lbl-lantern-ma" class="power-highlight-val"><strong>${currentLanternMa}</strong> mA</span></span>
-                <input type="range" id="power-slider-lantern" min="5" max="80" step="5" value="${currentLanternMa}" class="power-slider" style="flex: 1; max-width: 140px;" />
-                <input type="number" id="power-input-lantern-ma" min="5" max="150" step="5" value="${currentLanternMa}" class="rb-input power-num-field" style="width: 52px; padding: 2px 4px;" />
-              </div>
-              <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
-                <span style="font-size: 11px;">${t.turnoutDecoderLabel} <span id="power-lbl-decoder-ma" class="power-highlight-val"><strong>${currentDecoderMa}</strong> mA</span></span>
-                <input type="range" id="power-slider-decoder" min="5" max="60" step="5" value="${currentDecoderMa}" class="power-slider" style="flex: 1; max-width: 140px;" />
-                <input type="number" id="power-input-decoder-ma" min="5" max="100" step="5" value="${currentDecoderMa}" class="rb-input power-num-field" style="width: 52px; padding: 2px 4px;" />
-              </div>
-            </div>
-          </details>
-          `
-              : `
-          <div style="display:none;">
-            <span id="power-turnout-stats-text"></span>
-            <button id="power-btn-equip-all-turnouts"></button>
-            <button id="power-btn-clear-all-turnouts"></button>
-            <input type="range" id="power-slider-lantern" value="${currentLanternMa}" />
-            <input type="number" id="power-input-lantern-ma" value="${currentLanternMa}" />
-            <span id="power-lbl-lantern-ma"></span>
-            <input type="range" id="power-slider-decoder" value="${currentDecoderMa}" />
-            <input type="number" id="power-input-decoder-ma" value="${currentDecoderMa}" />
-            <span id="power-lbl-decoder-ma"></span>
-          </div>
-          `
-          }
-
-          <div id="power-dialog-booster-warning" class="power-dialog-warning" style="display: ${currentLocoMa * currentLocoCount > 3000 ? "flex" : "none"}; padding: 4px 8px; font-size: 10.5px; margin-top: 4px;">
-            ${t.boosterWarning}
-          </div>
-        </div>
-      </div>
-
-      <div class="rb-modal-footer" style="padding: 8px 14px;">
-        <button type="button" class="rb-btn rb-btn-secondary" id="power-btn-cancel">${t.cancel}</button>
-        <button type="button" class="rb-btn rb-btn-primary" id="power-btn-apply">${t.apply}</button>
-      </div>
-    </div>
-  `;
+  modal.innerHTML = powerDialogHtml
+    .replace("{{TITLE}}", t.title)
+    .replace("{{SHORT_CIRCUIT_BANNER}}", scBannerHtml)
+    .replace("{{FEEDER_HEADER}}", t.feederHeader)
+    .replace(/\{\{CURRENT_VOLTAGE\}\}/g, currentVoltage.toFixed(1))
+    .replace(/\{\{VOLTAGE_UNIT\}\}/g, t.voltageUnit)
+    .replace("{{TICK_12V_ACTIVE}}", Math.abs(currentVoltage - 12) < 0.25 ? "active" : "")
+    .replace("{{TICK_14V_ACTIVE}}", Math.abs(currentVoltage - 14) < 0.25 ? "active" : "")
+    .replace("{{TICK_16V_ACTIVE}}", Math.abs(currentVoltage - 16) < 0.25 ? "active" : "")
+    .replace("{{TICK_18V_ACTIVE}}", Math.abs(currentVoltage - 18) < 0.25 ? "active" : "")
+    .replace(/\{\{PRESET_12V_DESC\}\}/g, t.preset12VDesc)
+    .replace(/\{\{PRESET_14V_DESC\}\}/g, t.preset14VDesc)
+    .replace(/\{\{PRESET_16V_DESC\}\}/g, t.preset16VDesc)
+    .replace(/\{\{PRESET_18V_DESC\}\}/g, t.preset18VDesc)
+    .replace("{{CATENARY_DISABLED_CLASS}}", !hasCatenary ? "power-catenary-disabled" : "")
+    .replace("{{CATENARY_HEADER}}", t.catenaryHeader)
+    .replace("{{CATENARY_TRACK_COUNT}}", hasCatenary ? `(${catenaryTracks.length})` : `(${t.catenaryNoTracks})`)
+    .replace("{{CAT_MODE_SEPARATE_ACTIVE}}", currentCatenaryMode === "separate" ? "active" : "")
+    .replace("{{CAT_MODE_PARALLEL_ACTIVE}}", currentCatenaryMode === "parallel" ? "active" : "")
+    .replace(/\{\{CATENARY_DISABLED_ATTR\}\}/g, !hasCatenary ? "disabled" : "")
+    .replace("{{CATENARY_MODE_SEPARATE}}", t.catenaryModeSeparate)
+    .replace("{{CATENARY_MODE_PARALLEL}}", t.catenaryModeParallel)
+    .replace("{{CATENARY_VOLTAGE_CONTAINER_STYLE}}", !hasCatenary || currentCatenaryMode === "parallel" ? "display: none;" : "")
+    .replace("{{CATENARY_VOLTAGE_LABEL}}", t.catenaryVoltageLabel)
+    .replace(/\{\{CURRENT_CATENARY_VOLTAGE\}\}/g, currentCatenaryVoltage.toFixed(1))
+    .replace("{{CAT_TICK_12V_ACTIVE}}", Math.abs(currentCatenaryVoltage - 12) < 0.25 ? "active" : "")
+    .replace("{{CAT_TICK_14V_ACTIVE}}", Math.abs(currentCatenaryVoltage - 14) < 0.25 ? "active" : "")
+    .replace("{{CAT_TICK_16V_ACTIVE}}", Math.abs(currentCatenaryVoltage - 16) < 0.25 ? "active" : "")
+    .replace("{{CAT_TICK_18V_ACTIVE}}", Math.abs(currentCatenaryVoltage - 18) < 0.25 ? "active" : "")
+    .replace("{{LOCO_HEADER}}", t.locoHeader)
+    .replace("{{CURRENT_LOCO_AMPS}}", (currentLocoMa / 1000).toFixed(2))
+    .replace(/\{\{CURRENT_LOCO_MA\}\}/g, String(currentLocoMa))
+    .replace(/\{\{MIN_LOCO_CURRENT_MA\}\}/g, String(MIN_LOCO_CURRENT_MA))
+    .replace(/\{\{MAX_LOCO_CURRENT_MA\}\}/g, String(MAX_LOCO_CURRENT_MA))
+    .replace("{{LOCO_TICK_150_ACTIVE}}", Math.abs(currentLocoMa - 150) < 25 ? "active" : "")
+    .replace("{{LOCO_TICK_300_ACTIVE}}", Math.abs(currentLocoMa - 300) < 25 ? "active" : "")
+    .replace("{{LOCO_TICK_450_ACTIVE}}", Math.abs(currentLocoMa - 450) < 25 ? "active" : "")
+    .replace("{{LOCO_TICK_750_ACTIVE}}", Math.abs(currentLocoMa - 750) < 25 ? "active" : "")
+    .replace("{{LOCO_TICK_1000_ACTIVE}}", Math.abs(currentLocoMa - 1000) < 25 ? "active" : "")
+    .replace("{{PRESET_150_DESC}}", t.preset150Desc)
+    .replace("{{PRESET_300_DESC}}", t.preset300Desc)
+    .replace("{{PRESET_450_DESC}}", t.preset450Desc)
+    .replace("{{PRESET_750_DESC}}", t.preset750Desc)
+    .replace("{{PRESET_1000_DESC}}", t.preset1000Desc)
+    .replace("{{TRAFFIC_HEADER}}", t.trafficHeader)
+    .replace("{{ACTIVE_LOCOS_LABEL}}", t.activeLocosLabel)
+    .replace("{{DEC_COUNT_DISABLED}}", currentLocoCount <= 1 ? "disabled" : "")
+    .replace("{{INC_COUNT_DISABLED}}", currentLocoCount >= 10 ? "disabled" : "")
+    .replace(/\{\{CURRENT_LOCO_COUNT\}\}/g, String(currentLocoCount))
+    .replace("{{TOTAL_COMBINED_CURRENT_LABEL}}", t.totalCombinedCurrentLabel)
+    .replace("{{TOTAL_AMPS}}", ((currentLocoMa * currentLocoCount) / 1000).toFixed(2))
+    .replace("{{TOTAL_MA}}", String(currentLocoMa * currentLocoCount))
+    .replace("{{TURNOUT_DETAILS_SECTION}}", turnoutSectionHtml)
+    .replace("{{BOOSTER_WARNING_DISPLAY}}", currentLocoMa * currentLocoCount > 3000 ? "flex" : "none")
+    .replace("{{BOOSTER_WARNING}}", t.boosterWarning)
+    .replace("{{CANCEL_BTN}}", t.cancel)
+    .replace("{{APPLY_BTN}}", t.apply);
 
   document.body.appendChild(modal);
 

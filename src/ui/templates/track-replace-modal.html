@@ -1,0 +1,40 @@
+<div class="track-modal-box wide">
+  <div class="track-modal-header">
+    <h3><span>✂</span> {{TITLE}}</h3>
+    <button class="track-modal-close-btn" id="track-modal-close">✕</button>
+  </div>
+  <div class="track-modal-content">
+    <!-- Split Track Option -->
+    <div class="track-section-card">
+      <div class="track-section-card-title">
+        <span>✂</span>
+        <span>{{SPLIT_CARD_TITLE}}</span>
+      </div>
+      <div class="track-section-card-desc">
+        {{SPLIT_CARD_DESC}}
+      </div>
+      <button class="track-action-btn" id="btn-do-split">
+        <span>✂</span>
+        <span>{{SPLIT_BTN_LABEL}}</span>
+      </button>
+    </div>
+
+    <!-- Replace Track Option -->
+    <div class="track-section-card">
+      <div class="track-section-card-title">
+        <span>🔄</span>
+        <span>{{REPLACE_CARD_TITLE}}</span>
+      </div>
+      <div class="track-section-card-desc">
+        {{REPLACE_CARD_DESC}}
+      </div>
+
+      <div class="track-replace-grid">
+        {{COMPATIBLE_ITEMS}}
+      </div>
+    </div>
+  </div>
+  <div class="track-modal-footer">
+    <button class="track-modal-btn" id="track-modal-cancel" style="background:#475569">{{CANCEL_BTN}}</button>
+  </div>
+</div>

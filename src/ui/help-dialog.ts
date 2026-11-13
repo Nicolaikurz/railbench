@@ -1,3 +1,4 @@
+import helpDialogHtml from "./templates/help-dialog.html?raw";
 import { getLanguage } from "@/i18n";
 import { getAppVersionTag } from "@/version";
 import { renderGermanTab } from "./help-content-de";
@@ -62,40 +63,23 @@ export function openHelpDialog(initialTab: HelpTab = "overview"): void {
         { id: "about", label: "About & Systems" },
       ];
 
-  modal.innerHTML = `
-    <div class="rb-modal-card help-modal-card">
-      <div class="rb-modal-header">
-        <div class="rb-modal-title">
-          <span>${modalTitle}</span>
-          <span class="brand-badge">${getAppVersionTag()}</span>
-        </div>
-        <button class="rb-modal-close-btn" id="help-modal-close" title="${closeTitle}">✕</button>
-      </div>
+  const navButtonsHtml = tabs
+    .map(
+      (tb) => `
+    <button class="help-nav-btn ${initialTab === tb.id ? "active" : ""}" data-tab="${tb.id}">
+      <span>${tb.label}</span>
+    </button>
+  `,
+    )
+    .join("");
 
-      <div class="help-modal-layout">
-        <!-- Linke Navigationsleiste -->
-        <div class="help-nav-sidebar">
-          ${tabs
-            .map(
-              (tb) => `
-            <button class="help-nav-btn ${initialTab === tb.id ? "active" : ""}" data-tab="${tb.id}">
-              <span>${tb.label}</span>
-            </button>
-          `
-            )
-            .join("")}
-        </div>
-
-        <!-- Rechter Inhaltsbereich -->
-        <div class="help-content-area" id="help-content-area"></div>
-      </div>
-
-      <div class="rb-modal-footer">
-        <span class="help-footer-tip">${footerTip}</span>
-        <button class="rb-btn rb-btn-primary" id="help-btn-close">${closeBtnText}</button>
-      </div>
-    </div>
-  `;
+  modal.innerHTML = helpDialogHtml
+    .replace("{{MODAL_TITLE}}", modalTitle)
+    .replace("{{VERSION_TAG}}", getAppVersionTag())
+    .replace("{{CLOSE_TITLE}}", closeTitle)
+    .replace("{{NAV_BUTTONS}}", navButtonsHtml)
+    .replace("{{FOOTER_TIP}}", footerTip)
+    .replace("{{CLOSE_BTN_TEXT}}", closeBtnText);
 
   document.body.appendChild(modal);
 

@@ -1,3 +1,4 @@
+import "./styles/main.css";
 import { Renderer } from "@/render/renderer";
 import { attachCamera } from "@/render/camera";
 import { createLayout, ensureDefaultLayers, getBaseboards, getBaseboardPolygon } from "@/core/layout";

@@ -1,3 +1,4 @@
+import rampGenHtml from "./templates/ramp-generator-dialog.html?raw";
 import type { Layout, Layer, TrackPiece } from "@/core/types";
 import type { Catalog } from "@/catalog/catalog";
 import { getLanguage } from "@/i18n";
@@ -62,271 +63,65 @@ export function openRampGeneratorDialog(options: RampGeneratorDialogOptions): vo
   modal.id = "ramp-generator-modal";
   modal.className = "rb-modal-overlay";
 
-  modal.innerHTML = `
-    <style>
-      #ramp-generator-modal {
-        position: fixed;
-        inset: 0;
-        background: rgba(10, 15, 26, 0.72);
-        backdrop-filter: blur(4px);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 10000;
-        font-family: inherit;
-        font-size: 13px;
-      }
-      .ramp-gen-card {
-        width: 460px;
-        max-height: 90vh;
-        display: flex;
-        flex-direction: column;
-        background: #1e2638;
-        color: #e2e8f0;
-        border-radius: 12px;
-        overflow: hidden;
-        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.55);
-      }
-      .ramp-gen-header {
-        padding: 12px 18px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        border-bottom: 1px solid #2d3748;
-        font-weight: 700;
-        font-size: 14px;
-      }
-      .ramp-gen-body {
-        padding: 16px 18px;
-        overflow-y: auto;
-        display: flex;
-        flex-direction: column;
-        gap: 14px;
-        scrollbar-width: thin;
-      }
-      .ramp-gen-body::-webkit-scrollbar { width: 6px; }
-      .ramp-gen-body::-webkit-scrollbar-thumb {
-        background: rgba(148, 163, 184, 0.35);
-        border-radius: 3px;
-      }
-      .ramp-gen-strip {
-        display: flex;
-        justify-content: space-between;
-        background: #141b2a;
-        padding: 8px 12px;
-        border-radius: 6px;
-        font-size: 12px;
-        color: #94a3b8;
-      }
-      .ramp-gen-strip strong { color: #f8fafc; }
-      .ramp-gen-field {
-        display: flex;
-        flex-direction: column;
-        gap: 5px;
-      }
-      .ramp-gen-field label {
-        font-size: 11.5px;
-        color: #94a3b8;
-        font-weight: 600;
-      }
-      .ramp-gen-select, .ramp-gen-input {
-        background: #141b2a;
-        border: 1px solid #334155;
-        color: #f8fafc;
-        border-radius: 6px;
-        padding: 7px 10px;
-        font-size: 13px;
-        width: 100%;
-        box-sizing: border-box;
-      }
-      .ramp-gen-segmented {
-        display: grid;
-        grid-template-columns: 1fr 1fr 1fr;
-        background: #141b2a;
-        border-radius: 8px;
-        padding: 3px;
-        gap: 3px;
-      }
-      .ramp-gen-seg-item {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 7px 4px;
-        cursor: pointer;
-        border-radius: 6px;
-        font-size: 12px;
-        color: #94a3b8;
-        user-select: none;
-        transition: all 0.15s ease;
-      }
-      .ramp-gen-seg-item.active {
-        background: #0284c7;
-        color: #ffffff;
-        font-weight: 600;
-      }
-      .ramp-btn-pill {
-        background: #242f44;
-        border: 1px solid transparent;
-        color: #94a3b8;
-        padding: 4px 9px;
-        border-radius: 5px;
-        font-size: 11.5px;
-        cursor: pointer;
-        transition: all 0.12s;
-      }
-      .ramp-btn-pill:hover { background: #334155; color: #fff; }
-      .ramp-btn-pill.active {
-        background: #0284c7;
-        color: #fff;
-        font-weight: 600;
-      }
-      .ramp-status-card {
-        padding: 10px 14px;
-        border-radius: 8px;
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-        font-size: 12px;
-      }
-      .ramp-status-card.ok { background: rgba(34, 197, 94, 0.12); border: 1px solid rgba(34, 197, 94, 0.3); color: #4ade80; }
-      .ramp-status-card.warn { background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.3); color: #fbbf24; }
-      .ramp-status-card.danger { background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; }
-      .ramp-gen-footer {
-        display: flex;
-        justify-content: flex-end;
-        gap: 10px;
-        padding: 12px 18px;
-        border-top: 1px solid #2d3748;
-        background: #171e2e;
-      }
-    </style>
+  const layerOptions = layers
+    .map((l) => {
+      const cleanName = l.name.replace(/\\s*\\([0-9]+\\s*mm\\)$/, "");
+      const isSel = l.id === preselectedLayerId ? "selected" : "";
+      return `<option value="${l.id}" ${isSel}>${cleanName} (${l.heightMm ?? 0} mm)</option>`;
+    })
+    .join("") + `
+    <option value="__create_above__" ${preselectedLayerId === "__create_above__" ? "selected" : ""}>
+      + ${isDe ? "Neue Ebene oberhalb erstellen" : "Create new layer above"} (+${minClearance} mm)
+    </option>
+    <option value="__create_below__">
+      + ${isDe ? "Neue Ebene unterhalb erstellen" : "Create new layer below"} (-${minClearance} mm)
+    </option>`;
 
-    <div class="ramp-gen-card">
-      <div class="ramp-gen-header">
-        <span>📐 ${isDe ? "Gleisrampe automatisch erstellen" : "Auto-Create Track Ramp"}</span>
-        <button id="ramp-gen-close" style="background:transparent; border:none; color:#94a3b8; cursor:pointer; font-size:16px;">✕</button>
+  let curveRadiusSection = "";
+  if (availableRadii.length > 0) {
+    curveRadiusSection = `
+    <div class="ramp-gen-field">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <label for="ramp-curve-radius">${isDe ? "Gleisradius / Bogen-Typ" : "Curve Radius / Track Type"}</label>
+        <span style="font-size: 11px; color: #94a3b8;" id="radius-circum-hint"></span>
       </div>
+      <select id="ramp-curve-radius" class="ramp-gen-select">
+        ${availableRadii
+          .map(
+            (r) =>
+              `<option value="${r.catalogId}" ${r.catalogId === currentCurveId ? "selected" : ""}>${r.label}</option>`,
+          )
+          .join("")}
+      </select>
+    </div>`;
+  }
 
-      <div class="ramp-gen-body">
-        <!-- Start Piece Summary -->
-        <div class="ramp-gen-strip">
-          <span>${isDe ? "Startgleis" : "Start Track"}: <strong>#${anchorPiece.catalogId}</strong></span>
-          <span>${isDe ? "Ebene" : "Layer"}: <strong>${currentLayer.name.replace(/\s*\([0-9]+\s*mm\)$/, "")} (${currentHeight} mm)</strong></span>
-          <span>${isDe ? "Freie Anschlüsse" : "Open Ends"}: <strong>${openConns.length}</strong></span>
-        </div>
-
-        <!-- Target Layer & Height -->
-        <div class="ramp-gen-field">
-          <label>${isDe ? "Zielebene / Zielhöhe" : "Target Layer / Target Elevation"}</label>
-          <select id="ramp-target-layer" class="ramp-gen-select">
-            ${layers
-              .map((l) => {
-                const cleanName = l.name.replace(/\s*\([0-9]+\s*mm\)$/, "");
-                const isSel = l.id === preselectedLayerId ? "selected" : "";
-                return `<option value="${l.id}" ${isSel}>${cleanName} (${l.heightMm ?? 0} mm)</option>`;
-              })
-              .join("")}
-            <option value="__create_above__" ${preselectedLayerId === "__create_above__" ? "selected" : ""}>
-              + ${isDe ? "Neue Ebene oberhalb erstellen" : "Create new layer above"} (+${minClearance} mm)
-            </option>
-            <option value="__create_below__">
-              + ${isDe ? "Neue Ebene unterhalb erstellen" : "Create new layer below"} (-${minClearance} mm)
-            </option>
-          </select>
-        </div>
-
-        <div class="ramp-gen-field" id="custom-height-container">
-          <div style="display: flex; justify-content: space-between; align-items: center;">
-            <label>${isDe ? "Zielhöhe (mm)" : "Target Height (mm)"}</label>
-            <span style="font-size: 11px; color: #94a3b8;" id="clearance-hint">
-              ${isDe ? `Mindesthöhe Spur ${scale}: ${minClearance} mm` : `Min clearance scale ${scale}: ${minClearance} mm`}
-            </span>
-          </div>
-          <input type="number" id="ramp-target-height-input" value="${targetHeightMm}" step="1" class="ramp-gen-input" />
-        </div>
-
-        <!-- Shape Selector (Straight / Curved / Helix) -->
-        <div class="ramp-gen-field">
-          <label>${isDe ? "Rampenverlauf / Form" : "Ramp Shape / Geometry"}</label>
-          <div class="ramp-gen-segmented">
-            <div class="ramp-gen-seg-item active" data-shape="straight">${isDe ? "Gerade" : "Straight"}</div>
-            <div class="ramp-gen-seg-item" data-shape="curved">${isDe ? "Bogen / Kehre" : "Curve / Turn"}</div>
-            <div class="ramp-gen-seg-item" data-shape="helix">${isDe ? "Wendel (Helix)" : "Helix (Spiral)"}</div>
-          </div>
-        </div>
-
-        <!-- Curve / Helix Options -->
-        <div id="curve-options-row" style="display: none; flex-direction: column; gap: 10px;">
-          ${
-            availableRadii.length > 0
-              ? `
-          <div class="ramp-gen-field">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-              <label for="ramp-curve-radius">${isDe ? "Gleisradius / Bogen-Typ" : "Curve Radius / Track Type"}</label>
-              <span style="font-size: 11px; color: #94a3b8;" id="radius-circum-hint"></span>
-            </div>
-            <select id="ramp-curve-radius" class="ramp-gen-select">
-              ${availableRadii
-                .map(
-                  (r) =>
-                    `<option value="${r.catalogId}" ${r.catalogId === currentCurveId ? "selected" : ""}>${r.label}</option>`,
-                )
-                .join("")}
-            </select>
-          </div>
-          `
-              : ""
-          }
-
-          <div style="display: flex; justify-content: space-between; align-items: center;">
-            <span style="font-size: 11.5px; color: #94a3b8; font-weight: 600;">${isDe ? "Bogenrichtung" : "Curve Direction"}</span>
-            <div style="display: flex; gap: 6px;">
-              <button type="button" class="ramp-btn-pill active" id="btn-dir-left">↰ ${isDe ? "Links" : "Left"}</button>
-              <button type="button" class="ramp-btn-pill" id="btn-dir-right">↱ ${isDe ? "Rechts" : "Right"}</button>
-            </div>
-          </div>
-
-          <div id="curve-angle-container" style="display: flex; justify-content: space-between; align-items: center;">
-            <span style="font-size: 11.5px; color: #94a3b8; font-weight: 600;">${isDe ? "Drehwinkel" : "Turn Angle"}</span>
-            <div style="display: flex; gap: 4px;">
-              <button type="button" class="ramp-btn-pill" data-angle="90">90°</button>
-              <button type="button" class="ramp-btn-pill active" data-angle="180">180° (U)</button>
-              <button type="button" class="ramp-btn-pill" data-angle="270">270°</button>
-              <button type="button" class="ramp-btn-pill" data-angle="360">360°</button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Target Max Gradient Selector -->
-        <div class="ramp-gen-field">
-          <div style="display: flex; justify-content: space-between; align-items: center;">
-            <label>${isDe ? "Ziel-Steigung" : "Target Gradient"}</label>
-            <div style="display: flex; gap: 4px; align-items: center;">
-              <button type="button" class="ramp-btn-pill" data-grad="2.0">2.0%</button>
-              <button type="button" class="ramp-btn-pill active" data-grad="2.8">2.8%</button>
-              <button type="button" class="ramp-btn-pill" data-grad="3.5">3.5%</button>
-              <button type="button" class="ramp-btn-pill" data-grad="4.0">4.0%</button>
-              <input type="number" id="ramp-custom-grad-input" value="2.8" min="0.5" max="10.0" step="0.1" style="width: 48px; background: #141b2a; border: 1px solid #334155; color: #f8fafc; border-radius: 6px; padding: 4px 6px; font-size: 12px; text-align: center;" />
-              <span style="font-size: 11px; color: #94a3b8;">%</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Live Preview Status -->
-        <div class="ramp-status-card ok" id="ramp-live-status">
-          <strong id="status-title">...</strong>
-          <span id="status-desc" style="font-size: 11.5px;">...</span>
-        </div>
-      </div>
-
-      <div class="ramp-gen-footer">
-        <button class="ramp-btn-pill" id="ramp-btn-cancel" style="padding: 7px 14px;">${isDe ? "Abbrechen" : "Cancel"}</button>
-        <button id="ramp-btn-create" style="background:#0284c7; color:#fff; border:none; padding:7px 18px; border-radius:6px; cursor:pointer; font-weight:700;">
-          📐 ${isDe ? "Rampe erstellen" : "Create Ramp"}
-        </button>
-      </div>
-    </div>
-  `;
+  modal.innerHTML = rampGenHtml
+    .replace("{{HEADER_TITLE}}", isDe ? "Gleisrampe automatisch erstellen" : "Auto-Create Track Ramp")
+    .replace("{{START_TRACK_LABEL}}", isDe ? "Startgleis" : "Start Track")
+    .replace("{{ANCHOR_PIECE_ID}}", anchorPiece.catalogId)
+    .replace("{{LAYER_LABEL}}", isDe ? "Ebene" : "Layer")
+    .replace("{{CURRENT_LAYER_NAME}}", currentLayer.name.replace(/\\s*\\([0-9]+\\s*mm\\)$/, ""))
+    .replace("{{CURRENT_HEIGHT}}", String(currentHeight))
+    .replace("{{OPEN_ENDS_LABEL}}", isDe ? "Freie Anschlüsse" : "Open Ends")
+    .replace("{{OPEN_CONNS_COUNT}}", String(openConns.length))
+    .replace("{{TARGET_LAYER_LABEL}}", isDe ? "Zielebene / Zielhöhe" : "Target Layer / Target Elevation")
+    .replace("{{LAYER_OPTIONS}}", layerOptions)
+    .replace("{{TARGET_HEIGHT_LABEL}}", isDe ? "Zielhöhe (mm)" : "Target Height (mm)")
+    .replace("{{CLEARANCE_HINT}}", isDe ? `Mindesthöhe Spur ${scale}: ${minClearance} mm` : `Min clearance scale ${scale}: ${minClearance} mm`)
+    .replace("{{TARGET_HEIGHT_MM}}", String(targetHeightMm))
+    .replace("{{RAMP_SHAPE_LABEL}}", isDe ? "Rampenverlauf / Form" : "Ramp Shape / Geometry")
+    .replace("{{SHAPE_STRAIGHT}}", isDe ? "Gerade" : "Straight")
+    .replace("{{SHAPE_CURVED}}", isDe ? "Bogen / Kehre" : "Curve / Turn")
+    .replace("{{SHAPE_HELIX}}", isDe ? "Wendel (Helix)" : "Helix (Spiral)")
+    .replace("{{CURVE_RADIUS_SECTION}}", curveRadiusSection)
+    .replace("{{CURVE_DIR_LABEL}}", isDe ? "Bogenrichtung" : "Curve Direction")
+    .replace("{{DIR_LEFT}}", isDe ? "Links" : "Left")
+    .replace("{{DIR_RIGHT}}", isDe ? "Rechts" : "Right")
+    .replace("{{TURN_ANGLE_LABEL}}", isDe ? "Drehwinkel" : "Turn Angle")
+    .replace("{{TARGET_GRADIENT_LABEL}}", isDe ? "Ziel-Steigung" : "Target Gradient")
+    .replace("{{CANCEL_LABEL}}", isDe ? "Abbrechen" : "Cancel")
+    .replace("{{CREATE_LABEL}}", isDe ? "Rampe erstellen" : "Create Ramp");
 
   document.body.appendChild(modal);
 

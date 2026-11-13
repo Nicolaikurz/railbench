@@ -1,0 +1,175 @@
+<div class="rb-modal-card power-dialog-card">
+  <div class="rb-modal-header">
+    <div class="rb-modal-title">
+      <span>{{TITLE}}</span>
+    </div>
+    <button class="rb-modal-close-btn" id="power-modal-close" title="✕">✕</button>
+  </div>
+
+  <div class="power-dialog-body">
+    {{SHORT_CIRCUIT_BANNER}}
+
+    <!-- 1. GLEIS- & OBERLEITUNGSSPANNUNG -->
+    <div class="power-dialog-section">
+      <div class="power-dialog-section-header">
+        <strong>{{FEEDER_HEADER}}</strong>
+        <span class="power-highlight-val" id="power-lbl-voltage"><strong>{{CURRENT_VOLTAGE}}</strong> V</span>
+      </div>
+
+      <div class="power-dialog-slider-row">
+        <input type="range" id="power-slider-voltage" min="8" max="24" step="0.5" value="{{CURRENT_VOLTAGE}}" class="power-slider" />
+        <div class="power-dialog-unit-input">
+          <input type="number" id="power-input-voltage" min="4" max="28" step="0.5" value="{{CURRENT_VOLTAGE}}" class="rb-input power-num-field" />
+          <span class="unit-addon">{{VOLTAGE_UNIT}}</span>
+        </div>
+      </div>
+      <div class="power-slider-ticks" id="power-ticks-voltage">
+        <div class="power-tick-item {{TICK_12V_ACTIVE}}" data-voltage="12">
+          <span class="power-tick-val">12 V</span>
+          <span class="power-tick-desc">({{PRESET_12V_DESC}})</span>
+        </div>
+        <div class="power-tick-item {{TICK_14V_ACTIVE}}" data-voltage="14">
+          <span class="power-tick-val">14 V</span>
+          <span class="power-tick-desc">({{PRESET_14V_DESC}})</span>
+        </div>
+        <div class="power-tick-item {{TICK_16V_ACTIVE}}" data-voltage="16">
+          <span class="power-tick-val">16 V</span>
+          <span class="power-tick-desc">({{PRESET_16V_DESC}})</span>
+        </div>
+        <div class="power-tick-item {{TICK_18V_ACTIVE}}" data-voltage="18">
+          <span class="power-tick-val">18 V</span>
+          <span class="power-tick-desc">({{PRESET_18V_DESC}})</span>
+        </div>
+      </div>
+
+      <!-- Integrierter Oberleitungs-Block -->
+      <div class="power-catenary-subblock {{CATENARY_DISABLED_CLASS}}" style="border-top: 1px solid var(--border-main); margin-top: 6px; padding-top: 6px;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div style="display: flex; align-items: center; gap: 4px;">
+            <span style="font-size: 11px; font-weight: 600; color: var(--text-sub);">{{CATENARY_HEADER}}</span>
+            <span style="font-size: 9.5px; color: var(--text-muted);">
+              {{CATENARY_TRACK_COUNT}}
+            </span>
+          </div>
+          <div class="power-toggle-group" id="power-catenary-toggle-group">
+            <button type="button" class="power-toggle-btn {{CAT_MODE_SEPARATE_ACTIVE}}" data-cat-mode="separate" {{CATENARY_DISABLED_ATTR}} style="padding: 2.5px 7px; font-size: 10.5px;">
+              <span>{{CATENARY_MODE_SEPARATE}}</span>
+            </button>
+            <button type="button" class="power-toggle-btn {{CAT_MODE_PARALLEL_ACTIVE}}" data-cat-mode="parallel" {{CATENARY_DISABLED_ATTR}} style="padding: 2.5px 7px; font-size: 10.5px;">
+              <span>{{CATENARY_MODE_PARALLEL}}</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Getrennter Oberleitungs-Spannungsregler -->
+        <div id="power-catenary-voltage-container" style="margin-top: 4px; {{CATENARY_VOLTAGE_CONTAINER_STYLE}}">
+          <div class="power-dialog-slider-header" style="margin-bottom: 2px;">
+            <span style="font-size: 10.5px; color: var(--text-sub);">{{CATENARY_VOLTAGE_LABEL}}</span>
+            <span class="power-highlight-val" id="power-lbl-catenary-voltage" style="font-size: 10.5px;"><strong>{{CURRENT_CATENARY_VOLTAGE}}</strong> V</span>
+          </div>
+          <div class="power-dialog-slider-row">
+            <input type="range" id="power-slider-catenary-voltage" min="8" max="24" step="0.5" value="{{CURRENT_CATENARY_VOLTAGE}}" class="power-slider" {{CATENARY_DISABLED_ATTR}} />
+            <div class="power-dialog-unit-input">
+              <input type="number" id="power-input-catenary-voltage" min="4" max="28" step="0.5" value="{{CURRENT_CATENARY_VOLTAGE}}" class="rb-input power-num-field" {{CATENARY_DISABLED_ATTR}} />
+              <span class="unit-addon">{{VOLTAGE_UNIT}}</span>
+            </div>
+          </div>
+          <div class="power-slider-ticks" id="power-ticks-catenary-voltage">
+            <div class="power-tick-item {{CAT_TICK_12V_ACTIVE}}" data-catenary-voltage="12">
+              <span class="power-tick-val">12 V</span>
+              <span class="power-tick-desc">({{PRESET_12V_DESC}})</span>
+            </div>
+            <div class="power-tick-item {{CAT_TICK_14V_ACTIVE}}" data-catenary-voltage="14">
+              <span class="power-tick-val">14 V</span>
+              <span class="power-tick-desc">({{PRESET_14V_DESC}})</span>
+            </div>
+            <div class="power-tick-item {{CAT_TICK_16V_ACTIVE}}" data-catenary-voltage="16">
+              <span class="power-tick-val">16 V</span>
+              <span class="power-tick-desc">({{PRESET_16V_DESC}})</span>
+            </div>
+            <div class="power-tick-item {{CAT_TICK_18V_ACTIVE}}" data-catenary-voltage="18">
+              <span class="power-tick-val">18 V</span>
+              <span class="power-tick-desc">({{PRESET_18V_DESC}})</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. LOK-FAHRSTROM -->
+    <div class="power-dialog-section">
+      <div class="power-dialog-section-header">
+        <strong>{{LOCO_HEADER}}</strong>
+        <span class="power-highlight-val" id="power-lbl-loco-ma">
+          <strong>{{CURRENT_LOCO_AMPS}} A</strong> ({{CURRENT_LOCO_MA}} mA)
+        </span>
+      </div>
+      <div class="power-dialog-slider-row">
+        <input type="range" id="power-slider-loco" min="{{MIN_LOCO_CURRENT_MA}}" max="{{MAX_LOCO_CURRENT_MA}}" step="10" value="{{CURRENT_LOCO_MA}}" class="power-slider" />
+        <div class="power-dialog-unit-input">
+          <input type="number" id="power-input-loco-ma" min="{{MIN_LOCO_CURRENT_MA}}" max="{{MAX_LOCO_CURRENT_MA}}" step="10" value="{{CURRENT_LOCO_MA}}" class="rb-input power-num-field" />
+          <span class="unit-addon">mA</span>
+        </div>
+      </div>
+      <div class="power-slider-ticks" id="power-ticks-loco">
+        <div class="power-tick-item {{LOCO_TICK_150_ACTIVE}}" data-loco-ma="150">
+          <span class="power-tick-val">0.15 A</span>
+          <span class="power-tick-desc">({{PRESET_150_DESC}})</span>
+        </div>
+        <div class="power-tick-item {{LOCO_TICK_300_ACTIVE}}" data-loco-ma="300">
+          <span class="power-tick-val">0.30 A</span>
+          <span class="power-tick-desc">({{PRESET_300_DESC}})</span>
+        </div>
+        <div class="power-tick-item {{LOCO_TICK_450_ACTIVE}}" data-loco-ma="450">
+          <span class="power-tick-val">0.45 A</span>
+          <span class="power-tick-desc">({{PRESET_450_DESC}})</span>
+        </div>
+        <div class="power-tick-item {{LOCO_TICK_750_ACTIVE}}" data-loco-ma="750">
+          <span class="power-tick-val">0.75 A</span>
+          <span class="power-tick-desc">({{PRESET_750_DESC}})</span>
+        </div>
+        <div class="power-tick-item {{LOCO_TICK_1000_ACTIVE}}" data-loco-ma="1000">
+          <span class="power-tick-val">1.0 A</span>
+          <span class="power-tick-desc">({{PRESET_1000_DESC}})</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. FAHRBETRIEB & GESAMTLAST -->
+    <div class="power-dialog-section">
+      <div class="power-dialog-section-header">
+        <strong>{{TRAFFIC_HEADER}}</strong>
+        <div class="power-dialog-stepper" style="display: flex; align-items: center; gap: 4px;">
+          <span style="font-size: 11px; color: var(--text-muted); margin-right: 4px;">{{ACTIVE_LOCOS_LABEL}}</span>
+          <button type="button" class="power-step-btn" id="power-btn-dec-count" {{DEC_COUNT_DISABLED}} style="padding: 2px 7px;">−</button>
+          <input type="number" id="power-input-loco-count" min="1" max="10" value="{{CURRENT_LOCO_COUNT}}" class="rb-input power-count-field" style="width: 38px; padding: 2px 4px; font-size: 12px;" />
+          <button type="button" class="power-step-btn" id="power-btn-inc-count" {{INC_COUNT_DISABLED}} style="padding: 2px 7px;">+</button>
+        </div>
+      </div>
+
+      <!-- Gesamtzuglast Box -->
+      <div class="power-dialog-summary-card" style="padding: 6px 10px; margin-top: 2px; border-radius: 6px;">
+        <div class="power-summary-left">
+          <span class="summary-lbl" style="font-size: 11px;">{{TOTAL_COMBINED_CURRENT_LABEL}}</span>
+          <span class="summary-sub" id="power-summary-details" style="font-size: 10px;">{{CURRENT_LOCO_COUNT}}x {{CURRENT_LOCO_MA}} mA</span>
+        </div>
+        <div class="power-summary-right" style="display: flex; align-items: baseline; gap: 4px;">
+          <span class="summary-total-amps" id="power-summary-total-amps" style="font-size: 14px; font-weight: 700;">{{TOTAL_AMPS}} A</span>
+          <span class="summary-total-ma" id="power-summary-total-ma" style="font-size: 11px; color: var(--text-muted);">({{TOTAL_MA}} mA)</span>
+        </div>
+      </div>
+
+      <!-- Weichen-Zubehör -->
+      {{TURNOUT_DETAILS_SECTION}}
+
+      <div id="power-dialog-booster-warning" class="power-dialog-warning" style="display: {{BOOSTER_WARNING_DISPLAY}}; padding: 4px 8px; font-size: 10.5px; margin-top: 4px;">
+        {{BOOSTER_WARNING}}
+      </div>
+    </div>
+  </div>
+
+  <div class="rb-modal-footer" style="padding: 8px 14px;">
+    <button type="button" class="rb-btn rb-btn-secondary" id="power-btn-cancel">{{CANCEL_BTN}}</button>
+    <button type="button" class="rb-btn rb-btn-primary" id="power-btn-apply">{{APPLY_BTN}}</button>
+  </div>
+</div>

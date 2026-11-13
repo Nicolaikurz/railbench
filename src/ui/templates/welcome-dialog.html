@@ -1,0 +1,46 @@
+<div class="welcome-card" role="dialog" aria-modal="true" aria-labelledby="welcome-title">
+  <button type="button" class="welcome-close-btn" id="welcome-close-btn" title="{{CLOSE_TITLE}}" aria-label="Close">×</button>
+
+  <div class="welcome-header">
+    <span class="welcome-logo-badge">🚆</span>
+    <h2 id="welcome-title">Railbench <span style="font-size:12px;opacity:0.6;font-weight:normal;vertical-align:middle;margin-left:4px;">{{VERSION}}</span></h2>
+    <p class="welcome-subtitle">
+      {{SUBTITLE}}
+    </p>
+  </div>
+  
+  <div class="welcome-actions">
+    {{RECENT_BUTTON}}
+    
+    <button type="button" class="welcome-btn {{NEW_CLASS}}" id="welcome-btn-new" {{NEW_AUTOFOCUS}}>
+      <span class="welcome-btn-icon">✨</span>
+      <div class="welcome-btn-text">
+        <strong>{{NEW_TITLE}}</strong>
+        <small>{{NEW_DESC}}</small>
+      </div>
+    </button>
+    
+    <button type="button" class="welcome-btn" id="welcome-btn-demo">
+      <span class="welcome-btn-icon">🔄</span>
+      <div class="welcome-btn-text">
+        <strong>{{DEMO_TITLE}}</strong>
+        <small>{{DEMO_DESC}}</small>
+      </div>
+    </button>
+    
+    <button type="button" class="welcome-btn" id="welcome-btn-open">
+      <span class="welcome-btn-icon">📁</span>
+      <div class="welcome-btn-text">
+        <strong>{{OPEN_TITLE}}</strong>
+        <small>{{OPEN_DESC}}</small>
+      </div>
+    </button>
+  </div>
+
+  <div class="welcome-footer">
+    <label class="welcome-remember-label">
+      <input type="checkbox" id="welcome-remember-check" />
+      <span>{{REMEMBER_LABEL}}</span>
+    </label>
+  </div>
+</div>
