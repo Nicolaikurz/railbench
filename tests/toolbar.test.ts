@@ -23,20 +23,13 @@ describe("Two-line Toolbar & macOS System Menus", () => {
       disabled: false,
       parentElement: null,
       classList: {
-        add: (c: string) => {
-          classes.add(c);
-          el.className = Array.from(classes).join(" ");
-        },
-        remove: (c: string) => {
-          classes.delete(c);
-          el.className = Array.from(classes).join(" ");
-        },
+        add: (c: string) => classes.add(c),
+        remove: (c: string) => classes.delete(c),
         contains: (c: string) => classes.has(c),
         toggle: (c: string, force?: boolean) => {
           const next = force !== undefined ? force : !classes.has(c);
           if (next) classes.add(c);
           else classes.delete(c);
-          el.className = Array.from(classes).join(" ");
           return next;
         },
       },
@@ -71,10 +64,6 @@ describe("Two-line Toolbar & macOS System Menus", () => {
     return new Proxy(el, {
       set(target, prop, value) {
         target[prop] = value;
-        if (prop === "className" && typeof value === "string") {
-          classes.clear();
-          value.split(/\s+/).filter(Boolean).forEach((c) => classes.add(c));
-        }
         if (prop === "id" && value) {
           elementsById[value] = target;
         }
