@@ -128,7 +128,7 @@ export function buildRoadPiece3D(
         lineShape.absarc(0, 0, rr - lineW / 2, -Math.PI / 2 + rad, -Math.PI / 2, true);
       } else {
         lineShape.absarc(0, 0, rr + lineW / 2, Math.PI / 2, Math.PI / 2 - rad, true);
-        lineShape.absarc(0, 0, rr - lineW / 2, -Math.PI / 2, Math.PI / 2, false);
+        lineShape.absarc(0, 0, rr - lineW / 2, Math.PI / 2 - rad, Math.PI / 2, false);
       }
       lineShape.closePath();
 

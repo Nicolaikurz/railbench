@@ -41,7 +41,7 @@ describe("Demo Layout", () => {
     expect(layout.layers?.length).toBe(3);
     expect(layout.baseboard?.width).toBe(2200);
     expect(layout.baseboard?.depth).toBe(1250);
-    expect(layout.models?.length).toBe(20);
+    expect(layout.models?.length).toBe(21);
   });
 
   it("schließt das Gleisnetz nahtlos und fehlerfrei", () => {
@@ -86,7 +86,7 @@ describe("Demo Layout", () => {
     expect(restored.name).toBe(DEMO_LAYOUT_NAME);
     expect(restored.pieces.length).toBe(99);
     expect(restored.layers?.length).toBe(3);
-    expect(restored.models?.length).toBe(20);
+    expect(restored.models?.length).toBe(21);
     expect(restored.baseboard?.width).toBe(2200);
   });
 

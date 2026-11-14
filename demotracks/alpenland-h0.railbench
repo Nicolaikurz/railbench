@@ -3818,6 +3818,24 @@
       "height": 220,
       "modelType": "builtin",
       "builtinId": "mountain"
+    },
+    {
+      "id": "model-1794677511934-h7if",
+      "name": "Bahnsteig",
+      "category": "railway",
+      "transform": {
+        "x": 175.43224699828474,
+        "y": 456.1440823327617,
+        "rotation": 0
+      },
+      "elevation": 0,
+      "scale": 1,
+      "width": 320,
+      "depth": 54,
+      "height": 55,
+      "modelType": "builtin",
+      "builtinId": "platform",
+      "layerId": "layer-1"
     }
   ],
   "layers": [

@@ -1,7 +1,9 @@
 import { describe, it, expect } from "vitest";
+import * as THREE from "three";
 import type { CatalogEntry } from "@/catalog/catalog";
 import type { TrackPiece } from "@/core/types";
 import { createTrackGraphics } from "@/render/track-sprite";
+import { buildTrackPiece3D } from "@/render/viewer-3d-track";
 
 describe("Turnout Elevation Shadow Rendering", () => {
   const curvedTurnoutLeft: CatalogEntry = {
@@ -245,5 +247,25 @@ describe("Turnout Elevation Shadow Rendering", () => {
 
       expect(elevG.context.instructions.length).toBeGreaterThan(flatG.context.instructions.length);
     }
+  });
+
+  it("builds 3D left turnout without giant arc artifact", () => {
+    const piece: TrackPiece = {
+      id: "to-left-3d",
+      catalogId: standardTurnoutLeft.id,
+      transform: { x: 0, y: 0, rotation: 0 },
+      connectors: [],
+    };
+    const root = new THREE.Group();
+    buildTrackPiece3D(root, piece, standardTurnoutLeft, 0, 0, "off");
+
+    const bbox = new THREE.Box3().setFromObject(root);
+    // Standard turnout 24611 length is 188.3 mm, branch radius is 437.5 mm, angle 24.3 deg.
+    // Branch lateral offset is R*(1 - cos(24.3 deg)) ~ 38.8 mm (plus ballast/rail width ~ 20 mm).
+    // The previous bug generated an arc sweeping 180 degrees (~450 mm lateral displacement).
+    expect(bbox.min.z).toBeGreaterThan(-100);
+    expect(bbox.max.z).toBeLessThan(100);
+    expect(bbox.min.x).toBeGreaterThan(-50);
+    expect(bbox.max.x).toBeLessThan(250);
   });
 });

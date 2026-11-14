@@ -68,7 +68,13 @@ export function buildTrackPiece3D(
   const railY = ballastH + railH;
   const heightDiff = endElev - startElev;
 
-  const ballastMat = new THREE.MeshStandardMaterial({ color: ballastColor, roughness: 0.9 });
+  const ballastMat = new THREE.MeshStandardMaterial({
+    color: ballastColor,
+    roughness: 0.9,
+    polygonOffset: true,
+    polygonOffsetFactor: 1,
+    polygonOffsetUnits: 1,
+  });
   const tieMat = new THREE.MeshStandardMaterial({ color: 0x3e2723, roughness: 0.85 });
   const railMat = new THREE.MeshStandardMaterial({ color: 0xd1d5db, metalness: 0.85, roughness: 0.25 });
 
@@ -183,7 +189,7 @@ export function buildTrackPiece3D(
         railShape.absarc(0, 0, rr - railW / 2, -Math.PI / 2 + rad, -Math.PI / 2, true);
       } else {
         railShape.absarc(0, 0, rr + railW / 2, Math.PI / 2, Math.PI / 2 - rad, true);
-        railShape.absarc(0, 0, rr - railW / 2, -Math.PI / 2, Math.PI / 2, false);
+        railShape.absarc(0, 0, rr - railW / 2, Math.PI / 2 - rad, Math.PI / 2, false);
       }
       railShape.closePath();
 
