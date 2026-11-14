@@ -16,6 +16,7 @@ import {
   isConnectorConnectedToBuilding,
 } from "@/core/engine-shed-snap";
 import { dist, deg2rad } from "@/core/geometry";
+import { renderSceneOverlays } from "./renderer-overlays";
 
 export interface MeasureState {
   start: { x: number; y: number } | null;
@@ -218,6 +219,8 @@ export class Renderer {
               (!plate.y || plate.y === 0) &&
               plate.width === targetBoard.width &&
               plate.depth === targetBoard.depth &&
+              plate.shape !== "custom" &&
+              targetBoard.shape !== "custom" &&
               (!plate.shape || plate.shape === (targetBoard.shape ?? "rect"));
 
             // Hauptplatte auf Tisch-Ebene wurde bereits über den Tisch mit voller Grafik gerendert
@@ -238,6 +241,7 @@ export class Renderer {
               customX: originX,
               customY: originY,
               shape: plate.shape ?? "rect",
+              customPolygon: plate.customPolygon,
               triangleType: plate.triangleType,
               lWingWidth: plate.lWingWidth,
               lWingDepth: plate.lWingDepth,
@@ -628,249 +632,7 @@ export class Renderer {
       }
     }
 
-    // Auswahlrahmen (Marquee Box bei Rechtsklick-Drag)
-    if (options.selectionBox) {
-      const box = options.selectionBox;
-      const minX = Math.min(box.start.x, box.end.x);
-      const maxX = Math.max(box.start.x, box.end.x);
-      const minY = Math.min(box.start.y, box.end.y);
-      const maxY = Math.max(box.start.y, box.end.y);
-      const w = maxX - minX;
-      const h = maxY - minY;
-
-      if (w > 2 || h > 2) {
-        ov.rect(minX, minY, w, h);
-        ov.fill({ color: 0x0284c7, alpha: 0.15 });
-        ov.stroke({ width: 1.5, color: 0x38bdf8, alpha: 0.95 });
-
-        const cornerSize = Math.min(8, w / 4, h / 4);
-        if (cornerSize > 1) {
-          ov.moveTo(minX, minY + cornerSize).lineTo(minX, minY).lineTo(minX + cornerSize, minY);
-          ov.moveTo(maxX - cornerSize, minY).lineTo(maxX, minY).lineTo(maxX, minY + cornerSize);
-          ov.moveTo(minX, maxY - cornerSize).lineTo(minX, maxY).lineTo(minX + cornerSize, maxY);
-          ov.moveTo(maxX - cornerSize, maxY).lineTo(maxX, maxY).lineTo(maxX, maxY - cornerSize);
-          ov.stroke({ width: 2.5, color: 0x0284c7, alpha: 1 });
-        }
-      }
-    }
-
-    // 3. Messwerkzeug (Measure Tool: Manuelle Distanzmessung zwischen zwei Punkten)
-    if (options.measureTool) {
-      const { start: p1, current: p2, locked, scaleRatio } = options.measureTool;
-
-      // Punkt A Badge zeichnen (falls gesetzt)
-      if (p1) {
-        ov.circle(p1.x, p1.y, 8).fill({ color: 0x0284c7, alpha: 0.25 });
-        ov.circle(p1.x, p1.y, 5).fill({ color: 0x0284c7 }).stroke({ width: 1.5, color: 0xffffff });
-
-        const txtA = new Text({
-          text: "A",
-          style: new TextStyle({
-            fontSize: 9,
-            fill: 0xffffff,
-            fontWeight: "bold",
-            stroke: { color: 0x0f172a, width: 2 },
-          }),
-        });
-        txtA.anchor.set(0.5, 1);
-        txtA.position.set(p1.x, p1.y - 7);
-        this.overlayLayer.addChild(txtA);
-      }
-
-      // Falls Punkt A und Punkt B vorhanden sind
-      if (p1 && p2) {
-        const dx = p2.x - p1.x;
-        const dy = p2.y - p1.y;
-        const dist = Math.hypot(dx, dy);
-
-        // Orthogonale Hilfsdreiecke / Delta-Linien (ΔX und ΔY)
-        if (dist > 15 && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) {
-          // ΔX: (p1.x, p1.y) -> (p2.x, p1.y)
-          drawDashedLine(ov, p1.x, p1.y, p2.x, p1.y, 4, 3);
-          ov.stroke({ width: 1, color: 0x94a3b8, alpha: 0.5 });
-
-          // ΔY: (p2.x, p1.y) -> (p2.x, p2.y)
-          drawDashedLine(ov, p2.x, p1.y, p2.x, p2.y, 4, 3);
-          ov.stroke({ width: 1, color: 0x94a3b8, alpha: 0.5 });
-        }
-
-        if (dist > 0.5) {
-          const nx = -dy / dist;
-          const ny = dx / dist;
-          const tickLen = 7;
-
-          // Kontrast-Schatten
-          ov.moveTo(p1.x, p1.y).lineTo(p2.x, p2.y);
-          ov.stroke({ width: 3.5, color: 0x0f172a, alpha: 0.7 });
-
-          // Haupt-Messlinie
-          const lineColor = locked ? 0x10b981 : 0x0284c7;
-          ov.moveTo(p1.x, p1.y).lineTo(p2.x, p2.y);
-          ov.stroke({ width: 2, color: lineColor, alpha: 0.95 });
-
-          // End-Ticks (Begrenzungslinien an A und B)
-          ov.moveTo(p1.x + nx * tickLen, p1.y + ny * tickLen).lineTo(p1.x - nx * tickLen, p1.y - ny * tickLen);
-          ov.moveTo(p2.x + nx * tickLen, p2.y + ny * tickLen).lineTo(p2.x - nx * tickLen, p2.y - ny * tickLen);
-          ov.stroke({ width: 2, color: lineColor, alpha: 0.95 });
-
-          // Punkt B Badge
-          ov.circle(p2.x, p2.y, 8).fill({ color: lineColor, alpha: 0.25 });
-          ov.circle(p2.x, p2.y, 5).fill({ color: lineColor }).stroke({ width: 1.5, color: 0xffffff });
-
-          const txtB = new Text({
-            text: "B",
-            style: new TextStyle({
-              fontSize: 9,
-              fill: 0xffffff,
-              fontWeight: "bold",
-              stroke: { color: 0x0f172a, width: 2 },
-            }),
-          });
-          txtB.anchor.set(0.5, 1);
-          txtB.position.set(p2.x, p2.y - 7);
-          this.overlayLayer.addChild(txtB);
-
-          // Maßbeschriftung in der Mitte
-          const midX = (p1.x + p2.x) / 2;
-          const midY = (p1.y + p2.y) / 2;
-
-          let distStr = dist >= 1000
-            ? `${dist.toFixed(1)} mm (${(dist / 1000).toFixed(2)} m)`
-            : `${dist.toFixed(1)} mm`;
-
-          if (scaleRatio && scaleRatio > 1) {
-            const protoM = (dist * scaleRatio) / 1000;
-            distStr += `\nVorbild: ${protoM.toFixed(2)} m`;
-          }
-
-          const txt = new Text({
-            text: distStr,
-            style: new TextStyle({
-              fontSize: 11,
-              fill: 0xffffff,
-              fontWeight: "bold",
-              align: "center",
-              stroke: { color: 0x0f172a, width: 3 },
-            }),
-          });
-          txt.anchor.set(0.5, 0.5);
-          txt.position.set(midX + nx * 16, midY + ny * 16);
-          this.overlayLayer.addChild(txt);
-        }
-      }
-
-      if (options.measureTool.snapPoint) {
-        const sp = options.measureTool.snapPoint;
-        ov.circle(sp.x, sp.y, 7).stroke({ width: 2, color: 0x10b981, alpha: 0.9 });
-        ov.circle(sp.x, sp.y, 3).fill({ color: 0x10b981 });
-      }
-    }
-
-    // 4. Kurzschluss-Indikator (2-Leiter-System)
-    if (options.shortCircuit?.hasShortCircuit) {
-      const t = getTranslations().toolbar.status;
-      const overlayText = t.shortCircuitOverlayLabel || "KURZSCHLUSS";
-
-      for (const pt of options.shortCircuit.shortCircuitPoints) {
-        // Äußeres pulsierendes Glühen
-        ov.circle(pt.x, pt.y, 18);
-        ov.fill({ color: 0xef4444, alpha: 0.28 });
-        ov.circle(pt.x, pt.y, 12);
-        ov.stroke({ width: 2.5, color: 0xdc2626, alpha: 0.95 });
-
-        // Roter Blitz-Zentrumspunkt
-        ov.circle(pt.x, pt.y, 4.5);
-        ov.fill({ color: 0xffffff });
-        ov.stroke({ width: 2, color: 0xb91c1c });
-
-        // Warn-Plakette
-        const badgeCont = new Container();
-        badgeCont.position.set(pt.x, pt.y - 20);
-
-        const pillBg = new Graphics();
-        pillBg.roundRect(-48, -10, 96, 20, 5);
-        pillBg.fill({ color: 0x7f1d1d, alpha: 0.95 });
-        pillBg.stroke({ width: 1.5, color: 0xef4444 });
-        badgeCont.addChild(pillBg);
-
-        const lbl = new Text({
-          text: `⚡ ${overlayText}`,
-          style: new TextStyle({
-            fontSize: 9,
-            fill: 0xffffff,
-            fontWeight: "bold",
-          }),
-        });
-        lbl.anchor.set(0.5, 0.5);
-        badgeCont.addChild(lbl);
-
-        this.overlayLayer.addChild(badgeCont);
-      }
-    }
-
-    // 5. Point Markers (z.B. Rampe Startpunkt / Stoppunkt Pins, gewählter Anschluss)
-    if (options.pointMarkers && options.pointMarkers.length > 0) {
-      for (const pm of options.pointMarkers) {
-        // Exakter Boden-Zielpunkt (Snap-Anschluss) mit Leuchtring
-        ov.circle(pm.x, pm.y, 16);
-        ov.fill({ color: pm.color, alpha: 0.25 });
-        ov.circle(pm.x, pm.y, 8);
-        ov.stroke({ width: 2.5, color: pm.color, alpha: 0.95 });
-        ov.circle(pm.x, pm.y, 3.5);
-        ov.fill({ color: 0xffffff, alpha: 1.0 });
-
-        // Großer, weithin sichtbarer Stecknadel-Pin (Marker-Pin)
-        const pinCont = new Container();
-        pinCont.position.set(pm.x, pm.y);
-
-        const badgeH = 26;
-        const badgeW = Math.max(36, pm.label.length * 10.5 + 20);
-        const badgeY = -30; // Höhe über dem Zielpunkt
-
-        const pinGfx = new Graphics();
-
-        // 1. Weicher Schlagschatten
-        pinGfx.poly([-7, -14, 7, -14, 0, 0]);
-        pinGfx.roundRect(-badgeW / 2 + 1, badgeY - badgeH / 2 + 2, badgeW, badgeH, badgeH / 2);
-        pinGfx.fill({ color: 0x000000, alpha: 0.32 });
-
-        // 2. Weiches äußeres Leuchten in Signalfarbe
-        pinGfx.roundRect(-badgeW / 2 - 3, badgeY - badgeH / 2 - 3, badgeW + 6, badgeH + 6, (badgeH + 6) / 2);
-        pinGfx.fill({ color: pm.color, alpha: 0.35 });
-
-        // 3. Zeiger-Nadel zum Zielpunkt
-        pinGfx.poly([-8, badgeY + badgeH / 2 - 2, 8, badgeY + badgeH / 2 - 2, 0, -2]);
-        pinGfx.fill({ color: pm.color, alpha: 0.98 });
-        pinGfx.stroke({ width: 2.5, color: 0xffffff });
-
-        // 4. Hauptplakette (Pille)
-        pinGfx.roundRect(-badgeW / 2, badgeY - badgeH / 2, badgeW, badgeH, badgeH / 2);
-        pinGfx.fill({ color: pm.color, alpha: 0.98 });
-        pinGfx.stroke({ width: 2.5, color: 0xffffff });
-
-        // Dunkle feine Konturlinie für maximalen Kontrast auf jedem Untergrund
-        pinGfx.roundRect(-badgeW / 2, badgeY - badgeH / 2, badgeW, badgeH, badgeH / 2);
-        pinGfx.stroke({ width: 1, color: 0x0f172a, alpha: 0.45 });
-
-        pinCont.addChild(pinGfx);
-
-        // 5. Große, fette Beschriftung (z.B. "Start", "Stop", "A", "B")
-        const txt = new Text({
-          text: pm.label,
-          style: new TextStyle({
-            fontSize: 12.5,
-            fill: 0xffffff,
-            fontWeight: "bold",
-            stroke: { color: 0x0f172a, width: 3.5 },
-          }),
-        });
-        txt.anchor.set(0.5, 0.5);
-        txt.position.set(0, badgeY);
-        pinCont.addChild(txt);
-
-        this.overlayLayer.addChild(pinCont);
-      }
-    }
+    renderSceneOverlays(this.overlayLayer, ov, options);
   }
 
   /** Wandelt Bildschirmkoordinaten (Canvas) in Weltkoordinaten um. */

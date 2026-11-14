@@ -8,20 +8,10 @@ import {
 } from "@/core/layout";
 import { isPointInsideModel, getModelRotationHandleWorld } from "@/core/models-3d";
 import {
-  dist,
-  normAngle,
-  rad2deg,
-  distanceToTrackPiece,
-  getPieceCenterWorld,
-  getPieceRotationHandleWorld,
-  isPieceInSelectionBox,
-  computeGroupCentroid,
-  type RotatableItem,
+  dist, normAngle, rad2deg, getPieceCenterWorld,
+  getPieceRotationHandleWorld, isPieceInSelectionBox, computeGroupCentroid, type RotatableItem,
 } from "@/core/geometry";
-import {
-  MoveModelCommand,
-  MoveBaseboardCommand,
-} from "@/editor/commands";
+import { MoveModelCommand, MoveBaseboardCommand } from "@/editor/commands";
 import type { Selection } from "@/editor/selection";
 import { handleCanvasDrop } from "./canvas-drop-handler";
 import { KeyboardController } from "./keyboard-controller";
@@ -30,18 +20,14 @@ import { closeTrackContextMenu } from "@/ui/track-context-menu";
 import type { CanvasControllerDeps } from "./canvas-controller-types";
 import { openTrackContextMenu } from "./canvas-context-menu";
 import {
-  findOpenConnectorAt,
-  findPointMarkerAt,
-  checkFlexHandleHit,
-  isNearFlexHandle,
-  findTrackPieceAt,
+  findOpenConnectorAt, findPointMarkerAt, checkFlexHandleHit, isNearFlexHandle, findTrackPieceAt,
 } from "./canvas-hit-test";
 import {
-  populateDraggedPiecesMap,
-  commitMovedItems,
-  applyGroupRotationWithSnapping,
-  applyGroupDragWithSnapping,
+  populateDraggedPiecesMap, commitMovedItems, applyGroupRotationWithSnapping, applyGroupDragWithSnapping,
+  handleMeasurePointerDown, handleMeasurePointerMove, handleMeasurePointerUp,
 } from "./canvas-drag-helper";
+import { terrainBrush } from "./terrain-brush-controller";
+import { boardSketcher } from "./board-sketcher-controller";
 
 export type { CanvasControllerDeps } from "./canvas-controller-types";
 
@@ -144,40 +130,29 @@ export class CanvasController {
     const selection = this.deps.getSelection();
 
     if (this.deps.isMeasureToolActive()) {
-      const mState = this.deps.getMeasureState();
-      if (e.button === 0) {
-        const wPos = renderer.screenToWorld(e.clientX, e.clientY);
-        const forceNoSnap = e.altKey;
+      handleMeasurePointerDown(e, this.deps);
+      return;
+    }
 
-        if (mState.start && Math.hypot(wPos.x - mState.start.x, wPos.y - mState.start.y) <= 15) {
-          this.deps.setMeasureState({ draggingPoint: "A" });
-          canvas.style.cursor = "grabbing";
-          return;
-        }
-        if (mState.current && Math.hypot(wPos.x - mState.current.x, wPos.y - mState.current.y) <= 15) {
-          this.deps.setMeasureState({ draggingPoint: "B" });
-          canvas.style.cursor = "grabbing";
-          return;
-        }
+    if (boardSketcher.isActive) {
+      const wPos = renderer.screenToWorld(e.clientX, e.clientY);
+      const scale = renderer.world.scale.x || 1;
+      boardSketcher.onPointerDown(wPos, layout, scale, e.button, e.altKey);
+      canvas.style.cursor = "crosshair";
+      this.deps.sync(true);
+      return;
+    }
 
-        const snap = this.deps.findMeasureSnapPoint(wPos, 20, forceNoSnap);
-        const pt = snap ? { ...snap } : { ...wPos };
-
-        if (!mState.start || mState.locked) {
-          this.deps.setMeasureState({ start: pt, current: pt, locked: false });
-        } else {
-          this.deps.setMeasureState({ current: pt, locked: true });
-        }
-        this.deps.updateMeasureHud();
+    if (terrainBrush.isActive) {
+      if (e.button === 2) {
+        terrainBrush.setActive(false);
+        canvas.style.cursor = "default";
         this.deps.sync();
-      } else if (e.button === 2) {
-        if (mState.start) {
-          this.deps.setMeasureState({ start: null, current: null, locked: false, draggingPoint: null });
-          this.deps.updateMeasureHud();
-          this.deps.sync();
-        } else {
-          this.deps.toggleMeasureTool(false);
-        }
+      } else if (e.button === 0) {
+        const wPos = renderer.screenToWorld(e.clientX, e.clientY);
+        terrainBrush.startStroke(wPos, layout);
+        canvas.style.cursor = "crosshair";
+        this.deps.sync(terrainBrush.mode === "erase");
       }
       return;
     }
@@ -314,6 +289,17 @@ export class CanvasController {
       }
     }
 
+    const catalog = this.deps.getCatalog();
+    const hitGauge = catalog.gauge ?? 16.5;
+    const hit = findTrackPieceAt(
+      layout,
+      wPos,
+      scale,
+      hitGauge,
+      (p) => this.deps.isPieceInteractive(p),
+      (p) => this.deps.getCatalogEntryForPiece(p),
+    );
+
     let hitModel: Model3D | null = null;
     if (layout.models) {
       for (const m of layout.models) {
@@ -323,6 +309,16 @@ export class CanvasController {
           break;
         }
       }
+    }
+
+    // Bei Klick auf ein Gleis/eine Straße im Berg hat das Gleis Vorrang (außer Klick direkt aufs Berg-Zentrum)
+    if (
+      hitModel?.builtinId === "mountain" &&
+      hit &&
+      !selection.has(hitModel.id) &&
+      Math.hypot(wPos.x - hitModel.transform.x, wPos.y - hitModel.transform.y) > 40
+    ) {
+      hitModel = null;
     }
 
     if (hitModel) {
@@ -359,17 +355,6 @@ export class CanvasController {
       this.deps.sync();
       return;
     }
-
-    const catalog = this.deps.getCatalog();
-    const hitGauge = catalog.gauge ?? 16.5;
-    const hit = findTrackPieceAt(
-      layout,
-      wPos,
-      scale,
-      hitGauge,
-      (p) => this.deps.isPieceInteractive(p),
-      (p) => this.deps.getCatalogEntryForPiece(p),
-    );
 
     if (hit) {
       if (isMultiSelect) {
@@ -473,30 +458,27 @@ export class CanvasController {
     this.deps.getCollabClient().broadcastCursor(currentWPos.x, currentWPos.y);
 
     if (this.deps.isMeasureToolActive()) {
-      const forceNoSnap = e.altKey;
-      const snap = this.deps.findMeasureSnapPoint(currentWPos, 20, forceNoSnap);
-      this.deps.setMeasureState({ snapPoint: snap });
-      const mState = this.deps.getMeasureState();
+      handleMeasurePointerMove(e, currentWPos, this.deps);
+      return;
+    }
 
-      if (mState.draggingPoint === "A") {
-        this.deps.setMeasureState({ start: snap ? { ...snap } : { ...currentWPos } });
-        canvas.style.cursor = "grabbing";
-        this.deps.updateMeasureHud();
-      } else if (mState.draggingPoint === "B") {
-        this.deps.setMeasureState({ current: snap ? { ...snap } : { ...currentWPos } });
-        canvas.style.cursor = "grabbing";
-        this.deps.updateMeasureHud();
-      } else if (mState.start && !mState.locked) {
-        this.deps.setMeasureState({ current: snap ? { ...snap } : { ...currentWPos } });
-        canvas.style.cursor = "crosshair";
-        this.deps.updateMeasureHud();
-      } else {
-        const nearA = mState.start && Math.hypot(currentWPos.x - mState.start.x, currentWPos.y - mState.start.y) <= 15;
-        const nearB = mState.current && Math.hypot(currentWPos.x - mState.current.x, currentWPos.y - mState.current.y) <= 15;
-        canvas.style.cursor = nearA || nearB ? "grab" : "crosshair";
-      }
+    if (boardSketcher.isActive) {
+      const scale = renderer.world.scale.x || 1;
+      boardSketcher.onPointerMove(currentWPos, layout, scale, e.altKey);
+      canvas.style.cursor =
+        boardSketcher.draggingVertexIndex !== null
+          ? "grabbing"
+          : boardSketcher.hoveredVertexIndex !== null || boardSketcher.hoveredMidpointIndex !== null
+            ? "pointer"
+            : "crosshair";
+      this.deps.sync(boardSketcher.draggingVertexIndex !== null);
+      return;
+    }
 
-      this.deps.sync();
+    if (terrainBrush.isActive) {
+      terrainBrush.moveStroke(currentWPos, layout);
+      canvas.style.cursor = "crosshair";
+      this.deps.sync(terrainBrush.isDrawing && terrainBrush.mode === "erase");
       return;
     }
 
@@ -764,21 +746,16 @@ export class CanvasController {
         }
       }
 
-      let isOverTrack = false;
-      const screenGrabBuffer = 20 / scale;
-      for (const piece of layout.pieces) {
-        if (!this.deps.isPieceInteractive(piece)) continue;
-        const entry = this.deps.getCatalogEntryForPiece(piece);
-        if (entry) {
-          const maxAllowed = entry.isRoad
-            ? Math.max(35, (entry.roadWidth ?? 60) * 0.65, screenGrabBuffer)
-            : Math.max(32, (catalog.gauge ?? 16.5) * 1.8, screenGrabBuffer);
-          if (distanceToTrackPiece(currentWPos, piece.transform, entry) <= maxAllowed) {
-            isOverTrack = true;
-            break;
-          }
-        }
-      }
+      const isOverTrack = Boolean(
+        findTrackPieceAt(
+          layout,
+          currentWPos,
+          scale,
+          catalog.gauge ?? 16.5,
+          (p) => this.deps.isPieceInteractive(p),
+          (p) => this.deps.getCatalogEntryForPiece(p),
+        ),
+      );
 
       if (isOverTrack) {
         canvas.style.cursor = "pointer";
@@ -811,23 +788,25 @@ export class CanvasController {
     const selection = this.deps.getSelection();
 
     if (this.deps.isMeasureToolActive()) {
-      const mState = this.deps.getMeasureState();
-      if (mState.draggingPoint) {
-        this.deps.setMeasureState({ draggingPoint: null, locked: true });
-        canvas.style.cursor = "crosshair";
-        this.deps.updateMeasureHud();
-        this.deps.sync();
-      } else if (mState.start && !mState.locked) {
-        const currentWPos = renderer.screenToWorld(e.clientX, e.clientY);
-        const forceNoSnap = e.altKey;
-        const snap = this.deps.findMeasureSnapPoint(currentWPos, 20, forceNoSnap);
-        const pt = snap ? { ...snap } : { ...currentWPos };
-        if (Math.hypot(pt.x - mState.start.x, pt.y - mState.start.y) > 8) {
-          this.deps.setMeasureState({ current: pt, locked: true });
-          this.deps.updateMeasureHud();
-          this.deps.sync();
-        }
+      handleMeasurePointerUp(e, this.deps);
+      return;
+    }
+
+    if (boardSketcher.isActive) {
+      const currentWPos = renderer.screenToWorld(e.clientX, e.clientY);
+      if (boardSketcher.onPointerUp(currentWPos, layout, e.altKey)) {
+        this.deps.sync(true);
       }
+      return;
+    }
+
+    if (terrainBrush.isActive && terrainBrush.isDrawing) {
+      const created = terrainBrush.finishStroke(layout);
+      if (created) {
+        selection.set(created.id);
+        this.deps.getSidebar()?.selectMountain(created.id);
+      }
+      this.deps.sync(true);
       return;
     }
 
@@ -841,25 +820,14 @@ export class CanvasController {
 
       const catalog = this.deps.getCatalog();
       const hitGauge = catalog.gauge ?? 16.5;
-      let hit: TrackPiece | null = null;
-      let minD = Infinity;
-
-      for (const piece of layout.pieces) {
-        if (!this.deps.isPieceInteractive(piece)) continue;
-        const entry = this.deps.getCatalogEntryForPiece(piece);
-        if (!entry) continue;
-
-        const screenGrabBuffer = 35 / scale;
-        const maxAllowedDist = entry.isRoad
-          ? Math.max(40, (entry.roadWidth ?? 60) * 0.7, screenGrabBuffer)
-          : Math.max(36, hitGauge * 2.2, screenGrabBuffer);
-
-        const d = distanceToTrackPiece(currentWPos, piece.transform, entry);
-        if (d < maxAllowedDist && d < minD) {
-          minD = d;
-          hit = piece;
-        }
-      }
+      const hit = findTrackPieceAt(
+        layout,
+        currentWPos,
+        scale,
+        hitGauge,
+        (p) => this.deps.isPieceInteractive(p),
+        (p) => this.deps.getCatalogEntryForPiece(p),
+      );
 
       const pinId = this.activePin.id || (this.activePin.label.includes("B") || this.activePin.label === "Stop" ? "B" : "A");
       const pinDropHandler = this.deps.getPinDropHandler?.();
@@ -968,6 +936,13 @@ export class CanvasController {
   private onWheel(e: WheelEvent): void {
     closeTrackContextMenu();
     if (e.shiftKey || e.altKey) {
+      if (terrainBrush.isActive) {
+        e.preventDefault();
+        e.stopPropagation();
+        terrainBrush.adjustBrushRadius(e.deltaY < 0 ? 20 : -20);
+        this.deps.sync();
+        return;
+      }
       const sel = this.deps.getSelection().all()[0];
       if (sel) {
         e.preventDefault();

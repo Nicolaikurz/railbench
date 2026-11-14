@@ -9,6 +9,45 @@ import { applyCurveElevation, buildRoadPiece3D } from "./viewer-3d-roads";
 import { buildTransferTable3D, buildTurntable3D } from "./viewer-3d-turntables";
 import { buildCatenary3D, buildTransferTableCatenary3D, buildTurntableCatenary3D } from "./viewer-3d-catenary";
 import { buildTrackBridge3D, buildTrackSignal3D, buildTurnoutAccessories3D } from "./viewer-3d-bridges";
+import { buildPieceTunnel3D } from "./track-tunnel";
+
+const SHARED_TIE_MAT = new THREE.MeshStandardMaterial({ color: 0x3e2723, roughness: 0.85 });
+SHARED_TIE_MAT.userData.shared = true;
+
+const SHARED_RAIL_MAT = new THREE.MeshStandardMaterial({ color: 0xd1d5db, metalness: 0.85, roughness: 0.25 });
+SHARED_RAIL_MAT.userData.shared = true;
+
+const _ballastMatCache = new Map<number, THREE.MeshStandardMaterial>();
+function getSharedBallastMaterial(color: number): THREE.MeshStandardMaterial {
+  let mat = _ballastMatCache.get(color);
+  if (!mat) {
+    mat = new THREE.MeshStandardMaterial({
+      color,
+      roughness: 0.9,
+      polygonOffset: true,
+      polygonOffsetFactor: 1,
+      polygonOffsetUnits: 1,
+    });
+    mat.userData.shared = true;
+    _ballastMatCache.set(color, mat);
+  }
+  return mat;
+}
+
+const _tieGeoCache = new Map<number, THREE.BoxGeometry>();
+function getSharedTieGeometry(gauge: number): THREE.BoxGeometry {
+  const key = Math.round(gauge * 100);
+  let geo = _tieGeoCache.get(key);
+  if (!geo) {
+    const tieW = Math.max(1.5, (gauge / 16.5) * 2.6);
+    geo = new THREE.BoxGeometry(tieW, 2.2, gauge * 1.55);
+    geo.userData.shared = true;
+    _tieGeoCache.set(key, geo);
+  }
+  return geo;
+}
+
+const _tieDummy = new THREE.Object3D();
 
 export function buildTrackPiece3D(
   trackGroup: THREE.Group,
@@ -26,6 +65,12 @@ export function buildTrackPiece3D(
 
   if (entry.isRoad) {
     buildRoadPiece3D(group, piece, entry, endElev - startElev, colorMode, layerColor);
+    if (piece.hasBridge) {
+      buildTrackBridge3D(group, entry, piece, startElev, endElev, layout);
+    }
+    if (piece.hasTunnel) {
+      buildPieceTunnel3D(group, entry, piece, startElev, endElev, layout);
+    }
     trackGroup.add(group);
     return;
   }
@@ -68,15 +113,10 @@ export function buildTrackPiece3D(
   const railY = ballastH + railH;
   const heightDiff = endElev - startElev;
 
-  const ballastMat = new THREE.MeshStandardMaterial({
-    color: ballastColor,
-    roughness: 0.9,
-    polygonOffset: true,
-    polygonOffsetFactor: 1,
-    polygonOffsetUnits: 1,
-  });
-  const tieMat = new THREE.MeshStandardMaterial({ color: 0x3e2723, roughness: 0.85 });
-  const railMat = new THREE.MeshStandardMaterial({ color: 0xd1d5db, metalness: 0.85, roughness: 0.25 });
+  const ballastMat = getSharedBallastMaterial(ballastColor);
+  const tieMat = SHARED_TIE_MAT;
+  const railMat = SHARED_RAIL_MAT;
+  const tieGeo = getSharedTieGeometry(gauge);
 
   const addStraightSection = (
     targetGroup: THREE.Group,
@@ -91,15 +131,19 @@ export function buildTrackPiece3D(
     ballastMesh.castShadow = true;
     targetGroup.add(ballastMesh);
 
-    const tieW = Math.max(1.5, (gauge / 16.5) * 2.6);
     const tieStep = Math.max(3.5, (gauge / 16.5) * 6.5);
-    const tieGeo = new THREE.BoxGeometry(tieW, 2.2, gauge * 1.55);
     const tieCount = Math.floor(len / tieStep);
-    for (let i = 0; i < tieCount; i++) {
-      const tie = new THREE.Mesh(tieGeo, tieMat);
-      tie.position.set(startX + i * tieStep + tieStep / 2, ballastH + 1.1, 0);
-      tie.castShadow = true;
-      targetGroup.add(tie);
+    if (tieCount > 0) {
+      const tiesInstanced = new THREE.InstancedMesh(tieGeo, tieMat, tieCount);
+      tiesInstanced.castShadow = true;
+      _tieDummy.rotation.set(0, 0, 0);
+      for (let i = 0; i < tieCount; i++) {
+        _tieDummy.position.set(startX + i * tieStep + tieStep / 2, ballastH + 1.1, 0);
+        _tieDummy.updateMatrix();
+        tiesInstanced.setMatrixAt(i, _tieDummy.matrix);
+      }
+      tiesInstanced.instanceMatrix.needsUpdate = true;
+      targetGroup.add(tiesInstanced);
     }
 
     const railGeo = new THREE.BoxGeometry(len, railH, railW);
@@ -203,10 +247,10 @@ export function buildTrackPiece3D(
     }
 
     const arcLen = r * rad;
-    const tieW = Math.max(1.5, (gauge / 16.5) * 2.6);
     const tieStep = Math.max(3.5, (gauge / 16.5) * 6.5);
     const tieCount = Math.max(3, Math.floor(arcLen / tieStep));
-    const tieGeo = new THREE.BoxGeometry(tieW, 2.2, gauge * 1.55);
+    const tiesInstanced = new THREE.InstancedMesh(tieGeo, tieMat, tieCount);
+    tiesInstanced.castShadow = true;
     for (let i = 0; i < tieCount; i++) {
       const u = (i + 0.5) / tieCount;
       const phi = u * rad;
@@ -214,12 +258,13 @@ export function buildTrackPiece3D(
       const tz = dir * r * (1 - Math.cos(phi));
       const ty = ballastH + 1.1 + u * customHDiff;
 
-      const tieMesh = new THREE.Mesh(tieGeo, tieMat);
-      tieMesh.position.set(tx, ty, tz);
-      tieMesh.rotation.y = -dir * phi;
-      tieMesh.castShadow = true;
-      targetGroup.add(tieMesh);
+      _tieDummy.position.set(tx, ty, tz);
+      _tieDummy.rotation.set(0, -dir * phi, 0);
+      _tieDummy.updateMatrix();
+      tiesInstanced.setMatrixAt(i, _tieDummy.matrix);
     }
+    tiesInstanced.instanceMatrix.needsUpdate = true;
+    targetGroup.add(tiesInstanced);
   };
 
   const isCurvedTurnout =
@@ -366,6 +411,9 @@ export function buildTrackPiece3D(
 
   if (piece.hasBridge) {
     buildTrackBridge3D(group, entry, piece, startElev, endElev, layout);
+  }
+  if (piece.hasTunnel) {
+    buildPieceTunnel3D(group, entry, piece, startElev, endElev, layout);
   }
 
   trackGroup.add(group);

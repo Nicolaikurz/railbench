@@ -329,6 +329,7 @@ export function buildCustomLayerPlate3D(
     width,
     depth,
     shape: plate.shape ?? "rect",
+    customPolygon: plate.customPolygon,
     triangleType: plate.triangleType,
     lWingWidth: plate.lWingWidth,
     lWingDepth: plate.lWingDepth,

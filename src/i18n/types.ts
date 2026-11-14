@@ -215,6 +215,7 @@ export interface Translations {
       tracks: string;
       roads: string;
       models: string;
+      terrain: string;
       board: string;
       bom: string;
     };

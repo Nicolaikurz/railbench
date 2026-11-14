@@ -430,6 +430,7 @@ async function main() {
     onToggleTurnoutLantern: () => operations.toggleSelectedTurnoutLantern(),
     onToggleSignal: () => operations.toggleSelectedSignal(),
     onToggleBridge: () => operations.toggleSelectedBridge(),
+    onToggleTunnel: () => operations.toggleSelectedTunnel(),
     onRotate: (delta) => operations.rotateSelected(delta ?? 7.5),
     onDelete: () => operations.deleteSelected(),
     getSelectedPieceIds: () => selection.all(),

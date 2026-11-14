@@ -8,6 +8,7 @@ import type { PerfMonitor } from "@/ui/perf-monitor";
 import type { TrackOperations } from "./track-operations";
 import { getLanguage, getTranslations } from "@/i18n";
 import { isTurnoutEntry } from "@/core/simulation";
+import { boardSketcher } from "./board-sketcher-controller";
 
 export interface KeyboardControllerDeps {
   getLayout: () => Layout;
@@ -58,6 +59,32 @@ export class KeyboardController {
 
   private onKeyDown(e: KeyboardEvent): void {
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+    if (boardSketcher.isActive) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        boardSketcher.stop();
+        this.deps.sync();
+        return;
+      }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        if (boardSketcher.mode === "poly" && boardSketcher.points.length >= 3) {
+          boardSketcher.finishPoly(this.deps.getLayout());
+          this.deps.sync(true);
+        } else if (boardSketcher.mode === "edit") {
+          boardSketcher.stop();
+          this.deps.sync(true);
+        }
+        return;
+      }
+      if (e.key === "Backspace" && boardSketcher.mode === "poly") {
+        e.preventDefault();
+        boardSketcher.undoLastPoint();
+        this.deps.sync();
+        return;
+      }
+    }
 
     const ctrlOrMeta = e.ctrlKey || e.metaKey;
     const ops = this.deps.getOperations();
@@ -192,6 +219,9 @@ export class KeyboardController {
       } else {
         ops.toggleSelectedBridge();
       }
+    } else if (e.key.toLowerCase() === "t" && !ctrlOrMeta) {
+      e.preventDefault();
+      ops.toggleSelectedTunnel();
     } else if (e.altKey && (e.key.toLowerCase() === "l" || e.code === "KeyL")) {
       e.preventDefault();
       this.deps.toggleSelectionLock?.();

@@ -36,26 +36,6 @@ export function renderLayersTab(sidebar: Sidebar, container: HTMLElement) {
   });
   lockBar.appendChild(selLockBtn);
 
-  if (sidebar.callbacks.onToggleWoodPlate) {
-    const isWoodOn = sidebar.callbacks.isWoodPlateActive?.() ?? false;
-    const woodBtn = document.createElement("button");
-    woodBtn.className = `btn-pill ${isWoodOn ? "active" : ""}`;
-    woodBtn.style.cssText = isWoodOn
-      ? "background: rgba(2, 132, 199, 0.2); border: 1px solid #0284c7; color: #0284c7; font-weight: 600; padding: 4px 8px; font-size: 11px; cursor: pointer; border-radius: 6px;"
-      : "background: var(--bg-surface); border: 1px solid var(--border-color); color: var(--text-main); padding: 4px 8px; font-size: 11px; cursor: pointer; border-radius: 6px;";
-    woodBtn.innerHTML = isWoodOn
-      ? (isDe ? "🪵 Woodplatte an" : "🪵 Wood plate on")
-      : (isDe ? "🪵 Woodplatte aus" : "🪵 Wood plate off");
-    woodBtn.title = isDe
-      ? "Trassenbrett / Woodplatte unter Gleisen und Straßen ein- oder ausblenden"
-      : "Show or hide wood roadbed plate under tracks and roads";
-    woodBtn.addEventListener("click", () => {
-      sidebar.callbacks.onToggleWoodPlate?.();
-      sidebar.render();
-    });
-    lockBar.appendChild(woodBtn);
-  }
-
   header.appendChild(lockBar);
 
   // Orphaned items alert

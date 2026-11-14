@@ -2,6 +2,7 @@ import { Container, Graphics, Text, TextStyle } from "pixi.js";
 import type { Model3D } from "@/core/types";
 import { deg2rad, getUprightTextRotation } from "@/core/geometry";
 import { findBuiltinModelDef } from "@/core/models-3d";
+import { drawCoalingStationTopView, drawDieselFuelStationTopView } from "./model-sprite-depot";
 
 export function createModel2DGraphics(model: Model3D, isSelected: boolean): Container {
   const container = new Container();
@@ -47,6 +48,10 @@ export function createModel2DGraphics(model: Model3D, isSelected: boolean): Cont
     drawSkyscraperTopView(g, w, d, halfW, halfD, isSelected);
   } else if (builtinId === "water-tower") {
     drawWaterTowerTopView(g, w, d, halfW, halfD, isSelected);
+  } else if (builtinId === "coaling-station") {
+    drawCoalingStationTopView(g, w, d, halfW, halfD, isSelected);
+  } else if (builtinId === "diesel-fuel-station") {
+    drawDieselFuelStationTopView(g, w, d, halfW, halfD, isSelected);
   } else if (builtinId === "pine-tree") {
     drawPineTreeTopView(g, w, d, halfW, halfD, isSelected);
   } else if (builtinId === "deciduous-tree") {
@@ -60,7 +65,7 @@ export function createModel2DGraphics(model: Model3D, isSelected: boolean): Cont
   } else if (builtinId === "platform" || builtinId === "bahnsteig") {
     drawPlatformTopView(g, w, d, halfW, halfD, isSelected);
   } else if (builtinId === "mountain") {
-    drawMountainTopView(g, w, d, halfW, halfD, isSelected);
+    drawMountainTopView(g, w, d, halfW, halfD, isSelected, model);
   } else {
     drawGenericBuildingTopView(g, w, d, halfW, halfD, model.category, isSelected);
   }
@@ -724,30 +729,71 @@ function drawPlatformLampTopView(g: Graphics, _w: number, _d: number, halfW: num
 }
 
 /** Standard-Gebäude: Architektonisches Walmdach mit 4-Flächen-Schattierung & Firstlinie */
-function drawMountainTopView(g: Graphics, w: number, d: number, halfW: number, halfD: number, isSelected: boolean) {
-  // Äußerer Bergfuß (organische Ellipse mit Fels- und Grünflächen)
+function drawMountainTopView(
+  g: Graphics,
+  _w: number,
+  _d: number,
+  halfW: number,
+  halfD: number,
+  isSelected: boolean,
+  model?: Model3D,
+) {
+  const style = model?.mountainStyle ?? "alpine";
+  const baseColor = style === "forest" ? 0x14532d : style === "meadow" ? 0x365314 : 0x292524;
+  const midColor = style === "forest" ? 0x166534 : style === "meadow" ? 0x4d7c0f : 0x44403c;
+  const upperColor = style === "forest" ? 0x57534e : style === "meadow" ? 0x65a30d : 0x78716c;
+  const peakColor = style === "rocky" ? 0xd6d3d1 : style === "forest" ? 0xa8a29e : style === "meadow" ? 0x84cc16 : 0xf8fafc;
+
+  const path = model?.mountainPath;
+  if (path && path.length > 0) {
+    const tiers: Array<{ scale: number; color: number; alpha: number }> = [
+      { scale: 1.0, color: baseColor, alpha: 0.65 },
+      { scale: 0.68, color: midColor, alpha: 0.72 },
+      { scale: 0.38, color: upperColor, alpha: 0.78 },
+      { scale: 0.18, color: peakColor, alpha: 0.88 },
+    ];
+    for (const tier of tiers) {
+      if (path.length >= 2) {
+        g.moveTo(path[0]!.x, path[0]!.y);
+        for (let i = 1; i < path.length; i++) g.lineTo(path[i]!.x, path[i]!.y);
+        const avgR = path.reduce((s, n) => s + n.radius, 0) / path.length;
+        g.stroke({ width: Math.max(4, avgR * 2 * tier.scale), color: tier.color, alpha: tier.alpha, cap: "round", join: "round" });
+      } else {
+        const n0 = path[0]!;
+        g.circle(n0.x, n0.y, Math.max(4, n0.radius * tier.scale));
+        g.fill({ color: tier.color, alpha: tier.alpha });
+      }
+    }
+    if (isSelected) {
+      g.rect(-halfW, -halfD, halfW * 2, halfD * 2);
+      g.stroke({ width: 2.0, color: 0x38bdf8, alpha: 0.85 });
+    }
+    return;
+  }
+
+  // Äußerer Bergfuß (leicht transparent, damit Tunnelgleise darunter sichtbar bleiben)
   g.ellipse(0, 0, halfW, halfD);
-  g.fill({ color: 0x292524, alpha: 0.88 });
+  g.fill({ color: baseColor, alpha: 0.68 });
   g.stroke({ width: isSelected ? 2.5 : 1.5, color: isSelected ? 0x38bdf8 : 0x44403c });
 
   // Mittlere Höhenlinie / Felszone
   g.ellipse(0, 0, halfW * 0.68, halfD * 0.68);
-  g.fill({ color: 0x44403c, alpha: 0.92 });
-  g.stroke({ width: 1.2, color: 0x57534e, alpha: 0.75 });
+  g.fill({ color: midColor, alpha: 0.72 });
+  g.stroke({ width: 1.2, color: 0x57534e, alpha: 0.65 });
 
   // Obere Fels- und Gratschicht
   g.ellipse(0, 0, halfW * 0.38, halfD * 0.38);
-  g.fill({ color: 0x78716c, alpha: 0.95 });
+  g.fill({ color: upperColor, alpha: 0.78 });
 
-  // Schneegipfel im Zentrum
+  // Gipfel im Zentrum
   g.ellipse(0, 0, halfW * 0.18, halfD * 0.18);
-  g.fill({ color: 0xf8fafc, alpha: 0.98 });
+  g.fill({ color: peakColor, alpha: 0.9 });
   g.stroke({ width: 1.0, color: 0xe2e8f0 });
 
   // Gipfelkreuz / Gratlinie
   g.moveTo(-halfW * 0.3, 0).lineTo(halfW * 0.3, 0);
   g.moveTo(0, -halfD * 0.25).lineTo(0, halfD * 0.25);
-  g.stroke({ width: 1.4, color: 0xffffff, alpha: 0.9 });
+  g.stroke({ width: 1.4, color: 0xffffff, alpha: 0.85 });
 }
 
 /** Bahnsteig: Pflasterbelag, Bahnsteigkanten, taktile Sicherheitsstreifen, Treppenabgang & Glas-Stahldach */

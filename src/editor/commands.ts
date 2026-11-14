@@ -432,7 +432,7 @@ export class SetSignalConfigCommand implements Command {
 }
 
 export class ToggleBridgeCommand implements Command {
-  private prevStates = new Map<string, boolean | undefined>();
+  private prevStates = new Map<string, { hasBridge?: boolean; hasTunnel?: boolean }>();
   private targetState?: boolean;
 
   constructor(private pieceIds: string[], targetState?: boolean) {
@@ -447,15 +447,52 @@ export class ToggleBridgeCommand implements Command {
     const shouldEnable =
       this.targetState !== undefined ? this.targetState : !pieces.every((p) => !!p.hasBridge);
     for (const p of pieces) {
-      this.prevStates.set(p.id, p.hasBridge);
+      this.prevStates.set(p.id, { hasBridge: p.hasBridge, hasTunnel: p.hasTunnel });
       p.hasBridge = shouldEnable;
+      if (shouldEnable) p.hasTunnel = false;
     }
   }
 
   undo(layout: Layout): void {
     for (const [id, state] of this.prevStates.entries()) {
       const p = layout.pieces.find((x) => x.id === id);
-      if (p) p.hasBridge = state;
+      if (p) {
+        p.hasBridge = state.hasBridge;
+        p.hasTunnel = state.hasTunnel;
+      }
+    }
+  }
+}
+
+export class ToggleTunnelCommand implements Command {
+  private prevStates = new Map<string, { hasTunnel?: boolean; hasBridge?: boolean }>();
+  private targetState?: boolean;
+
+  constructor(private pieceIds: string[], targetState?: boolean) {
+    this.targetState = targetState;
+  }
+
+  do(layout: Layout): void {
+    this.prevStates.clear();
+    const pieces = layout.pieces.filter((p) => this.pieceIds.includes(p.id));
+    if (pieces.length === 0) return;
+
+    const shouldEnable =
+      this.targetState !== undefined ? this.targetState : !pieces.every((p) => !!p.hasTunnel);
+    for (const p of pieces) {
+      this.prevStates.set(p.id, { hasTunnel: p.hasTunnel, hasBridge: p.hasBridge });
+      p.hasTunnel = shouldEnable;
+      if (shouldEnable) p.hasBridge = false;
+    }
+  }
+
+  undo(layout: Layout): void {
+    for (const [id, state] of this.prevStates.entries()) {
+      const p = layout.pieces.find((x) => x.id === id);
+      if (p) {
+        p.hasTunnel = state.hasTunnel;
+        p.hasBridge = state.hasBridge;
+      }
     }
   }
 }

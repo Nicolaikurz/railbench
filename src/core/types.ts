@@ -30,6 +30,7 @@ export interface TrackPiece {
   signalSide?: SignalSide;
   signalDirection?: SignalDirection;
   hasBridge?: boolean;
+  hasTunnel?: boolean;
   customName?: string;
   customLength?: number;
   customRadius?: number;
@@ -46,7 +47,7 @@ export type SignalDirection = "forward" | "backward" | "both";
 export type LayerWoodPlateMode = "none" | "table" | "tight";
 
 export type BaseboardStyle = "wood" | "dark-wood" | "plywood" | "slate" | "white" | "grass";
-export type BaseboardShape = "rect" | "l-shape" | "u-shape" | "t-shape" | "triangle";
+export type BaseboardShape = "rect" | "l-shape" | "u-shape" | "t-shape" | "triangle" | "custom";
 export type BaseboardTriangleType = "corner-tl" | "corner-tr" | "corner-bl" | "corner-br" | "isosceles";
 
 export interface LayerPlate {
@@ -54,6 +55,7 @@ export interface LayerPlate {
   name?: string;
   baseboardId?: string; // id of the table this plate is attached to
   shape?: BaseboardShape;
+  customPolygon?: Vec2[]; // local polygon vertices (0..width, 0..depth) when shape === "custom"
   triangleType?: BaseboardTriangleType;
   lWingWidth?: number;
   lWingDepth?: number;
@@ -91,6 +93,7 @@ export interface BaseboardConfig {
   name?: string;
   enabled: boolean;
   shape?: BaseboardShape;
+  customPolygon?: Vec2[]; // local polygon vertices (0..width, 0..depth) when shape === "custom"
   triangleType?: BaseboardTriangleType;
   width: number; // in mm, z.B. 2400
   depth: number; // in mm, z.B. 1200
@@ -116,6 +119,15 @@ export interface BaseboardConfig {
 
 export type ModelCategory = "buildings" | "nature" | "railway" | "custom";
 
+export type MountainStyle = "alpine" | "rocky" | "forest" | "meadow";
+
+export interface MountainBrushNode {
+  x: number; // local X offset relative to mountain.transform.x (mm)
+  y: number; // local Y offset relative to mountain.transform.y (mm)
+  radius: number; // local radius at this node (mm)
+  height: number; // local peak height at this node (mm)
+}
+
 export interface Model3D {
   id: string;
   name: string;
@@ -129,6 +141,8 @@ export interface Model3D {
   height: number;       // vertical height in mm
   modelType: "builtin" | "glb" | "gltf";
   builtinId?: string;
+  mountainStyle?: MountainStyle;
+  mountainPath?: MountainBrushNode[];
   fileData?: string;    // base64 data URI for glb / text for gltf
   fileName?: string;
 }

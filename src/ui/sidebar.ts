@@ -20,7 +20,9 @@ import { renderRoadsTab } from "./sidebar/roads-tab";
 import { renderModelsTab } from "./sidebar/models-tab";
 import { renderLayersTab } from "./sidebar/layers-tab";
 import { renderBoardTab } from "./sidebar/board-tab";
+import { renderTerrainTab } from "./sidebar/terrain-tab";
 import { renderBomTab } from "./sidebar/bom-tab";
+import { boardSketcher } from "@/editor/board-sketcher-controller";
 
 export * from "./sidebar/shared";
 export {
@@ -29,11 +31,12 @@ export {
   renderModelsTab,
   renderLayersTab,
   renderBoardTab,
+  renderTerrainTab,
   renderBomTab,
 };
 
 export type { ModelScale };
-export type SidebarTab = "catalog" | "roads" | "models" | "board" | "bom" | "layers";
+export type SidebarTab = "catalog" | "roads" | "models" | "terrain" | "board" | "bom" | "layers";
 
 export function setupDoubleAction(
   element: { addEventListener: (event: string, handler: (e: any) => void) => void },
@@ -606,6 +609,14 @@ export class Sidebar {
         `${t.tabs.models} (${BUILTIN_MODELS.length + this.customModelsLibrary.length})`,
       ),
     );
+    const mountainCount = (this.layout.models || []).filter((m) => m.builtinId === "mountain").length;
+    tabHeader.appendChild(
+      this.createTabButton(
+        "terrain",
+        t.tabs.terrain,
+        `${t.tabs.terrain} (${mountainCount})`,
+      ),
+    );
     tabHeader.appendChild(this.createTabButton("board", t.tabs.board, t.board.title));
     tabHeader.appendChild(this.createTabButton("bom", t.tabs.bom, `${t.bom.title} (${bomSummary.totalObjects})`));
     
@@ -628,6 +639,8 @@ export class Sidebar {
       renderRoadsTab(this, content);
     } else if (this.activeTab === "models") {
       renderModelsTab(this, content);
+    } else if (this.activeTab === "terrain") {
+      renderTerrainTab(this, content);
     } else if (this.activeTab === "board") {
       renderBoardTab(this, content);
     } else if (this.activeTab === "bom") {
@@ -640,6 +653,9 @@ export class Sidebar {
   }
 
   setActiveTab(tab: SidebarTab) {
+    if (tab !== "board" && boardSketcher.isActive) {
+      boardSketcher.stop();
+    }
     this.activeTab = tab;
     this.callbacks.onTabChange?.(tab);
     this.render();
@@ -665,14 +681,8 @@ export class Sidebar {
   selectMountain(mountainId: string) {
     this.activeMountainId = mountainId;
     this.mountainsOpen = true;
-    this.setActiveTab("board");
+    this.setActiveTab("terrain");
     this.callbacks.onSelectModel?.(mountainId);
-    setTimeout(() => {
-      const summary = Array.from(this.host.querySelectorAll("summary")).find((s) =>
-        s.textContent?.includes("Berg") || s.textContent?.includes("Mountain"),
-      );
-      summary?.parentElement?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    }, 50);
   }
 
   isBaseboardTabActive(): boolean {
@@ -685,6 +695,9 @@ export class Sidebar {
     b.title = tooltip;
     b.innerHTML = `<span class="tab-label">${label}</span>`;
     b.addEventListener("click", () => {
+      if (tab !== "board" && boardSketcher.isActive) {
+        boardSketcher.stop();
+      }
       this.activeTab = tab;
       this.callbacks.onTabChange?.(tab);
       this.render();

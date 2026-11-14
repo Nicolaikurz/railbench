@@ -87,6 +87,9 @@ export function openTrackContextMenu(
     onToggleBridge: () => {
       ops.toggleSelectedBridge();
     },
+    onToggleTunnel: () => {
+      ops.toggleSelectedTunnel();
+    },
     onToggleFeeder: () => {
       ops.toggleSelectedFeeder();
     },

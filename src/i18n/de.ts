@@ -216,6 +216,7 @@ export const de: Translations = {
       tracks: "Gleise",
       roads: "Straßen",
       models: "3D",
+      terrain: "Gelände",
       board: "Tisch",
       bom: "Stückliste",
     },

@@ -12,6 +12,7 @@ import {
   ToggleSignalCommand,
   SetSignalConfigCommand,
   ToggleBridgeCommand,
+  ToggleTunnelCommand,
   MovePiecesToLayerCommand,
   ApplyRampElevationsCommand,
   MovePieceCommand,
@@ -175,6 +176,16 @@ export function toggleSelectedBridge(ctx: EditorContext, targetState?: boolean):
   const selected = selection.all();
   if (selected.length > 0) {
     history.run(new ToggleBridgeCommand(selected, targetState));
+    ctx.sync(true);
+  }
+}
+
+export function toggleSelectedTunnel(ctx: EditorContext, targetState?: boolean): void {
+  const selection = ctx.getSelection();
+  const history = ctx.getHistory();
+  const selected = selection.all();
+  if (selected.length > 0) {
+    history.run(new ToggleTunnelCommand(selected, targetState));
     ctx.sync(true);
   }
 }

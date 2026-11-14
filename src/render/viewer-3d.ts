@@ -2,13 +2,13 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import type { Layout, TrackPiece, Layer, BaseboardConfig, Model3D, ColorMode, LayerWoodPlateMode, Vec2 } from "@/core/types";
-import { getBaseboards } from "@/core/layout";
+import { getBaseboardBounds, getBaseboards } from "@/core/layout";
 import type { Catalog, CatalogEntry } from "@/catalog/catalog";
 import { catalogRegistry } from "@/catalog/catalog";
 import { deg2rad } from "@/core/geometry";
 import { parseModelScale, type ModelScale } from "@/core/model-scale";
 import type { ShortCircuitDetectionResult } from "@/core/simulation";
-import { getTranslations, getLanguage } from "@/i18n";
+import { getTranslations, getLanguage, onLanguageChange } from "@/i18n";
 import { getEffectiveFlexEntry } from "@/core/flextrack";
 import { buildRealisticLandscape } from "./viewer-3d-landscape";
 import { buildTrainHall } from "./viewer-3d-trainhall";
@@ -18,33 +18,18 @@ import { buildBuildingWoodPlate3D, buildModel3D } from "./viewer-3d-models";
 import { buildTrackPiece3D } from "./viewer-3d-track";
 import { buildCatenary3D, buildTurntableCatenary3D, buildTransferTableCatenary3D } from "./viewer-3d-catenary";
 import { buildTrackSignal3D, isPillarColliding, buildTrackBridge3D } from "./viewer-3d-bridges";
+import {
+  SKY_KEYFRAMES,
+  applyCameraViewPreset,
+  buildCelestialBodies,
+  createViewCubeWidget,
+  orbitCameraByDegrees,
+  updateViewCubeOrientation,
+  type CameraViewPreset,
+} from "./viewer-3d-viewcube";
 
+export type { CameraViewPreset };
 export type Viewer3DEnvironment = "landscape" | "hall" | "minimal";
-
-interface SkyKeyframe {
-  hour: number;
-  sky: number;
-  fog: number;
-  sunLight: number;
-  sunInt: number;
-  hemiSky: number;
-  hemiGround: number;
-  hemiInt: number;
-  lampGlow: number;
-  icon: string;
-}
-
-const SKY_KEYFRAMES: SkyKeyframe[] = [
-  { hour: 0.0, sky: 0x030712, fog: 0x081120, sunLight: 0x60a5fa, sunInt: 0.25, hemiSky: 0x0c192c, hemiGround: 0x040812, hemiInt: 0.25, lampGlow: 1.8, icon: "🌙" },
-  { hour: 4.8, sky: 0x0c1b33, fog: 0x14203d, sunLight: 0x818cf8, sunInt: 0.32, hemiSky: 0x1e293b, hemiGround: 0x0f172a, hemiInt: 0.32, lampGlow: 1.6, icon: "🌌" },
-  { hour: 6.0, sky: 0xf97316, fog: 0xfdba74, sunLight: 0xfb923c, sunInt: 0.9, hemiSky: 0xfdba74, hemiGround: 0x78350f, hemiInt: 0.65, lampGlow: 0.9, icon: "🌅" },
-  { hour: 8.0, sky: 0x60a5fa, fog: 0xbae6fd, sunLight: 0xfef08a, sunInt: 1.35, hemiSky: 0xbde0fe, hemiGround: 0x27272a, hemiInt: 0.8, lampGlow: 0.2, icon: "🌤️" },
-  { hour: 12.0, sky: 0x38bdf8, fog: 0xb5daf0, sunLight: 0xfffaed, sunInt: 1.6, hemiSky: 0xe0f2fe, hemiGround: 0x334155, hemiInt: 0.95, lampGlow: 0.0, icon: "☀️" },
-  { hour: 17.5, sky: 0xf59e0b, fog: 0xfde047, sunLight: 0xfb923c, sunInt: 1.45, hemiSky: 0xfef08a, hemiGround: 0x451a03, hemiInt: 0.82, lampGlow: 0.3, icon: "🌇" },
-  { hour: 19.2, sky: 0xd946ef, fog: 0xf472b6, sunLight: 0xf43f5e, sunInt: 0.75, hemiSky: 0xa855f7, hemiGround: 0x3b0764, hemiInt: 0.55, lampGlow: 1.3, icon: "🌆" },
-  { hour: 21.0, sky: 0x0f172a, fog: 0x1e1b4b, sunLight: 0x93c5fd, sunInt: 0.32, hemiSky: 0x1e293b, hemiGround: 0x050d1a, hemiInt: 0.3, lampGlow: 1.8, icon: "🌙" },
-  { hour: 24.0, sky: 0x030712, fog: 0x081120, sunLight: 0x60a5fa, sunInt: 0.25, hemiSky: 0x0c192c, hemiGround: 0x040812, hemiInt: 0.25, lampGlow: 1.8, icon: "🌙" },
-];
 
 export class Viewer3D {
   private container: HTMLElement;
@@ -94,6 +79,17 @@ export class Viewer3D {
   private cycleBtnEl: HTMLButtonElement | null = null;
   private cycleLabelEl: HTMLElement | null = null;
   private speedBtnEl: HTMLButtonElement | null = null;
+  private viewCubeEl: HTMLElement | null = null;
+  private refreshViewCubeLabels: (() => void) | null = null;
+  private lastTimeStr = "";
+  private builtHallKey = "";
+  private builtLandscapeKey = "";
+  private readonly _c1 = new THREE.Color();
+  private readonly _curSky = new THREE.Color();
+  private readonly _curFog = new THREE.Color();
+  private readonly _curSun = new THREE.Color();
+  private readonly _curHemiSky = new THREE.Color();
+  private readonly _curHemiGnd = new THREE.Color();
 
   constructor(host: HTMLElement) {
     this.container = document.createElement("div");
@@ -122,8 +118,7 @@ export class Viewer3D {
     this.landscapeGroup.visible = this.envMode === "landscape";
     this.showTrainHall = this.envMode === "hall";
 
-    const savedWoodPlate = typeof localStorage !== "undefined" ? localStorage.getItem("railbench_3d_woodplate") : null;
-    this.showWoodPlate = savedWoodPlate === "1";
+    this.showWoodPlate = true;
     this.woodPlateGroup.visible = this.showWoodPlate;
 
     // 1. Scene
@@ -145,12 +140,15 @@ export class Viewer3D {
       this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       this.container.appendChild(this.renderer.domElement);
 
-      // 4. Orbit Controls
+      // 4. Orbit Controls (Volle 360°/180° Perspektivenfreiheit inkl. Ansicht von unten)
       this.controls = new OrbitControls(this.camera, this.renderer.domElement);
       this.controls.enableDamping = true;
       this.controls.dampingFactor = 0.08;
-      this.controls.maxPolarAngle = Math.PI / 2 - 0.02; // Nicht unter den Tisch blicken
-      this.controls.minDistance = 80;
+      this.controls.minPolarAngle = 0;
+      this.controls.maxPolarAngle = Math.PI;
+      this.controls.minAzimuthAngle = -Infinity;
+      this.controls.maxAzimuthAngle = Infinity;
+      this.controls.minDistance = 30;
       this.controls.maxDistance = 65000;
       this.controls.target.set(0, 0, 0);
     } catch (err) {
@@ -269,6 +267,7 @@ export class Viewer3D {
 
   setEnvironment(mode: Viewer3DEnvironment) {
     this.envMode = mode;
+    this.ensureActiveEnvironmentBuilt();
     this.landscapeGroup.visible = mode === "landscape";
     this.trainHallGroup.visible = mode === "hall";
     this.celestialGroup.visible = mode !== "minimal";
@@ -313,12 +312,33 @@ export class Viewer3D {
     const dayNightBar = this.overlayEl.querySelector(".v3d-daynight-bar") as HTMLElement | null;
     if (dayNightBar) {
       dayNightBar.style.display = this.envMode === "minimal" ? "none" : "inline-flex";
+      dayNightBar.title = isDe ? "Tag/Nacht-Zyklus mit wandernder Sonne" : "Day/Night cycle with moving sun";
+    }
+    if (this.cycleBtnEl) {
+      this.cycleBtnEl.title = isDe ? "Tag/Nacht-Zyklus starten oder anhalten" : "Start or pause Day/Night cycle";
+    }
+    if (this.timeSliderEl) {
+      this.timeSliderEl.title = isDe ? "Tageszeit einstellen (00:00 - 24:00 Uhr)" : "Set time of day (00:00 - 24:00)";
+    }
+    if (this.speedBtnEl) {
+      this.speedBtnEl.title = isDe ? "Geschwindigkeit ändern (1x = 20 Min. pro Tag)" : "Change cycle speed (1x = 20 min per day)";
     }
 
     const btnHall = this.overlayEl.querySelector("#v3d-env-hall");
     const btnMinimal = this.overlayEl.querySelector("#v3d-env-minimal");
     btnHall?.classList.toggle("active", this.envMode === "hall");
     btnMinimal?.classList.toggle("active", this.envMode === "minimal");
+    this.refreshViewCubeLabels?.();
+  }
+
+  setCameraViewPreset(preset: CameraViewPreset) {
+    applyCameraViewPreset(this.camera, this.controls, preset, this.sceneCenter);
+    updateViewCubeOrientation(this.viewCubeEl, this.camera, this.controls);
+  }
+
+  orbitCameraBy(deltaAzimuthDeg: number, deltaPolarDeg: number) {
+    orbitCameraByDegrees(this.camera, this.controls, deltaAzimuthDeg, deltaPolarDeg);
+    updateViewCubeOrientation(this.viewCubeEl, this.camera, this.controls);
   }
 
   private setupOverlayUI() {
@@ -383,7 +403,22 @@ export class Viewer3D {
       }
     });
 
+    // CAD ViewCube ("Ansichtswürfel") direkt unter dem Hintergrund-Umschalter platzieren
+    const vc = createViewCubeWidget(
+      (preset) => this.setCameraViewPreset(preset),
+      (dAz, dPol) => this.orbitCameraBy(dAz, dPol),
+    );
+    vc.panelEl.style.position = "absolute";
+    vc.panelEl.style.top = "58px";
+    vc.panelEl.style.left = "16px";
+    vc.panelEl.style.zIndex = "25";
+    overlay.appendChild(vc.panelEl);
+    this.viewCubeEl = vc.cubeEl;
+    this.refreshViewCubeLabels = vc.refreshLabels;
+    updateViewCubeOrientation(this.viewCubeEl, this.camera, this.controls);
+
     this.updateOverlayUIActiveStates();
+    onLanguageChange(() => this.updateOverlayUIActiveStates());
     this.container.appendChild(overlay);
   }
 
@@ -400,6 +435,7 @@ export class Viewer3D {
     this.container.style.display = "block";
     const isDark = this.getIsDark();
     this.currentTheme = isDark ? "dark" : "light";
+    this.ensureActiveEnvironmentBuilt();
     this.updateSceneBackground();
     this.updateLighting();
     this.updateOverlayUIActiveStates();
@@ -436,45 +472,11 @@ export class Viewer3D {
   }
 
   private setupCelestialBodies() {
-    this.celestialGroup.clear();
-
-    const sunGeo = new THREE.SphereGeometry(2400, 24, 24);
-    const sunMat = new THREE.MeshBasicMaterial({ color: 0xfffbeb });
-    this.sunMesh = new THREE.Mesh(sunGeo, sunMat);
-    this.celestialGroup.add(this.sunMesh);
-
-    const coronaGeo = new THREE.RingGeometry(2400, 8200, 36);
-    const coronaMat = new THREE.MeshBasicMaterial({
-      color: 0xfef08a,
-      transparent: true,
-      opacity: 0.45,
-      side: THREE.DoubleSide,
-      depthWrite: false,
-    });
-    this.sunCorona = new THREE.Mesh(coronaGeo, coronaMat);
-    this.celestialGroup.add(this.sunCorona);
-
-    const moonGeo = new THREE.SphereGeometry(1800, 24, 24);
-    const moonMat = new THREE.MeshStandardMaterial({
-      color: 0xf1f5f9,
-      roughness: 0.85,
-      metalness: 0.15,
-      emissive: 0x93c5fd,
-      emissiveIntensity: 0.25,
-    });
-    this.moonMesh = new THREE.Mesh(moonGeo, moonMat);
-    this.celestialGroup.add(this.moonMesh);
-
-    const moonGlowGeo = new THREE.RingGeometry(1800, 5600, 32);
-    const moonGlowMat = new THREE.MeshBasicMaterial({
-      color: 0xa5b4fc,
-      transparent: true,
-      opacity: 0.35,
-      side: THREE.DoubleSide,
-      depthWrite: false,
-    });
-    this.moonGlow = new THREE.Mesh(moonGlowGeo, moonGlowMat);
-    this.celestialGroup.add(this.moonGlow);
+    const bodies = buildCelestialBodies(this.celestialGroup);
+    this.sunMesh = bodies.sunMesh;
+    this.sunCorona = bodies.sunCorona;
+    this.moonMesh = bodies.moonMesh;
+    this.moonGlow = bodies.moonGlow;
   }
 
   private applyTimeOfDay() {
@@ -497,24 +499,24 @@ export class Viewer3D {
     const span = kf1.hour - kf0.hour;
     const t = span > 0 ? (this.timeOfDay - kf0.hour) / span : 0;
 
-    const curSky = new THREE.Color(kf0.sky).lerp(new THREE.Color(kf1.sky), t);
-    const curFog = new THREE.Color(kf0.fog).lerp(new THREE.Color(kf1.fog), t);
-    const curSun = new THREE.Color(kf0.sunLight).lerp(new THREE.Color(kf1.sunLight), t);
+    const curSky = this._curSky.setHex(kf0.sky).lerp(this._c1.setHex(kf1.sky), t);
+    const curFog = this._curFog.setHex(kf0.fog).lerp(this._c1.setHex(kf1.fog), t);
+    const curSun = this._curSun.setHex(kf0.sunLight).lerp(this._c1.setHex(kf1.sunLight), t);
     const curSunInt = THREE.MathUtils.lerp(kf0.sunInt, kf1.sunInt, t);
-    const curHemiSky = new THREE.Color(kf0.hemiSky).lerp(new THREE.Color(kf1.hemiSky), t);
-    const curHemiGnd = new THREE.Color(kf0.hemiGround).lerp(new THREE.Color(kf1.hemiGround), t);
+    const curHemiSky = this._curHemiSky.setHex(kf0.hemiSky).lerp(this._c1.setHex(kf1.hemiSky), t);
+    const curHemiGnd = this._curHemiGnd.setHex(kf0.hemiGround).lerp(this._c1.setHex(kf1.hemiGround), t);
     const curHemiInt = THREE.MathUtils.lerp(kf0.hemiInt, kf1.hemiInt, t);
     const curLampGlow = THREE.MathUtils.lerp(kf0.lampGlow, kf1.lampGlow, t);
 
     if (this.scene.background instanceof THREE.Color) {
       this.scene.background.copy(curSky);
     } else {
-      this.scene.background = curSky;
+      this.scene.background = curSky.clone();
     }
     if (this.scene.fog && this.scene.fog instanceof THREE.FogExp2) {
       this.scene.fog.color.copy(curFog);
     } else {
-      this.scene.fog = new THREE.FogExp2(curFog, 0.000013);
+      this.scene.fog = new THREE.FogExp2(curFog.clone(), 0.000013);
     }
 
     if (this.hemiLight) {
@@ -589,9 +591,12 @@ export class Viewer3D {
     const h = Math.floor(this.timeOfDay);
     const m = Math.floor((this.timeOfDay - h) * 60);
     const timeStr = `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
-    if (this.cycleLabelEl) this.cycleLabelEl.textContent = timeStr;
-    if (this.timeSliderEl && document.activeElement !== this.timeSliderEl) {
-      this.timeSliderEl.value = this.timeOfDay.toFixed(2);
+    if (this.lastTimeStr !== timeStr) {
+      this.lastTimeStr = timeStr;
+      if (this.cycleLabelEl) this.cycleLabelEl.textContent = timeStr;
+      if (this.timeSliderEl && document.activeElement !== this.timeSliderEl) {
+        this.timeSliderEl.value = this.timeOfDay.toFixed(2);
+      }
     }
   }
 
@@ -637,6 +642,12 @@ export class Viewer3D {
       if (this.moonGlow) this.moonGlow.quaternion.copy(this.camera.quaternion);
 
       if (this.controls) this.controls.update();
+      updateViewCubeOrientation(this.viewCubeEl, this.camera, this.controls);
+      if (this.camera) {
+        const aboveFloor = this.camera.position.y >= -700;
+        this.trainHallGroup.visible = this.envMode === "hall" && aboveFloor;
+        this.landscapeGroup.visible = this.envMode === "landscape" && aboveFloor;
+      }
       if (this.renderer && this.scene && this.camera) {
         this.renderer.render(this.scene, this.camera);
       }
@@ -662,6 +673,47 @@ export class Viewer3D {
     this.renderer.setSize(width, height);
   }
 
+  private computeEnvironmentKey(layout: Layout, isDark: boolean): string {
+    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    for (const bb of getBaseboards(layout)) {
+      if (!bb.enabled) continue;
+      const b = getBaseboardBounds(bb);
+      minX = Math.min(minX, b.x);
+      maxX = Math.max(maxX, b.x + b.width);
+      minZ = Math.min(minZ, b.y);
+      maxZ = Math.max(maxZ, b.y + b.depth);
+    }
+    if (!Number.isFinite(minX)) {
+      for (const p of layout.pieces) {
+        minX = Math.min(minX, p.transform.x);
+        maxX = Math.max(maxX, p.transform.x);
+        minZ = Math.min(minZ, p.transform.y);
+        maxZ = Math.max(maxZ, p.transform.y);
+      }
+    }
+    if (!Number.isFinite(minX)) {
+      minX = -1200; maxX = 1200; minZ = -800; maxZ = 800;
+    }
+    return `${isDark ? 1 : 0}:${Math.round(minX)}:${Math.round(maxX)}:${Math.round(minZ)}:${Math.round(maxZ)}`;
+  }
+
+  private ensureActiveEnvironmentBuilt() {
+    if (!this.currentLayout) return;
+    const isDark = this.currentTheme === "dark";
+    const envKey = this.computeEnvironmentKey(this.currentLayout, isDark);
+    if (this.envMode === "hall" && this.builtHallKey !== envKey) {
+      this.clearGroup(this.trainHallGroup);
+      const hallRes = buildTrainHall(this.trainHallGroup, this.currentLayout, isDark);
+      this.sceneCenter.set(hallRes.sceneCenter.cx, hallRes.sceneCenter.floorY, hallRes.sceneCenter.cz);
+      this.nightLampMats = hallRes.nightLampMats;
+      this.builtHallKey = envKey;
+    } else if (this.envMode === "landscape" && this.builtLandscapeKey !== envKey) {
+      this.clearGroup(this.landscapeGroup);
+      buildRealisticLandscape(this.landscapeGroup, this.currentLayout, isDark);
+      this.builtLandscapeKey = envKey;
+    }
+  }
+
   /** Baut die gesamte 3D-Szene auf: Tischform, Pfeiler, Schotterbett, Schienen und Schwellen nach Ebenen. */
   updateLayout(
     layout: Layout,
@@ -676,21 +728,12 @@ export class Viewer3D {
     this.clearGroup(this.woodPlateGroup);
     this.clearGroup(this.trackGroup);
     this.clearGroup(this.modelsGroup);
-    this.clearGroup(this.trainHallGroup);
-    this.clearGroup(this.landscapeGroup);
     this.clearGroup(this.shortCircuitGroup);
 
     this.woodPlateGroup.visible = this.showWoodPlate;
 
-    // 0a. Train Hall mit umgebendem Wald
-    const isDark = this.currentTheme === "dark";
-    const hallRes = buildTrainHall(this.trainHallGroup, layout, isDark);
-    this.sceneCenter.set(hallRes.sceneCenter.cx, hallRes.sceneCenter.floorY, hallRes.sceneCenter.cz);
-    this.nightLampMats = hallRes.nightLampMats;
-
-    // 0b. Realistische Natur-Landschaft
-    buildRealisticLandscape(this.landscapeGroup, layout, isDark);
-
+    // 0. Aktive 3D-Umgebung (Lokhalle oder Landschaft) nur bei geänderter Plattengröße/Theme neu aufbauen
+    this.ensureActiveEnvironmentBuilt();
     this.trainHallGroup.visible = this.envMode === "hall";
     this.landscapeGroup.visible = this.envMode === "landscape";
     this.applyTimeOfDay();
@@ -806,6 +849,8 @@ export class Viewer3D {
               (!plate.y || plate.y === 0) &&
               plate.width === targetBoard.width &&
               plate.depth === targetBoard.depth &&
+              plate.shape !== "custom" &&
+              targetBoard.shape !== "custom" &&
               (!plate.shape || plate.shape === (targetBoard.shape ?? "rect"));
 
             if (isGroundMatchingBoard) {
@@ -916,10 +961,14 @@ export class Viewer3D {
       group.remove(obj);
       obj.traverse((child) => {
         if (child instanceof THREE.Mesh) {
-          child.geometry?.dispose();
+          if (child.geometry && !child.geometry.userData?.shared) {
+            child.geometry.dispose();
+          }
           if (Array.isArray(child.material)) {
-            child.material.forEach((m) => m.dispose());
-          } else if (child.material) {
+            child.material.forEach((m) => {
+              if (!m.userData?.shared) m.dispose();
+            });
+          } else if (child.material && !child.material.userData?.shared) {
             child.material.dispose();
           }
         }

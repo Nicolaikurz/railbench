@@ -9,6 +9,93 @@ import { snapTrackPieceToBuilding, snapEngineShedToTrack, snapTrainhallToTrack }
 import { snapModelToTurntable } from "@/core/turntable-snap";
 import { rotateGroupAroundCentroid, type RotatableItem } from "@/core/geometry";
 import { MovePieceCommand, MoveModelCommand } from "@/editor/commands";
+import type { CanvasControllerDeps } from "./canvas-controller-types";
+
+export function handleMeasurePointerDown(e: PointerEvent, deps: CanvasControllerDeps): void {
+  const { renderer, canvas } = deps;
+  const mState = deps.getMeasureState();
+  if (e.button === 0) {
+    const wPos = renderer.screenToWorld(e.clientX, e.clientY);
+    const forceNoSnap = e.altKey;
+    if (mState.start && Math.hypot(wPos.x - mState.start.x, wPos.y - mState.start.y) <= 15) {
+      deps.setMeasureState({ draggingPoint: "A" });
+      canvas.style.cursor = "grabbing";
+      return;
+    }
+    if (mState.current && Math.hypot(wPos.x - mState.current.x, wPos.y - mState.current.y) <= 15) {
+      deps.setMeasureState({ draggingPoint: "B" });
+      canvas.style.cursor = "grabbing";
+      return;
+    }
+    const snap = deps.findMeasureSnapPoint(wPos, 20, forceNoSnap);
+    const pt = snap ? { ...snap } : { ...wPos };
+    if (!mState.start || mState.locked) {
+      deps.setMeasureState({ start: pt, current: pt, locked: false });
+    } else {
+      deps.setMeasureState({ current: pt, locked: true });
+    }
+    deps.updateMeasureHud();
+    deps.sync();
+  } else if (e.button === 2) {
+    if (mState.start) {
+      deps.setMeasureState({ start: null, current: null, locked: false, draggingPoint: null });
+      deps.updateMeasureHud();
+      deps.sync();
+    } else {
+      deps.toggleMeasureTool(false);
+    }
+  }
+}
+
+export function handleMeasurePointerMove(
+  e: PointerEvent,
+  currentWPos: { x: number; y: number },
+  deps: CanvasControllerDeps,
+): void {
+  const { canvas } = deps;
+  const snap = deps.findMeasureSnapPoint(currentWPos, 20, e.altKey);
+  deps.setMeasureState({ snapPoint: snap });
+  const mState = deps.getMeasureState();
+
+  if (mState.draggingPoint === "A") {
+    deps.setMeasureState({ start: snap ? { ...snap } : { ...currentWPos } });
+    canvas.style.cursor = "grabbing";
+    deps.updateMeasureHud();
+  } else if (mState.draggingPoint === "B") {
+    deps.setMeasureState({ current: snap ? { ...snap } : { ...currentWPos } });
+    canvas.style.cursor = "grabbing";
+    deps.updateMeasureHud();
+  } else if (mState.start && !mState.locked) {
+    deps.setMeasureState({ current: snap ? { ...snap } : { ...currentWPos } });
+    canvas.style.cursor = "crosshair";
+    deps.updateMeasureHud();
+  } else {
+    const nearA = mState.start && Math.hypot(currentWPos.x - mState.start.x, currentWPos.y - mState.start.y) <= 15;
+    const nearB = mState.current && Math.hypot(currentWPos.x - mState.current.x, currentWPos.y - mState.current.y) <= 15;
+    canvas.style.cursor = nearA || nearB ? "grab" : "crosshair";
+  }
+  deps.sync();
+}
+
+export function handleMeasurePointerUp(e: PointerEvent, deps: CanvasControllerDeps): void {
+  const { renderer, canvas } = deps;
+  const mState = deps.getMeasureState();
+  if (mState.draggingPoint) {
+    deps.setMeasureState({ draggingPoint: null, locked: true });
+    canvas.style.cursor = "crosshair";
+    deps.updateMeasureHud();
+    deps.sync();
+  } else if (mState.start && !mState.locked) {
+    const currentWPos = renderer.screenToWorld(e.clientX, e.clientY);
+    const snap = deps.findMeasureSnapPoint(currentWPos, 20, e.altKey);
+    const pt = snap ? { ...snap } : { ...currentWPos };
+    if (Math.hypot(pt.x - mState.start.x, pt.y - mState.start.y) > 8) {
+      deps.setMeasureState({ current: pt, locked: true });
+      deps.updateMeasureHud();
+      deps.sync();
+    }
+  }
+}
 
 export function populateDraggedPiecesMap(
   layout: Layout,

@@ -1,6 +1,13 @@
 import { describe, it, expect } from "vitest";
 import * as THREE from "three";
 import { Viewer3D } from "@/render/viewer-3d";
+import { setLanguage } from "@/i18n";
+import {
+  applyCameraViewPreset,
+  createViewCubeWidget,
+  orbitCameraByDegrees,
+  updateViewCubeOrientation,
+} from "@/render/viewer-3d-viewcube";
 import type { Layout, TrackPiece, Model3D } from "@/core/types";
 import type { CatalogEntry } from "@/catalog/catalog";
 
@@ -244,5 +251,67 @@ describe("3D Bridge Rendering on Curves and Pillar Collision Detection", () => {
     // Only the pillar at x=141 should be rendered!
     expect(pillars.length).toBe(1);
     expect(pillars[0]!.position.x).toBeGreaterThan(100);
+  });
+
+  it("moves 3D camera to every CAD ViewCube perspective including bottom (underside) and syncs cube rotation", () => {
+    const camera = new THREE.PerspectiveCamera(45, 1.5, 5, 220000);
+    camera.position.set(0, 1600, 2200);
+    const controlsMock = {
+      target: new THREE.Vector3(0, 0, 0),
+      update: () => {},
+    } as any;
+
+    let selectedPreset: string | null = null;
+    const vc = createViewCubeWidget(
+      (preset) => {
+        selectedPreset = preset;
+        applyCameraViewPreset(camera, controlsMock, preset, new THREE.Vector3(0, 0, 0));
+      },
+      (dAz, dPol) => {
+        orbitCameraByDegrees(camera, controlsMock, dAz, dPol);
+      },
+    );
+
+    expect(vc.panelEl.querySelectorAll(".v3d-viewcube-face").length).toBe(6);
+    expect(vc.panelEl.querySelectorAll(".v3d-corner-btn").length).toBe(4);
+
+    // Click 'bottom' face to look from underneath the table (negative Y)
+    const bottomFace = vc.panelEl.querySelector('[data-view-preset="bottom"]') as HTMLButtonElement;
+    bottomFace.click();
+    expect(selectedPreset).toBe("bottom");
+    expect(camera.position.y).toBeLessThan(-500);
+
+    // Click 'top' face to look straight down from above (positive Y)
+    const topFace = vc.panelEl.querySelector('[data-view-preset="top"]') as HTMLButtonElement;
+    topFace.click();
+    expect(selectedPreset).toBe("top");
+    expect(camera.position.y).toBeGreaterThan(500);
+
+    // Click 'left' and 'right' faces
+    const leftFace = vc.panelEl.querySelector('[data-view-preset="left"]') as HTMLButtonElement;
+    leftFace.click();
+    expect(camera.position.x).toBeLessThan(-500);
+
+    const rightFace = vc.panelEl.querySelector('[data-view-preset="right"]') as HTMLButtonElement;
+    rightFace.click();
+    expect(camera.position.x).toBeGreaterThan(500);
+
+    // Sync CSS 3D cube orientation
+    updateViewCubeOrientation(vc.cubeEl, camera, controlsMock);
+    expect(vc.cubeEl.style.transform).toContain("rotateX");
+    expect(vc.cubeEl.style.transform).toContain("rotateY");
+
+    // Verify dynamic language switching to English and German
+    setLanguage("en");
+    expect(topFace.textContent).toBe("Top");
+    expect(bottomFace.textContent).toBe("Bottom");
+    expect(leftFace.textContent).toBe("Left");
+    expect(rightFace.textContent).toBe("Right");
+
+    setLanguage("de");
+    expect(topFace.textContent).toBe("Oben");
+    expect(bottomFace.textContent).toBe("Unten");
+    expect(leftFace.textContent).toBe("Links");
+    expect(rightFace.textContent).toBe("Rechts");
   });
 });

@@ -38,6 +38,7 @@ export interface TrackContextMenuOptions {
   onCycleSignalSide?: () => void;
   onCycleSignalDirection?: () => void;
   onToggleBridge?: () => void;
+  onToggleTunnel?: () => void;
   // Backward compatibility
   onRotate?: () => void;
   onToggleFeeder?: () => void;
@@ -82,6 +83,7 @@ export function showTrackContextMenu(options: TrackContextMenuOptions): void {
     onCycleSignalSide,
     onCycleSignalDirection,
     onToggleBridge,
+    onToggleTunnel,
     onToggleCatenary,
     onRotate,
   } = options;
@@ -233,6 +235,14 @@ export function showTrackContextMenu(options: TrackContextMenuOptions): void {
         <span>${piece.hasBridge ? (isDe ? "Brücke entfernen" : "Remove Bridge") : (isDe ? "Als Brücke definieren" : "Define as Bridge")}</span>
       </div>
       <span class="ctx-shortcut">B</span>
+    </div>
+
+    <div class="ctx-item" data-action="toggle-tunnel">
+      <div class="ctx-item-left">
+        <span class="ctx-icon">🚇</span>
+        <span>${piece.hasTunnel ? (isDe ? "Tunnel entfernen" : "Remove Tunnel") : (isDe ? "Als Tunnel definieren" : "Define as Tunnel")}</span>
+      </div>
+      <span class="ctx-shortcut">T</span>
     </div>
 
     <div class="ctx-item" data-action="toggle-catenary">
@@ -395,6 +405,9 @@ export function showTrackContextMenu(options: TrackContextMenuOptions): void {
         break;
       case "toggle-bridge":
         onToggleBridge?.();
+        break;
+      case "toggle-tunnel":
+        onToggleTunnel?.();
         break;
       case "toggle-catenary":
         onToggleCatenary?.();

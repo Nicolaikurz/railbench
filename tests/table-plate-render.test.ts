@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { Graphics } from "pixi.js";
 import { createBaseboardGraphics, getStyleColors } from "@/render/baseboard-sprite";
-import { createDefaultBaseboard, getBaseboards } from "@/core/layout";
+import { createDefaultBaseboard, getBaseboardPolygon, getBaseboards, getLayerPlatePolygon } from "@/core/layout";
+import { BoardSketcherController } from "@/editor/board-sketcher-controller";
 import { Renderer } from "@/render/renderer";
 import type { BaseboardConfig, Layout, Layer, LayerPlate } from "@/core/types";
 
@@ -228,5 +229,74 @@ describe("2D Table & Plate Render (Color and Style)", () => {
     renderer.render(layout);
 
     expect(baseboardContainer.children.length).toBe(1); // Only underground plate remains
+  });
+
+  it("sketches custom polygon tables and layer plates and edits vertices in BoardSketcherController", () => {
+    const sketcher = new BoardSketcherController();
+    const bb = createDefaultBaseboard({ id: "board-1", width: 2000, depth: 1000 });
+    const upperLayer: Layer = {
+      id: "layer-upper",
+      name: "Bergstrecke",
+      heightMm: 120,
+      visible: true,
+      locked: false,
+      plates: [],
+    };
+    const layout: Layout = {
+      name: "Sketcher Test",
+      scale: "H0",
+      baseboards: [bb],
+      layers: [upperLayer],
+      pieces: [],
+    };
+
+    // 1. Sketch custom polygon onto the active table
+    sketcher.startTableSketch(layout, "poly", { boardId: "board-1", createNew: false });
+    sketcher.onPointerDown({ x: 100, y: 100 }, layout, 1, 0);
+    sketcher.onPointerDown({ x: 1600, y: 100 }, layout, 1, 0);
+    sketcher.onPointerDown({ x: 1600, y: 700 }, layout, 1, 0);
+    sketcher.onPointerDown({ x: 900, y: 700 }, layout, 1, 0);
+    sketcher.onPointerDown({ x: 900, y: 1100 }, layout, 1, 0);
+    sketcher.onPointerDown({ x: 100, y: 1100 }, layout, 1, 0);
+    expect(sketcher.finishPoly(layout)).toBe(true);
+
+    expect(bb.shape).toBe("custom");
+    expect(bb.width).toBe(1500);
+    expect(bb.depth).toBe(1000);
+    expect(bb.customPolygon?.length).toBe(6);
+    expect(getBaseboardPolygon(bb).length).toBe(6);
+
+    // 2. Sketch a new custom polygon plate onto upperLayer
+    sketcher.startPlateSketch(layout, "poly", {
+      layerId: "layer-upper",
+      boardId: "board-1",
+      createNew: true,
+    });
+    sketcher.onPointerDown({ x: 200, y: 200 }, layout, 1, 0);
+    sketcher.onPointerDown({ x: 1000, y: 200 }, layout, 1, 0);
+    sketcher.onPointerDown({ x: 800, y: 650 }, layout, 1, 0);
+    sketcher.onPointerDown({ x: 200, y: 650 }, layout, 1, 0);
+    expect(sketcher.finishPoly(layout)).toBe(true);
+
+    expect(upperLayer.plates?.length).toBe(1);
+    const createdPlate = upperLayer.plates![0]!;
+    expect(createdPlate.shape).toBe("custom");
+    expect(createdPlate.width).toBe(800);
+    expect(createdPlate.depth).toBe(450);
+    expect(getLayerPlatePolygon(createdPlate, bb).length).toBe(4);
+
+    // 3. Edit vertices & insert edge midpoint on the created plate
+    sketcher.startPlateSketch(layout, "edit", {
+      layerId: "layer-upper",
+      boardId: "board-1",
+      plateId: createdPlate.id,
+      createNew: false,
+    });
+    expect(sketcher.editPoints.length).toBe(4);
+    // Click midpoint of top edge (600, 200) to insert a 5th vertex
+    sketcher.onPointerDown({ x: 600, y: 200 }, layout, 1, 0);
+    sketcher.onPointerMove({ x: 600, y: 150 }, layout, 1);
+    sketcher.onPointerUp({ x: 600, y: 150 }, layout);
+    expect(createdPlate.customPolygon?.length).toBe(5);
   });
 });

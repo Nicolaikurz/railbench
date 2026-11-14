@@ -128,12 +128,14 @@ export function buildModel3D(
   if (model.modelType === "builtin") {
     let extraData: any = undefined;
     if (model.builtinId === "mountain" && layout) {
-      extraData = findCollidingTracksForMountain(
+      const collisions = findCollidingTracksForMountain(
         model,
         layout.pieces,
         (id) => entryMap?.get(id) ?? catalogRegistry.findEntry(id),
         layout.layers,
       );
+      const allMountains = (layout.models ?? []).filter((m) => m.builtinId === "mountain");
+      extraData = { collisions, allMountains };
     }
     const mesh = createBuiltinModel3DMesh(model.builtinId || "station", model, "H0", extraData);
     mesh.position.set(model.transform.x, elevation, model.transform.y);

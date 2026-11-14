@@ -27,6 +27,7 @@ import {
   drawBridge2D,
   drawTrackSignal2D,
 } from "./track-accessories-sprite";
+import { drawTunnel2D } from "./track-tunnel";
 
 export { desaturateColor };
 
@@ -173,6 +174,12 @@ export function createTrackGraphics(
       drawRoadSelectionContour(g, entry, roadWidth + 8);
     }
     drawRoadPiece2D(g, entry, isSelected);
+    if (piece.hasBridge) {
+      drawBridge2D(container, entry, piece);
+    }
+    if (piece.hasTunnel) {
+      drawTunnel2D(container, entry, piece, options.allPieces);
+    }
 
     if (isNumberLabeled) {
       drawTrackNumberLabel(container, entry, piece.transform.rotation, activeBpColor, false);
@@ -283,6 +290,9 @@ export function createTrackGraphics(
   // --- 5E. BRÜCKEN-AUFBAU (Träger, Geländer & Widerlager) ---
   if (piece.hasBridge) {
     drawBridge2D(container, entry, piece);
+  }
+  if (piece.hasTunnel) {
+    drawTunnel2D(container, entry, piece, options.allPieces);
   }
 
   // --- 5F. LICHTSIGNAL / STRECKENSIGNAL (🚦) ---

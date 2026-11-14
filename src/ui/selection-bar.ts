@@ -23,6 +23,7 @@ export interface SelectionBarCallbacks {
   onToggleTurnoutLantern: () => void;
   onToggleSignal?: () => void;
   onToggleBridge?: () => void;
+  onToggleTunnel?: () => void;
   onRotate?: (deltaDegrees?: number) => void;
   onDelete: () => void;
   getSelectedPieceIds: () => string[];
@@ -276,6 +277,7 @@ export class SelectionBar {
   private selBarBtnCatenaryIso: HTMLButtonElement;
   private selBarBtnSignal: HTMLButtonElement;
   private selBarBtnBridge: HTMLButtonElement;
+  private selBarBtnTunnel: HTMLButtonElement;
   private selBarBtnRotate: HTMLButtonElement;
   private selBarBtnDelete: HTMLButtonElement;
 
@@ -338,6 +340,7 @@ export class SelectionBar {
       <button id="sel-bar-btn-catenary-iso" class="sel-bar-btn" title="${initialSelT.catenaryIsolatorInactiveTitle}">⌁⊘</button>
       <button id="sel-bar-btn-signal" class="sel-bar-btn" title="${isDe ? "Signal aufstellen (Shift+S)" : "Place Signal (Shift+S)"}">🚦</button>
       <button id="sel-bar-btn-bridge" class="sel-bar-btn" title="${isDe ? "Als Brücke definieren (B)" : "Define as Bridge (B)"}">🌉</button>
+      <button id="sel-bar-btn-tunnel" class="sel-bar-btn" title="${isDe ? "Als Tunnel definieren (T)" : "Define as Tunnel (T)"}">🚇</button>
 
       <span class="sel-bar-divider" id="sel-bar-div-quick"></span>
 
@@ -371,6 +374,7 @@ export class SelectionBar {
     this.selBarBtnCatenaryIso = this.container.querySelector("#sel-bar-btn-catenary-iso") as HTMLButtonElement;
     this.selBarBtnSignal = this.container.querySelector("#sel-bar-btn-signal") as HTMLButtonElement;
     this.selBarBtnBridge = this.container.querySelector("#sel-bar-btn-bridge") as HTMLButtonElement;
+    this.selBarBtnTunnel = this.container.querySelector("#sel-bar-btn-tunnel") as HTMLButtonElement;
     this.selBarBtnRotate = this.container.querySelector("#sel-bar-btn-rotate") as HTMLButtonElement;
     this.selBarBtnDelete = this.container.querySelector("#sel-bar-btn-delete") as HTMLButtonElement;
 
@@ -527,6 +531,10 @@ export class SelectionBar {
       this.callbacks.onToggleBridge?.();
     });
 
+    this.selBarBtnTunnel.addEventListener("click", () => {
+      this.callbacks.onToggleTunnel?.();
+    });
+
     this.selBarBtnDelete.addEventListener("click", () => {
       this.callbacks.onDelete();
     });
@@ -584,6 +592,7 @@ export class SelectionBar {
       this.selBarBtnCatenaryIso.style.display = "none";
       this.selBarBtnSignal.style.display = "none";
       this.selBarBtnBridge.style.display = "none";
+      this.selBarBtnTunnel.style.display = "none";
       if (this.selBarDivFlex) this.selBarDivFlex.style.display = "none";
       if (this.selBarFlexGroup) this.selBarFlexGroup.style.display = "none";
 
@@ -614,6 +623,7 @@ export class SelectionBar {
     this.selBarBtnCatenaryIso.style.display = "";
     this.selBarBtnSignal.style.display = "";
     this.selBarBtnBridge.style.display = "";
+    this.selBarBtnTunnel.style.display = "";
 
     // 1. Info: Selection count & Track type
     const pieceWord = selectedIds.length === 1 ? (isDe ? "Gleis" : "track") : (isDe ? "Gleise" : "tracks");
@@ -752,6 +762,19 @@ export class SelectionBar {
       : mixedBridge
         ? (isDe ? "Brücke: gemischt (Klicken zum Setzen für alle, B)" : "Bridge: mixed (Click to set for all, B)")
         : (isDe ? "Als Brücke definieren (B)" : "Define as Bridge (B)");
+
+    // Tunnel
+    const tunnelCount = selectedPieces.filter((p) => !!p.hasTunnel).length;
+    const allTunnel = tunnelCount === selectedPieces.length && selectedPieces.length > 0;
+    const mixedTunnel = tunnelCount > 0 && tunnelCount < selectedPieces.length;
+    this.selBarBtnTunnel.classList.toggle("active", allTunnel);
+    this.selBarBtnTunnel.classList.toggle("mixed", mixedTunnel);
+    this.selBarBtnTunnel.textContent = "🚇";
+    this.selBarBtnTunnel.title = allTunnel
+      ? (isDe ? "Tunnel: aktiv (Klicken zum Entfernen, T)" : "Tunnel: active (Click to remove, T)")
+      : mixedTunnel
+        ? (isDe ? "Tunnel: gemischt (Klicken zum Setzen für alle, T)" : "Tunnel: mixed (Click to set for all, T)")
+        : (isDe ? "Als Tunnel definieren (T)" : "Define as Tunnel (T)");
 
     // Quick actions
     this.selBarBtnRotate.title = isDe ? "Drehen (+7,5°, R)" : "Rotate (+7.5°, R)";

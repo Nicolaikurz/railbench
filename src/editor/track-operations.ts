@@ -72,6 +72,7 @@ import {
   cycleSelectedSignalDirection,
   setSignalConfig,
   toggleSelectedBridge,
+  toggleSelectedTunnel,
   moveSelectedToLayer,
   applyHeightInput,
   applyAutoRamp,
@@ -654,6 +655,10 @@ export class TrackOperations {
 
   public toggleSelectedBridge(targetState?: boolean): void {
     toggleSelectedBridge(this.ctx, targetState);
+  }
+
+  public toggleSelectedTunnel(targetState?: boolean): void {
+    toggleSelectedTunnel(this.ctx, targetState);
   }
 
   public moveSelectedToLayer(

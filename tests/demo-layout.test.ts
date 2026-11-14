@@ -28,7 +28,7 @@ describe("Demo Layout", () => {
     expect(typeof rawDemoLayout).toBe("string");
     const parsed = JSON.parse(rawDemoLayout);
     expect(parsed.name).toBe(DEMO_LAYOUT_NAME);
-    expect(parsed.pieces.length).toBe(99);
+    expect(parsed.pieces.length).toBe(103);
   });
 
   it("erzeugt das vollständige Alpenland H0 Demo-Layout", () => {
@@ -37,11 +37,11 @@ describe("Demo Layout", () => {
     expect(layout.name).toBe(DEMO_LAYOUT_NAME);
     expect(layout.scale).toBe("H0");
     expect(layout.feedVoltage).toBe(16);
-    expect(layout.pieces.length).toBe(99);
+    expect(layout.pieces.length).toBe(103);
     expect(layout.layers?.length).toBe(3);
     expect(layout.baseboard?.width).toBe(2200);
     expect(layout.baseboard?.depth).toBe(1250);
-    expect(layout.models?.length).toBe(21);
+    expect(layout.models?.length).toBe(24);
   });
 
   it("schließt das Gleisnetz nahtlos und fehlerfrei", () => {
@@ -84,9 +84,9 @@ describe("Demo Layout", () => {
     const restored = fromJSON(json);
 
     expect(restored.name).toBe(DEMO_LAYOUT_NAME);
-    expect(restored.pieces.length).toBe(99);
+    expect(restored.pieces.length).toBe(103);
     expect(restored.layers?.length).toBe(3);
-    expect(restored.models?.length).toBe(21);
+    expect(restored.models?.length).toBe(24);
     expect(restored.baseboard?.width).toBe(2200);
   });
 
@@ -95,7 +95,7 @@ describe("Demo Layout", () => {
     initDemoTracks(emptyLayout);
 
     expect(emptyLayout.name).toBe(DEMO_LAYOUT_NAME);
-    expect(emptyLayout.pieces.length).toBe(99);
+    expect(emptyLayout.pieces.length).toBe(103);
     expect(emptyLayout.baseboard?.width).toBe(2200);
   });
 

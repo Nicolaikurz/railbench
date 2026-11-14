@@ -7,6 +7,7 @@ import { renderRoadsTab } from "@/ui/sidebar/roads-tab";
 import { renderModelsTab } from "@/ui/sidebar/models-tab";
 import { renderLayersTab } from "@/ui/sidebar/layers-tab";
 import { renderBoardTab, syncWoodMode, makePlate } from "@/ui/sidebar/board-tab";
+import { renderTerrainTab } from "@/ui/sidebar/terrain-tab";
 import { renderBomTab } from "@/ui/sidebar/bom-tab";
 import { getPieceListSummary } from "@/io/export";
 
@@ -90,6 +91,10 @@ describe("Sidebar Tab Splitting & Modular Tabs", () => {
     sidebar.setActiveTab("models");
     expect(sidebar.getActiveTab()).toBe("models");
 
+    // Terrain tab
+    sidebar.setActiveTab("terrain");
+    expect(sidebar.getActiveTab()).toBe("terrain");
+
     // Board tab
     sidebar.setActiveTab("board");
     expect(sidebar.getActiveTab()).toBe("board");
@@ -105,6 +110,7 @@ describe("Sidebar Tab Splitting & Modular Tabs", () => {
     expect(() => renderCatalogTab(sidebar, container)).not.toThrow();
     expect(() => renderRoadsTab(sidebar, container)).not.toThrow();
     expect(() => renderModelsTab(sidebar, container)).not.toThrow();
+    expect(() => renderTerrainTab(sidebar, container)).not.toThrow();
     expect(() => renderLayersTab(sidebar, container)).not.toThrow();
     expect(() => renderBoardTab(sidebar, container)).not.toThrow();
 

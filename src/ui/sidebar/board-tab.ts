@@ -18,8 +18,9 @@ import {
 import { getPieceCenterWorld } from "@/core/geometry";
 import { catalogRegistry } from "@/catalog/registry";
 import { getLanguage, getTranslations } from "@/i18n";
+import { boardSketcher } from "@/editor/board-sketcher-controller";
 import type { Sidebar } from "../sidebar";
-import { buildMountainCard } from "./mountain-card";
+import { buildSketcherBanner } from "./board-sketcher-card";
 
 // =========================================================================
 // BOARD TAB HELPERS
@@ -46,6 +47,9 @@ export function copyShape(src: any, dst: any) {
   dst.width = src.width;
   dst.depth = src.depth;
   for (const k of SHAPE_KEYS) dst[k] = src[k];
+  dst.customPolygon = src.customPolygon
+    ? src.customPolygon.map((p: { x: number; y: number }) => ({ x: p.x, y: p.y }))
+    : undefined;
 }
 
 export function applyShapeDefaults(t: any) {
@@ -58,16 +62,28 @@ export function applyShapeDefaults(t: any) {
       t.tBarDepth ??= 600; t.tStemWidth ??= 800; break;
     case "triangle":
       t.triangleType ??= "corner-tl"; break;
+    case "custom":
+      if (!t.customPolygon || t.customPolygon.length < 3) {
+        const w = t.width || 1200;
+        const d = t.depth || 800;
+        t.customPolygon = [
+          { x: 0, y: 0 },
+          { x: w, y: 0 },
+          { x: w, y: d },
+          { x: 0, y: d },
+        ];
+      }
+      break;
   }
 }
 
 export const getSurfaceStyleOptions = (isDe: boolean): [BaseboardStyle, string][] => [
-  ["wood", `🌲 ${isDe ? "Sperrholz hell" : "Birch Plywood"}`],
-  ["dark-wood", `🪵 ${isDe ? "Eiche dunkel" : "Dark Walnut"}`],
-  ["plywood", `🪵 ${isDe ? "Kiefer" : "Multiplex Pine"}`],
-  ["slate", `🪨 ${isDe ? "Schiefergrau" : "Slate Anthracite"}`],
-  ["white", `⬜ ${isDe ? "Weiß" : "Blueprint White"}`],
-  ["grass", `🌿 ${isDe ? "Gras / Wiese" : "Grass / Meadow"}`],
+  ["wood", isDe ? "Sperrholz hell" : "Birch Plywood"],
+  ["dark-wood", isDe ? "Eiche dunkel" : "Dark Walnut"],
+  ["plywood", isDe ? "Kiefer" : "Multiplex Pine"],
+  ["slate", isDe ? "Schiefergrau" : "Slate Anthracite"],
+  ["white", isDe ? "Weiß" : "Blueprint White"],
+  ["grass", isDe ? "Gras / Wiese" : "Grass / Meadow"],
 ];
 
 export function makePlate(bb: BaseboardConfig, layer: Layer, name: string, thicknessMm?: number): LayerPlate {
@@ -202,13 +218,14 @@ export function renderBoardTab(sidebar: Sidebar, container: HTMLElement) {
   };
 
   const anyEnabled = baseboards.some((b) => b.enabled);
+  const sketchBanner = buildSketcherBanner(sidebar, ctx);
+  if (sketchBanner) container.appendChild(sketchBanner);
   container.appendChild(buildTableCard(sidebar, ctx, anyEnabled));
   if (anyEnabled) {
     container.appendChild(buildShapeCard(sidebar, ctx));
     container.appendChild(buildSurfaceCard(sidebar, ctx));
   }
   container.appendChild(buildWoodCard(sidebar, ctx));
-  container.appendChild(buildMountainCard(sidebar, ctx));
 }
 
 // ---- Card 1: enable, add, select, name ----------------------------------
@@ -227,13 +244,24 @@ export function buildTableCard(sidebar: Sidebar, ctx: BoardCtx, anyEnabled: bool
   });
 
   card.appendChild(
-    el("div", { style: "display:flex;justify-content:space-between;align-items:center;gap:6px;" }, [
+    el("div", { style: "display:flex;justify-content:space-between;align-items:center;gap:4px;" }, [
       el("label", { cls: "board-toggle-label" }, [enable, el("span", { text: tb.enableToggle })]),
-      btn(`+ ${isDe ? "Tisch" : "Table"}`, isDe ? "Tisch hinzufügen" : "Add table", () => {
-        sidebar.activeBoardId = addBaseboard(sidebar.layout).id;
-        ctx.notifyBoard();
-        ctx.refresh();
-      }, "rb-btn rb-btn-secondary", "font-size:11px;padding:4px 8px;"),
+      el("div", { style: "display:flex;gap:4px;" }, [
+        btn(
+          `✎ ${isDe ? "Skizzieren" : "Sketch"}`,
+          isDe ? "Neuen Tisch im Sketcher auf der 2D-Fläche zeichnen" : "Sketch a new table on the 2D canvas",
+          () => {
+            boardSketcher.startTableSketch(sidebar.layout, "poly", { createNew: true });
+          },
+          "rb-btn rb-btn-secondary",
+          "font-size:11px;padding:4px 7px;",
+        ),
+        btn(`+ ${isDe ? "Tisch" : "Table"}`, isDe ? "Tisch hinzufügen" : "Add table", () => {
+          sidebar.activeBoardId = addBaseboard(sidebar.layout).id;
+          ctx.notifyBoard();
+          ctx.refresh();
+        }, "rb-btn rb-btn-secondary", "font-size:11px;padding:4px 8px;"),
+      ]),
     ]),
   );
 
@@ -279,7 +307,7 @@ export function buildTableCard(sidebar: Sidebar, ctx: BoardCtx, anyEnabled: bool
   card.appendChild(
     el("div", { style: "display:flex;gap:6px;align-items:center;margin-top:6px;" }, [
       name,
-      btn("📑", tb.duplicateTable, () => {
+      btn("⧉", tb.duplicateTable, () => {
         const clone = duplicateBaseboard(sidebar.layout, bb.id!);
         if (clone) {
           sidebar.activeBoardId = clone.id;
@@ -288,7 +316,7 @@ export function buildTableCard(sidebar: Sidebar, ctx: BoardCtx, anyEnabled: bool
         }
       }),
       baseboards.length > 1
-        ? btn("🗑️", tb.deleteTable, () => {
+        ? btn("✕", tb.deleteTable, () => {
             removeBaseboard(sidebar.layout, bb.id!);
             sidebar.activeBoardId = sidebar.layout.baseboards?.[0]?.id;
             ctx.notifyBoard();
@@ -307,6 +335,39 @@ export function buildShapeCard(sidebar: Sidebar, ctx: BoardCtx): HTMLElement {
   const card = el("div", { cls: "board-card", style: "display:flex;flex-direction:column;gap:6px;" }, [
     el("div", { cls: "board-section-title", text: `${tb.shape} & ${isDe ? "Maße" : "Dimensions"}` }),
   ]);
+
+  // Sketcher toolbar for the active table
+  const isThisTableSketching =
+    boardSketcher.isActive &&
+    boardSketcher.target?.kind === "table" &&
+    !boardSketcher.target.createNew &&
+    boardSketcher.target.boardId === bb.id;
+
+  card.appendChild(
+    el("div", { style: "display:flex;gap:4px;" }, [
+      btn(
+        `✎ ${isDe ? "Polygon zeichnen" : "Draw Polygon"}`,
+        isDe ? "Tischumriss Punkt für Punkt im 2D-Sketcher zeichnen" : "Draw table outline point-by-point on 2D canvas",
+        () => boardSketcher.startTableSketch(sidebar.layout, "poly", { boardId: bb.id, createNew: false }),
+        `rb-btn ${isThisTableSketching && boardSketcher.mode === "poly" ? "rb-btn-primary" : "rb-btn-secondary"}`,
+        "flex:1;font-size:11px;padding:4px 6px;",
+      ),
+      btn(
+        `▭ ${isDe ? "Rechteck ziehen" : "Draw Rect"}`,
+        isDe ? "Tisch als Rechteck auf der 2D-Fläche aufziehen" : "Draw rectangular table on 2D canvas",
+        () => boardSketcher.startTableSketch(sidebar.layout, "rect", { boardId: bb.id, createNew: false }),
+        `rb-btn ${isThisTableSketching && boardSketcher.mode === "rect" ? "rb-btn-primary" : "rb-btn-secondary"}`,
+        "flex:1;font-size:11px;padding:4px 6px;",
+      ),
+      btn(
+        `⊹ ${isDe ? "Punkte" : "Vertices"}`,
+        isDe ? "Eckpunkte und Kanten dieses Tisches direkt im 2D-Plan verschieben" : "Edit table vertices and edges on 2D canvas",
+        () => boardSketcher.startTableSketch(sidebar.layout, "edit", { boardId: bb.id, createNew: false }),
+        `rb-btn ${isThisTableSketching && boardSketcher.mode === "edit" ? "rb-btn-primary" : "rb-btn-secondary"}`,
+        "font-size:11px;padding:4px 7px;",
+      ),
+    ]),
+  );
 
   card.appendChild(buildShapeEditor(bb, isDe, ctx.notifyBoard, ctx.refresh, 200));
 
@@ -332,7 +393,7 @@ export function buildShapeCard(sidebar: Sidebar, ctx: BoardCtx): HTMLElement {
   card.appendChild(presets);
 
   card.appendChild(
-    btn(`📐 ${tb.fitTracks}`, isDe ? "Tisch an alle Gleise anpassen" : "Fit table to placed tracks", () => {
+    btn(tb.fitTracks, isDe ? "Tisch an alle Gleise anpassen" : "Fit table to placed tracks", () => {
       if (!fitBoardToTracks(sidebar, bb, baseboards)) {
         alert(isDe ? "Noch keine Gleise im Plan vorhanden." : "No tracks on the layout yet!");
         return;
@@ -346,7 +407,17 @@ export function buildShapeCard(sidebar: Sidebar, ctx: BoardCtx): HTMLElement {
 
 export function shapeLabel(shape: BaseboardShape): string {
   const s = getTranslations().sidebar.board.shapes;
-  return ({ rect: s.rect, "l-shape": s.lShape, "u-shape": s.uShape, "t-shape": s.tShape, triangle: s.triangle } as Record<string, string>)[shape] ?? shape;
+  const isDe = getLanguage() === "de";
+  return (
+    ({
+      rect: s.rect,
+      "l-shape": s.lShape,
+      "u-shape": s.uShape,
+      "t-shape": s.tShape,
+      triangle: s.triangle,
+      custom: isDe ? "Freiform / Skizze" : "Custom Sketch",
+    } as Record<string, string>)[shape] ?? shape
+  );
 }
 
 /** Shape select + width/depth + shape-specific fields. Works for tables AND plates. */
@@ -364,11 +435,12 @@ export function buildShapeEditor(
     selectField<BaseboardShape>(
       "",
       [
-        ["rect", `⬛ ${s.rect}`],
+        ["rect", `▭ ${s.rect}`],
         ["l-shape", `⌐ ${s.lShape}`],
         ["u-shape", `⊔ ${s.uShape}`],
         ["t-shape", `⊤ ${s.tShape}`],
         ["triangle", `▲ ${s.triangle}`],
+        ["custom", `✎ ${isDe ? "Freiform / Skizze (Polygon)" : "Custom Sketch (Polygon)"}`],
       ],
       t.shape ?? "rect",
       (v) => {
@@ -430,10 +502,10 @@ export function buildShapeEditor(
       selectField<string>(
         isDe ? "Ausrichtung" : "Orientation",
         [
-          ["corner-tl", `📐 ${isDe ? "Ecke oben links" : "Corner top-left"}`],
-          ["corner-tr", `📐 ${isDe ? "Ecke oben rechts" : "Corner top-right"}`],
-          ["corner-br", `📐 ${isDe ? "Ecke unten rechts" : "Corner bottom-right"}`],
-          ["corner-bl", `📐 ${isDe ? "Ecke unten links" : "Corner bottom-left"}`],
+          ["corner-tl", `◤ ${isDe ? "Ecke oben links" : "Corner top-left"}`],
+          ["corner-tr", `◥ ${isDe ? "Ecke oben rechts" : "Corner top-right"}`],
+          ["corner-br", `◢ ${isDe ? "Ecke unten rechts" : "Corner bottom-right"}`],
+          ["corner-bl", `◣ ${isDe ? "Ecke unten links" : "Corner bottom-left"}`],
           ["isosceles", `▲ ${isDe ? "Gleichschenklig" : "Isosceles"}`],
         ],
         t.triangleType ?? "corner-tl",
@@ -632,9 +704,9 @@ export function buildWoodCard(sidebar: Sidebar, ctx: BoardCtx): HTMLElement {
   const woodOn = sidebar.callbacks.isWoodPlateActive?.() ?? false;
   card.appendChild(
     el("div", { style: "display:flex;align-items:center;justify-content:space-between;gap:6px;" }, [
-      el("div", { cls: "board-section-title", style: "margin:0;font-size:11px;", text: `🪵 ${isDe ? "Holzplatten" : "Wood Plates"}` }),
+      el("div", { cls: "board-section-title", style: "margin:0;font-size:11px;", text: isDe ? "Holzplatten" : "Wood Plates" }),
       btn(
-        woodOn ? (isDe ? "👁️ sichtbar" : "👁️ visible") : (isDe ? "🚫 ausgeblendet" : "🚫 hidden"),
+        woodOn ? (isDe ? "● sichtbar" : "● visible") : (isDe ? "○ ausgeblendet" : "○ hidden"),
         isDe ? "Holzplatten in der 3D-Ansicht ein-/ausblenden" : "Show/hide wood plates in 3D",
         () => { sidebar.callbacks.onToggleWoodPlate?.(); ctx.refresh(); },
         `rb-btn ${woodOn ? "rb-btn-primary" : "rb-btn-secondary"}`,
@@ -659,18 +731,54 @@ export function buildWoodCard(sidebar: Sidebar, ctx: BoardCtx): HTMLElement {
         el("span", { cls: "board-layer-dot", style: `background:${layer.color || "#38bdf8"};` }),
         el("span", { text: layer.name, style: "font-weight:700;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;" }),
         el("span", { cls: "board-layer-elev-badge", text: `${h >= 0 ? "+" : ""}${h} mm` }),
-        el("span", { text: plates.length ? `🪵 ${plates.length}` : "–", style: "font-size:10px;color:var(--text-muted);" }),
+        el("span", { text: plates.length ? String(plates.length) : "–", style: "font-size:10px;color:var(--text-muted);" }),
       ]),
     );
 
     const body = el("div", { style: "display:flex;flex-direction:column;gap:6px;margin-top:6px;" });
     for (const plate of plates) body.appendChild(buildPlateEditor(sidebar, plate, layer, ctx, commit));
 
+    // Sketcher row to draw a new plate on this layer
+    body.appendChild(
+      el("div", { style: "display:flex;gap:4px;" }, [
+        btn(
+          `✎ ${isDe ? "Platte skizzieren" : "Sketch Plate"}`,
+          isDe ? "Neue Holzplatte für diese Ebene Punkt für Punkt im 2D-Plan zeichnen" : "Draw new layer plate polygon on 2D canvas",
+          () => {
+            sidebar.openPlateLayers.add(layer.id);
+            ensureWoodVisible();
+            boardSketcher.startPlateSketch(sidebar.layout, "poly", {
+              layerId: layer.id,
+              boardId: bb.id!,
+              createNew: true,
+            });
+          },
+          "rb-btn rb-btn-secondary",
+          "flex:1;font-size:11px;padding:4px 6px;",
+        ),
+        btn(
+          `▭ ${isDe ? "Rechteck-Platte" : "Rect Plate"}`,
+          isDe ? "Neue rechteckige Holzplatte für diese Ebene im 2D-Plan aufziehen" : "Draw new rectangular layer plate on 2D canvas",
+          () => {
+            sidebar.openPlateLayers.add(layer.id);
+            ensureWoodVisible();
+            boardSketcher.startPlateSketch(sidebar.layout, "rect", {
+              layerId: layer.id,
+              boardId: bb.id!,
+              createNew: true,
+            });
+          },
+          "rb-btn rb-btn-secondary",
+          "flex:1;font-size:11px;padding:4px 6px;",
+        ),
+      ]),
+    );
+
     body.appendChild(
       btn(
         plates.length === 0
-          ? `📐 ${isDe ? `Platte im Tischmaß (${bb.width} × ${bb.depth} mm)` : `Plate at table size (${bb.width} × ${bb.depth} mm)`}`
-          : `+ ${isDe ? "Weitere Platte" : "Add another plate"}`,
+          ? `+ ${isDe ? `Platte im Tischmaß (${bb.width} × ${bb.depth} mm)` : `Plate at table size (${bb.width} × ${bb.depth} mm)`}`
+          : `+ ${isDe ? "Weitere Platte im Tischmaß" : "Add another plate at table size"}`,
         isDe ? "Platte zu diesem Tisch und dieser Ebene hinzufügen" : "Add a plate to this table and layer",
         () => {
           const n = plates.length + 1;
@@ -706,10 +814,60 @@ export function buildPlateEditor(
   box.appendChild(
     el("div", { cls: "board-plate-header" }, [
       name,
-      btn("🗑️", isDe ? "Platte entfernen" : "Delete plate", () => {
+      btn("✕", isDe ? "Platte entfernen" : "Delete plate", () => {
         layer.plates = (layer.plates ?? []).filter((p) => p.id !== plate.id);
         commit(false);
       }, "rb-btn rb-btn-secondary", "color:#ef4444;padding:2px 6px;height:23px;"),
+    ]),
+  );
+
+  // Sketcher toolbar for this specific layer plate
+  const isThisPlateSketching =
+    boardSketcher.isActive &&
+    boardSketcher.target?.kind === "plate" &&
+    boardSketcher.target.plateId === plate.id;
+
+  box.appendChild(
+    el("div", { style: "display:flex;gap:4px;" }, [
+      btn(
+        `✎ ${isDe ? "Polygon" : "Polygon"}`,
+        isDe ? "Umriss dieser Platte im 2D-Plan neu zeichnen" : "Redraw this plate outline as polygon on 2D canvas",
+        () =>
+          boardSketcher.startPlateSketch(sidebar.layout, "poly", {
+            layerId: layer.id,
+            boardId: plate.baseboardId || bb.id!,
+            plateId: plate.id,
+            createNew: false,
+          }),
+        `rb-btn ${isThisPlateSketching && boardSketcher.mode === "poly" ? "rb-btn-primary" : "rb-btn-secondary"}`,
+        "flex:1;font-size:10px;padding:3px 5px;",
+      ),
+      btn(
+        `▭ ${isDe ? "Rechteck" : "Rect"}`,
+        isDe ? "Diese Platte als Rechteck im 2D-Plan aufziehen" : "Redraw this plate as rectangle on 2D canvas",
+        () =>
+          boardSketcher.startPlateSketch(sidebar.layout, "rect", {
+            layerId: layer.id,
+            boardId: plate.baseboardId || bb.id!,
+            plateId: plate.id,
+            createNew: false,
+          }),
+        `rb-btn ${isThisPlateSketching && boardSketcher.mode === "rect" ? "rb-btn-primary" : "rb-btn-secondary"}`,
+        "flex:1;font-size:10px;padding:3px 5px;",
+      ),
+      btn(
+        `⊹ ${isDe ? "Punkte" : "Vertices"}`,
+        isDe ? "Eckpunkte und Kanten dieser Platte im 2D-Plan verschieben" : "Edit plate vertices and edges on 2D canvas",
+        () =>
+          boardSketcher.startPlateSketch(sidebar.layout, "edit", {
+            layerId: layer.id,
+            boardId: plate.baseboardId || bb.id!,
+            plateId: plate.id,
+            createNew: false,
+          }),
+        `rb-btn ${isThisPlateSketching && boardSketcher.mode === "edit" ? "rb-btn-primary" : "rb-btn-secondary"}`,
+        "flex:1;font-size:10px;padding:3px 5px;",
+      ),
     ]),
   );
 
@@ -745,7 +903,7 @@ export function buildPlateEditor(
 
   box.appendChild(
     btn(
-      `📐 ${isDe ? "An Tisch anpassen" : "Fit to Table"} (${bb.width} × ${bb.depth} mm)`,
+      `${isDe ? "An Tisch anpassen" : "Fit to Table"} (${bb.width} × ${bb.depth} mm)`,
       isDe ? "Maße und Position exakt an den Tisch anpassen" : "Fit plate size and position to table",
       () => {
         copyShape(bb, plate);

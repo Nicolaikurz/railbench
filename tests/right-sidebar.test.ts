@@ -184,56 +184,32 @@ describe("RightSidebar - Buttons for Auswahlsperre & Woodplatte", () => {
     (globalThis as any).document = originalDocument;
   });
 
-  it("renders Woodplatte button and verifies selection lock button was removed from right sidebar", () => {
+  it("verifies selection lock and Woodplatte buttons were removed from the layer menu", () => {
     const onToggleSelectionLock = vi.fn();
     const onToggleWoodPlate = vi.fn();
-    let lockDisabled = false;
-    let woodActive = false;
+    const onOpenHeightDialog = vi.fn();
 
     new RightSidebar(host as unknown as HTMLElement, layout, {
       onLayerChange: vi.fn(),
       selectedPieceIds: () => [],
       onToggleSelectionLock,
-      isSelectionLockDisabled: () => lockDisabled,
+      isSelectionLockDisabled: () => false,
       onToggleWoodPlate,
-      isWoodPlateActive: () => woodActive,
+      isWoodPlateActive: () => false,
+      onOpenHeightDialog,
     });
 
     const lockBtn = host.querySelector("#cl-toggle-selection-lock");
     const woodBtn = host.querySelector("#cl-toggle-woodplate");
+    const heightBtn = host.querySelector("#cl-open-height-panel");
 
-    // Selection lock button should not be present in the right sidebar
+    // Both selection lock and Woodplatte buttons should not be present in the right sidebar layer menu
     expect(lockBtn).toBeNull();
-    expect(woodBtn).toBeTruthy();
+    expect(woodBtn).toBeNull();
+    expect(heightBtn).toBeTruthy();
 
-    // Verify wood button is styled as button
-    expect(woodBtn?.className).toContain("cl-btn");
-
-    // Verify there are no old switch sliders
-    expect(host.querySelector(".cl-switch")).toBeNull();
-    expect(host.querySelector(".cl-switch-knob")).toBeNull();
-
-    // Verify click triggers callback
-    woodBtn?.dispatchEvent({ type: "click" });
-    expect(onToggleWoodPlate).toHaveBeenCalledTimes(1);
-  });
-
-  it("shows active state and badge on Woodplatte button when toggled on", () => {
-    let woodActive = true;
-
-    new RightSidebar(host as unknown as HTMLElement, layout, {
-      onLayerChange: vi.fn(),
-      selectedPieceIds: () => [],
-      onToggleWoodPlate: vi.fn(),
-      isWoodPlateActive: () => woodActive,
-    });
-
-    const lockBtn = host.querySelector("#cl-toggle-selection-lock");
-    const woodBtn = host.querySelector("#cl-toggle-woodplate");
-
-    expect(lockBtn).toBeNull();
-    expect(woodBtn?.className).toContain("is-active");
-    expect(woodBtn?.innerHTML).toMatch(/An|On/);
+    heightBtn?.dispatchEvent({ type: "click" });
+    expect(onOpenHeightDialog).toHaveBeenCalledTimes(1);
   });
 
   it("auto-fits every layer in the menu when layers are added or when height is too small", () => {
