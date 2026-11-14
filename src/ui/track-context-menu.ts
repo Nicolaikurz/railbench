@@ -1,3 +1,5 @@
+import trackPropertiesModalHtml from "./templates/track-properties-modal.html?raw";
+import trackReplaceModalHtml from "./templates/track-replace-modal.html?raw";
 import type { Layout, TrackPiece } from "@/core/types";
 import type { CatalogEntry } from "@/catalog/catalog";
 import { isTurnoutEntry } from "@/core/simulation";
@@ -32,6 +34,11 @@ export interface TrackContextMenuOptions {
   onReplaceTrack?: (newCatalogId: string) => void;
   onToggleTurnoutDecoder?: () => void;
   onToggleTurnoutLantern?: () => void;
+  onToggleSignal?: () => void;
+  onCycleSignalSide?: () => void;
+  onCycleSignalDirection?: () => void;
+  onToggleBridge?: () => void;
+  onToggleTunnel?: () => void;
   // Backward compatibility
   onRotate?: () => void;
   onToggleFeeder?: () => void;
@@ -72,6 +79,12 @@ export function showTrackContextMenu(options: TrackContextMenuOptions): void {
     onReplaceTrack,
     onToggleTurnoutDecoder,
     onToggleTurnoutLantern,
+    onToggleSignal,
+    onCycleSignalSide,
+    onCycleSignalDirection,
+    onToggleBridge,
+    onToggleTunnel,
+    onToggleCatenary,
     onRotate,
   } = options;
 
@@ -93,141 +106,28 @@ export function showTrackContextMenu(options: TrackContextMenuOptions): void {
 
   const trackTypeName = catalogEntry?.name || (isDe ? "Gleisstück" : "Track Piece");
 
+  const signalSide = piece.signalSide ?? "right";
+  const signalSideText =
+    signalSide === "both"
+      ? (isDe ? "Beide Seiten" : "Both Sides")
+      : signalSide === "left"
+        ? (isDe ? "Links" : "Left")
+        : (isDe ? "Rechts" : "Right");
+
+  const signalDir = piece.signalDirection ?? "forward";
+  const signalDirText =
+    signalDir === "both"
+      ? (isDe ? "Beide Richtungen" : "Both Directions")
+      : signalDir === "backward"
+        ? (isDe ? "Rückwärts" : "Backward")
+        : (isDe ? "Vorwärts" : "Forward");
+
   const menu = document.createElement("div");
   menu.id = MENU_ID;
   menu.className = "track-context-menu";
 
   menu.innerHTML = `
-    <style>
-      .track-context-menu {
-        position: fixed;
-        z-index: 99999;
-        background: #1a2234;
-        color: #e2e8f0;
-        border: 1px solid #334155;
-        border-radius: 10px;
-        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
-        min-width: 250px;
-        max-width: 320px;
-        max-height: calc(100vh - 24px);
-        overflow-y: auto;
-        scrollbar-width: thin;
-        scrollbar-color: #334155 transparent;
-        padding: 5px;
-        font-family: inherit;
-        font-size: 12px;
-        user-select: none;
-        backdrop-filter: blur(8px);
-        animation: ctxMenuFadeIn 0.1s ease-out;
-      }
-      @keyframes ctxMenuFadeIn {
-        from { opacity: 0; transform: scale(0.96); }
-        to { opacity: 1; transform: scale(1); }
-      }
-      .ctx-header {
-        padding: 8px 10px;
-        font-size: 11px;
-        color: #94a3b8;
-        border-bottom: 1px solid #2d3748;
-        margin-bottom: 4px;
-        display: flex;
-        flex-direction: column;
-        gap: 3px;
-        background: rgba(15, 23, 42, 0.4);
-        border-radius: 6px;
-      }
-      .ctx-header-title {
-        font-weight: 700;
-        color: #f8fafc;
-        font-size: 12.5px;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-      .ctx-header-meta {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        font-size: 10.5px;
-        color: #94a3b8;
-      }
-      .ctx-header-meta .meta-badge {
-        background: #25334d;
-        color: #38bdf8;
-        padding: 1px 5px;
-        border-radius: 4px;
-        font-weight: 600;
-      }
-      .ctx-section-title {
-        font-size: 9.5px;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.6px;
-        color: #64748b;
-        padding: 6px 10px 2px 10px;
-      }
-      .ctx-item {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 5px 10px;
-        border-radius: 6px;
-        cursor: pointer;
-        color: #cbd5e1;
-        transition: all 0.12s ease;
-      }
-      .ctx-item:hover {
-        background: #27354f;
-        color: #ffffff;
-      }
-      .ctx-item.primary-accent {
-        background: rgba(2, 132, 199, 0.15);
-        color: #38bdf8;
-        font-weight: 600;
-        border: 1px solid rgba(2, 132, 199, 0.3);
-        margin: 2px 0 3px 0;
-      }
-      .ctx-item.primary-accent:hover {
-        background: #0284c7;
-        color: #ffffff;
-      }
-      .ctx-item.danger:hover {
-        background: #ef4444;
-        color: #ffffff;
-      }
-      .ctx-item-left {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-      .ctx-icon {
-        font-size: 13px;
-        width: 16px;
-        text-align: center;
-        display: inline-block;
-        flex-shrink: 0;
-      }
-      .ctx-shortcut {
-        font-size: 10.5px;
-        color: #64748b;
-        font-family: monospace;
-        margin-left: 12px;
-        flex-shrink: 0;
-      }
-      .ctx-item:hover .ctx-shortcut {
-        color: #cbd5e1;
-      }
-      .ctx-divider {
-        height: 1px;
-        background: #2d3748;
-        margin: 4px 2px;
-      }
-    </style>
-
-    <!-- Header: Track ID, Type, Number of open ends -->
+<!-- Header: Track ID, Type, Number of open ends -->
     <div class="ctx-header">
       <div class="ctx-header-title">#${piece.catalogId} · ${trackTypeName}</div>
       <div class="ctx-header-meta">
@@ -237,30 +137,23 @@ export function showTrackContextMenu(options: TrackContextMenuOptions): void {
       </div>
     </div>
 
-    <!-- 1. Ramp / height -->
-    <div class="ctx-section-title">${isDe ? "Rampe / Höhe" : "Ramp / Height"}</div>
+    <!-- 1. Height & Ramp -->
+    <div class="ctx-section-title">${isDe ? "Höhe & Steigung" : "Height & Ramp"}</div>
 
-    <div class="ctx-item primary-accent" data-action="ramp-generator">
+    <div class="ctx-item primary-accent" data-action="height-dialog">
       <div class="ctx-item-left">
         <span class="ctx-icon">📐</span>
-        <span>${isDe ? "Rampe zu Ebene erstellen..." : "Auto-Create Ramp to Layer..."}</span>
-      </div>
-    </div>
-
-    <div class="ctx-item" data-action="auto-ramp">
-      <div class="ctx-item-left">
-        <span class="ctx-icon">📐</span>
-        <span>${isDe ? "Auto-Rampe berechnen" : "Auto-Calculate Ramp"}</span>
-      </div>
-      <span class="ctx-shortcut">⇧M</span>
-    </div>
-
-    <div class="ctx-item" data-action="height-dialog">
-      <div class="ctx-item-left">
-        <span class="ctx-icon">⤉</span>
-        <span>${isDe ? "Gleishöhe & Ebene anpassen..." : "Track Height & Layer..."}</span>
+        <span>${isDe ? "Höhe & Steigung (Rampe)..." : "Height & Ramp..."}</span>
       </div>
       <span class="ctx-shortcut">M</span>
+    </div>
+
+    <div class="ctx-item" data-action="ramp-generator">
+      <div class="ctx-item-left">
+        <span class="ctx-icon">⚡</span>
+        <span>${isDe ? "Auto-Rampe generieren..." : "Auto-Generate Ramp..."}</span>
+      </div>
+      <span class="ctx-shortcut">⇧M</span>
     </div>
 
     <div class="ctx-divider"></div>
@@ -308,6 +201,58 @@ export function showTrackContextMenu(options: TrackContextMenuOptions): void {
       </div>
     </div>
 
+    <div class="ctx-item" data-action="toggle-signal">
+      <div class="ctx-item-left">
+        <span class="ctx-icon">🚦</span>
+        <span>${piece.hasSignal ? (isDe ? "Signal entfernen" : "Remove Signal") : (isDe ? "Signal aufstellen" : "Place Signal")}</span>
+      </div>
+      <span class="ctx-shortcut">⇧S</span>
+    </div>
+
+    ${
+      piece.hasSignal
+        ? `
+    <div class="ctx-item" data-action="cycle-signal-side">
+      <div class="ctx-item-left">
+        <span class="ctx-icon">⇄</span>
+        <span>${isDe ? `Signal-Seite: ${signalSideText}` : `Signal Side: ${signalSideText}`}</span>
+      </div>
+    </div>
+
+    <div class="ctx-item" data-action="cycle-signal-direction">
+      <div class="ctx-item-left">
+        <span class="ctx-icon">⇅</span>
+        <span>${isDe ? `Signal-Richtung: ${signalDirText}` : `Signal Direction: ${signalDirText}`}</span>
+      </div>
+    </div>
+    `
+        : ""
+    }
+
+    <div class="ctx-item" data-action="toggle-bridge">
+      <div class="ctx-item-left">
+        <span class="ctx-icon">🌉</span>
+        <span>${piece.hasBridge ? (isDe ? "Brücke entfernen" : "Remove Bridge") : (isDe ? "Als Brücke definieren" : "Define as Bridge")}</span>
+      </div>
+      <span class="ctx-shortcut">B</span>
+    </div>
+
+    <div class="ctx-item" data-action="toggle-tunnel">
+      <div class="ctx-item-left">
+        <span class="ctx-icon">🚇</span>
+        <span>${piece.hasTunnel ? (isDe ? "Tunnel entfernen" : "Remove Tunnel") : (isDe ? "Als Tunnel definieren" : "Define as Tunnel")}</span>
+      </div>
+      <span class="ctx-shortcut">T</span>
+    </div>
+
+    <div class="ctx-item" data-action="toggle-catenary">
+      <div class="ctx-item-left">
+        <span class="ctx-icon">⌁</span>
+        <span>${piece.hasCatenary ? (isDe ? "Oberleitung entfernen" : "Remove Catenary") : (isDe ? "Oberleitung aktivieren" : "Enable Catenary")}</span>
+      </div>
+      <span class="ctx-shortcut">O</span>
+    </div>
+
     ${
       isTurnout
         ? `
@@ -330,25 +275,57 @@ export function showTrackContextMenu(options: TrackContextMenuOptions): void {
     }
   `;
 
+  menu.style.left = "0px";
+  menu.style.top = "0px";
   document.body.appendChild(menu);
 
-  // Position clamping to keep on screen
-  const menuWidth = 270;
-  const menuHeight = isTurnout ? 330 : 270;
-  let posX = screenX + 6;
-  let posY = screenY + 6;
+  // Position clamping to keep every entry visible on screen
+  const positionMenuOnScreen = () => {
+    const margin = 12;
+    const vw = (typeof window !== "undefined" && window.innerWidth) || 1024;
+    const vh = (typeof window !== "undefined" && window.innerHeight) || 768;
 
-  if (posX + menuWidth > window.innerWidth - 10) {
-    posX = screenX - menuWidth - 6;
-  }
-  if (posY + menuHeight > window.innerHeight - 10) {
-    posY = window.innerHeight - menuHeight - 10;
-  }
-  if (posX < 10) posX = 10;
-  if (posY < 10) posY = 10;
+    const fallbackWidth = 280;
+    const fallbackHeight = isTurnout ? 430 : 370;
+    const rect = menu.getBoundingClientRect?.();
+    const measuredWidth = Math.max(menu.scrollWidth || 0, menu.offsetWidth || 0, rect?.width || 0);
+    const measuredHeight = Math.max(menu.scrollHeight || 0, menu.offsetHeight || 0, rect?.height || 0);
 
-  menu.style.left = `${posX}px`;
-  menu.style.top = `${posY}px`;
+    const menuWidth = measuredWidth > 0 ? Math.ceil(measuredWidth) + 4 : fallbackWidth;
+    const menuHeight = measuredHeight > 0 ? Math.ceil(measuredHeight) + 4 : fallbackHeight;
+
+    let posX = screenX + 6;
+    let posY = screenY + 6;
+
+    if (posX + menuWidth > vw - margin) {
+      posX = screenX - menuWidth - 6;
+    }
+    if (posX + menuWidth > vw - margin) {
+      posX = vw - menuWidth - margin;
+    }
+    if (posX < margin) {
+      posX = margin;
+    }
+
+    if (posY + menuHeight > vh - margin) {
+      posY = vh - menuHeight - margin;
+    }
+    if (posY < margin) {
+      posY = margin;
+    }
+
+    menu.style.left = `${Math.round(posX)}px`;
+    menu.style.top = `${Math.round(posY)}px`;
+  };
+
+  positionMenuOnScreen();
+  if (typeof requestAnimationFrame === "function") {
+    requestAnimationFrame(() => {
+      if (menu.isConnected !== false) {
+        positionMenuOnScreen();
+      }
+    });
+  }
 
   // Handle actions
   menu.addEventListener("click", (e) => {
@@ -417,6 +394,24 @@ export function showTrackContextMenu(options: TrackContextMenuOptions): void {
       case "toggle-lantern":
         onToggleTurnoutLantern?.();
         break;
+      case "toggle-signal":
+        onToggleSignal?.();
+        break;
+      case "cycle-signal-side":
+        onCycleSignalSide?.();
+        break;
+      case "cycle-signal-direction":
+        onCycleSignalDirection?.();
+        break;
+      case "toggle-bridge":
+        onToggleBridge?.();
+        break;
+      case "toggle-tunnel":
+        onToggleTunnel?.();
+        break;
+      case "toggle-catenary":
+        onToggleCatenary?.();
+        break;
     }
   });
 
@@ -472,171 +467,45 @@ export function openPropertiesDialog(piece: TrackPiece, catalogEntry?: CatalogEn
   const modal = document.createElement("div");
   modal.id = "track-properties-modal";
   modal.className = "track-modal-backdrop";
-  modal.innerHTML = `
-    <style>
-      .track-modal-backdrop {
-        position: fixed;
-        inset: 0;
-        z-index: 100000;
-        background: rgba(15, 23, 42, 0.7);
-        backdrop-filter: blur(4px);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-family: inherit;
-        animation: fadeIn 0.15s ease-out;
-      }
-      .track-modal-box {
-        background: #1e293b;
-        color: #e2e8f0;
-        border: 1px solid #334155;
-        border-radius: 12px;
-        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
-        width: 440px;
-        max-width: calc(100vw - 32px);
-        overflow: hidden;
-      }
-      .track-modal-header {
-        padding: 14px 18px;
-        border-bottom: 1px solid #334155;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        background: #0f172a;
-      }
-      .track-modal-header h3 {
-        margin: 0;
-        font-size: 15px;
-        font-weight: 700;
-        color: #f8fafc;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
-      .track-modal-close-btn {
-        background: transparent;
-        border: none;
-        color: #94a3b8;
-        font-size: 18px;
-        cursor: pointer;
-        padding: 2px 6px;
-        border-radius: 4px;
-      }
-      .track-modal-close-btn:hover {
-        background: #334155;
-        color: #ffffff;
-      }
-      .track-modal-content {
-        padding: 16px 18px;
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-        max-height: 70vh;
-        overflow-y: auto;
-      }
-      .track-props-grid {
-        display: grid;
-        grid-template-columns: 140px 1fr;
-        row-gap: 8px;
-        column-gap: 12px;
-        font-size: 12.5px;
-        background: #0f172a;
-        padding: 12px;
-        border-radius: 8px;
-        border: 1px solid #334155;
-      }
-      .track-prop-label {
-        color: #94a3b8;
-        font-weight: 500;
-      }
-      .track-prop-value {
-        color: #f1f5f9;
-        font-weight: 600;
-        word-break: break-all;
-      }
-      .track-prop-value.accent {
-        color: #38bdf8;
-      }
-      .track-modal-footer {
-        padding: 12px 18px;
-        border-top: 1px solid #334155;
-        display: flex;
-        justify-content: flex-end;
-        background: #0f172a;
-      }
-      .track-modal-btn {
-        background: #0284c7;
-        color: #ffffff;
-        border: none;
-        padding: 7px 16px;
-        border-radius: 6px;
-        font-size: 13px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: background 0.15s ease;
-      }
-      .track-modal-btn:hover {
-        background: #0369a1;
-      }
-    </style>
+  const groupSection = piece.groupId ? `
+    <span class="track-prop-label">${isDe ? "Gruppe:" : "Group:"}</span>
+    <span class="track-prop-value">${piece.groupId}</span>
+  ` : "";
 
-    <div class="track-modal-box">
-      <div class="track-modal-header">
-        <h3><span>ℹ</span> ${isDe ? "Gleiseigenschaften & Information" : "Track Properties & Info"}</h3>
-        <button class="track-modal-close-btn" id="track-modal-close">✕</button>
-      </div>
-      <div class="track-modal-content">
-        <div class="track-props-grid">
-          <span class="track-prop-label">${isDe ? "Artikelnummer:" : "Article Number:"}</span>
-          <span class="track-prop-value accent">#${piece.catalogId}</span>
-
-          <span class="track-prop-label">${isDe ? "Bezeichnung:" : "Name / Type:"}</span>
-          <span class="track-prop-value">${catalogEntry?.name || "-"}</span>
-
-          <span class="track-prop-label">${isDe ? "Kategorie:" : "Category:"}</span>
-          <span class="track-prop-value">${catalogEntry?.kind || "-"}</span>
-
-          <span class="track-prop-label">${isDe ? "Länge:" : "Length:"}</span>
-          <span class="track-prop-value">${curLength ? `${curLength} mm` : "-"}</span>
-
-          <span class="track-prop-label">${isDe ? "Radius:" : "Radius:"}</span>
-          <span class="track-prop-value">${curRadius ? `R = ${curRadius} mm` : "-"}</span>
-
-          <span class="track-prop-label">${isDe ? "Winkel:" : "Angle:"}</span>
-          <span class="track-prop-value">${curAngle !== undefined ? `${curAngle}°` : "-"}</span>
-
-          <span class="track-prop-label">${isDe ? "Spurweite / Gleissystem:" : "Gauge / System:"}</span>
-          <span class="track-prop-value">${catalogEntry?.gauge ?? 16.5} mm (H0)</span>
-
-          <span class="track-prop-label">${isDe ? "Ebene:" : "Layer:"}</span>
-          <span class="track-prop-value">${layerName}</span>
-
-          <span class="track-prop-label">${isDe ? "Höhe (Start / Ende):" : "Height (Start / End):"}</span>
-          <span class="track-prop-value">${Math.round(h0)} mm ➔ ${Math.round(h1)} mm ${slopePercent > 0 ? `(${slopePercent.toFixed(1)}% Steigung)` : ""}</span>
-
-          <span class="track-prop-label">${isDe ? "Offene Enden:" : "Open Ends:"}</span>
-          <span class="track-prop-value">${openConns.length} / ${piece.connectors.length} ${isDe ? "frei" : "free"}</span>
-
-          <span class="track-prop-label">${isDe ? "Stromeinspeisung:" : "Power Feeder:"}</span>
-          <span class="track-prop-value">${piece.powerFeed ? (isDe ? "⚡ Aktiv" : "⚡ Active") : (isDe ? "Nein" : "No")}</span>
-
-          <span class="track-prop-label">${isDe ? "Trennstelle:" : "Isolator Gap:"}</span>
-          <span class="track-prop-value">${piece.isIsolator ? `⊘ Pin ${(piece.isolatedConnectorIndex ?? 0) + 1}` : (isDe ? "Nein" : "No")}</span>
-
-          <span class="track-prop-label">${isDe ? "Oberleitung:" : "Catenary:"}</span>
-          <span class="track-prop-value">${piece.hasCatenary ? (isDe ? "⌁ Aktiv" : "⌁ Active") : (isDe ? "Nein" : "No")}</span>
-
-          ${piece.groupId ? `
-            <span class="track-prop-label">${isDe ? "Gruppe:" : "Group:"}</span>
-            <span class="track-prop-value">${piece.groupId}</span>
-          ` : ""}
-        </div>
-      </div>
-      <div class="track-modal-footer">
-        <button class="track-modal-btn" id="track-modal-ok">${isDe ? "Schließen" : "Close"}</button>
-      </div>
-    </div>
-  `;
+  modal.innerHTML = trackPropertiesModalHtml
+    .replace("{{TITLE}}", isDe ? "Gleiseigenschaften & Information" : "Track Properties & Info")
+    .replace("{{ARTICLE_NUMBER_LABEL}}", isDe ? "Artikelnummer:" : "Article Number:")
+    .replace("{{CATALOG_ID}}", piece.catalogId)
+    .replace("{{NAME_LABEL}}", isDe ? "Bezeichnung:" : "Name / Type:")
+    .replace("{{NAME_VALUE}}", catalogEntry?.name || "-")
+    .replace("{{CATEGORY_LABEL}}", isDe ? "Kategorie:" : "Category:")
+    .replace("{{CATEGORY_VALUE}}", catalogEntry?.kind || "-")
+    .replace("{{LENGTH_LABEL}}", isDe ? "Länge:" : "Length:")
+    .replace("{{LENGTH_VALUE}}", curLength ? `${curLength} mm` : "-")
+    .replace("{{RADIUS_LABEL}}", isDe ? "Radius:" : "Radius:")
+    .replace("{{RADIUS_VALUE}}", curRadius ? `R = ${curRadius} mm` : "-")
+    .replace("{{ANGLE_LABEL}}", isDe ? "Winkel:" : "Angle:")
+    .replace("{{ANGLE_VALUE}}", curAngle !== undefined ? `${curAngle}°` : "-")
+    .replace("{{GAUGE_LABEL}}", isDe ? "Spurweite / Gleissystem:" : "Gauge / System:")
+    .replace("{{GAUGE_VALUE}}", `${catalogEntry?.gauge ?? 16.5} mm (H0)`)
+    .replace("{{LAYER_LABEL}}", isDe ? "Ebene:" : "Layer:")
+    .replace("{{LAYER_VALUE}}", layerName)
+    .replace("{{HEIGHT_LABEL}}", isDe ? "Höhe (Start / Ende):" : "Height (Start / End):")
+    .replace("{{HEIGHT_VALUE}}", `${Math.round(h0)} mm ➔ ${Math.round(h1)} mm ${slopePercent > 0 ? `(${slopePercent.toFixed(1)}% Steigung)` : ""}`)
+    .replace("{{OPEN_ENDS_LABEL}}", isDe ? "Offene Enden:" : "Open Ends:")
+    .replace("{{OPEN_ENDS_VALUE}}", `${openConns.length} / ${piece.connectors.length} ${isDe ? "frei" : "free"}`)
+    .replace("{{FEEDER_LABEL}}", isDe ? "Stromeinspeisung:" : "Power Feeder:")
+    .replace("{{FEEDER_VALUE}}", piece.powerFeed ? (isDe ? "⚡ Aktiv" : "⚡ Active") : (isDe ? "Nein" : "No"))
+    .replace("{{ISOLATOR_LABEL}}", isDe ? "Trennstelle:" : "Isolator Gap:")
+    .replace("{{ISOLATOR_VALUE}}", piece.isIsolator ? `⊘ Pin ${(piece.isolatedConnectorIndex ?? 0) + 1}` : (isDe ? "Nein" : "No"))
+    .replace("{{CATENARY_LABEL}}", isDe ? "Oberleitung:" : "Catenary:")
+    .replace("{{CATENARY_VALUE}}", piece.hasCatenary ? (isDe ? "⌁ Aktiv" : "⌁ Active") : (isDe ? "Nein" : "No"))
+    .replace("{{SIGNAL_LABEL}}", isDe ? "Signal:" : "Signal:")
+    .replace("{{SIGNAL_VALUE}}", piece.hasSignal ? (isDe ? `🚦 Montiert (${piece.signalSide === "both" ? "beidseitig" : piece.signalSide === "left" ? "links" : "rechts"}, ${piece.signalDirection === "both" ? "beide Richtungen" : piece.signalDirection === "backward" ? "rückwärts" : "vorwärts"})` : `🚦 Mounted (${piece.signalSide ?? "right"}, ${piece.signalDirection ?? "forward"})`) : (isDe ? "Nein" : "No"))
+    .replace("{{BRIDGE_LABEL}}", isDe ? "Brücke / Viadukt:" : "Bridge / Viaduct:")
+    .replace("{{BRIDGE_VALUE}}", piece.hasBridge ? (isDe ? "🌉 Aktiv" : "🌉 Active") : (isDe ? "Nein" : "No"))
+    .replace("{{GROUP_SECTION}}", groupSection)
+    .replace("{{CLOSE_BTN}}", isDe ? "Schließen" : "Close");
 
   document.body.appendChild(modal);
 
@@ -687,144 +556,32 @@ export function openReplaceOrSplitDialog(
   const modal = document.createElement("div");
   modal.id = "track-replace-modal";
   modal.className = "track-modal-backdrop";
-  modal.innerHTML = `
-    <style>
-      .track-modal-box.wide {
-        width: 520px;
-      }
-      .track-section-card {
-        background: #0f172a;
-        border: 1px solid #334155;
-        border-radius: 8px;
-        padding: 12px 14px;
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-      }
-      .track-section-card-title {
-        font-size: 13px;
-        font-weight: 700;
-        color: #f1f5f9;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-      }
-      .track-section-card-desc {
-        font-size: 11.5px;
-        color: #94a3b8;
-        line-height: 1.4;
-      }
-      .track-replace-grid {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 6px;
-        max-height: 200px;
-        overflow-y: auto;
-        padding-right: 4px;
-      }
-      .track-replace-item {
-        background: #1e293b;
-        border: 1px solid #334155;
-        border-radius: 6px;
-        padding: 6px 10px;
-        cursor: pointer;
-        display: flex;
-        flex-direction: column;
-        transition: all 0.12s ease;
-      }
-      .track-replace-item:hover {
-        background: #0284c7;
-        border-color: #38bdf8;
-      }
-      .track-replace-item:hover .replace-item-sub {
-        color: #e0f2fe;
-      }
-      .replace-item-title {
-        font-size: 12px;
-        font-weight: 700;
-        color: #f8fafc;
-      }
-      .replace-item-sub {
-        font-size: 10.5px;
-        color: #94a3b8;
-      }
-      .track-action-btn {
-        background: #2563eb;
-        color: #ffffff;
-        border: none;
-        padding: 7px 14px;
-        border-radius: 6px;
-        font-size: 12px;
-        font-weight: 600;
-        cursor: pointer;
-        align-self: flex-start;
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-      }
-      .track-action-btn:hover {
-        background: #1d4ed8;
-      }
-    </style>
-
-    <div class="track-modal-box wide">
-      <div class="track-modal-header">
-        <h3><span>✂</span> ${isDe ? "Gleis teilen oder Typ ersetzen" : "Split Track or Replace Type"}</h3>
-        <button class="track-modal-close-btn" id="track-modal-close">✕</button>
-      </div>
-      <div class="track-modal-content">
-        <!-- Split Track Option -->
-        <div class="track-section-card">
-          <div class="track-section-card-title">
-            <span>✂</span>
-            <span>${isDe ? "Gleis in zwei Hälften teilen" : "Split Track into Halves"}</span>
-          </div>
-          <div class="track-section-card-desc">
-            ${
-              isFlex
-                ? (isDe ? "Das ausgewählte Flexgleis wird mittig in zwei eigenständige Teilstücke getrennt." : "The selected flex track will be cut in half into two separate pieces.")
-                : (isDe ? "Ersetzt das gerade Standardgleis durch zwei passende Halb-Gleise aus dem Katalog." : "Replaces this straight track with two matching half-tracks from the catalog.")
-            }
-          </div>
-          <button class="track-action-btn" id="btn-do-split">
-            <span>✂</span>
-            <span>${isDe ? "Gleis jetzt teilen" : "Split Track Now"}</span>
-          </button>
-        </div>
-
-        <!-- Replace Track Option -->
-        <div class="track-section-card">
-          <div class="track-section-card-title">
-            <span>🔄</span>
-            <span>${isDe ? "Durch einen anderen Typ ersetzen" : "Replace with Another Type"}</span>
-          </div>
-          <div class="track-section-card-desc">
-            ${isDe ? "Klicken Sie auf ein Gleisstück, um das aktuelle Gleis an derselben Position zu ersetzen:" : "Click on a track piece to replace the current piece at the same position:"}
-          </div>
-
-          <div class="track-replace-grid">
-            ${
-              compatiblePieces.length > 0
-                ? compatiblePieces
-                    .map(
-                      (e) => `
-                <div class="track-replace-item" data-catalog-id="${e.id}">
-                  <span class="replace-item-title">#${e.id}</span>
-                  <span class="replace-item-sub">${e.name} ${e.length ? `(${e.length} mm)` : e.radius ? `(R${e.radius})` : ""}</span>
-                </div>
-              `,
-                    )
-                    .join("")
-                : `<div style="grid-column: span 2; font-size:12px; color:#94a3b8;">${isDe ? "Keine weiteren kompatiblen Typen gefunden" : "No other compatible types found"}</div>`
-            }
-          </div>
-        </div>
-      </div>
-      <div class="track-modal-footer">
-        <button class="track-modal-btn" id="track-modal-cancel" style="background:#475569">${isDe ? "Abbrechen" : "Cancel"}</button>
-      </div>
+  const compatibleItemsHtml = compatiblePieces.length > 0
+    ? compatiblePieces
+        .map(
+          (e) => `
+    <div class="track-replace-item" data-catalog-id="${e.id}">
+      <span class="replace-item-title">#${e.id}</span>
+      <span class="replace-item-sub">${e.name} ${e.length ? `(${e.length} mm)` : e.radius ? `(R${e.radius})` : ""}</span>
     </div>
-  `;
+  `,
+        )
+        .join("")
+    : `<div style="grid-column: span 2; font-size:12px; color:#94a3b8;">${isDe ? "Keine weiteren kompatiblen Typen gefunden" : "No other compatible types found"}</div>`;
+
+  const splitCardDesc = isFlex
+    ? (isDe ? "Das ausgewählte Flexgleis wird mittig in zwei eigenständige Teilstücke getrennt." : "The selected flex track will be cut in half into two separate pieces.")
+    : (isDe ? "Ersetzt das gerade Standardgleis durch zwei passende Halb-Gleise aus dem Katalog." : "Replaces this straight track with two matching half-tracks from the catalog.");
+
+  modal.innerHTML = trackReplaceModalHtml
+    .replace("{{TITLE}}", isDe ? "Gleis teilen oder Typ ersetzen" : "Split Track or Replace Type")
+    .replace("{{SPLIT_CARD_TITLE}}", isDe ? "Gleis in zwei Hälften teilen" : "Split Track into Halves")
+    .replace("{{SPLIT_CARD_DESC}}", splitCardDesc)
+    .replace("{{SPLIT_BTN_LABEL}}", isDe ? "Gleis jetzt teilen" : "Split Track Now")
+    .replace("{{REPLACE_CARD_TITLE}}", isDe ? "Durch einen anderen Typ ersetzen" : "Replace with Another Type")
+    .replace("{{REPLACE_CARD_DESC}}", isDe ? "Klicken Sie auf ein Gleisstück, um das aktuelle Gleis an derselben Position zu ersetzen:" : "Click on a track piece to replace the current piece at the same position:")
+    .replace("{{COMPATIBLE_ITEMS}}", compatibleItemsHtml)
+    .replace("{{CANCEL_BTN}}", isDe ? "Abbrechen" : "Cancel");
 
   document.body.appendChild(modal);
 

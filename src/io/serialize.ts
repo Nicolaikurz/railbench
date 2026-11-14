@@ -39,12 +39,14 @@ export function toXML(layout: Layout): string {
     for (const lay of readyLayout.layers) {
       const modeAttr = lay.woodPlateMode ? ` woodPlateMode="${escapeXml(lay.woodPlateMode)}"` : "";
       const thAttr = lay.woodPlateThicknessMm !== undefined ? ` woodPlateThicknessMm="${lay.woodPlateThicknessMm}"` : "";
+      const plateStyleAttr = lay.woodPlateStyle ? ` woodPlateStyle="${escapeXml(lay.woodPlateStyle)}"` : "";
       if (lay.plates && lay.plates.length > 0) {
-        xml += `    <layer id="${escapeXml(lay.id)}" name="${escapeXml(lay.name)}" color="${escapeXml(lay.color || '#38bdf8')}" visible="${lay.visible !== false}" locked="${lay.locked === true}" heightMm="${lay.heightMm ?? 0}"${modeAttr}${thAttr}>\n`;
+        xml += `    <layer id="${escapeXml(lay.id)}" name="${escapeXml(lay.name)}" color="${escapeXml(lay.color || '#38bdf8')}" visible="${lay.visible !== false}" locked="${lay.locked === true}" heightMm="${lay.heightMm ?? 0}"${modeAttr}${thAttr}${plateStyleAttr}>\n`;
         for (const pl of lay.plates) {
           const nameAttr = pl.name ? ` name="${escapeXml(pl.name)}"` : "";
           const boardAttr = pl.baseboardId ? ` baseboardId="${escapeXml(pl.baseboardId)}"` : "";
           const posAttr = pl.positionMode ? ` positionMode="${escapeXml(pl.positionMode)}"` : "";
+          const styleAttr = pl.style ? ` style="${escapeXml(pl.style)}"` : "";
           const shapeAttr = pl.shape ? ` shape="${escapeXml(pl.shape)}"` : "";
           const triAttr = pl.triangleType ? ` triangleType="${escapeXml(pl.triangleType)}"` : "";
           const lWingWAttr = pl.lWingWidth !== undefined ? ` lWingWidth="${pl.lWingWidth}"` : "";
@@ -56,11 +58,11 @@ export function toXML(layout: Layout): string {
           const tBDAttr = pl.tBarDepth !== undefined ? ` tBarDepth="${pl.tBarDepth}"` : "";
           const tSWAttr = pl.tStemWidth !== undefined ? ` tStemWidth="${pl.tStemWidth}"` : "";
           const rotAttr = pl.rotation !== undefined ? ` rotation="${pl.rotation}"` : "";
-          xml += `      <plate id="${escapeXml(pl.id)}"${nameAttr}${boardAttr} width="${pl.width}" depth="${pl.depth}" x="${pl.x ?? 0}" y="${pl.y ?? 0}" thicknessMm="${pl.thicknessMm ?? 10}"${posAttr}${shapeAttr}${triAttr}${lWingWAttr}${lWingDAttr}${lSideAttr}${uLWAttr}${uRWAttr}${uBDAttr}${tBDAttr}${tSWAttr}${rotAttr}/>\n`;
+          xml += `      <plate id="${escapeXml(pl.id)}"${nameAttr}${boardAttr} width="${pl.width}" depth="${pl.depth}" x="${pl.x ?? 0}" y="${pl.y ?? 0}" thicknessMm="${pl.thicknessMm ?? 10}"${styleAttr}${posAttr}${shapeAttr}${triAttr}${lWingWAttr}${lWingDAttr}${lSideAttr}${uLWAttr}${uRWAttr}${uBDAttr}${tBDAttr}${tSWAttr}${rotAttr}/>\n`;
         }
         xml += `    </layer>\n`;
       } else {
-        xml += `    <layer id="${escapeXml(lay.id)}" name="${escapeXml(lay.name)}" color="${escapeXml(lay.color || '#38bdf8')}" visible="${lay.visible !== false}" locked="${lay.locked === true}" heightMm="${lay.heightMm ?? 0}"${modeAttr}${thAttr}/>\n`;
+        xml += `    <layer id="${escapeXml(lay.id)}" name="${escapeXml(lay.name)}" color="${escapeXml(lay.color || '#38bdf8')}" visible="${lay.visible !== false}" locked="${lay.locked === true}" heightMm="${lay.heightMm ?? 0}"${modeAttr}${thAttr}${plateStyleAttr}/>\n`;
       }
     }
     xml += `  </layers>\n`;
@@ -210,6 +212,7 @@ export function fromXML(xmlStr: string): Layout {
           y: parseFloat(pl.getAttribute("y") || "0"),
           thicknessMm: parseFloat(pl.getAttribute("thicknessMm") || "10"),
           positionMode: (pl.getAttribute("positionMode") as any) || "center",
+          style: (pl.getAttribute("style") as any) || undefined,
         });
       });
 
@@ -222,6 +225,7 @@ export function fromXML(xmlStr: string): Layout {
         heightMm: parseFloat(el.getAttribute("heightMm") || "0"),
         woodPlateMode: modeAttr || undefined,
         woodPlateThicknessMm: thAttr ? parseFloat(thAttr) : undefined,
+        woodPlateStyle: (el.getAttribute("woodPlateStyle") as any) || undefined,
         plates: plates.length > 0 ? plates : undefined,
       });
     });

@@ -1,5 +1,13 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import { getLanguage, setLanguage, toggleLanguage, getTranslations, onLanguageChange } from "@/i18n";
+import { describe, it, expect, beforeEach, afterAll } from "vitest";
+import {
+  getLanguage,
+  setLanguage,
+  toggleLanguage,
+  getTranslations,
+  onLanguageChange,
+  detectSystemLanguage,
+  autoSelectLanguage,
+} from "@/i18n";
 import { en } from "@/i18n/en";
 import { de } from "@/i18n/de";
 
@@ -56,7 +64,7 @@ describe("i18n Module", () => {
       return Object.keys(obj).flatMap((key) => {
         const val = obj[key];
         const currentPath = prefix ? `${prefix}.${key}` : key;
-        if (typeof val === "object" && val !== null && !Array.isArray(val)) {
+        if (typeof val === "object" && val !== null) {
           return getDeepKeys(val, currentPath);
         }
         return [currentPath];
@@ -112,5 +120,105 @@ describe("i18n Module", () => {
     expect(getTrackDisplayName(bufferPiece)).toBe("Prellbock-Gleis 77,5 mm");
     expect(getTrackDisplayCategory("Geraden")).toBe("Geraden");
     expect(getTrackDisplayCategory("Weichen")).toBe("Weichen");
+  });
+
+  describe("detectSystemLanguage & autoSelectLanguage", () => {
+    const originalNavigator = globalThis.navigator;
+
+    it("should detect German when navigator.language starts with de (e.g. de-DE, de-CH)", () => {
+      Object.defineProperty(globalThis, "navigator", {
+        value: { language: "de-DE", languages: ["de-DE", "en"] },
+        configurable: true,
+      });
+
+      expect(detectSystemLanguage()).toBe("de");
+    });
+
+    it("should detect English when navigator.language is English or other non-German languages", () => {
+      Object.defineProperty(globalThis, "navigator", {
+        value: { language: "en-US", languages: ["en-US", "en"] },
+        configurable: true,
+      });
+
+      expect(detectSystemLanguage()).toBe("en");
+
+      Object.defineProperty(globalThis, "navigator", {
+        value: { language: "fr-FR", languages: ["fr-FR", "en"] },
+        configurable: true,
+      });
+
+      expect(detectSystemLanguage()).toBe("en");
+    });
+
+    it("should auto-select German when system language is German", () => {
+      Object.defineProperty(globalThis, "navigator", {
+        value: { language: "de", languages: ["de"] },
+        configurable: true,
+      });
+
+      setLanguage("en");
+      expect(getLanguage()).toBe("en");
+
+      const chosen = autoSelectLanguage();
+      expect(chosen).toBe("de");
+      expect(getLanguage()).toBe("de");
+      expect(localStorage.getItem("railbench_language")).toBe("de");
+    });
+
+    it("should auto-select English when system language is non-German", () => {
+      Object.defineProperty(globalThis, "navigator", {
+        value: { language: "es-ES", languages: ["es-ES"] },
+        configurable: true,
+      });
+
+      setLanguage("de");
+      expect(getLanguage()).toBe("de");
+
+      const chosen = autoSelectLanguage();
+      expect(chosen).toBe("en");
+      expect(getLanguage()).toBe("en");
+      expect(localStorage.getItem("railbench_language")).toBe("en");
+    });
+
+    it("should allow autoSelectLanguage without persisting when persist is false", () => {
+      Object.defineProperty(globalThis, "navigator", {
+        value: { language: "de-AT", languages: ["de-AT"] },
+        configurable: true,
+      });
+
+      setLanguage("en");
+      localStorage.removeItem("railbench_language");
+
+      const chosen = autoSelectLanguage(false);
+      expect(chosen).toBe("de");
+      expect(getLanguage()).toBe("de");
+      expect(localStorage.getItem("railbench_language")).toBeNull();
+    });
+
+    // Restore original navigator
+    afterAll(() => {
+      Object.defineProperty(globalThis, "navigator", {
+        value: originalNavigator,
+        configurable: true,
+      });
+    });
+  });
+
+  it("should render all Help Dialog tabs in both German and English from separated language files", async () => {
+    const { HELP_TABS, renderHelpTab } = await import("@/ui/help-dialog");
+    const { helpDe } = await import("@/i18n/help-de");
+    const { helpEn } = await import("@/i18n/help-en");
+
+    for (const tab of HELP_TABS) {
+      const containerDe = { innerHTML: "" } as unknown as HTMLElement;
+      const containerEn = { innerHTML: "" } as unknown as HTMLElement;
+
+      renderHelpTab(tab, containerDe, helpDe);
+      renderHelpTab(tab, containerEn, helpEn);
+
+      expect(containerDe.innerHTML).toContain("help-topic-section");
+      expect(containerEn.innerHTML).toContain("help-topic-section");
+      expect(containerDe.innerHTML).not.toBe(containerEn.innerHTML);
+    }
   });
 });

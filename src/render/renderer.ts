@@ -1,12 +1,13 @@
 import { Application, Container, Graphics, Text, TextStyle } from "pixi.js";
-import type { Layout, ColorMode } from "@/core/types";
+import type { Layout, ColorMode, TrackPiece, BaseboardConfig } from "@/core/types";
 import { catalogRegistry, type Catalog, type CatalogEntry } from "@/catalog/catalog";
 import type { SimulationSummary, ShortCircuitDetectionResult } from "@/core/simulation";
 import { getTranslations } from "@/i18n";
 import { createTrackGraphics } from "./track-sprite";
-import { createBaseboardGraphics } from "./baseboard-sprite";
+import { createBaseboardGraphics, getStyleColors } from "./baseboard-sprite";
 import { createModel2DGraphics } from "./model-sprite";
 import { getBaseboards, getBaseboardBounds, getBaseboardPolygon, getLayerPlatePolygon } from "@/core/layout";
+import { computeTableTrackCutouts } from "@/core/table-cutout";
 import type { BaseboardSnapGuide } from "@/core/baseboard-snapping";
 import { getConnectorSnapStatus } from "@/core/snapping";
 import { isFlexTrack } from "@/core/flextrack";
@@ -14,7 +15,8 @@ import {
   getBuildingDoorConnectors,
   isConnectorConnectedToBuilding,
 } from "@/core/engine-shed-snap";
-import { dist } from "@/core/geometry";
+import { dist, deg2rad } from "@/core/geometry";
+import { renderSceneOverlays } from "./renderer-overlays";
 
 export interface MeasureState {
   start: { x: number; y: number } | null;
@@ -57,6 +59,10 @@ export interface RenderStateOptions {
   isDraggingBaseboard?: boolean;
   baseboardSnapGuides?: BaseboardSnapGuide[];
   measureTool?: MeasureState | null;
+  pointMarkers?: Array<{ x: number; y: number; label: string; color: number; id?: string }>;
+  previewElevations?: Map<string, { start: number; end: number }>;
+  previewPieces?: TrackPiece[];
+  hoveredOpenConnector?: { pieceId: string; connectorIndex: number } | null;
 }
 
 export class Renderer {
@@ -68,6 +74,10 @@ export class Renderer {
   private tracksLayer = new Container();
   private overlayLayer = new Container();
   private currentTheme: "light" | "dark" = "light";
+
+  getBaseboardContainer(): Container {
+    return this.baseboardLayer;
+  }
 
   async init(host: HTMLElement) {
     const isDark = document.documentElement.getAttribute("data-theme") === "dark";
@@ -128,65 +138,205 @@ export class Renderer {
   }
 
   render(layout: Layout, catalog?: Catalog, options: RenderStateOptions = {}) {
-    // 0. Baseboard / Tischplatte rendern
+    const layerMap = new Map<string, any>();
+    const layersList = layout.layers ?? [];
+    for (const l of layersList) layerMap.set(l.id, l);
+    const defaultLayerId = layersList[0]?.id || "layer-1";
+    const activeLayerId = layout.activeLayerId || defaultLayerId;
+    const hasMultipleLayers = layersList.length > 1;
+    const activeLayer = layerMap.get(activeLayerId);
+    const activeLayerElev = activeLayer?.heightMm ?? 0;
+
+    // 0. Baseboard / Tischplatte & Zwischenebenen rendern (sortiert nach realer 3D-Höhe)
     this.baseboardLayer.removeChildren();
     const baseboards = getBaseboards(layout);
-    for (const bb of baseboards) {
-      if (bb.enabled) {
-        const isSelected = options.activeBaseboardId === bb.id;
-        const isDragging = isSelected && (options.isDraggingBaseboard ?? false);
-        const bbSprite = createBaseboardGraphics(bb, {
-          isSelected,
-          isDragging,
-          snapGuides: isDragging ? options.baseboardSnapGuides : undefined,
-          layout,
-          catalog,
-        });
-        this.baseboardLayer.addChild(bbSprite);
+    const tableLayer = layout.layers?.find((l) => (l.heightMm ?? 0) === 0);
+    const tableVisible = tableLayer ? tableLayer.visible !== false : true;
+
+    interface BaseboardRenderItem {
+      elev: number;
+      order: number;
+      sprite: Container;
+    }
+    const boardItems: BaseboardRenderItem[] = [];
+
+    if (tableVisible) {
+      for (const bb of baseboards) {
+        if (bb.enabled) {
+          const isSelected = options.activeBaseboardId === bb.id;
+          const isDragging = isSelected && (options.isDraggingBaseboard ?? false);
+          const matchingPlate = tableLayer?.plates?.find(
+            (p) => (p.baseboardId || baseboards[0]?.id) === bb.id,
+          );
+          const effectiveStyle = matchingPlate?.style ?? tableLayer?.woodPlateStyle ?? bb.style ?? "wood";
+          const bbToRender = bb.style === effectiveStyle ? bb : { ...bb, style: effectiveStyle };
+          const tableElev = tableLayer?.heightMm ?? 0;
+          const tableLayerId = tableLayer?.id || defaultLayerId;
+          const isInactive = hasMultipleLayers && tableLayerId !== activeLayerId;
+
+          const bbSprite = createBaseboardGraphics(bbToRender, {
+            isSelected,
+            isDragging,
+            snapGuides: isDragging ? options.baseboardSnapGuides : undefined,
+            layout,
+            catalog,
+            previewElevations: options.previewElevations,
+            layerElevation: tableElev,
+            layerThickness: tableLayer?.woodPlateThicknessMm ?? 35,
+          });
+
+          if (isInactive && tableElev > activeLayerElev) {
+            bbSprite.alpha = 0.4;
+          }
+
+          boardItems.push({
+            elev: tableElev,
+            order: 0,
+            sprite: bbSprite,
+          });
+        }
       }
     }
 
     // 0A. Tischplatten / Voll-Zwischenebenen (woodPlateMode === "table" oder layer.plates)
     if (layout.layers) {
       for (const layer of layout.layers) {
-        if (!layer.visible) continue;
+        if (layer.visible === false) continue;
+        const layerH = layer.heightMm ?? 0;
+        const thickness = layer.woodPlateThicknessMm ?? 12;
+        const isInactive = hasMultipleLayers && layer.id !== activeLayerId;
+
         if (layer.plates && layer.plates.length > 0) {
           for (const plate of layer.plates) {
             const targetBoard = (plate.baseboardId ? baseboards.find((b) => b.id === plate.baseboardId) : undefined) || baseboards[0];
-            const poly = getLayerPlatePolygon(plate, targetBoard);
-            const deckG = new Graphics();
-            deckG.poly(poly);
-            deckG.stroke({ width: 2, color: 0xcbb89d, alpha: 0.75 });
-            deckG.fill({ color: 0xcbb89d, alpha: 0.14 });
-            this.baseboardLayer.addChild(deckG);
+            const isGroundMatchingBoard =
+              tableVisible &&
+              layerH === (tableLayer?.heightMm ?? 0) &&
+              targetBoard &&
+              targetBoard.enabled &&
+              (plate.baseboardId === targetBoard.id || !plate.baseboardId) &&
+              (!plate.x || plate.x === 0) &&
+              (!plate.y || plate.y === 0) &&
+              plate.width === targetBoard.width &&
+              plate.depth === targetBoard.depth &&
+              plate.shape !== "custom" &&
+              targetBoard.shape !== "custom" &&
+              (!plate.shape || plate.shape === (targetBoard.shape ?? "rect"));
+
+            // Hauptplatte auf Tisch-Ebene wurde bereits über den Tisch mit voller Grafik gerendert
+            if (isGroundMatchingBoard) {
+              continue;
+            }
+
+            const style = plate.style ?? targetBoard?.style ?? "wood";
+            const tableBounds = targetBoard ? getBaseboardBounds(targetBoard) : { x: 0, y: 0 };
+            const originX = tableBounds.x + (plate.x ?? 0);
+            const originY = tableBounds.y + (plate.y ?? 0);
+
+            const plateConfig: BaseboardConfig = {
+              enabled: true,
+              width: Math.max(50, plate.width),
+              depth: Math.max(50, plate.depth),
+              positionMode: "custom",
+              customX: originX,
+              customY: originY,
+              shape: plate.shape ?? "rect",
+              customPolygon: plate.customPolygon,
+              triangleType: plate.triangleType,
+              lWingWidth: plate.lWingWidth,
+              lWingDepth: plate.lWingDepth,
+              lSide: plate.lSide,
+              uLeftWingWidth: plate.uLeftWingWidth,
+              uRightWingWidth: plate.uRightWingWidth,
+              uBackDepth: plate.uBackDepth,
+              tBarDepth: plate.tBarDepth,
+              tStemWidth: plate.tStemWidth,
+              rotation: plate.rotation ?? 0,
+              style,
+              cornerRadius: 8,
+              showDimensions: false,
+            };
+
+            const plateSprite = createBaseboardGraphics(plateConfig, {
+              layout,
+              catalog,
+              previewElevations: options.previewElevations,
+              layerElevation: layerH,
+              layerThickness: thickness,
+            });
+
+            if (isInactive && layerH > activeLayerElev) {
+              plateSprite.alpha = 0.4;
+            }
+
+            boardItems.push({
+              elev: layerH,
+              order: 1,
+              sprite: plateSprite,
+            });
           }
-        } else if (layer.woodPlateMode === "table" && (layer.heightMm ?? 0) !== 0) {
+        } else if (layer.woodPlateMode === "table" && layerH !== (tableLayer?.heightMm ?? 0)) {
           for (const bb of baseboards) {
             if (!bb.enabled) continue;
-            const poly = getBaseboardPolygon(bb);
-            const deckG = new Graphics();
-            deckG.poly(poly);
-            deckG.stroke({ width: 2, color: 0xcbb89d, alpha: 0.65 });
-            deckG.fill({ color: 0xcbb89d, alpha: 0.08 });
-            this.baseboardLayer.addChild(deckG);
+            const style = layer.woodPlateStyle ?? bb.style ?? "wood";
+            const deckConfig: BaseboardConfig = {
+              ...bb,
+              style,
+              showDimensions: false,
+            };
+            const deckSprite = createBaseboardGraphics(deckConfig, {
+              layout,
+              catalog,
+              previewElevations: options.previewElevations,
+              layerElevation: layerH,
+              layerThickness: thickness,
+            });
+
+            if (isInactive && layerH > activeLayerElev) {
+              deckSprite.alpha = 0.4;
+            }
+
+            boardItems.push({
+              elev: layerH,
+              order: 1,
+              sprite: deckSprite,
+            });
           }
         }
       }
+    }
+
+    boardItems.sort((a, b) => {
+      if (Math.abs(a.elev - b.elev) > 0.05) return a.elev - b.elev;
+      return a.order - b.order;
+    });
+
+    for (const item of boardItems) {
+      this.baseboardLayer.addChild(item.sprite);
     }
 
     // 0B. 3D-Modelle / Scenery im 2D-Grundriss rendern
     this.modelsLayer.removeChildren();
     const selectedIds = options.selectedIds ?? new Set<string>();
 
-    const layerMap = new Map<string, any>();
-    if (layout.layers) {
-      for (const l of layout.layers) layerMap.set(l.id, l);
-    }
-
     if (layout.models && layout.models.length > 0) {
-      for (const model of layout.models) {
-        const layer = model.layerId ? layerMap.get(model.layerId) : undefined;
-        if (layer && !layer.visible) continue;
+      const sortedModels = layout.models
+        .map((model, index) => {
+          const layer = model.layerId ? layerMap.get(model.layerId) : undefined;
+          const elev = (layer?.heightMm ?? 0) + (model.elevation ?? 0);
+          const mLayerId = model.layerId || defaultLayerId;
+          const isInactive = hasMultipleLayers && mLayerId !== activeLayerId;
+          return { model, layer, elev, isInactive, index };
+        })
+        .filter((item) => !item.layer || item.layer.visible !== false)
+        .sort((a, b) => {
+          if (Math.abs(a.elev - b.elev) > 0.05) return a.elev - b.elev;
+          if (a.isInactive !== b.isInactive) return a.isInactive ? -1 : 1;
+          return a.index - b.index;
+        });
+
+      for (const { model, layer, isInactive } of sortedModels) {
+        const isSelected = selectedIds.has(model.id);
 
         // Holzfundamentplatte rendern, wenn Layer im tight-Modus
         if (layer?.woodPlateMode === "tight") {
@@ -195,20 +345,22 @@ export class Renderer {
           const w = (model.width * scale) + 12;
           const d = (model.depth * scale) + 12;
           baseG.rect(-w / 2, -d / 2, w, d);
-          baseG.fill({ color: 0xcbb89d, alpha: 0.35 });
-          baseG.stroke({ width: 1.5, color: 0x8c6d48, alpha: 0.7 });
+          baseG.fill({ color: 0xcbb89d, alpha: isInactive && !isSelected ? 0.18 : 0.35 });
+          baseG.stroke({ width: 1.5, color: 0x8c6d48, alpha: isInactive && !isSelected ? 0.38 : 0.7 });
           baseG.position.set(model.transform.x, model.transform.y);
           baseG.rotation = (model.transform.rotation * Math.PI) / 180;
           this.modelsLayer.addChild(baseG);
         }
 
-        const isSelected = selectedIds.has(model.id);
         const modelSprite = createModel2DGraphics(model, isSelected);
+        if (isInactive && !isSelected) {
+          modelSprite.alpha = 0.58;
+        }
         this.modelsLayer.addChild(modelSprite);
       }
     }
 
-    // 1. Tracks rendern
+    // 1. Tracks rendern (sortiert nach realer 3D-Höhe: tiefere Gleise unten, höhere Gleise darüber)
     this.tracksLayer.removeChildren();
 
     const entryMap = new Map<string, CatalogEntry>();
@@ -221,12 +373,51 @@ export class Renderer {
     const showPowerDrop = options.showPowerDrop ?? false;
     const powerSim = options.powerSimulation;
 
-    for (const piece of layout.pieces) {
-      const layer = piece.layerId ? layerMap.get(piece.layerId) : undefined;
-      // Ebene ausgeblendet?
-      if (layer && !layer.visible) {
-        continue;
-      }
+    const visibleTrackItems = layout.pieces
+      .map((piece, index) => {
+        const layer = piece.layerId ? layerMap.get(piece.layerId) : undefined;
+        const baseElev = layer?.heightMm ?? 0;
+        const prevElev = options.previewElevations?.get(piece.id);
+        const pStart = prevElev !== undefined ? prevElev.start : (piece.elevation?.start ?? 0);
+        const pEnd = prevElev !== undefined ? prevElev.end : (piece.elevation?.end ?? (piece.elevation?.start ?? 0));
+        const startElev = baseElev + pStart;
+        const endElev = baseElev + pEnd;
+        const minElev = Math.min(startElev, endElev);
+        const maxElev = Math.max(startElev, endElev);
+        const avgElev = (startElev + endElev) * 0.5;
+        const pieceLayerId = piece.layerId || defaultLayerId;
+        const isInactiveLayer = hasMultipleLayers && pieceLayerId !== activeLayerId;
+        const isSelected = selectedIds.has(piece.id);
+        return {
+          piece,
+          layer,
+          baseElev,
+          minElev,
+          maxElev,
+          avgElev,
+          isInactiveLayer,
+          isSelected,
+          index,
+        };
+      })
+      .filter((item) => !item.layer || item.layer.visible !== false);
+
+    let minLayoutElev = 0;
+    for (const item of visibleTrackItems) {
+      if (item.minElev < minLayoutElev) minLayoutElev = item.minElev;
+    }
+
+    visibleTrackItems.sort((a, b) => {
+      if (Math.abs(a.avgElev - b.avgElev) > 0.05) return a.avgElev - b.avgElev;
+      if (Math.abs(a.maxElev - b.maxElev) > 0.05) return a.maxElev - b.maxElev;
+      if (Math.abs(a.minElev - b.minElev) > 0.05) return a.minElev - b.minElev;
+      if (a.isInactiveLayer !== b.isInactiveLayer) return a.isInactiveLayer ? -1 : 1;
+      if (a.isSelected !== b.isSelected) return a.isSelected ? 1 : -1;
+      return a.index - b.index;
+    });
+
+    for (const item of visibleTrackItems) {
+      const { piece, layer, baseElev, isInactiveLayer, isSelected } = item;
 
       const entry: CatalogEntry = entryMap.get(piece.catalogId) ?? catalogRegistry.findEntry(piece.catalogId) ?? {
         id: piece.catalogId,
@@ -237,7 +428,6 @@ export class Renderer {
         length: 188.3,
       };
 
-      const isSelected = selectedIds.has(piece.id);
       const powerResult = powerSim?.results.get(piece.id);
       const isShortCircuit = Boolean(options.shortCircuit?.shortCircuitPieces.has(piece.id));
 
@@ -251,10 +441,33 @@ export class Renderer {
         showColorCode: options.showColorCode,
         colorMode: options.colorMode,
         layerColor: layer?.color,
-        layerHeightMm: layer?.heightMm ?? 0,
+        layerHeightMm: baseElev,
+        isInactiveLayer,
+        minLayoutElev,
+        allPieces: layout.pieces,
       });
 
       this.tracksLayer.addChild(sprite);
+    }
+
+    // Ghost / Live-Vorschau von Rampen-Gleisen (z.B. Rampengenerator)
+    if (options.previewPieces && options.previewPieces.length > 0) {
+      for (const piece of options.previewPieces) {
+        const entry: CatalogEntry = entryMap.get(piece.catalogId) ?? catalogRegistry.findEntry(piece.catalogId) ?? {
+          id: piece.catalogId,
+          name: `Gleis ${piece.catalogId}`,
+          kind: "straight",
+          category: "Geraden",
+          description: "",
+          length: 188.3,
+        };
+        const sprite = createTrackGraphics(piece, entry, catalog, {
+          isSelected: true,
+          showConnectors: true,
+        });
+        sprite.alpha = 0.82;
+        this.tracksLayer.addChild(sprite);
+      }
     }
 
     // 2. Overlays rendern (Connectors, Snap-Ziele)
@@ -264,7 +477,9 @@ export class Renderer {
 
     if (options.showConnectors) {
       const drawnConnected = new Set<string>();
-      for (const piece of layout.pieces) {
+      for (const { piece, isInactiveLayer } of visibleTrackItems) {
+        const alphaMul = isInactiveLayer ? 0.5 : 1.0;
+        const pieceLayerKey = piece.layerId || defaultLayerId;
         for (let cIdx = 0; cIdx < piece.connectors.length; cIdx++) {
           const conn = piece.connectors[cIdx]!;
           const isBuildingSnap = isConnectorConnectedToBuilding(conn, layout.models);
@@ -272,44 +487,83 @@ export class Renderer {
 
           if (isBuildingSnap) {
             // "change the color to blue if an building is snappped"
-            const key = `${Math.round(conn.x * 2) / 2},${Math.round(conn.y * 2) / 2}`;
+            const key = `${pieceLayerKey}:${Math.round(conn.x * 2) / 2},${Math.round(conn.y * 2) / 2}`;
             if (drawnConnected.has(key)) continue;
             drawnConnected.add(key);
 
             ov.circle(conn.x, conn.y, 4.5);
-            ov.fill({ color: 0x0284c7, alpha: 0.95 });
+            ov.fill({ color: 0x0284c7, alpha: 0.95 * alphaMul });
             ov.circle(conn.x, conn.y, 2);
-            ov.fill({ color: 0x38bdf8 });
+            ov.fill({ color: 0x38bdf8, alpha: alphaMul });
             ov.circle(conn.x, conn.y, 7);
-            ov.stroke({ width: 1.2, color: 0x0369a1, alpha: 0.7 });
+            ov.stroke({ width: 1.2, color: 0x0369a1, alpha: 0.7 * alphaMul });
           } else if (info.status === "connected") {
             // "if two tracks are connected color it grey"
-            const key = `${Math.round(conn.x * 2) / 2},${Math.round(conn.y * 2) / 2}`;
+            const key = `${pieceLayerKey}:${Math.round(conn.x * 2) / 2},${Math.round(conn.y * 2) / 2}`;
             if (drawnConnected.has(key)) continue;
             drawnConnected.add(key);
 
             ov.circle(conn.x, conn.y, 4);
-            ov.fill({ color: 0x64748b, alpha: 0.9 });
+            ov.fill({ color: 0x64748b, alpha: 0.9 * alphaMul });
             ov.circle(conn.x, conn.y, 2);
-            ov.fill({ color: 0x94a3b8 });
+            ov.fill({ color: 0x94a3b8, alpha: alphaMul });
             ov.circle(conn.x, conn.y, 6.5);
-            ov.stroke({ width: 1, color: 0x475569, alpha: 0.6 });
+            ov.stroke({ width: 1, color: 0x475569, alpha: 0.6 * alphaMul });
           } else if (info.status === "above") {
             // "add yellow snap point if the track is above an snap point"
             ov.circle(conn.x, conn.y, 5);
-            ov.fill({ color: 0xeab308, alpha: 0.95 });
+            ov.fill({ color: 0xeab308, alpha: 0.95 * alphaMul });
             ov.circle(conn.x, conn.y, 2.2);
-            ov.fill({ color: 0xfef08a });
+            ov.fill({ color: 0xfef08a, alpha: alphaMul });
             ov.circle(conn.x, conn.y, 7.5);
-            ov.stroke({ width: 1.4, color: 0xfacc15, alpha: 0.8 });
+            ov.stroke({ width: 1.4, color: 0xfacc15, alpha: 0.8 * alphaMul });
           } else {
-            // Freier Andockpunkt: leuchtend grün
+            // Freier Andockpunkt: leuchtend grün mit sichtbarem Plus-Symbol
             ov.circle(conn.x, conn.y, 4.5);
-            ov.fill({ color: 0x16a34a, alpha: 0.9 });
-            ov.circle(conn.x, conn.y, 2);
-            ov.fill({ color: 0xffffff });
+            ov.fill({ color: isInactiveLayer ? 0x4b7a5e : 0x16a34a, alpha: 0.9 * alphaMul });
             ov.circle(conn.x, conn.y, 7);
-            ov.stroke({ width: 1.2, color: 0x22c55e, alpha: 0.5 });
+            ov.stroke({ width: 1.2, color: isInactiveLayer ? 0x648c74 : 0x22c55e, alpha: 0.5 * alphaMul });
+
+            // Kleines weißes "+" Kreuz im freien Andockpunkt
+            const arm = 2.2;
+            ov.moveTo(conn.x - arm, conn.y).lineTo(conn.x + arm, conn.y);
+            ov.moveTo(conn.x, conn.y - arm).lineTo(conn.x, conn.y + arm);
+            ov.stroke({ width: 1.2, color: 0xffffff, alpha: 0.95 * alphaMul });
+
+            // Prominenter Plus-Aktions-Button für markierte Gleise oder gehoverte Anschlüsse
+            const isSelected = selectedIds.has(piece.id);
+            const isHovered = Boolean(
+              options.hoveredOpenConnector &&
+              options.hoveredOpenConnector.pieceId === piece.id &&
+              options.hoveredOpenConnector.connectorIndex === cIdx
+            );
+
+            if ((isSelected || isHovered) && !isInactiveLayer) {
+              const rad = deg2rad(conn.angle);
+              const plusDist = 15;
+              const px = conn.x + Math.cos(rad) * plusDist;
+              const py = conn.y + Math.sin(rad) * plusDist;
+
+              // Verbindungs-Linie vom Gleisende zum Plus-Button
+              ov.moveTo(conn.x + Math.cos(rad) * 6, conn.y + Math.sin(rad) * 6)
+                .lineTo(px - Math.cos(rad) * 7.5, py - Math.sin(rad) * 7.5);
+              ov.stroke({ width: 1.2, color: 0x38bdf8, alpha: 0.75 });
+
+              // Äußerer Schein / Halo
+              ov.circle(px, py, 10);
+              ov.fill({ color: 0x0284c7, alpha: isHovered ? 0.35 : 0.2 });
+
+              // Button-Körper
+              ov.circle(px, py, 7.5);
+              ov.fill({ color: isHovered ? 0x0284c7 : 0x0ea5e9, alpha: 0.95 });
+              ov.stroke({ width: 1.5, color: 0xffffff, alpha: 1.0 });
+
+              // Weißes "+" Symbol
+              const bArm = 3.6;
+              ov.moveTo(px - bArm, py).lineTo(px + bArm, py);
+              ov.moveTo(px, py - bArm).lineTo(px, py + bArm);
+              ov.stroke({ width: 1.8, color: 0xffffff, alpha: 1.0 });
+            }
           }
         }
       }
@@ -378,185 +632,7 @@ export class Renderer {
       }
     }
 
-    // Auswahlrahmen (Marquee Box bei Rechtsklick-Drag)
-    if (options.selectionBox) {
-      const box = options.selectionBox;
-      const minX = Math.min(box.start.x, box.end.x);
-      const maxX = Math.max(box.start.x, box.end.x);
-      const minY = Math.min(box.start.y, box.end.y);
-      const maxY = Math.max(box.start.y, box.end.y);
-      const w = maxX - minX;
-      const h = maxY - minY;
-
-      if (w > 2 || h > 2) {
-        ov.rect(minX, minY, w, h);
-        ov.fill({ color: 0x0284c7, alpha: 0.15 });
-        ov.stroke({ width: 1.5, color: 0x38bdf8, alpha: 0.95 });
-
-        const cornerSize = Math.min(8, w / 4, h / 4);
-        if (cornerSize > 1) {
-          ov.moveTo(minX, minY + cornerSize).lineTo(minX, minY).lineTo(minX + cornerSize, minY);
-          ov.moveTo(maxX - cornerSize, minY).lineTo(maxX, minY).lineTo(maxX, minY + cornerSize);
-          ov.moveTo(minX, maxY - cornerSize).lineTo(minX, maxY).lineTo(minX + cornerSize, maxY);
-          ov.moveTo(maxX - cornerSize, maxY).lineTo(maxX, maxY).lineTo(maxX, maxY - cornerSize);
-          ov.stroke({ width: 2.5, color: 0x0284c7, alpha: 1 });
-        }
-      }
-    }
-
-    // 3. Messwerkzeug (Measure Tool: Manuelle Distanzmessung zwischen zwei Punkten)
-    if (options.measureTool) {
-      const { start: p1, current: p2, locked, scaleRatio } = options.measureTool;
-
-      // Punkt A Badge zeichnen (falls gesetzt)
-      if (p1) {
-        ov.circle(p1.x, p1.y, 8).fill({ color: 0x0284c7, alpha: 0.25 });
-        ov.circle(p1.x, p1.y, 5).fill({ color: 0x0284c7 }).stroke({ width: 1.5, color: 0xffffff });
-
-        const txtA = new Text({
-          text: "A",
-          style: new TextStyle({
-            fontSize: 9,
-            fill: 0xffffff,
-            fontWeight: "bold",
-            stroke: { color: 0x0f172a, width: 2 },
-          }),
-        });
-        txtA.anchor.set(0.5, 1);
-        txtA.position.set(p1.x, p1.y - 7);
-        this.overlayLayer.addChild(txtA);
-      }
-
-      // Falls Punkt A und Punkt B vorhanden sind
-      if (p1 && p2) {
-        const dx = p2.x - p1.x;
-        const dy = p2.y - p1.y;
-        const dist = Math.hypot(dx, dy);
-
-        // Orthogonale Hilfsdreiecke / Delta-Linien (ΔX und ΔY)
-        if (dist > 15 && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) {
-          // ΔX: (p1.x, p1.y) -> (p2.x, p1.y)
-          drawDashedLine(ov, p1.x, p1.y, p2.x, p1.y, 4, 3);
-          ov.stroke({ width: 1, color: 0x94a3b8, alpha: 0.5 });
-
-          // ΔY: (p2.x, p1.y) -> (p2.x, p2.y)
-          drawDashedLine(ov, p2.x, p1.y, p2.x, p2.y, 4, 3);
-          ov.stroke({ width: 1, color: 0x94a3b8, alpha: 0.5 });
-        }
-
-        if (dist > 0.5) {
-          const nx = -dy / dist;
-          const ny = dx / dist;
-          const tickLen = 7;
-
-          // Kontrast-Schatten
-          ov.moveTo(p1.x, p1.y).lineTo(p2.x, p2.y);
-          ov.stroke({ width: 3.5, color: 0x0f172a, alpha: 0.7 });
-
-          // Haupt-Messlinie
-          const lineColor = locked ? 0x10b981 : 0x0284c7;
-          ov.moveTo(p1.x, p1.y).lineTo(p2.x, p2.y);
-          ov.stroke({ width: 2, color: lineColor, alpha: 0.95 });
-
-          // End-Ticks (Begrenzungslinien an A und B)
-          ov.moveTo(p1.x + nx * tickLen, p1.y + ny * tickLen).lineTo(p1.x - nx * tickLen, p1.y - ny * tickLen);
-          ov.moveTo(p2.x + nx * tickLen, p2.y + ny * tickLen).lineTo(p2.x - nx * tickLen, p2.y - ny * tickLen);
-          ov.stroke({ width: 2, color: lineColor, alpha: 0.95 });
-
-          // Punkt B Badge
-          ov.circle(p2.x, p2.y, 8).fill({ color: lineColor, alpha: 0.25 });
-          ov.circle(p2.x, p2.y, 5).fill({ color: lineColor }).stroke({ width: 1.5, color: 0xffffff });
-
-          const txtB = new Text({
-            text: "B",
-            style: new TextStyle({
-              fontSize: 9,
-              fill: 0xffffff,
-              fontWeight: "bold",
-              stroke: { color: 0x0f172a, width: 2 },
-            }),
-          });
-          txtB.anchor.set(0.5, 1);
-          txtB.position.set(p2.x, p2.y - 7);
-          this.overlayLayer.addChild(txtB);
-
-          // Maßbeschriftung in der Mitte
-          const midX = (p1.x + p2.x) / 2;
-          const midY = (p1.y + p2.y) / 2;
-
-          let distStr = dist >= 1000
-            ? `${dist.toFixed(1)} mm (${(dist / 1000).toFixed(2)} m)`
-            : `${dist.toFixed(1)} mm`;
-
-          if (scaleRatio && scaleRatio > 1) {
-            const protoM = (dist * scaleRatio) / 1000;
-            distStr += `\nVorbild: ${protoM.toFixed(2)} m`;
-          }
-
-          const txt = new Text({
-            text: distStr,
-            style: new TextStyle({
-              fontSize: 11,
-              fill: 0xffffff,
-              fontWeight: "bold",
-              align: "center",
-              stroke: { color: 0x0f172a, width: 3 },
-            }),
-          });
-          txt.anchor.set(0.5, 0.5);
-          txt.position.set(midX + nx * 16, midY + ny * 16);
-          this.overlayLayer.addChild(txt);
-        }
-      }
-
-      if (options.measureTool.snapPoint) {
-        const sp = options.measureTool.snapPoint;
-        ov.circle(sp.x, sp.y, 7).stroke({ width: 2, color: 0x10b981, alpha: 0.9 });
-        ov.circle(sp.x, sp.y, 3).fill({ color: 0x10b981 });
-      }
-    }
-
-    // 4. Kurzschluss-Indikator (2-Leiter-System)
-    if (options.shortCircuit?.hasShortCircuit) {
-      const t = getTranslations().toolbar.status;
-      const overlayText = t.shortCircuitOverlayLabel || "KURZSCHLUSS";
-
-      for (const pt of options.shortCircuit.shortCircuitPoints) {
-        // Äußeres pulsierendes Glühen
-        ov.circle(pt.x, pt.y, 18);
-        ov.fill({ color: 0xef4444, alpha: 0.28 });
-        ov.circle(pt.x, pt.y, 12);
-        ov.stroke({ width: 2.5, color: 0xdc2626, alpha: 0.95 });
-
-        // Roter Blitz-Zentrumspunkt
-        ov.circle(pt.x, pt.y, 4.5);
-        ov.fill({ color: 0xffffff });
-        ov.stroke({ width: 2, color: 0xb91c1c });
-
-        // Warn-Plakette
-        const badgeCont = new Container();
-        badgeCont.position.set(pt.x, pt.y - 20);
-
-        const pillBg = new Graphics();
-        pillBg.roundRect(-48, -10, 96, 20, 5);
-        pillBg.fill({ color: 0x7f1d1d, alpha: 0.95 });
-        pillBg.stroke({ width: 1.5, color: 0xef4444 });
-        badgeCont.addChild(pillBg);
-
-        const lbl = new Text({
-          text: `⚡ ${overlayText}`,
-          style: new TextStyle({
-            fontSize: 9,
-            fill: 0xffffff,
-            fontWeight: "bold",
-          }),
-        });
-        lbl.anchor.set(0.5, 0.5);
-        badgeCont.addChild(lbl);
-
-        this.overlayLayer.addChild(badgeCont);
-      }
-    }
+    renderSceneOverlays(this.overlayLayer, ov, options);
   }
 
   /** Wandelt Bildschirmkoordinaten (Canvas) in Weltkoordinaten um. */

@@ -229,7 +229,17 @@ export default defineConfig({
     },
   },
   build: {
-    chunkSizeWarningLimit: 2000,
+    chunkSizeWarningLimit: 1200,
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            { name: "vendor-three", test: /node_modules[\\/]three[\\/]/, priority: 20 },
+            { name: "vendor-pixi", test: /node_modules[\\/]pixi\.js[\\/]/, priority: 10 },
+          ],
+        },
+      },
+    },
   },
   plugins: [collabDevPlugin()],
 });

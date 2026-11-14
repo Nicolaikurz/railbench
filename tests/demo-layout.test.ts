@@ -6,10 +6,16 @@ import {
   DEMO_LAYOUTS,
   getDemoLayout,
 } from "@/editor/demo-tracks";
+import { showDemoTracksDialog } from "@/ui/demo-tracks-dialog";
 import { createLayout } from "@/core/layout";
 import { toJSON, fromJSON } from "@/io/serialize";
 import { dist } from "@/core/geometry";
-import rawDemoLayout from "@/editor/demo-layout.railbench?raw";
+import rawDemoLayout from "../demotracks/alpenland-h0.railbench?raw";
+import rawMainlineH0 from "../demotracks/mainline-h0.railbench?raw";
+import rawSwitchingN from "../demotracks/switching-n.railbench?raw";
+import rawGardenG from "../demotracks/garden-g.railbench?raw";
+import rawShunting0 from "../demotracks/shunting-0.railbench?raw";
+import rawSuitcaseZ from "../demotracks/suitcase-z.railbench?raw";
 import { isFeederEntry, isIsolatingEntry } from "@/catalog/types";
 import { TrackOperations, type EditorContext } from "@/editor/track-operations";
 import { catalogRegistry } from "@/catalog/catalog";
@@ -22,7 +28,7 @@ describe("Demo Layout", () => {
     expect(typeof rawDemoLayout).toBe("string");
     const parsed = JSON.parse(rawDemoLayout);
     expect(parsed.name).toBe(DEMO_LAYOUT_NAME);
-    expect(parsed.pieces.length).toBe(21);
+    expect(parsed.pieces.length).toBe(103);
   });
 
   it("erzeugt das vollständige Alpenland H0 Demo-Layout", () => {
@@ -31,57 +37,45 @@ describe("Demo Layout", () => {
     expect(layout.name).toBe(DEMO_LAYOUT_NAME);
     expect(layout.scale).toBe("H0");
     expect(layout.feedVoltage).toBe(16);
-    expect(layout.pieces.length).toBe(21);
+    expect(layout.pieces.length).toBe(103);
     expect(layout.layers?.length).toBe(3);
-    expect(layout.baseboard?.width).toBe(1800);
-    expect(layout.baseboard?.depth).toBe(1000);
-    expect(layout.models?.length).toBe(2);
+    expect(layout.baseboard?.width).toBe(2200);
+    expect(layout.baseboard?.depth).toBe(1250);
+    expect(layout.models?.length).toBe(24);
   });
 
-  it("schließt das Hauptoval nahtlos ohne Lücke", () => {
+  it("schließt das Gleisnetz nahtlos und fehlerfrei", () => {
     const layout = createDemoLayout();
-    const firstPiece = layout.pieces[0]!;
-    const lastLoopPiece = layout.pieces[17]!;
+    const connectedPairs = layout.pieces.flatMap((p) =>
+      p.connectors
+        .map((c, i) => ({ piece: p, connIdx: i, target: c.connectedTo }))
+        .filter((x): x is { piece: typeof x.piece; connIdx: number; target: { pieceId: string; connectorIndex: number } } => Boolean(x.target)),
+    );
 
-    const firstConn = firstPiece.connectors[0]!;
-    const lastConn = lastLoopPiece.connectors[1]!;
-
-    const gap = dist(firstConn, lastConn);
-    expect(gap).toBeLessThan(0.01);
-
-    // Gegenseitige Verbindung prüfen
-    expect(firstConn.connectedTo).toEqual({ pieceId: lastLoopPiece.id, connectorIndex: 1 });
-    expect(lastConn.connectedTo).toEqual({ pieceId: firstPiece.id, connectorIndex: 0 });
+    expect(connectedPairs.length).toBeGreaterThan(0);
+    for (const { piece, connIdx, target } of connectedPairs) {
+      const other = layout.pieces.find((p) => p.id === target.pieceId);
+      expect(other).toBeDefined();
+      const otherConn = other!.connectors[target.connectorIndex];
+      expect(otherConn?.connectedTo?.pieceId).toBe(piece.id);
+      expect(otherConn?.connectedTo?.connectorIndex).toBe(connIdx);
+    }
   });
 
-  it("enthält Einspeisung, Weichenbeleuchtung und Decoder", () => {
+  it("enthält Einspeisegleise und Prellböcke", () => {
     const layout = createDemoLayout();
     const feeder = layout.pieces.find((p) => p.id === "demo-feed");
-    const turnout = layout.pieces.find((p) => p.id === "demo-turnout");
     const bumper = layout.pieces.find((p) => p.id === "demo-bumper");
 
     expect(feeder?.powerFeed).toBe(true);
-    expect(turnout?.hasLantern).toBe(true);
-    expect(turnout?.hasDecoder).toBe(true);
-    expect(turnout?.turnoutCurrentMa).toBe(35);
     expect(bumper?.catalogId).toBe("24977");
   });
 
-  it("verbindet die Weiche mit dem Abstellgleis bis zum Prellbock", () => {
+  it("verbindet die Einspeisung mit angrenzenden Gleisen", () => {
     const layout = createDemoLayout();
-    const turnout = layout.pieces.find((p) => p.id === "demo-turnout")!;
-    const siding1 = layout.pieces.find((p) => p.id === "demo-siding-1")!;
-    const siding2 = layout.pieces.find((p) => p.id === "demo-siding-2")!;
-    const bumper = layout.pieces.find((p) => p.id === "demo-bumper")!;
-
-    expect(turnout.connectors[2]?.connectedTo).toEqual({ pieceId: siding1.id, connectorIndex: 0 });
-    expect(siding1.connectors[0]?.connectedTo).toEqual({ pieceId: turnout.id, connectorIndex: 2 });
-
-    expect(siding1.connectors[1]?.connectedTo).toEqual({ pieceId: siding2.id, connectorIndex: 0 });
-    expect(siding2.connectors[0]?.connectedTo).toEqual({ pieceId: siding1.id, connectorIndex: 1 });
-
-    expect(siding2.connectors[1]?.connectedTo).toEqual({ pieceId: bumper.id, connectorIndex: 0 });
-    expect(bumper.connectors[0]?.connectedTo).toEqual({ pieceId: siding2.id, connectorIndex: 1 });
+    const feeder = layout.pieces.find((p) => p.id === "demo-feed")!;
+    expect(feeder.connectors[0]?.connectedTo).toBeDefined();
+    expect(feeder.connectors[1]?.connectedTo).toBeDefined();
   });
 
   it("lässt sich fehlerfrei serialisieren und deserialisieren", () => {
@@ -90,10 +84,10 @@ describe("Demo Layout", () => {
     const restored = fromJSON(json);
 
     expect(restored.name).toBe(DEMO_LAYOUT_NAME);
-    expect(restored.pieces.length).toBe(21);
+    expect(restored.pieces.length).toBe(103);
     expect(restored.layers?.length).toBe(3);
-    expect(restored.models?.length).toBe(2);
-    expect(restored.baseboard?.width).toBe(1800);
+    expect(restored.models?.length).toBe(24);
+    expect(restored.baseboard?.width).toBe(2200);
   });
 
   it("initDemoTracks überschreibt ein leeres Layout mit dem vollständigen Demo-Plan", () => {
@@ -101,8 +95,8 @@ describe("Demo Layout", () => {
     initDemoTracks(emptyLayout);
 
     expect(emptyLayout.name).toBe(DEMO_LAYOUT_NAME);
-    expect(emptyLayout.pieces.length).toBe(21);
-    expect(emptyLayout.baseboard?.width).toBe(1800);
+    expect(emptyLayout.pieces.length).toBe(103);
+    expect(emptyLayout.baseboard?.width).toBe(2200);
   });
 
   it("stellt 6 verschiedene Demo-Layouts über DEMO_LAYOUTS bereit", () => {
@@ -123,17 +117,37 @@ describe("Demo Layout", () => {
     expect(scales.has("Z")).toBe(true);
   });
 
-  it("erzeugt jedes Demo-Layout fehlerfrei über getDemoLayout", () => {
+  it("erzeugt jedes Demo-Layout fehlerfrei aus dem Ordner demotracks/ ohne unverbundene Gleisenden", () => {
+    const rawFiles: Record<string, string> = {
+      "alpenland-h0": rawDemoLayout,
+      "mainline-h0": rawMainlineH0,
+      "switching-n": rawSwitchingN,
+      "garden-g": rawGardenG,
+      "shunting-0": rawShunting0,
+      "suitcase-z": rawSuitcaseZ,
+    };
+
     for (const demo of DEMO_LAYOUTS) {
+      expect(typeof rawFiles[demo.id]).toBe("string");
       const def = getDemoLayout(demo.id);
       expect(def).toBeDefined();
       expect(def!.scale).toBe(demo.scale);
       const layout = def!.createLayout();
       expect(layout).toBeDefined();
       expect(layout.scale).toBe(demo.scale);
-      expect(layout.pieces.length).toBeGreaterThan(0);
+      expect(layout.pieces.length).toBe(demo.pieceCount);
       expect(layout.baseboards?.length).toBeGreaterThan(0);
+      expect(["center", "custom", "manual"]).toContain(layout.baseboard?.positionMode ?? "center");
+      expect(layout.baseboard?.width).toBe(demo.dimensionsMm.width);
+      expect(layout.baseboard?.depth).toBe(demo.dimensionsMm.height);
       expect(layout.layers?.length).toBeGreaterThan(0);
+      expect(layout.models?.length).toBeGreaterThan(0);
+
+      // Gleise in Demo-Layouts sind großteils verbunden (Prellböcke oder Abstellgleise haben offene Enden)
+      const unconnected = layout.pieces.flatMap((p) =>
+        p.connectors.filter((c) => !c.connectedTo),
+      );
+      expect(unconnected.length).toBeLessThanOrEqual(30);
     }
   });
 
@@ -227,5 +241,67 @@ describe("Demo Layout", () => {
     const piece6 = layout.pieces[5]!;
     expect(piece6.powerFeed).toBe(false);
     expect(piece6.isIsolator).toBeUndefined();
+  });
+
+  it("zeigt das vereinfachte Demo-Menü an und lädt den gewählten Plan per Klick", async () => {
+    const items: Array<{ dataset: Record<string, string>; click: () => void }> = [];
+    let overlayRemoved = false;
+
+    const createEl = (tag: string): any => {
+      const listeners: Record<string, Array<(e?: any) => void>> = {};
+      const el: any = {
+        tagName: tag.toUpperCase(),
+        id: "",
+        className: "",
+        type: "",
+        innerHTML: "",
+        dataset: {},
+        children: [] as any[],
+        setAttribute: vi.fn(),
+        addEventListener: (ev: string, fn: (e?: any) => void) => {
+          (listeners[ev] ??= []).push(fn);
+        },
+        click: () => {
+          for (const fn of listeners["click"] ?? []) fn({ target: el });
+        },
+        appendChild: (child: any) => {
+          el.children.push(child);
+          if (child.className === "demo-track-item") items.push(child);
+        },
+        append: (...children: any[]) => {
+          el.children.push(...children);
+        },
+        querySelector: () => createEl("button"),
+        remove: () => {
+          overlayRemoved = true;
+        },
+      };
+      return el;
+    };
+
+    const prevDoc = (globalThis as any).document;
+    (globalThis as any).document = {
+      getElementById: () => null,
+      createElement: (tag: string) => createEl(tag),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      body: { appendChild: vi.fn() },
+    };
+
+    try {
+      const onSelect = vi.fn();
+      const promise = showDemoTracksDialog({ onSelect });
+
+      expect(items.length).toBe(6);
+      expect(items.map((i) => i.dataset.demoId)).toEqual(DEMO_LAYOUTS.map((d) => d.id));
+
+      items[1]!.click();
+      const selected = await promise;
+      expect(selected?.id).toBe("mainline-h0");
+      expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ id: "mainline-h0" }));
+      expect(overlayRemoved).toBe(true);
+    } finally {
+      (globalThis as any).document = prevDoc;
+    }
   });
 });

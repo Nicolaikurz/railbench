@@ -2,6 +2,7 @@ import { Container, Graphics, Text, TextStyle } from "pixi.js";
 import type { Model3D } from "@/core/types";
 import { deg2rad, getUprightTextRotation } from "@/core/geometry";
 import { findBuiltinModelDef } from "@/core/models-3d";
+import { drawCoalingStationTopView, drawDieselFuelStationTopView } from "./model-sprite-depot";
 
 export function createModel2DGraphics(model: Model3D, isSelected: boolean): Container {
   const container = new Container();
@@ -47,6 +48,10 @@ export function createModel2DGraphics(model: Model3D, isSelected: boolean): Cont
     drawSkyscraperTopView(g, w, d, halfW, halfD, isSelected);
   } else if (builtinId === "water-tower") {
     drawWaterTowerTopView(g, w, d, halfW, halfD, isSelected);
+  } else if (builtinId === "coaling-station") {
+    drawCoalingStationTopView(g, w, d, halfW, halfD, isSelected);
+  } else if (builtinId === "diesel-fuel-station") {
+    drawDieselFuelStationTopView(g, w, d, halfW, halfD, isSelected);
   } else if (builtinId === "pine-tree") {
     drawPineTreeTopView(g, w, d, halfW, halfD, isSelected);
   } else if (builtinId === "deciduous-tree") {
@@ -57,8 +62,10 @@ export function createModel2DGraphics(model: Model3D, isSelected: boolean): Cont
     drawBufferStopTopView(g, w, d, halfW, halfD, isSelected);
   } else if (builtinId === "platform-lamp") {
     drawPlatformLampTopView(g, w, d, halfW, halfD, isSelected);
+  } else if (builtinId === "platform" || builtinId === "bahnsteig") {
+    drawPlatformTopView(g, w, d, halfW, halfD, isSelected);
   } else if (builtinId === "mountain") {
-    drawMountainTopView(g, w, d, halfW, halfD, isSelected);
+    drawMountainTopView(g, w, d, halfW, halfD, isSelected, model);
   } else {
     drawGenericBuildingTopView(g, w, d, halfW, halfD, model.category, isSelected);
   }
@@ -722,30 +729,180 @@ function drawPlatformLampTopView(g: Graphics, _w: number, _d: number, halfW: num
 }
 
 /** Standard-Gebäude: Architektonisches Walmdach mit 4-Flächen-Schattierung & Firstlinie */
-function drawMountainTopView(g: Graphics, w: number, d: number, halfW: number, halfD: number, isSelected: boolean) {
-  // Äußerer Bergfuß (organische Ellipse mit Fels- und Grünflächen)
+function drawMountainTopView(
+  g: Graphics,
+  _w: number,
+  _d: number,
+  halfW: number,
+  halfD: number,
+  isSelected: boolean,
+  model?: Model3D,
+) {
+  const style = model?.mountainStyle ?? "alpine";
+  const baseColor = style === "forest" ? 0x14532d : style === "meadow" ? 0x365314 : 0x292524;
+  const midColor = style === "forest" ? 0x166534 : style === "meadow" ? 0x4d7c0f : 0x44403c;
+  const upperColor = style === "forest" ? 0x57534e : style === "meadow" ? 0x65a30d : 0x78716c;
+  const peakColor = style === "rocky" ? 0xd6d3d1 : style === "forest" ? 0xa8a29e : style === "meadow" ? 0x84cc16 : 0xf8fafc;
+
+  const path = model?.mountainPath;
+  if (path && path.length > 0) {
+    const tiers: Array<{ scale: number; color: number; alpha: number }> = [
+      { scale: 1.0, color: baseColor, alpha: 0.65 },
+      { scale: 0.68, color: midColor, alpha: 0.72 },
+      { scale: 0.38, color: upperColor, alpha: 0.78 },
+      { scale: 0.18, color: peakColor, alpha: 0.88 },
+    ];
+    for (const tier of tiers) {
+      if (path.length >= 2) {
+        g.moveTo(path[0]!.x, path[0]!.y);
+        for (let i = 1; i < path.length; i++) g.lineTo(path[i]!.x, path[i]!.y);
+        const avgR = path.reduce((s, n) => s + n.radius, 0) / path.length;
+        g.stroke({ width: Math.max(4, avgR * 2 * tier.scale), color: tier.color, alpha: tier.alpha, cap: "round", join: "round" });
+      } else {
+        const n0 = path[0]!;
+        g.circle(n0.x, n0.y, Math.max(4, n0.radius * tier.scale));
+        g.fill({ color: tier.color, alpha: tier.alpha });
+      }
+    }
+    if (isSelected) {
+      g.rect(-halfW, -halfD, halfW * 2, halfD * 2);
+      g.stroke({ width: 2.0, color: 0x38bdf8, alpha: 0.85 });
+    }
+    return;
+  }
+
+  // Äußerer Bergfuß (leicht transparent, damit Tunnelgleise darunter sichtbar bleiben)
   g.ellipse(0, 0, halfW, halfD);
-  g.fill({ color: 0x292524, alpha: 0.88 });
+  g.fill({ color: baseColor, alpha: 0.68 });
   g.stroke({ width: isSelected ? 2.5 : 1.5, color: isSelected ? 0x38bdf8 : 0x44403c });
 
   // Mittlere Höhenlinie / Felszone
   g.ellipse(0, 0, halfW * 0.68, halfD * 0.68);
-  g.fill({ color: 0x44403c, alpha: 0.92 });
-  g.stroke({ width: 1.2, color: 0x57534e, alpha: 0.75 });
+  g.fill({ color: midColor, alpha: 0.72 });
+  g.stroke({ width: 1.2, color: 0x57534e, alpha: 0.65 });
 
   // Obere Fels- und Gratschicht
   g.ellipse(0, 0, halfW * 0.38, halfD * 0.38);
-  g.fill({ color: 0x78716c, alpha: 0.95 });
+  g.fill({ color: upperColor, alpha: 0.78 });
 
-  // Schneegipfel im Zentrum
+  // Gipfel im Zentrum
   g.ellipse(0, 0, halfW * 0.18, halfD * 0.18);
-  g.fill({ color: 0xf8fafc, alpha: 0.98 });
+  g.fill({ color: peakColor, alpha: 0.9 });
   g.stroke({ width: 1.0, color: 0xe2e8f0 });
 
   // Gipfelkreuz / Gratlinie
   g.moveTo(-halfW * 0.3, 0).lineTo(halfW * 0.3, 0);
   g.moveTo(0, -halfD * 0.25).lineTo(0, halfD * 0.25);
-  g.stroke({ width: 1.4, color: 0xffffff, alpha: 0.9 });
+  g.stroke({ width: 1.4, color: 0xffffff, alpha: 0.85 });
+}
+
+/** Bahnsteig: Pflasterbelag, Bahnsteigkanten, taktile Sicherheitsstreifen, Treppenabgang & Glas-Stahldach */
+function drawPlatformTopView(g: Graphics, w: number, d: number, halfW: number, halfD: number, isSelected: boolean) {
+  // 1. Weicher Schatten
+  g.roundRect(-halfW + 3, -halfD + 3, w, d, 2);
+  g.fill({ color: 0x000000, alpha: 0.22 });
+
+  // 2. Beton-Bahnsteigkörper
+  g.roundRect(-halfW, -halfD, w, d, 2);
+  g.fill({ color: 0x94a3b8 });
+
+  // 3. Schräge Rampenenden (Abschrägung links und rechts)
+  const rampW = Math.min(22, halfW * 0.15);
+  g.poly([-halfW, -halfD, -halfW + rampW, -halfD, -halfW + rampW, halfD, -halfW, halfD]);
+  g.fill({ color: 0x64748b, alpha: 0.5 });
+  g.poly([halfW - rampW, -halfD, halfW, -halfD, halfW, halfD, halfW - rampW, halfD]);
+  g.fill({ color: 0x64748b, alpha: 0.5 });
+
+  // Gelbe Warnstreifen an den Rampenschwellen
+  g.rect(-halfW + rampW - 1, -halfD + 2, 2, d - 4);
+  g.fill({ color: 0xeab308 });
+  g.rect(halfW - rampW - 1, -halfD + 2, 2, d - 4);
+  g.fill({ color: 0xeab308 });
+
+  // 4. Granit-Bahnsteigkanten oben und unten (Gleisseiten)
+  g.rect(-halfW, -halfD, w, 2.5);
+  g.fill({ color: 0x475569 });
+  g.rect(-halfW, halfD - 2.5, w, 2.5);
+  g.fill({ color: 0x475569 });
+
+  // 5. Taktile weiße Sicherheitslinien (Blindenleitsystem)
+  g.rect(-halfW + rampW, -halfD + 4.5, w - 2 * rampW, 1.6);
+  g.fill({ color: 0xf8fafc });
+  g.rect(-halfW + rampW, halfD - 6.1, w - 2 * rampW, 1.6);
+  g.fill({ color: 0xf8fafc });
+
+  // 6. Treppenabgang zur Personenunterführung (Zentrum)
+  const stairW = Math.min(36, halfW * 0.25);
+  const stairD = Math.min(18, halfD * 0.7);
+  g.roundRect(-stairW / 2, -stairD / 2, stairW, stairD, 1);
+  g.fill({ color: 0x0f172a });
+
+  // Stufenlinien
+  for (let s = -stairW / 2 + 5; s < stairW / 2 - 2; s += 4) {
+    g.rect(s, -stairD / 2 + 1.5, 1.5, stairD - 3);
+    g.fill({ color: 0x475569 });
+  }
+  // Edelstahlgeländer-Rahmen um Treppenabgang
+  g.roundRect(-stairW / 2, -stairD / 2, stairW, stairD, 1);
+  g.stroke({ width: 1.2, color: 0x38bdf8 });
+
+  // 7. Sitzbänke (links und rechts des Abgangs)
+  for (const bx of [-halfW * 0.38, halfW * 0.38]) {
+    g.rect(bx - 8, -3.5, 16, 7);
+    g.fill({ color: 0xb45309 });
+    g.stroke({ width: 0.8, color: 0x1e293b });
+  }
+
+  // 8. Bahnsteigdach (Mittelbereich)
+  const canopyW = w * 0.65;
+  const canopyD = d * 0.92;
+  const cHalfW = canopyW / 2;
+  const cHalfD = canopyD / 2;
+
+  // Dach-Schatten
+  g.roundRect(-cHalfW + 2, -cHalfD + 2, canopyW, canopyD, 2);
+  g.fill({ color: 0x000000, alpha: 0.2 });
+
+  // Dachhaut (Dunkelblau/Grau)
+  g.roundRect(-cHalfW, -cHalfD, canopyW, canopyD, 2);
+  g.fill({ color: 0x1e293b, alpha: 0.85 });
+
+  // Transluzentes Lichtband / Glasverglasung in der Dachmitte
+  g.rect(-cHalfW + 6, -cHalfD * 0.35, canopyW - 12, canopyD * 0.7);
+  g.fill({ color: 0x7dd3fc, alpha: 0.6 });
+
+  // Firstbalken
+  g.moveTo(-cHalfW, 0).lineTo(cHalfW, 0);
+  g.stroke({ width: 1.8, color: 0x0f172a });
+
+  // Stützen
+  for (const px of [-cHalfW * 0.75, -cHalfW * 0.3, cHalfW * 0.3, cHalfW * 0.75]) {
+    g.circle(px, 0, 2.5);
+    g.fill({ color: 0x0f172a });
+    g.circle(px, 0, 1.2);
+    g.fill({ color: 0x94a3b8 });
+  }
+
+  // Zugzielanzeiger (ZZA) & Schilder unter dem Dach
+  for (const zzaX of [-cHalfW * 0.45, cHalfW * 0.45]) {
+    g.rect(zzaX - 7, -2.5, 14, 5);
+    g.fill({ color: 0x0369a1 });
+    g.rect(zzaX - 5, -1.2, 10, 2.4);
+    g.fill({ color: 0x38bdf8 });
+  }
+
+  // 9. Bahnsteigleuchten an den offenen Enden
+  for (const lx of [-halfW + 16, halfW - 16]) {
+    g.circle(lx, 0, 3);
+    g.fill({ color: 0xfef08a });
+    g.stroke({ width: 1.0, color: 0xca8a04 });
+    g.circle(lx, 0, 1.2);
+    g.fill({ color: 0xffffff });
+  }
+
+  // 10. Äußere Umrandung
+  g.roundRect(-halfW, -halfD, w, d, 2);
+  g.stroke({ width: isSelected ? 2.5 : 1.2, color: isSelected ? 0x38bdf8 : 0x334155 });
 }
 
 function drawGenericBuildingTopView(

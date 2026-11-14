@@ -373,4 +373,77 @@ describe("PerfMonitor - Draggable Hardware Monitor", () => {
 
     monitor.destroy();
   });
+
+  it("displays accurate Electron process/app RAM usage when electronAPI is available", async () => {
+    (globalThis as any).window.electronAPI = {
+      getProcessMemoryInfo: () => ({
+        rssMb: 185.4,
+        heapUsedMb: 34.2,
+        heapTotalMb: 48.0,
+        externalMb: 12.1,
+        systemTotalMb: 16384,
+        systemFreeMb: 8192,
+        systemUsedMb: 8192,
+      }),
+      getMemoryUsage: vi.fn().mockResolvedValue({
+        appRamMb: 242.8,
+        systemTotalMb: 16384,
+        systemFreeMb: 8192,
+        systemUsedMb: 8192,
+      }),
+    };
+
+    const monitor = new PerfMonitor({
+      host: host as unknown as HTMLElement,
+      renderer: mockRenderer,
+      getLayout: () => layout,
+    });
+
+    monitor.show();
+    const ramEl = host.querySelector("#perf-ram-val")!;
+    // Immediately uses synchronous getProcessMemoryInfo
+    expect(ramEl.textContent).toBe("185.4 MB (Heap: 34.2 MB)");
+
+    // After async IPC resolves, updates to total multi-process appRamMb
+    await Promise.resolve();
+    expect(ramEl.textContent).toBe("242.8 MB (Heap: 34.2 MB)");
+    expect(ramEl.title).toContain("System RAM: 8.0 / 16.0 GB");
+
+    monitor.destroy();
+  });
+
+  it("displays accurate RAM usage in Chromium browsers and non-zero fallback in standard browsers", () => {
+    const perfAny = performance as any;
+    const origMemory = perfAny.memory;
+
+    try {
+      perfAny.memory = {
+        usedJSHeapSize: 30 * 1024 * 1024,
+        totalJSHeapSize: 45 * 1024 * 1024,
+        jsHeapSizeLimit: 2048 * 1024 * 1024,
+      };
+
+      const monitor = new PerfMonitor({
+        host: host as unknown as HTMLElement,
+        renderer: mockRenderer,
+        getLayout: () => layout,
+      });
+
+      monitor.show();
+      const ramEl = host.querySelector("#perf-ram-val")!;
+      // 30 MB JS heap + 28 MB WebGL/Canvas scene buffer = 58.0 MB
+      expect(ramEl.textContent).toBe("58.0 MB (Heap: 30.0 MB)");
+
+      // Fallback when performance.memory is unavailable (e.g. Firefox/Safari)
+      delete perfAny.memory;
+      monitor.hide();
+      monitor.show();
+      expect(ramEl.textContent).toBe("~70.0 MB (App + WebGL)");
+      expect(ramEl.textContent).not.toBe("~0.0 MB (Layout Heap)");
+
+      monitor.destroy();
+    } finally {
+      perfAny.memory = origMemory;
+    }
+  });
 });

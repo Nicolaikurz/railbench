@@ -6,14 +6,15 @@ export interface LayoutResizerOptions {
 }
 
 export const DEFAULT_SIDEBAR_WIDTH = 280;
-export const DEFAULT_TOOLBAR_HEIGHT = 42;
+export const DEFAULT_TOOLBAR_HEIGHT = 76;
+export const DEFAULT_TOOLBAR_HEIGHT_MAC = 48;
 export const DEFAULT_RIGHT_SIDEBAR_WIDTH = 290;
 
 export const MIN_SIDEBAR_WIDTH = 180;
 export const MAX_SIDEBAR_WIDTH = 700;
 
 export const MIN_TOOLBAR_HEIGHT = 34;
-export const MAX_TOOLBAR_HEIGHT = 75;
+export const MAX_TOOLBAR_HEIGHT = 110;
 
 export const MIN_RIGHT_SIDEBAR_WIDTH = 200;
 export const MAX_RIGHT_SIDEBAR_WIDTH = 600;
@@ -64,8 +65,16 @@ export class LayoutResizer {
       this.setSidebarWidth(savedSidebarWidth, false);
     }
 
+    const isMac = typeof document !== "undefined" && (
+      document.body?.classList?.contains("has-system-menus") ||
+      this.appEl?.classList?.contains("has-system-menus")
+    );
     const savedToolbarHeight = parseFloat(localStorage.getItem("railbench_toolbar_height") ?? "");
-    if (!isNaN(savedToolbarHeight) && savedToolbarHeight >= MIN_TOOLBAR_HEIGHT) {
+    if (!isMac && (savedToolbarHeight === 42 || savedToolbarHeight === 68)) {
+      this.setToolbarHeight(DEFAULT_TOOLBAR_HEIGHT, false);
+    } else if (isMac && savedToolbarHeight === 42) {
+      this.setToolbarHeight(DEFAULT_TOOLBAR_HEIGHT_MAC, false);
+    } else if (!isNaN(savedToolbarHeight) && savedToolbarHeight >= MIN_TOOLBAR_HEIGHT) {
       this.setToolbarHeight(savedToolbarHeight, false);
     }
 
@@ -413,8 +422,13 @@ export class LayoutResizer {
   }
 
   resetToolbarHeight(): void {
+    const isMac = typeof document !== "undefined" && (
+      document.body?.classList?.contains("has-system-menus") ||
+      this.appEl?.classList?.contains("has-system-menus")
+    );
+    const defaultH = isMac ? DEFAULT_TOOLBAR_HEIGHT_MAC : DEFAULT_TOOLBAR_HEIGHT;
     if (this.appEl) {
-      this.appEl.style.setProperty("--toolbar-height", `${DEFAULT_TOOLBAR_HEIGHT}px`);
+      this.appEl.style.setProperty("--toolbar-height", `${defaultH}px`);
     }
     if (typeof localStorage !== "undefined") {
       try {
@@ -462,23 +476,39 @@ export class LayoutResizer {
     }
   }
 
+  private getMinRightSidebarHeight(): number {
+    if (this.rightSidebarEl) {
+      const cards = (this.rightSidebarEl as any).querySelectorAll?.(".cl-card");
+      if (cards && cards.length > 0) {
+        return Math.max(MIN_RIGHT_SIDEBAR_HEIGHT, cards.length * 38 + 68);
+      }
+    }
+    return MIN_RIGHT_SIDEBAR_HEIGHT;
+  }
+
   getRightSidebarHeight(): number {
     if (this.rightSidebarEl) {
       const explicit = parseFloat(this.rightSidebarEl.style.height);
       if (!isNaN(explicit) && explicit > 0) return explicit;
+      const customProp = parseFloat(getComputedStyle(this.rightSidebarEl).getPropertyValue("--right-sidebar-height"));
+      if (!isNaN(customProp) && customProp > 0) return customProp;
       if (this.rightSidebarEl.offsetHeight > 0) return this.rightSidebarEl.offsetHeight;
+      const rectH = this.rightSidebarEl.getBoundingClientRect?.().height ?? 0;
+      if (rectH > 0) return rectH;
     }
-    return 0;
+    return this.getMinRightSidebarHeight();
   }
 
   setRightSidebarHeight(height: number, saveToStorage = false): void {
+    const minH = this.getMinRightSidebarHeight();
     const toolbarH = this.getToolbarHeight();
-    const maxAllowed = typeof window !== "undefined" ? Math.max(MIN_RIGHT_SIDEBAR_HEIGHT, window.innerHeight - toolbarH - 24) : 900;
-    const clamped = Math.round(Math.max(MIN_RIGHT_SIDEBAR_HEIGHT, Math.min(height, maxAllowed)));
+    const maxAllowed = typeof window !== "undefined" ? Math.max(minH, window.innerHeight - toolbarH - 24) : 900;
+    const clamped = Math.round(Math.max(minH, Math.min(height, maxAllowed)));
 
     if (this.rightSidebarEl) {
       this.rightSidebarEl.style.height = `${clamped}px`;
-      this.rightSidebarEl.style.maxHeight = `${clamped}px`;
+      this.rightSidebarEl.style.maxHeight = "";
+      this.rightSidebarEl.style.setProperty("--right-sidebar-height", `${clamped}px`);
     }
     if (saveToStorage && typeof localStorage !== "undefined") {
       try {
@@ -491,6 +521,7 @@ export class LayoutResizer {
     if (this.rightSidebarEl) {
       this.rightSidebarEl.style.height = "";
       this.rightSidebarEl.style.maxHeight = "";
+      this.rightSidebarEl.style.setProperty("--right-sidebar-height", "");
     }
     if (typeof localStorage !== "undefined") {
       try {

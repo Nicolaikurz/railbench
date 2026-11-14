@@ -5,6 +5,31 @@ export const deg2rad = (d: number) => (d * Math.PI) / 180;
 export const rad2deg = (r: number) => (r * 180) / Math.PI;
 export const normAngle = (a: number) => ((a % 360) + 360) % 360;
 
+/** Prüft, ob ein Katalogeintrag geometrisch ein Bogengleis ist (inkl. gebogener Anschluss-/Flexgleise). */
+export function isCurvedTrackEntry(entry: CatalogEntry): boolean {
+  return (
+    entry.kind === "curve" ||
+    ((entry.kind === "flex" || entry.kind === "feeder") &&
+      Boolean(entry.radius && entry.angle && Math.abs(entry.angle) > 0.1))
+  );
+}
+
+/** Prüft, ob ein Katalogeintrag geometrisch ein gerades Einzelgleis ist (inkl. Einspeise-, Trenn-, Entkupplungs- und Prellbockgleis). */
+export function isStraightTrackEntry(entry: CatalogEntry): boolean {
+  if (isCurvedTrackEntry(entry)) return false;
+  const kind = entry.kind;
+  return (
+    kind === "straight" ||
+    kind === "accessory" ||
+    kind === "flex" ||
+    kind === "buffer-stop" ||
+    kind === "feeder" ||
+    kind === "isolating" ||
+    kind === "uncoupler" ||
+    isBufferStopPiece(entry)
+  );
+}
+
 /**
  * Berechnet den Gegen-Rotationswinkel (in Radiant) per Vektor-Winkelberechnung,
  * um Beschriftungen (z. B. Gleis-Artikelnummern, Gebäudenamen, Plaketten) innerhalb
@@ -157,12 +182,12 @@ export function distanceToTrackPiece(
     }
   }
 
-  if (kind === "straight" || kind === "accessory" || kind === "flex" || kind === "buffer-stop" || isBufferStopPiece(entry)) {
+  if (isStraightTrackEntry(entry)) {
     const l = entry.length ?? (kind === "flex" ? 900 : 188.3);
     return distToSegment(local, { x: 0, y: 0 }, { x: l, y: 0 });
   }
 
-  if (kind === "curve") {
+  if (isCurvedTrackEntry(entry)) {
     const r = entry.radius ?? 437.5;
     const a = entry.angle ?? 30;
     if (a < 0) {
@@ -337,11 +362,11 @@ export function getPieceLocalCenter(entry: CatalogEntry): Vec2 {
       y: r * (1 - Math.cos(halfRad)),
     };
   }
-  if (kind === "straight" || kind === "accessory" || kind === "flex" || kind === "buffer-stop" || kind === "turnout-left" || kind === "turnout-right" || kind === "three-way" || kind === "double-slip" || isBufferStopPiece(entry)) {
+  if (isStraightTrackEntry(entry) || kind === "turnout-left" || kind === "turnout-right" || kind === "three-way" || kind === "double-slip") {
     const l = entry.length ?? (kind === "flex" ? 900 : 188.3);
     return { x: l / 2, y: 0 };
   }
-  if (kind === "curve") {
+  if (isCurvedTrackEntry(entry)) {
     const r = entry.radius ?? 437.5;
     const a = entry.angle ?? 30;
     const halfRad = deg2rad(Math.abs(a) / 2);
@@ -364,7 +389,15 @@ export function getPieceLocalCenter(entry: CatalogEntry): Vec2 {
 export function getPieceRotationHandleWorld(
   entry: CatalogEntry,
   transform: Transform,
-  stemOffset = entry.kind === "turntable" ? 220 : entry.kind === "transfer-table" ? 240 : entry.kind === "double-slip" ? 62 : entry.isRoad ? 50 : 48,
+  stemOffset = entry.kind === "turntable"
+    ? 220
+    : entry.kind === "transfer-table"
+      ? 240
+      : entry.kind === "double-slip"
+        ? 62
+        : entry.isRoad
+          ? 50
+          : Math.max(48, Math.round((entry.gauge ?? 16.5) * 1.09 + 20)),
 ): Vec2 {
   const center = getPieceLocalCenter(entry);
   // Senkrecht zur Fahrtrichtung nach oben (negatives y im lokalen System)
@@ -502,7 +535,7 @@ export function isPieceInSelectionBox(
   const isCurvedTurnoutR = kind === "curved-turnout-right" || (kind === "turnout-right" && entry.radius && !entry.length);
   const sampleSteps = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
 
-  if (kind === "straight" || kind === "accessory" || isStraightTurnout || kind === "three-way" || kind === "double-slip") {
+  if (isStraightTrackEntry(entry) || isStraightTurnout || kind === "three-way" || kind === "double-slip") {
     const l = entry.length ?? 188.3;
     for (const t of sampleSteps) {
       const pt = transformPoint({ x: l * t, y: 0 }, piece.transform);
@@ -528,7 +561,7 @@ export function isPieceInSelectionBox(
       const pt = transformPoint({ x: lead + r2 * Math.cos(ang), y: -r2 + r2 * Math.sin(ang) }, piece.transform);
       if (isPointInside(pt)) return true;
     }
-  } else if (kind === "curve" || isCurvedTurnoutR) {
+  } else if (isCurvedTrackEntry(entry) || isCurvedTurnoutR) {
     const r = entry.radius ?? 437.5;
     const a = entry.angle ?? 30;
     for (const t of sampleSteps) {
@@ -550,18 +583,6 @@ export function isPieceInSelectionBox(
         const pt = transformPoint({ x: lead + r2 * Math.cos(ang), y: r2 + r2 * Math.sin(ang) }, piece.transform);
         if (isPointInside(pt)) return true;
       }
-    }
-    const lead = entry.branchLength ?? (entry.branchRadius && entry.branchRadius > r ? entry.branchRadius - r : 0);
-    const r2 = entry.branchLength !== undefined ? (entry.branchRadius ?? r) : (entry.branchRadius && entry.branchRadius > r ? r : (entry.branchRadius ?? r));
-    const a2 = entry.branchAngle ?? 30;
-    if (lead > 0) {
-      const pt = transformPoint({ x: lead * 0.5, y: 0 }, piece.transform);
-      if (isPointInside(pt)) return true;
-    }
-    for (const t of sampleSteps) {
-      const ang = Math.PI / 2 - deg2rad(a2 * t);
-      const pt = transformPoint({ x: lead + r2 * Math.cos(ang), y: -r2 + r2 * Math.sin(ang) }, piece.transform);
-      if (isPointInside(pt)) return true;
     }
   } else if (kind === "transfer-table") {
     const l = entry.length ?? 360;

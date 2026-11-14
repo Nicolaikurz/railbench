@@ -7,6 +7,7 @@
 
 import type { CatalogEntry, TrackKind } from "@/catalog/types";
 import { isBufferStopPiece } from "@/catalog/catalog";
+import { isCurvedTrackEntry } from "@/core/geometry";
 import type { BuiltinModelDef } from "@/core/models-3d";
 import type { Model3D } from "@/core/types";
 
@@ -139,7 +140,7 @@ function renderTrackPiece(
 
   const kind: TrackKind = entry.kind || "straight";
 
-  if (kind === "curve" && entry.radius && entry.angle) {
+  if (isCurvedTrackEntry(entry) && entry.radius && entry.angle) {
     // Curved Track
     const r = entry.radius * pxPerMm;
     const rad = (Math.abs(entry.angle) * Math.PI) / 180;
@@ -192,6 +193,11 @@ function renderTrackPiece(
       ctx.lineWidth = 1.5;
       ctx.strokeStyle = railColor;
       ctx.stroke();
+    }
+
+    if (kind === "feeder") {
+      const midA = -Math.PI / 2 + rad / 2;
+      drawConnectorDot(ctx, r * Math.cos(midA), r * Math.sin(midA), "#10b981", 4);
     }
 
     // Connector indicators

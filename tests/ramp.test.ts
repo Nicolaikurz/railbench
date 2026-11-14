@@ -9,6 +9,7 @@ import {
   calculateAutoRamp,
   calculateEndHeightFromMaxGradient,
   calculateRequiredLengthForGradient,
+  findConnectedTrackPath,
 } from "@/core/ramp";
 import { MovePiecesToLayerCommand, ApplyRampElevationsCommand } from "@/editor/commands";
 
@@ -606,6 +607,96 @@ describe("Ramp & Elevation Functionality", () => {
         cmd.undo(layout);
         expect(layout.pieces[0]!.elevation).toEqual({ start: 5, end: 5 });
         expect(layout.pieces[1]!.elevation).toBeUndefined();
+      });
+
+      it("detects when track chain is too short for target layer height and computes max achievable height/depth", () => {
+        // 2 tracks of 188.3 mm => total length ~376.6 mm
+        const p1: TrackPiece = {
+          id: "r1",
+          catalogId: "24188",
+          transform: { x: 0, y: 0, rotation: 0 },
+          connectors: [{ x: 0, y: 0, angle: 180 }, { x: 188.3, y: 0, angle: 0 }],
+        };
+        const p2: TrackPiece = {
+          id: "r2",
+          catalogId: "24188",
+          transform: { x: 188.3, y: 0, rotation: 0 },
+          connectors: [{ x: 188.3, y: 0, angle: 180 }, { x: 376.6, y: 0, angle: 0 }],
+        };
+
+        const targetGradient = 2.5; // 2.5% max
+        // At 2.5% linear, 376.6 mm length can achieve: 376.6 * (2.5 / 100) = ~9.4 mm rise
+        // If target layer is 80 mm:
+        const resTooHigh = calculateRamp({
+          pieces: [p1, p2],
+          catalog: maerklinCCatalog,
+          startHeightMm: 0,
+          endHeightMm: 80,
+          layerBaseHeightMm: 0,
+          profile: "linear",
+          targetMaxGradientPercent: targetGradient,
+        });
+
+        expect(resTooHigh.exceedsTargetMax).toBe(true);
+        expect(resTooHigh.maxAllowableRiseMm).toBeCloseTo(9.4, 0.5);
+        expect(resTooHigh.recommendedEndHeightMm).toBeCloseTo(9.4, 0.5);
+        expect(resTooHigh.requiredLengthMm).toBeCloseTo(3200, 50);
+
+        // Going down into deep staging yard (negative height / depth: -60 mm)
+        const resTooDeep = calculateRamp({
+          pieces: [p1, p2],
+          catalog: maerklinCCatalog,
+          startHeightMm: 0,
+          endHeightMm: -60,
+          layerBaseHeightMm: 0,
+          profile: "linear",
+          targetMaxGradientPercent: targetGradient,
+        });
+
+        expect(resTooDeep.exceedsTargetMax).toBe(true);
+        expect(resTooDeep.maxAllowableRiseMm).toBeCloseTo(9.4, 0.5);
+        expect(resTooDeep.recommendedEndHeightMm).toBeCloseTo(-9.4, 0.5); // clamped to max depth
+      });
+
+      it("recomputes connected chain and ramp when dropping pin A or B onto new track pieces", () => {
+        // Chain of 3 tracks: p1 (0,0) -> p2 (188.3,0) -> p3 (376.6,0)
+        const p1: TrackPiece = {
+          id: "t1",
+          catalogId: "24188",
+          transform: { x: 0, y: 0, rotation: 0 },
+          connectors: [{ x: 0, y: 0, angle: 180 }, { x: 188.3, y: 0, angle: 0 }],
+        };
+        const p2: TrackPiece = {
+          id: "t2",
+          catalogId: "24188",
+          transform: { x: 188.3, y: 0, rotation: 0 },
+          connectors: [{ x: 188.3, y: 0, angle: 180 }, { x: 376.6, y: 0, angle: 0 }],
+        };
+        const p3: TrackPiece = {
+          id: "t3",
+          catalogId: "24188",
+          transform: { x: 376.6, y: 0, rotation: 0 },
+          connectors: [{ x: 376.6, y: 0, angle: 180 }, { x: 564.9, y: 0, angle: 0 }],
+        };
+
+        const allPieces = [p1, p2, p3];
+
+        // Initially Pin A is on p1, Pin B is on p2
+        let path = findConnectedTrackPath(p1.id, p2.id, allPieces);
+        expect(path).toBeDefined();
+        expect(path?.length).toBe(2);
+
+        // When dropping Pin B onto p3, path extends to 3 pieces
+        path = findConnectedTrackPath(p1.id, p3.id, allPieces);
+        expect(path).toBeDefined();
+        expect(path?.length).toBe(3);
+        expect(path?.map((p) => p.id)).toEqual(["t1", "t2", "t3"]);
+
+        // When dropping Pin A onto p2, path shrinks to 2 pieces (t2, t3)
+        path = findConnectedTrackPath(p2.id, p3.id, allPieces);
+        expect(path).toBeDefined();
+        expect(path?.length).toBe(2);
+        expect(path?.map((p) => p.id)).toEqual(["t2", "t3"]);
       });
     });
   });

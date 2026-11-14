@@ -101,12 +101,82 @@ export function evaluateRampProfile(u: number, profile: RampProfile): number {
 }
 
 /**
+ * Finds the shortest connected path of track pieces between startPieceId and endPieceId.
+ */
+export function findConnectedTrackPath(
+  startPieceId: string,
+  endPieceId: string,
+  allPieces: TrackPiece[],
+): TrackPiece[] | null {
+  const pieceMap = new Map<string, TrackPiece>();
+  for (const p of allPieces) pieceMap.set(p.id, p);
+
+  const startPiece = pieceMap.get(startPieceId);
+  const endPiece = pieceMap.get(endPieceId);
+  if (!startPiece || !endPiece) return null;
+  if (startPieceId === endPieceId) return [startPiece];
+
+  const adj = new Map<string, string[]>();
+  for (const p of allPieces) adj.set(p.id, []);
+
+  for (let i = 0; i < allPieces.length; i++) {
+    const pA = allPieces[i]!;
+    for (let j = i + 1; j < allPieces.length; j++) {
+      const pB = allPieces[j]!;
+      let connected = false;
+      for (const cA of pA.connectors) {
+        for (const cB of pB.connectors) {
+          if (dist(cA, cB) <= 8.0) {
+            connected = true;
+            break;
+          }
+        }
+        if (connected) break;
+      }
+      if (connected) {
+        adj.get(pA.id)!.push(pB.id);
+        adj.get(pB.id)!.push(pA.id);
+      }
+    }
+  }
+
+  const visited = new Set<string>([startPieceId]);
+  const parent = new Map<string, string>();
+  const queue: string[] = [startPieceId];
+
+  while (queue.length > 0) {
+    const cur = queue.shift()!;
+    if (cur === endPieceId) {
+      const pathIds: string[] = [];
+      let trace: string | undefined = endPieceId;
+      while (trace) {
+        pathIds.push(trace);
+        trace = parent.get(trace);
+      }
+      pathIds.reverse();
+      return pathIds.map((id) => pieceMap.get(id)!).filter(Boolean);
+    }
+    for (const next of adj.get(cur) || []) {
+      if (!visited.has(next)) {
+        visited.add(next);
+        parent.set(next, cur);
+        queue.push(next);
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
  * Orders selected pieces into a contiguous topological chain by matching world connectors.
  */
 export function sortPiecesIntoChain(
   pieces: TrackPiece[],
   catalog: Catalog,
   reversed = false,
+  startPieceId?: string,
+  endPieceId?: string,
 ): { ordered: Array<{ piece: TrackPiece; entryConnector: number; exitConnector: number; length: number }>; isContinuous: boolean } {
   if (pieces.length === 0) return { ordered: [], isContinuous: true };
   if (pieces.length === 1) {
@@ -148,17 +218,23 @@ export function sortPiecesIntoChain(
     }
   }
 
-  // Find start piece: preferably a degree-1 endpoint (sorted by spatial coordinate for stable left-to-right order)
+  // Find start piece: explicit startPieceId if valid, otherwise degree-1 endpoint
   let startPiece = pieces[0]!;
-  let endpoints = pieces.filter((p) => (neighborMap.get(p.id)?.length || 0) === 1);
-  if (endpoints.length > 0) {
+  const endpoints = pieces.filter((p) => (neighborMap.get(p.id)?.length || 0) === 1);
+  if (startPieceId && pieces.some((p) => p.id === startPieceId)) {
+    startPiece = pieces.find((p) => p.id === startPieceId)!;
+  } else if (endpoints.length > 0) {
     endpoints.sort((a, b) => {
       if (Math.abs(a.transform.x - b.transform.x) > 1) {
         return a.transform.x - b.transform.x;
       }
       return a.transform.y - b.transform.y;
     });
-    startPiece = endpoints[0]!;
+    if (endPieceId && endpoints.length > 1 && endpoints[0]!.id === endPieceId) {
+      startPiece = endpoints[endpoints.length - 1]!;
+    } else {
+      startPiece = endpoints[0]!;
+    }
   }
 
   const visited = new Set<string>();
@@ -252,10 +328,23 @@ export function calculateRamp(params: {
   profile: RampProfile;
   reversed?: boolean;
   targetMaxGradientPercent?: number;
+  startPieceId?: string;
+  endPieceId?: string;
 }): RampCalculationResult {
-  const { pieces, catalog, startHeightMm, endHeightMm, layerBaseHeightMm, profile, reversed = false, targetMaxGradientPercent } = params;
+  const {
+    pieces,
+    catalog,
+    startHeightMm,
+    endHeightMm,
+    layerBaseHeightMm,
+    profile,
+    reversed = false,
+    targetMaxGradientPercent,
+    startPieceId,
+    endPieceId,
+  } = params;
 
-  const { ordered, isContinuous } = sortPiecesIntoChain(pieces, catalog, reversed);
+  const { ordered, isContinuous } = sortPiecesIntoChain(pieces, catalog, reversed, startPieceId, endPieceId);
 
   const totalLengthMm = ordered.reduce((sum, item) => sum + item.length, 0);
   const totalRiseMm = endHeightMm - startHeightMm;

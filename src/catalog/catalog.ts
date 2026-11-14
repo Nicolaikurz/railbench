@@ -88,8 +88,15 @@ export function getLocalConnectors(entry?: CatalogEntry | null): LocalConnector[
     return connectors;
   }
 
-  if (kind === "straight" || kind === "accessory" || kind === "flex") {
-    if (kind === "flex" && entry.radius && entry.angle && Math.abs(entry.angle) > 0.1) {
+  if (
+    kind === "straight" ||
+    kind === "accessory" ||
+    kind === "flex" ||
+    kind === "feeder" ||
+    kind === "isolating" ||
+    kind === "uncoupler"
+  ) {
+    if ((kind === "flex" || kind === "feeder") && entry.radius && entry.angle && Math.abs(entry.angle) > 0.1) {
       const r = entry.radius;
       const a = entry.angle;
       if (a < 0) {

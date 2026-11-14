@@ -1,3 +1,4 @@
+import { ICONS } from "./icons";
 import type { ColorMode } from "@/core/types";
 import { getTranslations, getLanguage, toggleLanguage } from "@/i18n";
 import { getAppVersionTag, getFullAppTitle } from "@/version";
@@ -31,6 +32,8 @@ export interface ToolbarEvents {
   onToggleCatenaryIsolator?: () => void;
   onToggleTurnoutLantern?: () => void;
   onToggleTurnoutDecoder?: () => void;
+  onToggleSignal?: () => void;
+  onToggleBridge?: () => void;
   onResetView: () => void;
   onToggleRulers?: () => void;
   onToggleBaseboard?: () => void;
@@ -57,6 +60,7 @@ export interface ToolbarEvents {
   onClearLayout?: () => void;
   onOpenCollab?: () => void;
   onTogglePerfMonitor?: () => void;
+  onAutoSelectLanguage?: () => void;
   onResetPersonalConfig?: () => void;
 }
 
@@ -100,35 +104,7 @@ interface DropdownItemConfig {
   sectionHeader?: string;
 }
 
-const ICONS = {
-  eye: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>`,
-  helpCircle: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
-  sun: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>`,
-  moon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`,
-  sunMoon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/><path d="M12 8a4 4 0 0 1 4 4 4 4 0 0 1-4 4z" fill="currentColor"/></svg>`,
-  users: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
-  train: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="16" rx="2"/><path d="M4 11h16"/><path d="M12 3v8"/><path d="m8 19-2 3"/><path d="m18 22-2-3"/><circle cx="8" cy="15" r="1"/><circle cx="16" cy="15" r="1"/></svg>`,
-  chevronDown: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`,
-  filePlus: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>`,
-  folderOpen: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5c0-1.1.9-2 2-2h3.93a2 2 0 0 1 1.66.9l.82 1.2a2 2 0 0 0 1.66.9H18a2 2 0 0 1 2 2v2"/></svg>`,
-  save: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>`,
-  undo: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>`,
-  redo: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7"/></svg>`,
-  rotateCw: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><polyline points="21 3 21 8 16 8"/></svg>`,
-  trash: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>`,
-  magnet: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 15-4-4 6.7-6.7a7.78 7.78 0 0 1 11 11L13 22l-4-4 4.7-4.7a2.2 2.2 0 0 0 0-3.1 2.2 2.2 0 0 0-3.1 0L6 15z"/><path d="m5 8 4 4"/><path d="m12 15 4 4"/></svg>`,
-  ruler: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.3 8.7 8.7 21.3c-1 1-2.5 1-3.4 0l-2.6-2.6c-1-1-1-2.5 0-3.4L15.3 2.7c1-1 2.5-1 3.4 0l2.6 2.6c1 1 1 2.5 0 3.4Z"/><path d="m14.5 3.5 2 2"/><path d="m11.5 6.5 2 2"/><path d="m8.5 9.5 2 2"/><path d="m5.5 12.5 2 2"/></svg>`,
-  palette: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.563-2.512 5.563-5.563C22 6.5 17.5 2 12 2Z"/></svg>`,
-  tag: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><circle cx="7" cy="7" r=".5" fill="currentColor"/></svg>`,
-  zap: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>`,
-  alertTriangle: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
-  box3d: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 8-9-4-9 4v8l9 4 9-4V8Z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>`,
-  plan2d: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>`,
-  layers: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>`,
-  lock: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>`,
-  unlock: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.5-2"/></svg>`,
-  edit: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>`,
-};
+
 
 /**
  * Attaches hover behavior with a timeout buffer and coordination across dropdowns
@@ -164,29 +140,101 @@ function attachDropdownHoverBridge(
   });
 }
 
+export function isMacOS(): boolean {
+  if (typeof window !== "undefined") {
+    if ((window as any).__FORCE_MAC_MENU__ !== undefined) return Boolean((window as any).__FORCE_MAC_MENU__);
+    if (window.electronAPI?.platform === "darwin") return true;
+    if (typeof navigator !== "undefined") {
+      const p = (navigator.platform || "").toUpperCase();
+      const ua = (navigator.userAgent || "").toUpperCase();
+      return p.includes("MAC") || ua.includes("MACINTOSH");
+    }
+  }
+  return false;
+}
+
 export function createToolbar(host: HTMLElement, events: ToolbarEvents) {
   host.innerHTML = "";
   const t = getTranslations().toolbar;
+  const isMac = isMacOS();
+
+  if (typeof document !== "undefined") {
+    if (isMac) {
+      document.body?.classList?.add?.("has-system-menus");
+      const appEl = document.getElementById("app");
+      appEl?.classList?.add?.("has-system-menus");
+    } else {
+      document.body?.classList?.remove?.("has-system-menus");
+      const appEl = document.getElementById("app");
+      appEl?.classList?.remove?.("has-system-menus");
+    }
+  }
 
   const container = document.createElement("div");
   container.className = "toolbar-container";
 
-  // Top-level dropdown menus: Brand/Plan, Edit, View, Help
-  const menuGroup = document.createElement("div");
-  menuGroup.className = "toolbar-group toolbar-menus";
+  // --- LINE 1: Menubar Row (Layout, Edit, View, Settings, Help) ---
+  const menubarRow = document.createElement("div");
+  menubarRow.className = "toolbar-row toolbar-menubar-row";
+  if (isMac) {
+    menubarRow.style.display = "none";
+  }
 
-  const mainMenu = createBrandMainMenu(t, events);
+  const menubarLeft = document.createElement("div");
+  menubarLeft.className = "toolbar-group toolbar-menubar-left";
+
+  const brandBadge = createAppBrandBadge(events);
+  const layoutMenu = createLayoutMenu(t, events);
   const editMenu = createEditMenu(t, events);
   const viewMenu = createViewMenu(t, events);
+  const settingsMenu = createSettingsMenu(t, events);
   const helpMenu = createHelpMenu(t, events);
 
-  menuGroup.appendChild(mainMenu);
-  menuGroup.appendChild(editMenu);
-  menuGroup.appendChild(viewMenu);
-  menuGroup.appendChild(helpMenu);
+  menubarLeft.appendChild(brandBadge);
+  menubarLeft.appendChild(layoutMenu);
+  menubarLeft.appendChild(editMenu);
+  menubarLeft.appendChild(viewMenu);
+  menubarLeft.appendChild(settingsMenu);
+  menubarLeft.appendChild(helpMenu);
+  menubarRow.appendChild(menubarLeft);
 
-  container.appendChild(menuGroup);
-  container.appendChild(createDivider());
+  const menubarRight = document.createElement("div");
+  menubarRight.className = "toolbar-group toolbar-menubar-right";
+
+  const fileLabel = document.createElement("span");
+  fileLabel.id = "tb-file-name";
+  fileLabel.className = "brand-file";
+  fileLabel.title = "Current layout plan";
+  fileLabel.textContent = "Model Railway.railbench";
+  fileLabel.addEventListener("click", () => {
+    if (fileLabel.classList.contains("dirty")) {
+      events.onSavePlan();
+    }
+  });
+
+  const countBadge = document.createElement("span");
+  countBadge.id = "tb-piece-count";
+  countBadge.className = "brand-badge";
+  countBadge.textContent = `0 ${t.status.tracksUnitPlural}`;
+
+  if (!isMac) {
+    menubarRight.appendChild(fileLabel);
+    menubarRight.appendChild(countBadge);
+    menubarRow.appendChild(menubarRight);
+  }
+
+  container.appendChild(menubarRow);
+
+  // --- LINE 2: Actions Row (Quick buttons & Tools) ---
+  const actionsRow = document.createElement("div");
+  actionsRow.className = "toolbar-row toolbar-actions-row";
+
+  // Register tabs container (mounted on the left of Line 2, at the exact same height and width as the sidebar)
+  const sidebarTabsContainer = document.createElement("div");
+  sidebarTabsContainer.id = "toolbar-sidebar-tabs";
+  sidebarTabsContainer.className = "toolbar-sidebar-tabs";
+  actionsRow.appendChild(sidebarTabsContainer);
+  actionsRow.appendChild(createDivider());
 
   // Quick file actions
   const fileActionsGroup = document.createElement("div");
@@ -200,8 +248,8 @@ export function createToolbar(host: HTMLElement, events: ToolbarEvents) {
   fileActionsGroup.appendChild(btnOpen);
   fileActionsGroup.appendChild(btnSave);
 
-  container.appendChild(fileActionsGroup);
-  container.appendChild(createDivider());
+  actionsRow.appendChild(fileActionsGroup);
+  actionsRow.appendChild(createDivider());
 
   const featureGroup = document.createElement("div");
   featureGroup.className = "toolbar-group toolbar-features";
@@ -223,7 +271,7 @@ export function createToolbar(host: HTMLElement, events: ToolbarEvents) {
   btnMeasure.title = t.toggles.measureTitle;
 
   const colorsWrapper = document.createElement("div");
-  colorsWrapper.className = "toolbar-split-group";
+  colorsWrapper.className = "toolbar-split-group active";
 
   const btnColors = createToggleBtn(ICONS.palette, t.toggles.colorsLabel, "Col", true, events.onToggleColorCode, "tb-colors");
   btnColors.title = t.toggles.colorsTitle;
@@ -266,6 +314,9 @@ export function createToolbar(host: HTMLElement, events: ToolbarEvents) {
     { isDivider: true },
     { label: t.powerMenu.toggleTurnoutLantern, shortcut: "Shift+L", onClick: events.onToggleTurnoutLantern },
     { label: t.powerMenu.toggleTurnoutDecoder, shortcut: "Shift+D", onClick: events.onToggleTurnoutDecoder },
+    { isDivider: true },
+    { label: t.powerMenu.toggleSignal, shortcut: "Shift+S", onClick: events.onToggleSignal },
+    { label: t.powerMenu.toggleBridge, shortcut: "B", onClick: events.onToggleBridge },
   ]);
   powerMenu.classList.add("power-split-dropdown");
   powerWrapper.appendChild(powerMenu);
@@ -294,26 +345,15 @@ export function createToolbar(host: HTMLElement, events: ToolbarEvents) {
   featureGroup.appendChild(powerWrapper);
   featureGroup.appendChild(btnShortCircuit);
   featureGroup.appendChild(btn3D);
-  container.appendChild(featureGroup);
+  actionsRow.appendChild(featureGroup);
 
   const rightGroup = document.createElement("div");
   rightGroup.className = "toolbar-group toolbar-right";
 
-  const fileLabel = document.createElement("span");
-  fileLabel.id = "tb-file-name";
-  fileLabel.className = "brand-file";
-  fileLabel.title = "Current layout plan";
-  fileLabel.textContent = "Model Railway.railbench";
-  fileLabel.addEventListener("click", () => {
-    if (fileLabel.classList.contains("dirty")) {
-      events.onSavePlan();
-    }
-  });
-
-  const countBadge = document.createElement("span");
-  countBadge.id = "tb-piece-count";
-  countBadge.className = "brand-badge";
-  countBadge.textContent = `0 ${t.status.tracksUnitPlural}`;
+  if (isMac) {
+    rightGroup.appendChild(fileLabel);
+    rightGroup.appendChild(countBadge);
+  }
 
   const currentLang = getLanguage();
   const btnLang = document.createElement("button");
@@ -329,134 +369,46 @@ export function createToolbar(host: HTMLElement, events: ToolbarEvents) {
   const btnTheme = createThemeButton(t, events);
   const btnRightSidebar = createIconButton(ICONS.layers, t.status.toggleRightSidebar, () => events.onToggleRightSidebar?.(), "tb-right-sidebar-toggle", "toolbar-toggle active");
 
-  rightGroup.appendChild(fileLabel);
-  rightGroup.appendChild(countBadge);
   rightGroup.appendChild(btnCollab);
   rightGroup.appendChild(btnTheme);
   rightGroup.appendChild(btnLang);
   rightGroup.appendChild(btnRightSidebar);
-  container.appendChild(rightGroup);
+  actionsRow.appendChild(rightGroup);
+
+  container.appendChild(actionsRow);
 
   host.appendChild(container);
   setupDropdownGlobalDismiss();
 }
 
-function createBrandMainMenu(t: any, events: ToolbarEvents): HTMLElement {
-  const brandMenuWrapper = document.createElement("div");
-  brandMenuWrapper.className = "toolbar-dropdown brand-main-menu";
-
-  const trigger = document.createElement("button");
-  trigger.type = "button";
-  trigger.id = "tb-brand-trigger";
-  trigger.className = "toolbar-btn toolbar-brand-btn dropdown-trigger";
-  
-  trigger.style.display = "inline-flex";
-  trigger.style.alignItems = "center";
-  trigger.style.gap = "6px";
-  trigger.style.background = "rgba(255, 255, 255, 0.08)";
-  trigger.style.border = "1px solid rgba(255, 255, 255, 0.12)";
-  trigger.style.color = "#ffffff";
-  trigger.style.padding = "0 8px";
-  trigger.style.borderRadius = "4px";
-  trigger.style.height = "var(--tb-btn-height, 28px)";
-  trigger.style.cursor = "pointer";
-
-  trigger.title = getFullAppTitle();
-  trigger.innerHTML = `
-    <span class="brand-icon" style="display:inline-flex; align-items:center; color:#ffffff;">${ICONS.train}</span>
-    <span class="brand-title" style="color:#ffffff; font-weight:600; font-size:12px;">RAILbench</span>
-    <span class="brand-version" style="color:rgba(255,255,255,0.6); font-size:10px; margin-left:3px; font-variant-numeric: tabular-nums;">${getAppVersionTag()}</span>
-    <span class="dropdown-arrow" style="display:inline-flex; align-items:center; color:#ffffff;">${ICONS.chevronDown}</span>
+function createAppBrandBadge(events: ToolbarEvents): HTMLElement {
+  const brand = document.createElement("div");
+  brand.id = "tb-brand-trigger";
+  brand.className = "toolbar-brand-badge";
+  brand.style.display = "inline-flex";
+  brand.style.alignItems = "center";
+  brand.style.gap = "5px";
+  brand.style.padding = "0 6px";
+  brand.style.cursor = "pointer";
+  brand.title = getFullAppTitle();
+  brand.innerHTML = `
+    <span class="brand-icon" style="display:inline-flex; align-items:center; color:#38bdf8;">${ICONS.train}</span>
+    <span class="brand-title" style="color:#ffffff; font-weight:700; font-size:12px; letter-spacing:-0.02em;">RAILbench</span>
+    <span class="brand-version" style="color:rgba(255,255,255,0.5); font-size:10px; font-variant-numeric: tabular-nums;">${getAppVersionTag()}</span>
   `;
-
-  // Attach safe-hover bridge with delayed close
-  attachDropdownHoverBridge(
-    brandMenuWrapper,
-    () => { trigger.style.background = "rgba(255, 255, 255, 0.15)"; },
-    () => { trigger.style.background = "rgba(255, 255, 255, 0.08)"; }
-  );
-
-  // Keep click behavior for mobile/touch or explicit clicks
-  trigger.addEventListener("pointerdown", (e) => e.stopPropagation());
-  trigger.addEventListener("click", (e) => {
-    e.stopPropagation();
-    const isOpen = brandMenuWrapper.classList.contains("open");
-    document.querySelectorAll(".toolbar-dropdown.open").forEach((d) => d.classList.remove("open"));
-    if (!isOpen) {
-      brandMenuWrapper.classList.add("open");
-      trigger.style.background = "rgba(255, 255, 255, 0.15)";
-    } else {
-      trigger.style.background = "rgba(255, 255, 255, 0.08)";
-    }
+  brand.addEventListener("click", () => {
+    events.onOpenWelcome?.();
   });
-
-  brandMenuWrapper.appendChild(trigger);
-
-  const menuItems: DropdownItemConfig[] = [
-    { sectionHeader: t.menus.plan },
-    { label: t.fileMenu.newPlan, shortcut: "Ctrl+N", onClick: events.onNewPlan },
-    { label: t.fileMenu.openPlan, shortcut: "Ctrl+O", onClick: events.onOpenPlan },
-    { label: t.fileMenu.demoTracks, onClick: () => events.onOpenDemoTracks?.() },
-    { label: t.fileMenu.savePlan, shortcut: "Ctrl+S", onClick: events.onSavePlan },
-    { label: t.fileMenu.saveAs, shortcut: "Ctrl+Shift+S", onClick: events.onSavePlanAs },
-    { label: t.fileMenu.importCatalog, onClick: () => events.onImportCatalog?.() },
-    { label: t.fileMenu.import3d, onClick: events.onImportModel },
-    { label: t.fileMenu.exportXml, onClick: events.onSaveXML },
-    { label: t.fileMenu.exportCsv, shortcut: "Ctrl+E", onClick: events.onExportCSV },
-    { label: t.fileMenu.printPlan, shortcut: "Ctrl+P", onClick: () => events.onPrintPlan?.() },
-    { label: t.fileMenu.collaborate, onClick: () => events.onOpenCollab?.() },
-
-    { isDivider: true },
-    { sectionHeader: t.menus.settings },
-    {
-      label: t.menus.resetPersonalConfig,
-      id: "item-reset-personal-config",
-      isDanger: true,
-      onClick: () => events.onResetPersonalConfig?.(),
-    },
-  ];
-
-  const menu = buildDropdownItems(menuItems, () => brandMenuWrapper.classList.remove("open"));
-  brandMenuWrapper.appendChild(menu);
-  return brandMenuWrapper;
+  return brand;
 }
 
-function createEditMenu(t: any, events: ToolbarEvents): HTMLElement {
-  return createIconDropdownMenu(
-    ICONS.edit,
-    t.menus.edit,
-    [
-      { label: t.editMenu.undo, shortcut: "Ctrl+Z", onClick: events.onUndo, id: "item-undo" },
-      { label: t.editMenu.redo, shortcut: "Ctrl+Y", onClick: events.onRedo, id: "item-redo" },
-      { isDivider: true },
-      { label: t.editMenu.copy, shortcut: "Ctrl+C", onClick: () => events.onCopy?.(), id: "item-copy" },
-      { label: t.editMenu.paste, shortcut: "Ctrl+V", onClick: () => events.onPaste?.(), id: "item-paste" },
-      { label: t.editMenu.duplicate, shortcut: "Ctrl+D", onClick: () => events.onDuplicate?.(), id: "item-duplicate" },
-      { isDivider: true },
-      { label: t.editMenu.selectAll, shortcut: "Ctrl+A", onClick: () => events.onSelectAll?.(), id: "item-select-all" },
-      { label: t.editMenu.deselectAll, shortcut: "Esc", onClick: () => events.onDeselectAll?.(), id: "item-deselect-all" },
-      { isDivider: true },
-      { label: t.editMenu.rotateCw, shortcut: "R", onClick: () => events.onRotateSelected(7.5) },
-      { label: t.editMenu.rotateCcw, shortcut: "Shift+R", onClick: () => events.onRotateSelected(-7.5) },
-      { label: t.editMenu.changeHeight, shortcut: "M", onClick: () => events.onMoveSelectedToLayerPrompt?.() },
-      { isDivider: true },
-      { label: t.editMenu.deleteSelected, shortcut: "Del", onClick: events.onDeleteSelected, isDanger: true },
-    ],
-    "tb-edit",
-  );
-}
-
-function createIconDropdownMenu(iconSvg: string, tooltip: string, items: DropdownItemConfig[], id?: string): HTMLElement {
+function createTextDropdownMenu(label: string, items: DropdownItemConfig[], id?: string): HTMLElement {
   const trigger = document.createElement("button");
   trigger.type = "button";
-  trigger.className = "toolbar-btn btn-icon-only";
-  trigger.title = tooltip;
-  trigger.style.display = "inline-flex";
-  trigger.style.alignItems = "center";
-  trigger.style.justifyContent = "center";
-  trigger.style.boxSizing = "border-box";
+  trigger.className = "toolbar-btn toolbar-menu-btn dropdown-trigger";
+  trigger.title = label;
   if (id) trigger.id = id;
-  trigger.innerHTML = `<span class="tb-icon">${iconSvg}</span>`;
+  trigger.innerHTML = `<span class="tb-menu-label">${label}</span>`;
 
   const wrapper = document.createElement("div");
   wrapper.className = "toolbar-dropdown";
@@ -464,7 +416,6 @@ function createIconDropdownMenu(iconSvg: string, tooltip: string, items: Dropdow
   wrapper.style.position = "relative";
   wrapper.style.alignItems = "center";
 
-  // Attach safe-hover bridge
   attachDropdownHoverBridge(wrapper);
 
   trigger.addEventListener("pointerdown", (e) => e.stopPropagation());
@@ -480,12 +431,61 @@ function createIconDropdownMenu(iconSvg: string, tooltip: string, items: Dropdow
   return wrapper;
 }
 
+function createLayoutMenu(t: any, events: ToolbarEvents): HTMLElement {
+  return createTextDropdownMenu(
+    t.menus.plan,
+    [
+      { label: t.fileMenu.newPlan, shortcut: "Ctrl+N", onClick: events.onNewPlan },
+      { label: t.fileMenu.openPlan, shortcut: "Ctrl+O", onClick: events.onOpenPlan },
+      { label: t.fileMenu.demoTracks, onClick: () => events.onOpenDemoTracks?.() },
+      { isDivider: true },
+      { label: t.fileMenu.savePlan, shortcut: "Ctrl+S", onClick: events.onSavePlan },
+      { label: t.fileMenu.saveAs, shortcut: "Ctrl+Shift+S", onClick: events.onSavePlanAs },
+      { isDivider: true },
+      { label: t.fileMenu.importCatalog, onClick: () => events.onImportCatalog?.() },
+      { label: t.fileMenu.import3d, onClick: events.onImportModel },
+      { label: t.fileMenu.exportXml, onClick: events.onSaveXML },
+      { label: t.fileMenu.exportCsv, shortcut: "Ctrl+E", onClick: events.onExportCSV },
+      { label: t.fileMenu.printPlan, shortcut: "Ctrl+P", onClick: () => events.onPrintPlan?.() },
+      { isDivider: true },
+      { label: t.fileMenu.collaborate, onClick: () => events.onOpenCollab?.() },
+    ],
+    "tb-layout",
+  );
+}
+
+function createEditMenu(t: any, events: ToolbarEvents): HTMLElement {
+  return createTextDropdownMenu(
+    t.menus.edit,
+    [
+      { label: t.editMenu.undo, shortcut: "Ctrl+Z", onClick: events.onUndo, id: "item-undo" },
+      { label: t.editMenu.redo, shortcut: "Ctrl+Y", onClick: events.onRedo, id: "item-redo" },
+      { isDivider: true },
+      { label: t.editMenu.copy, shortcut: "Ctrl+C", onClick: () => events.onCopy?.(), id: "item-copy" },
+      { label: t.editMenu.paste, shortcut: "Ctrl+V", onClick: () => events.onPaste?.(), id: "item-paste" },
+      { label: t.editMenu.duplicate, shortcut: "Ctrl+D", onClick: () => events.onDuplicate?.(), id: "item-duplicate" },
+      { isDivider: true },
+      { label: t.editMenu.selectAll, shortcut: "Ctrl+A", onClick: () => events.onSelectAll?.(), id: "item-select-all" },
+      { label: t.editMenu.deselectAll, shortcut: "Esc", onClick: () => events.onDeselectAll?.(), id: "item-deselect-all" },
+      { isDivider: true },
+      { label: t.editMenu.rotateCw, shortcut: "R", onClick: () => events.onRotateSelected(7.5) },
+      { label: t.editMenu.rotateCcw, shortcut: "Shift+R", onClick: () => events.onRotateSelected(-7.5) },
+      { label: t.editMenu.changeHeight, shortcut: "M", onClick: () => events.onMoveSelectedToLayerPrompt?.() },
+      { label: t.powerMenu.toggleFeeder, shortcut: "F", onClick: events.onToggleFeeder },
+      { isDivider: true },
+      { label: t.editMenu.deleteSelected, shortcut: "Del", onClick: events.onDeleteSelected, isDanger: true },
+    ],
+    "tb-edit",
+  );
+}
+
 function createViewMenu(t: any, events: ToolbarEvents): HTMLElement {
-  return createIconDropdownMenu(
-    ICONS.eye,
+  const isDe = getLanguage() === "de";
+  return createTextDropdownMenu(
     t.menus.view,
     [
       { label: t.viewMenu.resetView, shortcut: "Ctrl+0", onClick: events.onResetView },
+      { label: isDe ? "3D-Ansicht umschalten" : "Toggle 3D View", shortcut: "3", onClick: () => events.onToggle3D?.() },
       { isDivider: true },
       { label: t.viewMenu.toggleRulers, shortcut: "Shift+L", onClick: events.onToggleRulers, id: "item-rulers" },
       { label: t.viewMenu.woodPlate, onClick: () => events.onToggleWoodPlate?.(), id: "item-woodplate" },
@@ -502,15 +502,46 @@ function createViewMenu(t: any, events: ToolbarEvents): HTMLElement {
   );
 }
 
+function createSettingsMenu(t: any, events: ToolbarEvents): HTMLElement {
+  return createTextDropdownMenu(
+    t.menus.settings,
+    [
+      { label: t.powerMenu.configPower, onClick: () => events.onOpenPowerSettings?.("voltage") },
+      { isDivider: true },
+      { label: t.toggles.snapLabel + " (" + t.toggles.snapTitle + ")", shortcut: "S", onClick: events.onToggleSnapping },
+      { label: t.toggles.selectionLockLabel + " (" + t.toggles.selectionLockTitle + ")", onClick: () => events.onToggleSelectionLock?.() },
+      { label: t.toggles.labelsLabel + " (" + t.toggles.labelsTitle + ")", shortcut: "N", onClick: events.onToggleTrackLabels },
+      { label: t.toggles.voltageLabel + " (" + t.toggles.voltageTitle + ")", shortcut: "P", onClick: events.onTogglePowerSim },
+      { isDivider: true },
+      { label: t.colorsMenu.types, onClick: () => events.onSetColorMode?.("types") },
+      { label: t.colorsMenu.layers, onClick: () => events.onSetColorMode?.("layers") },
+      { label: t.colorsMenu.off, onClick: () => events.onSetColorMode?.("off") },
+      { isDivider: true },
+      {
+        label: getLanguage() === "de" ? "Sprache automatisch wählen (System)" : "Auto-select language (System)",
+        onClick: () => events.onAutoSelectLanguage?.(),
+      },
+      { isDivider: true },
+      {
+        label: t.menus.resetPersonalConfig,
+        id: "item-reset-personal-config",
+        isDanger: true,
+        onClick: () => events.onResetPersonalConfig?.(),
+      },
+    ],
+    "tb-settings",
+  );
+}
+
 function createHelpMenu(t: any, events: ToolbarEvents): HTMLElement {
-  return createIconDropdownMenu(
-    ICONS.helpCircle,
+  const isDe = getLanguage() === "de";
+  return createTextDropdownMenu(
     t.menus.help,
     [
       { label: t.helpMenu.helpGuide, shortcut: "F1", onClick: () => events.onOpenHelp?.("overview") },
       { label: t.helpMenu.shortcuts, shortcut: "?", onClick: () => events.onOpenHelp?.("shortcuts") },
       { isDivider: true },
-      { label: getLanguage() === "de" ? "Willkommens-Bildschirm…" : "Welcome Screen…", onClick: () => events.onOpenWelcome?.() },
+      { label: isDe ? "Willkommens-Bildschirm…" : "Welcome Screen…", onClick: () => events.onOpenWelcome?.() },
       { isDivider: true },
       { label: t.helpMenu.layersGuide, onClick: () => events.onOpenHelp?.("layers") },
       { label: t.helpMenu.voltageGuide, onClick: () => events.onOpenHelp?.("power") },
@@ -609,15 +640,17 @@ export function updateToolbarState(state: ToolbarState) {
   }
 
   const btnRotate = document.getElementById("tb-rotate") as HTMLButtonElement | null;
-  if (btnRotate) btnRotate.disabled = !state.hasSelection;
+  if (btnRotate && state.hasSelection !== undefined) btnRotate.disabled = !state.hasSelection;
 
   const btnDelete = document.getElementById("tb-delete") as HTMLButtonElement | null;
-  if (btnDelete) btnDelete.disabled = !state.hasSelection;
+  if (btnDelete && state.hasSelection !== undefined) btnDelete.disabled = !state.hasSelection;
 
   const btnSnap = document.getElementById("tb-snap");
   if (btnSnap) {
     setBtnLabel(btnSnap, ICONS.magnet, t.toggles.snapLabel, "Snap");
-    btnSnap.classList.toggle("active", !!state.snappingEnabled);
+    if (state.snappingEnabled !== undefined) {
+      btnSnap.classList.toggle("active", !!state.snappingEnabled);
+    }
   }
 
   const btnSelectionLock = document.getElementById("tb-selection-lock");
@@ -637,45 +670,65 @@ export function updateToolbarState(state: ToolbarState) {
   const btnMeasure = document.getElementById("tb-measure");
   if (btnMeasure) {
     setBtnLabel(btnMeasure, ICONS.ruler, t.toggles.measureLabel, "Dist");
-    btnMeasure.classList.toggle("active", !!state.measureToolActive);
+    if (state.measureToolActive !== undefined) {
+      btnMeasure.classList.toggle("active", !!state.measureToolActive);
+    }
   }
 
   const btnColors = document.getElementById("tb-colors");
   if (btnColors) {
-    const mode = state.colorMode ?? (state.colorCodeEnabled ? "types" : "off");
     setBtnLabel(btnColors, ICONS.palette, t.toggles.colorsLabel, "Col");
-    btnColors.classList.toggle("active", mode !== "off");
-    btnColors.classList.toggle("mode-layers", mode === "layers");
-    btnColors.title = mode === "layers"
-      ? `${t.toggles.colorsTitle} (${t.colorsMenu.layers})`
-      : (mode === "types" ? `${t.toggles.colorsTitle} (${t.colorsMenu.types})` : t.toggles.colorsTitle);
+    if (state.colorMode !== undefined || state.colorCodeEnabled !== undefined) {
+      const mode = state.colorMode ?? (state.colorCodeEnabled ? "types" : "off");
+      const isActive = mode !== "off";
+      const isLayers = mode === "layers";
+      btnColors.classList.toggle("active", isActive);
+      btnColors.classList.toggle("mode-layers", isLayers);
+      const colorsGroup = (btnColors.closest?.(".toolbar-split-group") as HTMLElement | null) || btnColors.parentElement;
+      if (colorsGroup) {
+        colorsGroup.classList.toggle("active", isActive);
+        colorsGroup.classList.toggle("mode-layers", isLayers);
+      }
+      btnColors.title = mode === "layers"
+        ? `${t.toggles.colorsTitle} (${t.colorsMenu.layers})`
+        : (mode === "types" ? `${t.toggles.colorsTitle} (${t.colorsMenu.types})` : t.toggles.colorsTitle);
 
-    const updateCheck = (id: string, isSelected: boolean, text: string) => {
-      const el = document.getElementById(id);
-      if (!el) return;
-      const span = el.querySelector(".dropdown-item-left span:last-child");
-      if (span) span.textContent = (isSelected ? "✓ " : "") + text;
-    };
+      const updateCheck = (id: string, isSelected: boolean, text: string) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const span = el.querySelector(".dropdown-item-left span:last-child");
+        if (span) span.textContent = (isSelected ? "✓ " : "") + text;
+      };
 
-    updateCheck("split-color-types", mode === "types", t.colorsMenu.types);
-    updateCheck("split-color-layers", mode === "layers", t.colorsMenu.layers);
-    updateCheck("split-color-off", mode === "off", t.colorsMenu.off);
+      updateCheck("split-color-types", mode === "types", t.colorsMenu.types);
+      updateCheck("split-color-layers", mode === "layers", t.colorsMenu.layers);
+      updateCheck("split-color-off", mode === "off", t.colorsMenu.off);
+    }
   }
 
   const btnLabels = document.getElementById("tb-labels");
   if (btnLabels) {
     setBtnLabel(btnLabels, ICONS.tag, t.toggles.labelsLabel, "Labels");
-    btnLabels.classList.toggle("active", !!state.trackLabelsEnabled);
+    if (state.trackLabelsEnabled !== undefined) {
+      btnLabels.classList.toggle("active", !!state.trackLabelsEnabled);
+    }
   }
 
   const btnPower = document.getElementById("tb-power");
   if (btnPower) {
     setBtnLabel(btnPower, ICONS.zap, t.toggles.voltageLabel, "Volt");
-    btnPower.classList.toggle("active-warning", !!state.powerSimEnabled);
+    if (state.powerSimEnabled !== undefined) {
+      const isPowerActive = !!state.powerSimEnabled;
+      btnPower.classList.toggle("active-warning", isPowerActive);
+      const powerGroup = (btnPower.closest?.(".toolbar-split-group") as HTMLElement | null) || btnPower.parentElement;
+      if (powerGroup) {
+        powerGroup.classList.toggle("active-warning", isPowerActive);
+      }
+    }
   }
 
   const btnShortCircuit = document.getElementById("tb-short-circuit");
-  if (btnShortCircuit) {
+  if (btnShortCircuit && state.hasShortCircuit !== undefined) {
     if (state.hasShortCircuit) {
       btnShortCircuit.style.display = "inline-flex";
       btnShortCircuit.title = t.status.shortCircuitTooltip;
@@ -715,7 +768,7 @@ export function updateToolbarState(state: ToolbarState) {
   }
 
   const btnSave = document.getElementById("tb-save");
-  if (btnSave) {
+  if (btnSave && state.isDirty !== undefined) {
     const isDe = getLanguage() === "de";
     btnSave.classList.toggle("has-unsaved", !!state.isDirty);
     btnSave.title = state.isDirty

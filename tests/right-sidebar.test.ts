@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { RightSidebar } from "@/ui/right-sidebar";
+import { showTrackContextMenu } from "@/ui/track-context-menu";
 import type { Layout } from "@/core/types";
 
 class MockElement {
@@ -183,62 +184,115 @@ describe("RightSidebar - Buttons for Auswahlsperre & Woodplatte", () => {
     (globalThis as any).document = originalDocument;
   });
 
-  it("renders Auswahlsperre and Woodplatte as proper buttons without switch knobs", () => {
+  it("verifies selection lock and Woodplatte buttons were removed from the layer menu", () => {
     const onToggleSelectionLock = vi.fn();
     const onToggleWoodPlate = vi.fn();
-    let lockDisabled = false;
-    let woodActive = false;
+    const onOpenHeightDialog = vi.fn();
 
     new RightSidebar(host as unknown as HTMLElement, layout, {
       onLayerChange: vi.fn(),
       selectedPieceIds: () => [],
       onToggleSelectionLock,
-      isSelectionLockDisabled: () => lockDisabled,
+      isSelectionLockDisabled: () => false,
       onToggleWoodPlate,
-      isWoodPlateActive: () => woodActive,
+      isWoodPlateActive: () => false,
+      onOpenHeightDialog,
     });
 
     const lockBtn = host.querySelector("#cl-toggle-selection-lock");
     const woodBtn = host.querySelector("#cl-toggle-woodplate");
+    const heightBtn = host.querySelector("#cl-open-height-panel");
 
-    expect(lockBtn).toBeTruthy();
-    expect(woodBtn).toBeTruthy();
+    // Both selection lock and Woodplatte buttons should not be present in the right sidebar layer menu
+    expect(lockBtn).toBeNull();
+    expect(woodBtn).toBeNull();
+    expect(heightBtn).toBeTruthy();
 
-    // Verify both are styled as buttons
-    expect(lockBtn?.className).toContain("cl-btn");
-    expect(woodBtn?.className).toContain("cl-btn");
-
-    // Verify there are no old switch sliders
-    expect(host.querySelector(".cl-switch")).toBeNull();
-    expect(host.querySelector(".cl-switch-knob")).toBeNull();
-
-    // Verify click triggers callback
-    lockBtn?.dispatchEvent({ type: "click" });
-    expect(onToggleSelectionLock).toHaveBeenCalledTimes(1);
-
-    woodBtn?.dispatchEvent({ type: "click" });
-    expect(onToggleWoodPlate).toHaveBeenCalledTimes(1);
+    heightBtn?.dispatchEvent({ type: "click" });
+    expect(onOpenHeightDialog).toHaveBeenCalledTimes(1);
   });
 
-  it("shows active state and badge on buttons when toggled on", () => {
-    let lockDisabled = true;
-    let woodActive = true;
+  it("auto-fits every layer in the menu when layers are added or when height is too small", () => {
+    host.style.height = "120px";
+    layout.layers = [
+      { id: "layer-2", name: "Bergstrecke", color: "#4ade80", visible: true, locked: false, heightMm: 80 },
+      { id: "layer-1", name: "Hauptebene", color: "#38bdf8", visible: true, locked: false, heightMm: 0 },
+      { id: "layer-0", name: "Schattenbahnhof", color: "#94a3b8", visible: true, locked: false, heightMm: -80 },
+    ];
 
-    new RightSidebar(host as unknown as HTMLElement, layout, {
+    const sb = new RightSidebar(host as unknown as HTMLElement, layout, {
       onLayerChange: vi.fn(),
       selectedPieceIds: () => [],
-      onToggleSelectionLock: vi.fn(),
-      isSelectionLockDisabled: () => lockDisabled,
       onToggleWoodPlate: vi.fn(),
-      isWoodPlateActive: () => woodActive,
+      isWoodPlateActive: () => false,
     });
 
-    const lockBtn = host.querySelector("#cl-toggle-selection-lock");
-    const woodBtn = host.querySelector("#cl-toggle-woodplate");
+    // Too-small fixed height (120px for 3 layers) should be cleared so it auto-fits all layers
+    expect(host.style.height).toBe("");
+    expect(host.querySelectorAll(".cl-card").length).toBe(3);
 
-    expect(lockBtn?.className).toContain("is-active");
-    expect(woodBtn?.className).toContain("is-active");
-    expect(lockBtn?.innerHTML).toMatch(/Aufgehoben|Unlocked/);
-    expect(woodBtn?.innerHTML).toMatch(/An|On/);
+    // If user stretches sidebar taller (400px) and then a 4th layer is added, it resets to auto-fit all 4 layers
+    host.style.height = "400px";
+    layout.layers.push({
+      id: "layer-3",
+      name: "Gipfelbahn",
+      color: "#f59e0b",
+      visible: true,
+      locked: false,
+      heightMm: 160,
+    });
+    sb.update(layout);
+
+    expect(host.style.height).toBe("");
+    expect(host.querySelectorAll(".cl-card").length).toBe(4);
+  });
+
+  it("moves the track context menu up when opened near the bottom of the screen so every entry is visible", () => {
+    const prevWin = (globalThis as any).window;
+    (globalThis as any).window = {
+      innerWidth: 1280,
+      innerHeight: 600,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    };
+
+    try {
+      const body = (globalThis as any).document.body as MockElement;
+      const origCreate = (globalThis as any).document.createElement;
+      (globalThis as any).document.createElement = (tag: string) => {
+        const el = origCreate(tag);
+        (el as any).scrollHeight = 410;
+        (el as any).offsetHeight = 410;
+        (el as any).scrollWidth = 285;
+        (el as any).offsetWidth = 285;
+        return el;
+      };
+
+      showTrackContextMenu({
+        piece: {
+          id: "p1",
+          catalogId: "24612",
+          layerId: "layer-1",
+          transform: { x: 0, y: 0, rotation: 0 },
+          connectors: [{ x: 0, y: 0, angle: 180 }],
+        },
+        screenX: 400,
+        screenY: 520,
+        layout,
+        onOpenRampGenerator: vi.fn(),
+        onAutoRamp: vi.fn(),
+        onOpenHeightDialog: vi.fn(),
+        onCopy: vi.fn(),
+        onDelete: vi.fn(),
+      });
+
+      const menu = body.children.find((c) => c.id === "track-context-menu");
+      expect(menu).toBeDefined();
+      const topPx = parseFloat(menu!.style.top ?? "");
+      // 410 + 4 = 414 height; 600 - 414 - 12 = 174px so the entire 410px menu fits above 600px
+      expect(topPx + 410).toBeLessThanOrEqual(600 - 12);
+    } finally {
+      (globalThis as any).window = prevWin;
+    }
   });
 });

@@ -1,4 +1,5 @@
 import type { Translations } from "./types";
+import { helpEn } from "./help-en";
 
 export const en: Translations = {
   toolbar: {
@@ -43,6 +44,8 @@ export const en: Translations = {
       toggleCatenaryIsolator: "Toggle Catenary Isolator (Shift+I)",
       toggleTurnoutLantern: "Toggle Switch Lantern (Shift+L)",
       toggleTurnoutDecoder: "Toggle Turnout Decoder (Shift+D)",
+      toggleSignal: "Toggle Signal (Shift+S)",
+      toggleBridge: "Toggle Bridge (B)",
     },
     viewMenu: {
       resetView: "Zoom to Fit / Center",
@@ -138,6 +141,8 @@ export const en: Translations = {
       toggleCatenaryIsolator: "Toggle Catenary Isolator (Shift+I)",
       toggleTurnoutLantern: "Toggle Switch Lantern (Shift+L)",
       toggleTurnoutDecoder: "Toggle Turnout Decoder (Shift+D)",
+      toggleSignal: "Toggle Signal (Shift+S)",
+      toggleBridge: "Toggle Bridge (B)",
     },
     status: {
       tracksUnit: "track",
@@ -211,6 +216,7 @@ export const en: Translations = {
       tracks: "Tracks",
       roads: "Streets",
       models: "3D",
+      terrain: "Terrain",
       board: "Table",
       bom: "Parts List",
     },
@@ -555,4 +561,5 @@ export const en: Translations = {
     unsavedWarning: "The current layout has unsaved changes. Do you want to load the demo layout anyway?",
     autoSwitchHint: "Note: Loading a demo plan automatically switches to the matching track system and scale.",
   },
+  helpDialog: helpEn,
 };

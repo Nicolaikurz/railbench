@@ -7,6 +7,9 @@ export function createDefaultBaseboard(partial?: Partial<BaseboardConfig>): Base
     name: partial?.name ?? "Tisch 1 (Hauptplatte)",
     enabled: partial?.enabled ?? true,
     shape: partial?.shape ?? "rect",
+    customPolygon: partial?.customPolygon
+      ? partial.customPolygon.map((p) => ({ x: p.x, y: p.y }))
+      : undefined,
     triangleType: partial?.triangleType,
     width: partial?.width ?? 2400,
     depth: partial?.depth ?? 1200,
@@ -107,6 +110,9 @@ export function duplicateBaseboard(layout: Layout, id: string): BaseboardConfig 
   const bounds = getBaseboardBounds(source);
   const clone: BaseboardConfig = {
     ...source,
+    customPolygon: source.customPolygon
+      ? source.customPolygon.map((p) => ({ x: p.x, y: p.y }))
+      : undefined,
     id: `board-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
     name: `${source.name ?? "Tisch"} (Kopie)`,
     positionMode: "custom",
@@ -237,6 +243,19 @@ export function getBaseboardPolygon(config: BaseboardConfig): { x: number; y: nu
       { x: stemLeft, y: y + dBar },
       { x, y: y + dBar },
     ];
+  } else if (shape === "custom" && config.customPolygon && config.customPolygon.length >= 3) {
+    let maxPx = 0;
+    let maxPy = 0;
+    for (const pt of config.customPolygon) {
+      if (pt.x > maxPx) maxPx = pt.x;
+      if (pt.y > maxPy) maxPy = pt.y;
+    }
+    const scaleX = maxPx > 1 ? W / maxPx : 1;
+    const scaleY = maxPy > 1 ? D / maxPy : 1;
+    poly = config.customPolygon.map((pt) => ({
+      x: Math.round((x + pt.x * scaleX) * 10) / 10,
+      y: Math.round((y + pt.y * scaleY) * 10) / 10,
+    }));
   } else {
     poly = [
       { x, y },
@@ -286,6 +305,7 @@ export function getLayerPlatePolygon(
     customX: x,
     customY: y,
     shape: plate.shape ?? "rect",
+    customPolygon: plate.customPolygon,
     triangleType: plate.triangleType,
     lWingWidth: plate.lWingWidth,
     lWingDepth: plate.lWingDepth,
@@ -296,7 +316,7 @@ export function getLayerPlatePolygon(
     tBarDepth: plate.tBarDepth,
     tStemWidth: plate.tStemWidth,
     rotation: plate.rotation ?? 0,
-    style: "wood",
+    style: plate.style ?? "wood",
   };
 
   let poly = getBaseboardPolygon(dummyBb);
@@ -373,6 +393,10 @@ export function computeBaseboardLegPositions(
       const bisScale = Math.min(inset * 2.8, (2 * inset) / bisLen);
       legX = pCurr.x + (bisX / bisLen) * bisScale;
       legY = pCurr.y + (bisY / bisLen) * bisScale;
+      if (!isPointInsideBaseboard({ x: legX, y: legY }, config)) {
+        legX = pCurr.x - (bisX / bisLen) * bisScale;
+        legY = pCurr.y - (bisY / bisLen) * bisScale;
+      }
     }
 
     // Mindestabstand zu vorherigen Beinen

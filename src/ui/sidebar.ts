@@ -20,7 +20,9 @@ import { renderRoadsTab } from "./sidebar/roads-tab";
 import { renderModelsTab } from "./sidebar/models-tab";
 import { renderLayersTab } from "./sidebar/layers-tab";
 import { renderBoardTab } from "./sidebar/board-tab";
+import { renderTerrainTab } from "./sidebar/terrain-tab";
 import { renderBomTab } from "./sidebar/bom-tab";
+import { boardSketcher } from "@/editor/board-sketcher-controller";
 
 export * from "./sidebar/shared";
 export {
@@ -29,11 +31,12 @@ export {
   renderModelsTab,
   renderLayersTab,
   renderBoardTab,
+  renderTerrainTab,
   renderBomTab,
 };
 
 export type { ModelScale };
-export type SidebarTab = "catalog" | "roads" | "models" | "board" | "bom" | "layers";
+export type SidebarTab = "catalog" | "roads" | "models" | "terrain" | "board" | "bom" | "layers";
 
 export function setupDoubleAction(
   element: { addEventListener: (event: string, handler: (e: any) => void) => void },
@@ -76,6 +79,7 @@ export interface SidebarCallbacks {
   onBaseboardChange?: () => void;
   getZoom?: () => number;
   onTabChange?: (tab: SidebarTab) => void;
+  onSelectModel?: (modelId: string) => void;
 }
 
 const SIDEBAR_DRILLDOWN_STYLES_ID = "sidebar-drilldown-styles";
@@ -300,7 +304,7 @@ const SIDEBAR_DRILLDOWN_STYLES = `
 `;
 
 function ensureSidebarDrilldownStyles() {
-  if (document.getElementById(SIDEBAR_DRILLDOWN_STYLES_ID)) return;
+  if (typeof document === "undefined" || document.getElementById(SIDEBAR_DRILLDOWN_STYLES_ID)) return;
   const styleEl = document.createElement("style");
   styleEl.id = SIDEBAR_DRILLDOWN_STYLES_ID;
   styleEl.textContent = SIDEBAR_DRILLDOWN_STYLES;
@@ -569,6 +573,7 @@ export class Sidebar {
 
   /** Registers a window click listener that is automatically removed on the next render(). */
   addWindowClickListener(handler: (e: MouseEvent) => void) {
+    if (typeof window === "undefined") return;
     window.addEventListener("click", handler);
     this.windowCleanups.push(() => window.removeEventListener("click", handler));
   }
@@ -604,9 +609,25 @@ export class Sidebar {
         `${t.tabs.models} (${BUILTIN_MODELS.length + this.customModelsLibrary.length})`,
       ),
     );
+    const mountainCount = (this.layout.models || []).filter((m) => m.builtinId === "mountain").length;
+    tabHeader.appendChild(
+      this.createTabButton(
+        "terrain",
+        t.tabs.terrain,
+        `${t.tabs.terrain} (${mountainCount})`,
+      ),
+    );
     tabHeader.appendChild(this.createTabButton("board", t.tabs.board, t.board.title));
     tabHeader.appendChild(this.createTabButton("bom", t.tabs.bom, `${t.bom.title} (${bomSummary.totalObjects})`));
-    this.host.appendChild(tabHeader);
+    
+    // Mount the register tabs into the toolbar row 2 (same height) if present, else fallback to host
+    const targetTabsHost = document.getElementById("toolbar-sidebar-tabs");
+    if (targetTabsHost) {
+      targetTabsHost.innerHTML = "";
+      targetTabsHost.appendChild(tabHeader);
+    } else {
+      this.host.appendChild(tabHeader);
+    }
 
     // 2. Tab Content Container
     const content = document.createElement("div");
@@ -618,6 +639,8 @@ export class Sidebar {
       renderRoadsTab(this, content);
     } else if (this.activeTab === "models") {
       renderModelsTab(this, content);
+    } else if (this.activeTab === "terrain") {
+      renderTerrainTab(this, content);
     } else if (this.activeTab === "board") {
       renderBoardTab(this, content);
     } else if (this.activeTab === "bom") {
@@ -630,6 +653,9 @@ export class Sidebar {
   }
 
   setActiveTab(tab: SidebarTab) {
+    if (tab !== "board" && boardSketcher.isActive) {
+      boardSketcher.stop();
+    }
     this.activeTab = tab;
     this.callbacks.onTabChange?.(tab);
     this.render();
@@ -652,6 +678,13 @@ export class Sidebar {
     this.render();
   }
 
+  selectMountain(mountainId: string) {
+    this.activeMountainId = mountainId;
+    this.mountainsOpen = true;
+    this.setActiveTab("terrain");
+    this.callbacks.onSelectModel?.(mountainId);
+  }
+
   isBaseboardTabActive(): boolean {
     return this.activeTab === "board";
   }
@@ -662,6 +695,9 @@ export class Sidebar {
     b.title = tooltip;
     b.innerHTML = `<span class="tab-label">${label}</span>`;
     b.addEventListener("click", () => {
+      if (tab !== "board" && boardSketcher.isActive) {
+        boardSketcher.stop();
+      }
       this.activeTab = tab;
       this.callbacks.onTabChange?.(tab);
       this.render();

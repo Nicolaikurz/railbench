@@ -78,6 +78,30 @@ export const BUILTIN_MODELS: BuiltinModelDef[] = [
     badgeColor: "#ffffff",
   },
   {
+    id: "coaling-station",
+    name: "Bekohlungsanlage (Dampflok)",
+    category: "railway",
+    icon: "⛏️",
+    description: "Dampflok-Bekohlungsanlage mit Beton-Kohlenbansen, Hochbunker, Drehkran mit Greifer und Gelenk-Wasserkran.",
+    width: 180,
+    depth: 75,
+    height: 125,
+    badgeBg: "#334155",
+    badgeColor: "#ffffff",
+  },
+  {
+    id: "diesel-fuel-station",
+    name: "Dieseltankstelle (Diesellok)",
+    category: "railway",
+    icon: "⛽",
+    description: "Diesellok-Betankungsanlage mit liegendem Haupt-Dieseltank, Pumpenhaus, Öl-Auffangwanne und 2 überdachten Zapfsäulen.",
+    width: 170,
+    depth: 65,
+    height: 68,
+    badgeBg: "#0284c7",
+    badgeColor: "#ffffff",
+  },
+  {
     id: "light-signal",
     name: "Lichtsignal (Blocksignal)",
     category: "railway",
@@ -138,6 +162,18 @@ export const BUILTIN_MODELS: BuiltinModelDef[] = [
     badgeColor: "#000000",
   },
   {
+    id: "platform",
+    name: "Bahnsteig",
+    category: "railway",
+    icon: "🚉",
+    description: "Überdachter Personenbahnsteig mit Beton-Bahnsteigkanten, taktilen Sicherheitslinien, Glas-Stahldach, Sitzbänken, Bahnhofsuhren, ZZA und Treppenabgang.",
+    width: 320,
+    depth: 54,
+    height: 55,
+    badgeBg: "#0284c7",
+    badgeColor: "#ffffff",
+  },
+  {
     id: "turntable-trainhall",
     name: "Ringlokschuppen (Drehscheibe)",
     category: "railway",
@@ -173,22 +209,25 @@ export const BUILTIN_MODELS: BuiltinModelDef[] = [
     badgeBg: "#475569",
     badgeColor: "#ffffff",
   },
-  {
-    id: "mountain",
-    name: "Berg / Gebirgsmassiv",
-    category: "nature",
-    icon: "⛰️",
-    description: "Massiver Gebirgszug mit Felsformationen, Schneegipfel und automatischen Tunnelausschnitten für kreuzende Gleise und Straßen.",
-    width: 600,
-    depth: 450,
-    height: 220,
-    badgeBg: "#44403c",
-    badgeColor: "#ffffff",
-  },
 ];
 
+export const MOUNTAIN_MODEL_DEF: BuiltinModelDef = {
+  id: "mountain",
+  name: "Berg / Gebirgsmassiv",
+  category: "nature",
+  icon: "⛰️",
+  description: "Massiver Gebirgszug mit Felsformationen, Schneegipfel und automatischen Tunnelausschnitten für kreuzende Gleise und Straßen.",
+  width: 600,
+  depth: 450,
+  height: 220,
+  badgeBg: "#44403c",
+  badgeColor: "#ffffff",
+};
+
 export function findBuiltinModelDef(id: string): BuiltinModelDef | undefined {
-  return BUILTIN_MODELS.find((m) => m.id === id);
+  if (id === "mountain") return MOUNTAIN_MODEL_DEF;
+  const normId = id === "bahnsteig" ? "platform" : id;
+  return BUILTIN_MODELS.find((m) => m.id === normId);
 }
 
 export function createBuiltinModel(
@@ -222,9 +261,35 @@ export function isPointInsideModel(pt: { x: number; y: number }, model: Model3D)
   // In lokale Model-Koordinaten drehen
   const lx = dx * Math.cos(rad) - dy * Math.sin(rad);
   const ly = dx * Math.sin(rad) + dy * Math.cos(rad);
+  const scale = model.scale ?? 1.0;
 
-  const halfW = (model.width * (model.scale ?? 1.0)) / 2;
-  const halfD = (model.depth * (model.scale ?? 1.0)) / 2;
+  if (model.builtinId === "mountain" && model.mountainPath && model.mountainPath.length > 0) {
+    const path = model.mountainPath;
+    if (path.length === 1) {
+      const n = path[0]!;
+      return Math.hypot(lx - n.x * scale, ly - n.y * scale) <= (n.radius || 150) * scale;
+    }
+    for (let i = 0; i < path.length - 1; i++) {
+      const a = path[i]!;
+      const b = path[i + 1]!;
+      const ax = a.x * scale;
+      const ay = a.y * scale;
+      const bx = b.x * scale;
+      const by = b.y * scale;
+      const abx = bx - ax;
+      const aby = by - ay;
+      const lenSq = abx * abx + aby * aby;
+      const t = lenSq > 1e-4 ? Math.max(0, Math.min(1, ((lx - ax) * abx + (ly - ay) * aby) / lenSq)) : 0;
+      const px = ax + abx * t;
+      const py = ay + aby * t;
+      const r = ((a.radius || 150) + ((b.radius || 150) - (a.radius || 150)) * t) * scale;
+      if (Math.hypot(lx - px, ly - py) <= r) return true;
+    }
+    return false;
+  }
+
+  const halfW = (model.width * scale) / 2;
+  const halfD = (model.depth * scale) / 2;
 
   return Math.abs(lx) <= halfW && Math.abs(ly) <= halfD;
 }

@@ -72,6 +72,7 @@ export const KNOWN_PERSONAL_CONFIG_KEYS = [
   "railbench_theme_pref",
   "theme-pref",
   "railbench_lang",
+  "railbench_language",
   "railbench_collab_username",
   "railbench_collab_color",
   "railbench_collab_userid",

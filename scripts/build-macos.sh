@@ -27,7 +27,7 @@ fi
 
 # Dynamically fetch App Name and Version from package.json
 APP_NAME=$(node -p "require('./package.json').name" 2>/dev/null || echo "RAILbench")
-APP_VERSION=$(node -p "require('./package.json').version" 2>/dev/null || echo "0.5.3")
+APP_VERSION=$(node -p "require('./package.json').version" 2>/dev/null || echo "0.6.0")
 
 IS_MACOS=false
 if [[ "$OSTYPE" == "darwin"* ]]; then

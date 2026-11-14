@@ -1,0 +1,108 @@
+<div class="rb-modal-card layer-modal-card" style="width: 460px;">
+  <div class="rb-modal-header">
+    <div class="rb-modal-title">
+      <span>{{TITLE}}</span>
+    </div>
+    <button class="rb-modal-close-btn" id="layer-modal-close" title="✕">✕</button>
+  </div>
+
+  <div class="layer-modal-body" style="padding: 18px 20px; display: flex; flex-direction: column; gap: 14px;">
+    <!-- 1. Layer Name -->
+    <div class="layer-dialog-section">
+      <div class="layer-input-row">
+        <label for="layer-input-name" class="layer-dialog-label">{{NAME_LABEL}}</label>
+        <input
+          type="text"
+          id="layer-input-name"
+          class="rb-input layer-text-input"
+          value="{{CURRENT_NAME}}"
+          placeholder="{{NAME_PLACEHOLDER}}"
+          maxlength="50"
+        />
+      </div>
+    </div>
+
+    <!-- 2. Layer Height -->
+    <div class="layer-dialog-section">
+      <div class="layer-input-row">
+        <label for="layer-input-height" class="layer-dialog-label">{{ELEVATION_LABEL}}</label>
+        <div class="layer-unit-input-group" style="width: 100%;">
+          <input
+            type="number"
+            id="layer-input-height"
+            class="rb-input layer-height-field"
+            value="{{CURRENT_HEIGHT}}"
+            step="1"
+          />
+          <span class="unit-addon" style="position: absolute; right: 12px; font-size: 13px; color: var(--text-muted); font-weight: 600;">{{ELEVATION_UNIT}}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. Layer Color -->
+    <div class="layer-dialog-section">
+      <div class="layer-color-row">
+        <span class="layer-dialog-label">{{COLOR_LABEL}}</span>
+        <div class="layer-color-swatches" id="layer-color-swatches">
+          {{SWATCHES}}
+          <label class="layer-custom-color-picker" title="{{CUSTOM_COLOR_TOOLTIP}}">
+            <input type="color" id="layer-custom-color-input" value="{{CURRENT_COLOR}}" />
+            <span class="picker-icon">🎨</span>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. Wood Plate (Holzplatte unter Ebene) -->
+    <div class="layer-dialog-section">
+      <label class="layer-dialog-label" style="margin-bottom: 6px; display: block;">{{WOOD_PLATE_LABEL}}</label>
+      <div class="layer-woodplate-options" style="display: flex; flex-direction: column; gap: 6px;">
+        <label class="layer-woodplate-choice {{WOOD_PLATE_NONE_ACTIVE}}" style="display: flex; align-items: flex-start; gap: 10px; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-color, #cbd5e1); cursor: pointer;">
+          <input type="radio" name="layer-woodplate-mode" value="none" {{WOOD_PLATE_NONE_CHECKED}} style="margin-top: 3px;" />
+          <div style="display: flex; flex-direction: column;">
+            <span style="font-weight: 600; font-size: 13px;">{{WOOD_PLATE_NONE_TITLE}}</span>
+            <span style="font-size: 11px; color: var(--text-muted, #64748b);">{{WOOD_PLATE_NONE_DESC}}</span>
+          </div>
+        </label>
+
+        <label class="layer-woodplate-choice {{WOOD_PLATE_TABLE_ACTIVE}}" style="display: flex; align-items: flex-start; gap: 10px; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-color, #cbd5e1); cursor: pointer;">
+          <input type="radio" name="layer-woodplate-mode" value="table" {{WOOD_PLATE_TABLE_CHECKED}} style="margin-top: 3px;" />
+          <div style="display: flex; flex-direction: column;">
+            <span style="font-weight: 600; font-size: 13px;">{{WOOD_PLATE_TABLE_TITLE}}</span>
+            <span style="font-size: 11px; color: var(--text-muted, #64748b);">{{WOOD_PLATE_TABLE_DESC}}</span>
+          </div>
+        </label>
+
+        <label class="layer-woodplate-choice {{WOOD_PLATE_TIGHT_ACTIVE}}" style="display: flex; align-items: flex-start; gap: 10px; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-color, #cbd5e1); cursor: pointer;">
+          <input type="radio" name="layer-woodplate-mode" value="tight" {{WOOD_PLATE_TIGHT_CHECKED}} style="margin-top: 3px;" />
+          <div style="display: flex; flex-direction: column;">
+            <span style="font-weight: 600; font-size: 13px;">{{WOOD_PLATE_TIGHT_TITLE}}</span>
+            <span style="font-size: 11px; color: var(--text-muted, #64748b);">{{WOOD_PLATE_TIGHT_DESC}}</span>
+          </div>
+        </label>
+      </div>
+
+      <div id="layer-woodplate-thickness-row" style="margin-top: 8px; display: {{THICKNESS_ROW_DISPLAY}}; align-items: center; justify-content: space-between; gap: 12px;">
+        <label for="layer-input-thickness" style="font-size: 12px; color: var(--text-muted, #64748b);">{{WOOD_PLATE_THICKNESS_LABEL}}</label>
+        <div style="position: relative; width: 120px;">
+          <input
+            type="number"
+            id="layer-input-thickness"
+            class="rb-input"
+            style="width: 100%; padding-right: 32px;"
+            value="{{CURRENT_THICKNESS}}"
+            min="2"
+            max="50"
+            step="1"
+          />
+          <span style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); font-size: 12px; color: var(--text-muted, #64748b);">mm</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="rb-modal-footer">
+    <button type="button" class="rb-btn rb-btn-secondary" id="layer-btn-cancel">{{CANCEL_BTN}}</button>
+    <button type="button" class="rb-btn rb-btn-primary" id="layer-btn-submit">{{SUBMIT_BTN}}</button>
+  </div>
+</div>

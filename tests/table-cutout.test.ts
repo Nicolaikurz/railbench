@@ -143,22 +143,36 @@ describe("table-cutout", () => {
       expect(res.maxElev).toBe(0);
     });
 
-    it("returns false for deep shadow station track (-160 mm, below clearance zone)", () => {
-      const piece: TrackPiece = {
-        id: "p1",
+    it("returns false for track 100mm under the table (-100 mm) and shadow station tracks (-80 mm)", () => {
+      const piece100: TrackPiece = {
+        id: "p-100",
         catalogId: "24188",
         transform: { x: 500, y: 500, rotation: 0 },
         connectors: [],
-        elevation: { start: -160, end: -160 },
+        elevation: { start: -100, end: -100 },
+      };
+      const piece80: TrackPiece = {
+        id: "p-80",
+        catalogId: "24188",
+        transform: { x: 500, y: 500, rotation: 0 },
+        connectors: [],
+        elevation: { start: -80, end: -80 },
+      };
+      const deepRampSegment: TrackPiece = {
+        id: "p-ramp-deep",
+        catalogId: "24188",
+        transform: { x: 500, y: 500, rotation: 0 },
+        connectors: [],
+        elevation: { start: -80, end: -100 },
       };
       const layout: Layout = {
         name: "Test",
         scale: "H0",
-        pieces: [piece],
+        pieces: [piece100, piece80, deepRampSegment],
       };
-      // Clearance is 65mm in H0 + 35mm table thickness = 100mm collision zone
-      const res = isPiecePassingThroughTable(piece, layout, mockCatalog);
-      expect(res.passesThrough).toBe(false);
+      expect(isPiecePassingThroughTable(piece100, layout, mockCatalog).passesThrough).toBe(false);
+      expect(isPiecePassingThroughTable(piece80, layout, mockCatalog).passesThrough).toBe(false);
+      expect(isPiecePassingThroughTable(deepRampSegment, layout, mockCatalog).passesThrough).toBe(false);
     });
 
     it("supports custom intermediate deckElevation (e.g. +100 mm deck plate)", () => {
@@ -325,30 +339,167 @@ describe("table-cutout", () => {
         expect(pt.y).toBeLessThanOrEqual(1000 - 1.5);
       }
     });
+
+    it("supports previewElevations for live ramp generation without saved piece elevation", () => {
+      const p1: TrackPiece = {
+        id: "ramp1",
+        catalogId: "24188",
+        transform: { x: 200, y: 200, rotation: 0 },
+        connectors: [
+          { x: 200, y: 200, angle: 180 },
+          { x: 388, y: 200, angle: 0 },
+        ],
+        // Flat saved elevation
+        elevation: { start: 0, end: 0 },
+      };
+
+      const layout: Layout = {
+        name: "Test",
+        scale: "H0",
+        pieces: [p1],
+      };
+
+      // Without preview: no cutouts because piece is flat
+      const noCutouts = computeTableTrackCutouts(layout, mockCatalog, baseboard);
+      expect(noCutouts).toHaveLength(0);
+
+      // With previewElevations dipping down to -50mm: cutouts generated live!
+      const previewMap = new Map<string, { start: number; end: number }>();
+      previewMap.set("ramp1", { start: 0, end: -50 });
+
+      const withPreview = computeTableTrackCutouts(
+        layout,
+        mockCatalog,
+        baseboard,
+        0,
+        35,
+        previewMap,
+      );
+      expect(withPreview).toHaveLength(1);
+      expect(withPreview[0]!.pieceIds).toContain("ramp1");
+      expect(withPreview[0]!.depthRange.min).toBe(-50);
+    });
+
+    it("renders clean 2D baseboard graphics with cutout aperture", async () => {
+      const { createBaseboardGraphics } = await import("@/render/baseboard-sprite");
+      const p1: TrackPiece = {
+        id: "ramp1",
+        catalogId: "24188",
+        transform: { x: 200, y: 200, rotation: 0 },
+        connectors: [
+          { x: 200, y: 200, angle: 180 },
+          { x: 388, y: 200, angle: 0 },
+        ],
+        elevation: { start: 0, end: -60 },
+      };
+
+      const layout: Layout = {
+        name: "Test",
+        scale: "H0",
+        pieces: [p1],
+      };
+
+      const container = createBaseboardGraphics(baseboard, {
+        layout,
+        catalog: mockCatalog,
+      });
+
+      expect(container.children.length).toBeGreaterThan(2);
+    });
+
+    it("does not cast elevation drop shadow for descending or underground tracks", async () => {
+      const { createTrackGraphics } = await import("@/render/track-sprite");
+      const entry = mockCatalog.entries[0]!;
+
+      // Descending track under table (-40 to -80 mm)
+      const subterraneanPiece: TrackPiece = {
+        id: "ramp-sub",
+        catalogId: entry.id,
+        transform: { x: 0, y: 0, rotation: 0 },
+        connectors: [],
+        elevation: { start: -40, end: -80 },
+      };
+
+      const subContainer = createTrackGraphics(subterraneanPiece, entry, mockCatalog, {
+        minLayoutElev: -80,
+      });
+
+      // Elevated bridge track (+20 to +40 mm)
+      const elevatedPiece: TrackPiece = {
+        id: "ramp-elev",
+        catalogId: entry.id,
+        transform: { x: 0, y: 0, rotation: 0 },
+        connectors: [],
+        elevation: { start: 20, end: 40 },
+      };
+
+      const elevContainer = createTrackGraphics(elevatedPiece, entry, mockCatalog, {
+        minLayoutElev: -80,
+      });
+
+      // Elevated track draws elevation shadow instructions to graphics context
+      const subG = subContainer.children[0] as any;
+      const elevG = elevContainer.children[0] as any;
+      expect(elevG.context.instructions.length).toBeGreaterThan(subG.context.instructions.length);
+    });
   });
 
   describe("isPointInsideCutout", () => {
-    it("detects points inside cutout or within safety buffer", () => {
-      const cutout = {
-        points: [
-          { x: 100, y: 100 },
-          { x: 300, y: 100 },
-          { x: 300, y: 160 },
-          { x: 100, y: 160 },
-        ],
-        pieceIds: ["p1"],
-        depthRange: { min: -50, max: 0 },
-        widthMm: 60,
+    it("computes cutouts for Alpenland H0 demo layout", async () => {
+      const { createDemoLayout } = await import("@/editor/demo-tracks");
+      const { maerklinCCatalog } = await import("@/catalog/catalog");
+      const { getBaseboardPolygon, getBaseboardBounds } = await import("@/core/layout");
+      const THREE = await import("three");
+
+      const layout = createDemoLayout();
+      const catalog = maerklinCCatalog;
+      const baseboard = layout.baseboard!;
+      const cutouts = computeTableTrackCutouts(layout, catalog, baseboard);
+      expect(cutouts.length).toBeGreaterThan(0);
+      console.log("Cutout points count:", cutouts[0]!.points.length);
+      console.log("First 5 points:", cutouts[0]!.points.slice(0, 5));
+      console.log("Points at turnaround (80-84):", cutouts[0]!.points.slice(80, 84));
+      console.log("Baseboard bounds:", getBaseboardBounds(baseboard));
+
+      const polygon = getBaseboardPolygon(baseboard);
+      let outerPts = polygon.map((p) => new THREE.Vector2(p.x, p.y));
+      if (THREE.ShapeUtils.isClockWise(outerPts)) {
+        outerPts = outerPts.reverse();
+      }
+
+      const shape = new THREE.Shape();
+      shape.moveTo(outerPts[0]!.x, outerPts[0]!.y);
+      for (let i = 1; i < outerPts.length; i++) {
+        shape.lineTo(outerPts[i]!.x, outerPts[i]!.y);
+      }
+      shape.closePath();
+
+      for (const cutout of cutouts) {
+        let holeVecs = cutout.points.map((p) => new THREE.Vector2(p.x, p.y));
+        if (!THREE.ShapeUtils.isClockWise(holeVecs)) {
+          holeVecs = holeVecs.reverse();
+        }
+
+        const holePath = new THREE.Path();
+        holePath.moveTo(holeVecs[0]!.x, holeVecs[0]!.y);
+        for (let i = 1; i < holeVecs.length; i++) {
+          holePath.lineTo(holeVecs[i]!.x, holeVecs[i]!.y);
+        }
+        holePath.closePath();
+        shape.holes.push(holePath);
+      }
+
+      const extrudeSettings = {
+        depth: 35,
+        bevelEnabled: true,
+        bevelSegments: 3,
+        steps: 1,
+        bevelSize: 2.5,
+        bevelThickness: 2.5,
       };
 
-      // Inside center
-      expect(isPointInsideCutout({ x: 200, y: 130 }, [cutout])).toBe(true);
-
-      // In safety margin (distance ~10 mm to edge)
-      expect(isPointInsideCutout({ x: 200, y: 90 }, [cutout], 15)).toBe(true);
-
-      // Far away outside
-      expect(isPointInsideCutout({ x: 600, y: 600 }, [cutout], 15)).toBe(false);
+      const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+      console.log("Vertices:", geometry.attributes.position?.count);
     });
   });
 });

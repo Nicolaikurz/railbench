@@ -15,6 +15,11 @@
   <url type="homepage">https://github.com/Nicolaikurz/railbench/</url>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.6.0" date="2026-11-14">
+      <description>
+        <p>Release 0.6.0: Full 360/180 3D camera freedom with interactive CAD ViewCube, 2D CAD Sketcher for freeform tables and layer plates, dedicated Terrain &amp; Mountain Editor with sculpting brushes and automatic 3D mountain tunnels, steam locomotive coaling station and diesel fueling station 3D models, and modular codebase architecture.</p>
+      </description>
+    </release>
     <release version="0.4.0" date="2026-11-01">
       <description>
         <p>Release 0.4.0: Märklin C-Track Turntable 74862 (23m DB standard type) &amp; Trix 66862 with 30 exits, 3D Engine Shed environment &amp; scenery model, 3D wood plate sub-structures, H0/N street systems, and point-to-point distance measurement tool.</p>

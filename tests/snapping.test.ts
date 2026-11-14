@@ -20,7 +20,7 @@ import {
 } from "@/core/geometry";
 import { Selection } from "@/editor/selection";
 import { getTrackBlueprintColor } from "@/render/blueprint-colors";
-import { createTrackGraphics } from "@/render/track-sprite";
+import { createTrackGraphics, desaturateColor } from "@/render/track-sprite";
 import {
   getLocalConnectors,
   catalogRegistry,
@@ -443,6 +443,18 @@ describe("isPieceInSelectionBox & multi-selection", () => {
       layerColor: "#ec4899",
     });
     expect(spriteLayers).toBeDefined();
+    expect(spriteLayers.alpha).toBe(1);
+
+    const spriteInactiveLayer = createTrackGraphics(piece, g188, undefined, {
+      colorMode: "layers",
+      layerColor: "#ec4899",
+      isInactiveLayer: true,
+    });
+    expect(spriteInactiveLayer.alpha).toBeLessThan(1);
+
+    const saturated = 0xec4899;
+    const desaturated = desaturateColor(saturated);
+    expect(desaturated).not.toBe(saturated);
   });
 });
 

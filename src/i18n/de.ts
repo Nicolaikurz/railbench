@@ -1,4 +1,5 @@
 import type { Translations } from "./types";
+import { helpDe } from "./help-de";
 
 export const de: Translations = {
   toolbar: {
@@ -43,6 +44,8 @@ export const de: Translations = {
       toggleCatenaryIsolator: "Oberleitungs-Trennstelle umschalten (Shift+I)",
       toggleTurnoutLantern: "Weichenlaterne umschalten (Shift+L)",
       toggleTurnoutDecoder: "Weichendecoder umschalten (Shift+D)",
+      toggleSignal: "Signal umschalten (Shift+S)",
+      toggleBridge: "Brücke umschalten (B)",
     },
     viewMenu: {
       resetView: "Gleisplan einpassen / Zentrieren",
@@ -138,6 +141,8 @@ export const de: Translations = {
       toggleCatenaryIsolator: "Oberleitungs-Trennstelle umschalten (Shift+I)",
       toggleTurnoutLantern: "Weichenlaterne umschalten (Shift+L)",
       toggleTurnoutDecoder: "Weichendecoder umschalten (Shift+D)",
+      toggleSignal: "Signal umschalten (Shift+S)",
+      toggleBridge: "Brücke umschalten (B)",
     },
     status: {
       tracksUnit: "Gleis",
@@ -211,6 +216,7 @@ export const de: Translations = {
       tracks: "Gleise",
       roads: "Straßen",
       models: "3D",
+      terrain: "Gelände",
       board: "Tisch",
       bom: "Stückliste",
     },
@@ -555,4 +561,5 @@ export const de: Translations = {
     unsavedWarning: "Der aktuelle Plan hat ungespeicherte Änderungen. Möchtest du das Demo-Layout trotzdem laden?",
     autoSwitchHint: "Hinweis: Das Laden eines Demo-Plans stellt automatisch das passende Gleissystem und die Spurweite ein.",
   },
+  helpDialog: helpDe,
 };

@@ -43,6 +43,8 @@ export interface Translations {
       toggleCatenaryIsolator: string;
       toggleTurnoutLantern: string;
       toggleTurnoutDecoder: string;
+      toggleSignal: string;
+      toggleBridge: string;
     };
     viewMenu: {
       resetView: string;
@@ -138,6 +140,8 @@ export interface Translations {
       toggleCatenaryIsolator: string;
       toggleTurnoutLantern: string;
       toggleTurnoutDecoder: string;
+      toggleSignal: string;
+      toggleBridge: string;
     };
     status: {
       tracksUnit: string;
@@ -211,6 +215,7 @@ export interface Translations {
       tracks: string;
       roads: string;
       models: string;
+      terrain: string;
       board: string;
       bom: string;
     };
@@ -555,4 +560,73 @@ export interface Translations {
     unsavedWarning: string;
     autoSwitchHint: string;
   };
+  helpDialog: HelpDialogTranslations;
 }
+
+export type HelpTab =
+  | "overview"
+  | "layers"
+  | "print"
+  | "power"
+  | "baseboard"
+  | "view3d"
+  | "server"
+  | "shortcuts"
+  | "catalog"
+  | "about";
+
+export interface HelpCardItem {
+  title: string;
+  body: string;
+}
+
+export interface HelpStandardSection {
+  title: string;
+  intro: string;
+  cards: HelpCardItem[];
+  callout?: string;
+}
+
+export interface HelpDialogTranslations {
+  modalTitle: string;
+  closeTitle: string;
+  closeBtnText: string;
+  footerTip: string;
+  copiedText: string;
+  tabs: Record<HelpTab, string>;
+  overview: HelpStandardSection;
+  layers: HelpStandardSection;
+  print: HelpStandardSection;
+  power: HelpStandardSection;
+  baseboard: HelpStandardSection;
+  view3d: HelpStandardSection;
+  server: HelpStandardSection & {
+    cliTitle: string;
+    cliIntro: string;
+    cliHeaders: [string, string, string];
+    cliRows: Array<[string, string, string]>;
+    envTitle: string;
+    envHeaders: [string, string, string];
+    envRows: Array<[string, string, string]>;
+  };
+  shortcuts: {
+    title: string;
+    intro: string;
+    headers: [string, string, string];
+    rows: Array<[string, string, string]>;
+  };
+  catalog: HelpStandardSection & {
+    copyBtn: string;
+    downloadBtn: string;
+    metaInfo: string;
+  };
+  about: {
+    title: string;
+    intro: string;
+    systemsHeading: string;
+    systems: string[];
+    callout: string;
+    licenseNote: string;
+  };
+}
+

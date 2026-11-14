@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { isBufferStopPiece, getLocalConnectors, type CatalogEntry } from "@/catalog/catalog";
+import { distanceToTrackPiece, getPieceLocalCenter, isStraightTrackEntry } from "@/core/geometry";
 import { createTrackGraphics } from "@/render/track-sprite";
 import { buildBufferStop3D } from "@/render/builtin-models-3d";
 import type { TrackPiece } from "@/core/types";
@@ -99,5 +100,38 @@ describe("Track Buffer Stop & 3D Model Bufferstop Integration", () => {
     // Red signal disk exists
     const disk = meshes.find((m) => m.geometry instanceof THREE.CylinderGeometry);
     expect(disk).toBeDefined();
+  });
+
+  it("renders LGB 10005 feeder track (300 mm, gauge 45 mm) with full length, centered marker, and hit-testing", () => {
+    const lgbFeeder: CatalogEntry = {
+      id: "10005",
+      name: "Anschlussgleis 300 mm",
+      kind: "feeder",
+      category: "Zubehör",
+      description: "Einspeisegleis 300 mm mit Schraubklemmen",
+      length: 300,
+      gauge: 45.0,
+    };
+
+    expect(isStraightTrackEntry(lgbFeeder)).toBe(true);
+    expect(getPieceLocalCenter(lgbFeeder)).toEqual({ x: 150, y: 0 });
+    expect(distanceToTrackPiece({ x: 250, y: 0 }, { x: 0, y: 0, rotation: 0 }, lgbFeeder)).toBeCloseTo(0, 5);
+
+    const piece: TrackPiece = {
+      id: "p-lgb-feeder",
+      catalogId: "10005",
+      transform: { x: 0, y: 0, rotation: 0 },
+      powerFeed: true,
+      connectors: [
+        { x: 0, y: 0, angle: 180 },
+        { x: 300, y: 0, angle: 0 },
+      ],
+    };
+
+    const container = createTrackGraphics(piece, lgbFeeder, undefined, { isSelected: true });
+    expect(container).toBeDefined();
+    // Feeder marker container is centered at x = 150 and placed outside the G-scale ballast (y < -49)
+    const markerChild = container.children.find((c) => c.position.x === 150 && c.position.y < -49);
+    expect(markerChild).toBeDefined();
   });
 });

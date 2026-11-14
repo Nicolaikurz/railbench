@@ -1,4 +1,4 @@
-import type { Layout, TrackPiece, Transform, Model3D } from "@/core/types";
+import type { Layout, TrackPiece, Transform, Model3D, SignalSide, SignalDirection } from "@/core/types";
 import { getBaseboards } from "@/core/layout";
 
 export interface Command {
@@ -360,6 +360,139 @@ export class ToggleTurnoutDecoderCommand implements Command {
     for (const [id, state] of this.prevStates.entries()) {
       const p = layout.pieces.find((x) => x.id === id);
       if (p) p.hasDecoder = state;
+    }
+  }
+}
+
+export class ToggleSignalCommand implements Command {
+  private prevStates = new Map<string, boolean | undefined>();
+  private targetState?: boolean;
+
+  constructor(private pieceIds: string[], targetState?: boolean) {
+    this.targetState = targetState;
+  }
+
+  do(layout: Layout): void {
+    this.prevStates.clear();
+    const pieces = layout.pieces.filter((p) => this.pieceIds.includes(p.id));
+    if (pieces.length === 0) return;
+
+    const shouldEnable =
+      this.targetState !== undefined ? this.targetState : !pieces.every((p) => !!p.hasSignal);
+    for (const p of pieces) {
+      this.prevStates.set(p.id, p.hasSignal);
+      p.hasSignal = shouldEnable;
+    }
+  }
+
+  undo(layout: Layout): void {
+    for (const [id, state] of this.prevStates.entries()) {
+      const p = layout.pieces.find((x) => x.id === id);
+      if (p) p.hasSignal = state;
+    }
+  }
+}
+
+export class SetSignalConfigCommand implements Command {
+  private prevConfigs = new Map<
+    string,
+    { hasSignal?: boolean; signalSide?: SignalSide; signalDirection?: SignalDirection }
+  >();
+
+  constructor(
+    private pieceIds: string[],
+    private update: { hasSignal?: boolean; signalSide?: SignalSide; signalDirection?: SignalDirection },
+  ) {}
+
+  do(layout: Layout): void {
+    this.prevConfigs.clear();
+    const pieces = layout.pieces.filter((p) => this.pieceIds.includes(p.id));
+    for (const p of pieces) {
+      this.prevConfigs.set(p.id, {
+        hasSignal: p.hasSignal,
+        signalSide: p.signalSide,
+        signalDirection: p.signalDirection,
+      });
+      if (this.update.hasSignal !== undefined) p.hasSignal = this.update.hasSignal;
+      if (this.update.signalSide !== undefined) p.signalSide = this.update.signalSide;
+      if (this.update.signalDirection !== undefined) p.signalDirection = this.update.signalDirection;
+    }
+  }
+
+  undo(layout: Layout): void {
+    for (const [id, cfg] of this.prevConfigs.entries()) {
+      const p = layout.pieces.find((x) => x.id === id);
+      if (p) {
+        p.hasSignal = cfg.hasSignal;
+        p.signalSide = cfg.signalSide;
+        p.signalDirection = cfg.signalDirection;
+      }
+    }
+  }
+}
+
+export class ToggleBridgeCommand implements Command {
+  private prevStates = new Map<string, { hasBridge?: boolean; hasTunnel?: boolean }>();
+  private targetState?: boolean;
+
+  constructor(private pieceIds: string[], targetState?: boolean) {
+    this.targetState = targetState;
+  }
+
+  do(layout: Layout): void {
+    this.prevStates.clear();
+    const pieces = layout.pieces.filter((p) => this.pieceIds.includes(p.id));
+    if (pieces.length === 0) return;
+
+    const shouldEnable =
+      this.targetState !== undefined ? this.targetState : !pieces.every((p) => !!p.hasBridge);
+    for (const p of pieces) {
+      this.prevStates.set(p.id, { hasBridge: p.hasBridge, hasTunnel: p.hasTunnel });
+      p.hasBridge = shouldEnable;
+      if (shouldEnable) p.hasTunnel = false;
+    }
+  }
+
+  undo(layout: Layout): void {
+    for (const [id, state] of this.prevStates.entries()) {
+      const p = layout.pieces.find((x) => x.id === id);
+      if (p) {
+        p.hasBridge = state.hasBridge;
+        p.hasTunnel = state.hasTunnel;
+      }
+    }
+  }
+}
+
+export class ToggleTunnelCommand implements Command {
+  private prevStates = new Map<string, { hasTunnel?: boolean; hasBridge?: boolean }>();
+  private targetState?: boolean;
+
+  constructor(private pieceIds: string[], targetState?: boolean) {
+    this.targetState = targetState;
+  }
+
+  do(layout: Layout): void {
+    this.prevStates.clear();
+    const pieces = layout.pieces.filter((p) => this.pieceIds.includes(p.id));
+    if (pieces.length === 0) return;
+
+    const shouldEnable =
+      this.targetState !== undefined ? this.targetState : !pieces.every((p) => !!p.hasTunnel);
+    for (const p of pieces) {
+      this.prevStates.set(p.id, { hasTunnel: p.hasTunnel, hasBridge: p.hasBridge });
+      p.hasTunnel = shouldEnable;
+      if (shouldEnable) p.hasBridge = false;
+    }
+  }
+
+  undo(layout: Layout): void {
+    for (const [id, state] of this.prevStates.entries()) {
+      const p = layout.pieces.find((x) => x.id === id);
+      if (p) {
+        p.hasTunnel = state.hasTunnel;
+        p.hasBridge = state.hasBridge;
+      }
     }
   }
 }

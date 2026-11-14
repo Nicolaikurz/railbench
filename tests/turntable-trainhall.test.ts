@@ -12,6 +12,7 @@ import {
   buildPineTree3D,
   buildDeciduousTree3D,
   buildPlatformLamp3D,
+  buildPlatform3D,
   buildGenericBuilding3D,
   buildTurntableTrainhall3D,
   buildSkyscraper3D,
@@ -50,6 +51,7 @@ describe("Turntable Trainhall & Modular 3D Models", () => {
       buildTurntableTrainhall3D,
       buildSkyscraper3D,
       buildIndustryBuilding3D,
+      buildPlatform3D,
     ];
 
     for (const builder of builders) {
@@ -57,6 +59,26 @@ describe("Turntable Trainhall & Modular 3D Models", () => {
       builder(group);
       expect(group.children.length).toBeGreaterThan(0);
     }
+  });
+
+  it("includes platform in BUILTIN_MODELS with proper dimensions and alias", () => {
+    const plat = findBuiltinModelDef("platform");
+    expect(plat).toBeDefined();
+    expect(plat?.name).toBe("Bahnsteig");
+    expect(plat?.category).toBe("railway");
+    expect(plat?.width).toBe(320);
+    expect(plat?.depth).toBe(54);
+    expect(plat?.height).toBe(55);
+
+    // Alias 'bahnsteig' should also resolve to the platform definition
+    const platAlias = findBuiltinModelDef("bahnsteig");
+    expect(platAlias).toBeDefined();
+    expect(platAlias?.id).toBe("platform");
+
+    // Mesh creation test
+    const group = new THREE.Group();
+    buildPlatform3D(group);
+    expect(group.children.length).toBeGreaterThan(10);
   });
 
   it("includes skyscraper and industry-building in BUILTIN_MODELS", () => {

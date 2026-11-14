@@ -1,0 +1,105 @@
+<div class="rb-dialog-card">
+  <div class="rb-dialog-header">
+    <strong>📐 {{TITLE}}</strong>
+    <button class="btn-icon-subtle" id="height-modal-close" style="padding: 2px 7px;">✕</button>
+  </div>
+
+  <div class="rb-dialog-body">
+    <!-- Selection Summary -->
+    <div class="rb-meta-strip">
+      <span><strong>{{SELECTED_COUNT}}</strong> tracks</span>
+      <span id="summary-total-length">...</span>
+      <span>{{CURRENT_LAYER_NAME}}</span>
+    </div>
+
+    <!-- Target Layer -->
+    <div>
+      <label style="display:block; font-size:11px; color:#94a3b8; margin-bottom:5px;">{{TARGET_LAYER_LABEL}}</label>
+      <select id="height-layer-select" class="height-field-select">
+        {{LAYER_OPTIONS}}
+        <option value="__create_new__">{{CREATE_NEW_OPTION}}</option>
+      </select>
+    </div>
+
+    <!-- Segmented Mode Control -->
+    <div class="rb-segmented-control">
+      <label class="rb-segmented-item active" id="card-mode-match">
+        <input type="radio" name="height-mode" value="match" checked />
+        Flat on Layer
+      </label>
+      <label class="rb-segmented-item" id="card-mode-custom">
+        <input type="radio" name="height-mode" value="custom" />
+        Custom
+      </label>
+      <label class="rb-segmented-item" id="card-mode-ramp">
+        <input type="radio" name="height-mode" value="ramp" />
+        Incline (Ramp)
+      </label>
+    </div>
+
+    <!-- Mode Custom Input -->
+    <div id="custom-inputs-row" style="display: none;">
+      <label style="display:block; font-size:11px; color:#94a3b8; margin-bottom:5px;">Elevation Height (mm)</label>
+      <input type="number" id="input-custom-height" value="{{TARGET_BASE_HEIGHT}}" step="1" class="ramp-field-input" />
+    </div>
+
+    <!-- Mode Ramp Controls -->
+    <div id="ramp-inputs-row" style="display: none; flex-direction: column; gap: 12px;">
+      <!-- Start / End Row -->
+      <div class="ramp-inputs-grid">
+        <div>
+          <span style="font-size:11px; color:#94a3b8;">{{RAMP_START_LABEL}}</span>
+          <input type="number" id="input-ramp-start" value="{{DEFAULT_START_H}}" step="1" class="ramp-field-input" />
+        </div>
+        <span style="color:#64748b; font-size:14px; margin-top:14px;">➔</span>
+        <div>
+          <span style="font-size:11px; color:#94a3b8;">{{RAMP_END_LABEL}}</span>
+          <input type="number" id="input-ramp-end" value="{{DEFAULT_END_H}}" step="1" class="ramp-field-input" />
+        </div>
+        <button type="button" class="btn-icon-subtle" id="btn-ramp-reverse" title="Reverse Direction" style="margin-top:14px;">⇄</button>
+      </div>
+
+      <!-- Max Gradient and Auto-Fit -->
+      <div class="steep-row">
+        <div style="display:flex; align-items:center; gap:6px;">
+          <span style="color:#94a3b8; font-size:11px;">Max Slope:</span>
+          <input type="number" id="input-target-max-steep" value="2.5" step="0.1" style="width:52px; padding:3px 6px; background:#141b2a; border:1px solid #334155; color:#fff; border-radius:4px;" />
+          <span style="color:#94a3b8; font-size:11px;">%</span>
+        </div>
+        <div style="display:flex; gap:4px;">
+          <button type="button" class="pill-btn" data-steep="2.0">2.0%</button>
+          <button type="button" class="pill-btn active" data-steep="2.5">2.5%</button>
+          <button type="button" class="pill-btn" data-steep="3.0">3.0%</button>
+        </div>
+        <label style="font-size:11px; display:inline-flex; align-items:center; gap:4px; cursor:pointer; color:#94a3b8; user-select:none;">
+          <input type="checkbox" id="chk-auto-clamp-steep" checked /> Auto-Fit
+        </label>
+      </div>
+
+      <!-- Profile Selectors -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+        <button type="button" class="btn-icon-subtle active" id="btn-profile-linear">Linear</button>
+        <button type="button" class="btn-icon-subtle" id="btn-profile-eased">Eased (S-Curve)</button>
+      </div>
+
+      <!-- Live Slope Badge -->
+      <div class="badge-status ok" id="ramp-gradient-calc">
+        <span id="ramp-gradient-text">Slope: 0.0%</span>
+        <span id="ramp-gradient-badge" style="font-size:11px;">Gentle</span>
+      </div>
+
+      <!-- Collapsible Pieces List -->
+      <details class="ramp-breakdown-details">
+        <summary id="ramp-chain-title-text">▸ Piece breakdown ({{SELECTED_COUNT}} tracks)</summary>
+        <div class="ramp-piece-list" id="ramp-piece-list"></div>
+      </details>
+    </div>
+  </div>
+
+  <div class="rb-dialog-footer">
+    <button class="btn-icon-subtle" id="height-btn-cancel">{{CANCEL_BTN}}</button>
+    <button class="rb-btn rb-btn-primary" id="height-btn-apply" style="background:#0284c7; color:#fff; border:none; padding:7px 16px; border-radius:6px; cursor:pointer; font-weight:600;">
+      <span id="apply-btn-label">{{APPLY_BTN}}</span>
+    </button>
+  </div>
+</div>

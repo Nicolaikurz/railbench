@@ -157,7 +157,7 @@ describe("LayoutResizer - Adjustable Toolbar, Sidebar & Right Sidebar", () => {
 
     toolbarEl = new MockElement("div");
     toolbarEl.id = "toolbar";
-    toolbarEl.offsetHeight = 42;
+    toolbarEl.offsetHeight = DEFAULT_TOOLBAR_HEIGHT;
 
     sidebarEl = new MockElement("div");
     sidebarEl.id = "sidebar";

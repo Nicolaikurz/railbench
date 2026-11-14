@@ -5,6 +5,8 @@ import {
   ToggleCatenaryCommand,
   ToggleCatenaryFeederCommand,
   ToggleCatenaryIsolatorCommand,
+  ToggleSignalCommand,
+  ToggleBridgeCommand,
 } from "@/editor/commands";
 import type { Layout, TrackPiece, Model3D } from "@/core/types";
 
@@ -204,5 +206,62 @@ describe("AddPiecesCommand", () => {
     history.undo();
     expect(layout.pieces[0]!.catenaryIsolator).toBe(true);
     expect(layout.pieces[0]!.catenaryIsolatedConnectorIndex).toBe(1);
+  });
+});
+
+describe("ToggleSignalCommand", () => {
+  it("should toggle hasSignal on pieces and support undo/redo", () => {
+    const pieces: TrackPiece[] = [
+      { id: "p-1", catalogId: "24188", connectors: [], transform: { x: 0, y: 0, rotation: 0 } },
+      { id: "p-2", catalogId: "24172", connectors: [], transform: { x: 50, y: 0, rotation: 0 } },
+    ];
+    const layout: Layout = {
+      name: "Test Layout",
+      scale: "H0",
+      pieces,
+    };
+    const history = new History(layout);
+
+    history.run(new ToggleSignalCommand(["p-1", "p-2"]));
+    expect(layout.pieces[0]!.hasSignal).toBe(true);
+    expect(layout.pieces[1]!.hasSignal).toBe(true);
+
+    history.undo();
+    expect(layout.pieces[0]!.hasSignal).toBeFalsy();
+    expect(layout.pieces[1]!.hasSignal).toBeFalsy();
+
+    history.redo();
+    expect(layout.pieces[0]!.hasSignal).toBe(true);
+    expect(layout.pieces[1]!.hasSignal).toBe(true);
+
+    history.run(new ToggleSignalCommand(["p-1", "p-2"]));
+    expect(layout.pieces[0]!.hasSignal).toBe(false);
+    expect(layout.pieces[1]!.hasSignal).toBe(false);
+  });
+});
+
+describe("ToggleBridgeCommand", () => {
+  it("should toggle hasBridge on pieces and support undo/redo", () => {
+    const pieces: TrackPiece[] = [
+      { id: "p-1", catalogId: "24188", connectors: [], transform: { x: 0, y: 0, rotation: 0 } },
+    ];
+    const layout: Layout = {
+      name: "Test Layout",
+      scale: "H0",
+      pieces,
+    };
+    const history = new History(layout);
+
+    history.run(new ToggleBridgeCommand(["p-1"]));
+    expect(layout.pieces[0]!.hasBridge).toBe(true);
+
+    history.undo();
+    expect(layout.pieces[0]!.hasBridge).toBeFalsy();
+
+    history.redo();
+    expect(layout.pieces[0]!.hasBridge).toBe(true);
+
+    history.run(new ToggleBridgeCommand(["p-1"], false));
+    expect(layout.pieces[0]!.hasBridge).toBe(false);
   });
 });
