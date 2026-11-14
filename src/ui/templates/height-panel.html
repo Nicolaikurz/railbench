@@ -1,0 +1,271 @@
+  <div class="hp-header">
+    <div class="hp-title">
+      <span class="hp-title-icon">📐</span>
+      <span id="hp-header-title">Höhe & Rampe</span>
+    </div>
+    <button type="button" class="hp-close-btn" id="hp-close-btn" title="Schließen (Esc)">✕</button>
+  </div>
+
+  <!-- Navigation Tabs -->
+  <div class="hp-nav-tabs">
+    <button type="button" class="hp-nav-tab active" data-tab="flat" id="hp-tab-btn-flat">
+      <span>📏</span>
+      <span class="hp-tab-label">Höhe / Ebene</span>
+    </button>
+    <button type="button" class="hp-nav-tab" data-tab="ramp" id="hp-tab-btn-ramp">
+      <span>📐</span>
+      <span class="hp-tab-label">Steigung</span>
+    </button>
+    <button type="button" class="hp-nav-tab" data-tab="generate" id="hp-tab-btn-generate">
+      <span>⚡</span>
+      <span class="hp-tab-label">Automatisch</span>
+    </button>
+  </div>
+
+  <div class="hp-body">
+    <!-- ==================== TAB 1: FLAT / CUSTOM ==================== -->
+    <div class="hp-tab-content active" id="hp-tab-content-flat">
+      <div class="hp-meta-strip" id="hp-flat-meta">
+        <span id="hp-flat-count-badge">0 Gleise</span>
+        <span id="hp-flat-layer-badge">—</span>
+      </div>
+
+      <div class="hp-field">
+        <label class="hp-field-label">Zielebene</label>
+        <select id="hp-flat-layer-select" class="hp-select">
+          <!-- Populated in TS -->
+        </select>
+      </div>
+
+      <div class="hp-field">
+        <label class="hp-field-label">Höhen-Modus</label>
+        <div class="hp-segmented">
+          <label class="hp-segmented-item active" id="hp-flat-mode-layer-lbl">
+            <input type="radio" name="hp-flat-mode" value="layer" checked />
+            Ebenenhöhe
+          </label>
+          <label class="hp-segmented-item" id="hp-flat-mode-custom-lbl">
+            <input type="radio" name="hp-flat-mode" value="custom" />
+            Eigener Wert
+          </label>
+        </div>
+      </div>
+
+      <div class="hp-field" id="hp-flat-custom-group" style="display: none;">
+        <label class="hp-field-label">Absolute Höhe (mm)</label>
+        <div class="hp-input-unit">
+          <input type="number" id="hp-flat-custom-height" value="0" step="1" class="hp-input" />
+          <span class="hp-unit">mm</span>
+        </div>
+      </div>
+
+      <div class="hp-status-box ok" id="hp-flat-status">
+        <span id="hp-flat-status-text">Gleise werden auf Ebenenhöhe gesetzt.</span>
+      </div>
+    </div>
+
+    <!-- ==================== TAB 2: INCLINE / RAMP ==================== -->
+    <div class="hp-tab-content" id="hp-tab-content-ramp" style="display: none;">
+      <div class="hp-meta-strip" id="hp-ramp-meta">
+        <span id="hp-ramp-count-badge">0 Gleise</span>
+        <span id="hp-ramp-length-badge">0 cm</span>
+      </div>
+
+      <!-- Start (A) & End (B) Pickers -->
+      <div class="hp-endpoints-box">
+        <div class="hp-endpoint-row">
+          <div class="hp-point-tag point-a">
+            <span class="hp-dot dot-a">A</span>
+            <span>Start</span>
+          </div>
+          <button type="button" class="hp-pick-btn" id="hp-ramp-pick-a" title="Gleis im Gleisplan anklicken">
+            <span class="hp-pick-icon">📍</span>
+            <span id="hp-ramp-label-a">Gleis wählen...</span>
+          </button>
+          <div class="hp-endpoint-input">
+            <input type="number" id="hp-ramp-height-a" value="0" step="1" class="hp-input" style="width: 68px;" />
+            <span class="hp-unit">mm</span>
+          </div>
+        </div>
+
+        <div class="hp-endpoint-swap-row">
+          <button type="button" class="hp-btn-swap" id="hp-ramp-swap-btn" title="Start und Ende vertauschen">
+            <span>⇅</span>
+          </button>
+          <span class="hp-endpoints-conn-status" id="hp-ramp-conn-status">Verbunden</span>
+        </div>
+
+        <div class="hp-endpoint-row">
+          <div class="hp-point-tag point-b">
+            <span class="hp-dot dot-b">B</span>
+            <span>Ende</span>
+          </div>
+          <button type="button" class="hp-pick-btn" id="hp-ramp-pick-b" title="Gleis im Gleisplan anklicken">
+            <span class="hp-pick-icon">📍</span>
+            <span id="hp-ramp-label-b">Gleis wählen...</span>
+          </button>
+          <div class="hp-endpoint-input">
+            <input type="number" id="hp-ramp-height-b" value="80" step="1" class="hp-input" style="width: 68px;" />
+            <span class="hp-unit">mm</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Slope Limit & Auto-Fit -->
+      <div class="hp-field">
+        <div class="hp-field-header">
+          <label class="hp-field-label">Maximale Steigung</label>
+          <label class="hp-checkbox-label">
+            <input type="checkbox" id="hp-ramp-auto-fit" checked />
+            <span>Auto-Fit</span>
+          </label>
+        </div>
+        <div class="hp-pills-row">
+          <button type="button" class="hp-pill-btn" data-steep="2.0">2.0%</button>
+          <button type="button" class="hp-pill-btn active" data-steep="2.5">2.5%</button>
+          <button type="button" class="hp-pill-btn" data-steep="3.0">3.0%</button>
+          <div class="hp-input-unit" style="max-width: 76px;">
+            <input type="number" id="hp-ramp-custom-steep" value="2.5" step="0.1" min="0.1" max="15.0" class="hp-input" />
+            <span class="hp-unit">%</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Profile: Linear vs S-Curve -->
+      <div class="hp-field">
+        <label class="hp-field-label">Steigungsprofil</label>
+        <div class="hp-segmented">
+          <div class="hp-segmented-item active" id="hp-ramp-profile-linear" data-profile="linear">Linear (Gleichmäßig)</div>
+          <div class="hp-segmented-item" id="hp-ramp-profile-eased" data-profile="eased">S-Kurve (Ausgerundet)</div>
+        </div>
+      </div>
+
+      <!-- Layer destination -->
+      <div class="hp-field">
+        <label class="hp-field-label">Zielebene für Gleise</label>
+        <select id="hp-ramp-layer-select" class="hp-select"></select>
+      </div>
+
+      <!-- Gradient Status Badge -->
+      <div class="hp-status-box ok" id="hp-ramp-status-badge">
+        <div class="hp-status-title" id="hp-ramp-status-title">Steigung: 0.0%</div>
+        <div class="hp-status-desc" id="hp-ramp-status-desc">Berechnung aktiv...</div>
+      </div>
+
+      <!-- Collapsible breakdown -->
+      <details class="hp-breakdown-details">
+        <summary id="hp-ramp-breakdown-summary">▸ Gleis-Details anzeigen</summary>
+        <div class="hp-breakdown-list" id="hp-ramp-breakdown-list"></div>
+      </details>
+    </div>
+
+    <!-- ==================== TAB 3: AUTO CREATE TRACK RAMP ==================== -->
+    <div class="hp-tab-content" id="hp-tab-content-generate" style="display: none;">
+      <!-- Start selection -->
+      <div class="hp-field">
+        <div class="hp-field-header">
+          <label class="hp-field-label">Start-Gleis & Anschluss</label>
+          <button type="button" class="hp-pick-btn-compact" id="hp-gen-pick-canvas-btn" title="Anschluss im Gleisplan anklicken">
+            <span>📍 Im Plan wählen</span>
+          </button>
+        </div>
+        <select id="hp-gen-start-select" class="hp-select"></select>
+        <div class="hp-subtext" id="hp-gen-start-subtext"></div>
+      </div>
+
+      <!-- Target layer & height -->
+      <div class="hp-field">
+        <label class="hp-field-label">Zielebene</label>
+        <select id="hp-gen-target-layer" class="hp-select"></select>
+      </div>
+
+      <div class="hp-field">
+        <div class="hp-field-header">
+          <label class="hp-field-label">Zielhöhe</label>
+          <span class="hp-subtext-alt" id="hp-gen-clearance-hint"></span>
+        </div>
+        <div class="hp-target-height-row">
+          <div class="hp-input-unit" style="flex: 1;">
+            <input type="number" id="hp-gen-target-height" value="80" step="1" class="hp-input" />
+            <span class="hp-unit">mm</span>
+          </div>
+          <div class="hp-dir-toggle">
+            <button type="button" class="hp-pill-btn active" id="hp-gen-btn-slope-up" title="Steigung nach oben">↑ Steigung</button>
+            <button type="button" class="hp-pill-btn" id="hp-gen-btn-slope-down" title="Gefälle nach unten">↓ Gefälle</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Shape Selection -->
+      <div class="hp-field">
+        <label class="hp-field-label">Form der Rampe</label>
+        <div class="hp-segmented">
+          <div class="hp-segmented-item active" data-shape="straight" id="hp-gen-shape-straight">Gerade</div>
+          <div class="hp-segmented-item" data-shape="curved" id="hp-gen-shape-curved">Bogen</div>
+          <div class="hp-segmented-item" data-shape="helix" id="hp-gen-shape-helix">Wendel</div>
+        </div>
+      </div>
+
+      <!-- Curve / Helix options -->
+      <div id="hp-gen-curve-options" style="display: none; flex-direction: column; gap: 10px;">
+        <div class="hp-field" id="hp-gen-radius-field">
+          <div class="hp-field-header">
+            <label class="hp-field-label">Kurvenradius / Gleis</label>
+            <span class="hp-subtext-alt" id="hp-gen-circum-hint"></span>
+          </div>
+          <select id="hp-gen-curve-radius" class="hp-select"></select>
+        </div>
+
+        <div class="hp-field">
+          <div class="hp-field-header">
+            <label class="hp-field-label">Bogenrichtung</label>
+            <div class="hp-pills-row">
+              <button type="button" class="hp-pill-btn active" id="hp-gen-dir-left">↰ Links</button>
+              <button type="button" class="hp-pill-btn" id="hp-gen-dir-right">↱ Rechts</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="hp-field" id="hp-gen-angle-field">
+          <div class="hp-field-header">
+            <label class="hp-field-label">Winkel</label>
+            <div class="hp-pills-row">
+              <button type="button" class="hp-pill-btn" data-angle="90">90°</button>
+              <button type="button" class="hp-pill-btn active" data-angle="180">180°</button>
+              <button type="button" class="hp-pill-btn" data-angle="270">270°</button>
+              <button type="button" class="hp-pill-btn" data-angle="360">360°</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Gradient Selector -->
+      <div class="hp-field">
+        <div class="hp-field-header">
+          <label class="hp-field-label">Ziel-Steigung</label>
+        </div>
+        <div class="hp-pills-row">
+          <button type="button" class="hp-pill-btn" data-grad="2.0">2.0%</button>
+          <button type="button" class="hp-pill-btn active" data-grad="2.8">2.8%</button>
+          <button type="button" class="hp-pill-btn" data-grad="3.5">3.5%</button>
+          <button type="button" class="hp-pill-btn" data-grad="4.0">4.0%</button>
+          <div class="hp-input-unit" style="max-width: 68px;">
+            <input type="number" id="hp-gen-custom-grad" value="2.8" step="0.1" min="0.5" max="15.0" class="hp-input" />
+            <span class="hp-unit">%</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live generation status -->
+      <div class="hp-status-box ok" id="hp-gen-status-box">
+        <div class="hp-status-title" id="hp-gen-status-title">Berechnung aktiv...</div>
+        <div class="hp-status-desc" id="hp-gen-status-desc">Vorschau wird auf dem Plan dargestellt.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer Actions -->
+  <div class="hp-footer">
+    <button type="button" class="hp-btn-cancel" id="hp-btn-cancel">Abbrechen</button>
+    <button type="button" class="hp-btn-apply" id="hp-btn-apply">Übernehmen</button>
+  </div>

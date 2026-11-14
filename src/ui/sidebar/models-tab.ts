@@ -232,6 +232,7 @@ export function renderModelsList(sidebar: Sidebar, container: HTMLElement) {
   const selCat = sidebar.selectedModelCategory.toLowerCase();
 
   const matchingBuiltins = BUILTIN_MODELS.filter((def) => {
+    if (def.id === "mountain") return false;
     if (selCat !== "all" && selCat !== "custom" && def.category.toLowerCase() !== selCat) {
       return false;
     }

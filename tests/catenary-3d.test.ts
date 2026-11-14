@@ -193,4 +193,135 @@ describe("3D Catenary Rendering on Ramps and Spirals", () => {
     // In a spiral down with frac = 0.82 and heightDiff = -30, isoGroup.position.y should be ~ 0.82 * -30 = -24.6
     expect(isoGroup?.position.y).toBeCloseTo(0.82 * -30, 0.5);
   });
+
+  it("renders 3D catenary on turntable: bridge wire always, snappoints only when track with catenary is connected", () => {
+    const turntableEntry: CatalogEntry = {
+      id: "7286",
+      name: "Drehscheibe",
+      kind: "turntable",
+      category: "Drehscheiben",
+      description: "Drehscheibe",
+      radius: 189,
+      gauge: 16.5,
+    };
+
+    const connectedCatTrack: TrackPiece = {
+      id: "cat-p",
+      catalogId: "24188",
+      transform: { x: 189, y: 0, rotation: 0 },
+      connectors: [],
+      hasCatenary: true,
+    };
+
+    const connectedNoCatTrack: TrackPiece = {
+      id: "nocat-p",
+      catalogId: "24188",
+      transform: { x: 0, y: 189, rotation: 90 },
+      connectors: [],
+      hasCatenary: false,
+    };
+
+    const ttPiece: TrackPiece = {
+      id: "tt-main",
+      catalogId: "7286",
+      transform: { x: 0, y: 0, rotation: 0 },
+      connectors: [
+        { x: 189, y: 0, angle: 0, connectedTo: { pieceId: "cat-p", connectorIndex: 0 } },
+        { x: 0, y: 189, angle: 90, connectedTo: { pieceId: "nocat-p", connectorIndex: 0 } },
+      ],
+      hasCatenary: true,
+    };
+
+    const viewer = Object.create(Viewer3D.prototype);
+    viewer.currentLayout = {
+      version: 1,
+      scale: "H0",
+      pieces: [ttPiece, connectedCatTrack, connectedNoCatTrack],
+      baseboard: { shape: "rectangle", width: 1000, length: 1000 },
+    };
+
+    const group = new THREE.Group();
+    viewer.buildTurntableCatenary3D(group, ttPiece, turntableEntry);
+
+    const wireMeshes: THREE.Mesh[] = [];
+    const mastGroups: THREE.Group[] = [];
+
+    group.traverse((obj) => {
+      if (obj instanceof THREE.Mesh && obj.geometry instanceof THREE.BoxGeometry) {
+        const p = obj.geometry.parameters;
+        if (p.height === 0.8 && p.depth === 0.8) {
+          wireMeshes.push(obj);
+        }
+      } else if (obj instanceof THREE.Group && (obj as any).children.some((c: any) => c.geometry instanceof THREE.BoxGeometry && c.geometry.parameters.height === 86)) {
+        mastGroups.push(obj);
+      }
+    });
+
+    // We should have bridge wire (~263 length) and 1 snappoint wire (for cat-p, length ~50)
+    // The nocat-p snappoint should NOT have a wire!
+    expect(wireMeshes.length).toBe(2);
+
+    const bridgeWire = wireMeshes.find((w) => (w.geometry as THREE.BoxGeometry).parameters.width > 200);
+    expect(bridgeWire).toBeDefined();
+
+    const snappointWire = wireMeshes.find((w) => (w.geometry as THREE.BoxGeometry).parameters.width < 100);
+    expect(snappointWire).toBeDefined();
+
+    // Masts: 2 on bridge + 1 at connected catenary snappoint = 3 masts total
+    expect(mastGroups.length).toBe(3);
+  });
+
+  it("renders 3D catenary on transfer table: bridge wire always, snappoints only when track with catenary is connected", () => {
+    const transferEntry: CatalogEntry = {
+      id: "7294",
+      name: "Schiebebühne",
+      kind: "transfer-table",
+      category: "Schiebebühnen",
+      description: "Schiebebühne",
+      length: 360,
+      gauge: 16.5,
+    };
+
+    const connectedCatTrack: TrackPiece = {
+      id: "cat-tr",
+      catalogId: "24188",
+      transform: { x: 0, y: 0, rotation: 0 },
+      connectors: [],
+      hasCatenary: true,
+    };
+
+    const tablePiece: TrackPiece = {
+      id: "tt-main",
+      catalogId: "7294",
+      transform: { x: 0, y: 0, rotation: 0 },
+      connectors: [
+        { x: 0, y: 0, angle: 180, connectedTo: { pieceId: "cat-tr", connectorIndex: 0 } },
+      ],
+      hasCatenary: true,
+    };
+
+    const viewer = Object.create(Viewer3D.prototype);
+    viewer.currentLayout = {
+      version: 1,
+      scale: "H0",
+      pieces: [tablePiece, connectedCatTrack],
+      baseboard: { shape: "rectangle", width: 1000, length: 1000 },
+    };
+
+    const group = new THREE.Group();
+    viewer.buildTransferTableCatenary3D(group, tablePiece, transferEntry);
+
+    const wireMeshes: THREE.Mesh[] = [];
+    group.traverse((obj) => {
+      if (obj instanceof THREE.Mesh && obj.geometry instanceof THREE.BoxGeometry) {
+        const p = obj.geometry.parameters;
+        if (p.height === 0.8 && p.depth === 0.8) {
+          wireMeshes.push(obj);
+        }
+      }
+    });
+
+    // 1 bridge wire + 1 snappoint wire
+    expect(wireMeshes.length).toBe(2);
+  });
 });

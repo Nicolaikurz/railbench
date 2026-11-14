@@ -160,7 +160,8 @@
         "start": 0,
         "end": 5.5
       },
-      "hasCatenary": true
+      "hasCatenary": true,
+      "hasBridge": true
     },
     {
       "id": "demo-curve-right-4",
@@ -195,7 +196,8 @@
         "start": 5.5,
         "end": 11
       },
-      "hasCatenary": true
+      "hasCatenary": true,
+      "hasBridge": true
     },
     {
       "id": "demo-curve-right-5",
@@ -230,7 +232,8 @@
         "start": 11,
         "end": 16.5
       },
-      "hasCatenary": true
+      "hasCatenary": true,
+      "hasBridge": true
     },
     {
       "id": "demo-curve-right-6",
@@ -282,7 +285,7 @@
           "angle": 162.29999999999995,
           "connectedTo": {
             "pieceId": "track-1794587517467-rckt",
-            "connectorIndex": 7
+            "connectorIndex": 6
           }
         },
         {
@@ -296,7 +299,7 @@
         }
       ],
       "layerId": "layer-1",
-      "hasCatenary": true
+      "hasCatenary": false
     },
     {
       "id": "demo-straight-bot-3",
@@ -366,7 +369,8 @@
         "start": 13.8,
         "end": 9.2
       },
-      "hasCatenary": true
+      "hasCatenary": true,
+      "hasBridge": true
     },
     {
       "id": "demo-curve-left-2",
@@ -401,7 +405,8 @@
         "start": 9.2,
         "end": 4.6
       },
-      "hasCatenary": true
+      "hasCatenary": true,
+      "hasBridge": true
     },
     {
       "id": "demo-curve-left-4",
@@ -436,7 +441,8 @@
         "start": 4.6,
         "end": 0
       },
-      "hasCatenary": true
+      "hasCatenary": true,
+      "hasBridge": true
     },
     {
       "id": "demo-curve-left-6",
@@ -467,7 +473,8 @@
         }
       ],
       "layerId": "layer-1",
-      "hasCatenary": true
+      "hasCatenary": true,
+      "hasSignal": false
     },
     {
       "id": "demo-siding-1",
@@ -484,7 +491,7 @@
           "angle": 150.29999999999995,
           "connectedTo": {
             "pieceId": "track-1794587517467-rckt",
-            "connectorIndex": 6
+            "connectorIndex": 5
           }
         },
         {
@@ -498,7 +505,7 @@
         }
       ],
       "layerId": "layer-1",
-      "hasCatenary": true
+      "hasCatenary": false
     },
     {
       "id": "demo-siding-2",
@@ -533,7 +540,8 @@
         "start": 0,
         "end": 0
       },
-      "hasCatenary": true
+      "hasCatenary": true,
+      "hasBridge": true
     },
     {
       "id": "demo-bumper",
@@ -555,7 +563,7 @@
         }
       ],
       "layerId": "layer-1",
-      "hasCatenary": true
+      "hasCatenary": false
     },
     {
       "id": "track-1794587345459-xajv",
@@ -820,12 +828,12 @@
           "angle": 174.29999999999995,
           "connectedTo": {
             "pieceId": "track-1794587517467-rckt",
-            "connectorIndex": 8
+            "connectorIndex": 7
           }
         }
       ],
       "layerId": "layer-1",
-      "hasCatenary": true
+      "hasCatenary": false
     },
     {
       "id": "track-1794587503406-wolk",
@@ -892,7 +900,7 @@
           "angle": 234.29999999999995,
           "connectedTo": {
             "pieceId": "track-1794587517467-rckt",
-            "connectorIndex": 13
+            "connectorIndex": 12
           }
         }
       ],
@@ -904,44 +912,39 @@
       "id": "track-1794587517467-rckt",
       "catalogId": "74862",
       "transform": {
-        "x": -555.2734677997455,
-        "y": 14.101362911067156,
-        "rotation": 258.29999999999995
+        "x": -555.2477659537271,
+        "y": 14.13917962622807,
+        "rotation": 270.29999999999995
       },
       "connectors": [
         {
-          "x": -593.6002666221265,
-          "y": -170.97174829644655,
-          "angle": 258.29999999999995
-        },
-        {
-          "x": -554.2853822537294,
-          "y": -174.92647548040827,
+          "x": -554.2581687895891,
+          "y": -174.8582296085356,
           "angle": 270.29999999999995
         },
         {
-          "x": -514.9925995710016,
-          "y": -170.60475949622764,
+          "x": -514.980174955974,
+          "y": -170.55251243174638,
           "angle": 282.29999999999995
         },
         {
-          "x": -477.48799099967823,
-          "y": -158.15147334710946,
+          "x": -477.4445691262141,
+          "y": -158.15580742626645,
           "angle": 294.29999999999995
         },
         {
-          "x": -443.34525576998635,
-          "y": -138.2619376301763,
+          "x": -443.3487100152142,
+          "y": -138.17700887673294,
           "angle": 306.29999999999995
         },
         {
-          "x": -414.138093112153,
-          "y": -111.63147294255091,
+          "x": -414.0873424682893,
+          "y": -111.62343342475715,
           "angle": 318.29999999999995
         },
         {
-          "x": -391.1499067798346,
-          "y": -79.52612620480939,
+          "x": -391.05521133075433,
+          "y": -79.50239771195061,
           "angle": 330.29999999999995,
           "connectedTo": {
             "pieceId": "demo-siding-1",
@@ -949,8 +952,8 @@
           }
         },
         {
-          "x": -375.1947678509125,
-          "y": -43.4112602662683,
+          "x": -375.2444489491097,
+          "y": -43.31911714051581,
           "angle": 342.29999999999995,
           "connectedTo": {
             "pieceId": "demo-straight-bot-1",
@@ -958,8 +961,8 @@
           }
         },
         {
-          "x": -367.1643909547946,
-          "y": -4.634036965646377,
+          "x": -367.14667092734885,
+          "y": -4.67618775996436,
           "angle": 354.29999999999995,
           "connectedTo": {
             "pieceId": "p-1794587448138-0-juw5s",
@@ -967,23 +970,31 @@
           }
         },
         {
-          "x": -367.46435068219387,
-          "y": 34.84709807581284,
-          "angle": 6.2999999999999545
+          "x": -367.354015095073,
+          "y": 34.923269413033736,
+          "angle": 6.2999999999999545,
+          "connectedTo": {
+            "pieceId": "p-1794659037894-1-c9l25",
+            "connectorIndex": 1
+          }
         },
         {
-          "x": -375.811294289772,
-          "y": 73.44163826496279,
-          "angle": 18.299999999999955
+          "x": -375.85600952461937,
+          "y": 73.47928179398363,
+          "angle": 18.299999999999955,
+          "connectedTo": {
+            "pieceId": "p-1794659025517-1-wp654",
+            "connectorIndex": 1
+          }
         },
         {
-          "x": -392.04007004478854,
-          "y": 109.4814334571304,
+          "x": -392.04480849489244,
+          "y": 109.49501152281306,
           "angle": 30.299999999999955
         },
         {
-          "x": -415.47563607965645,
-          "y": 141.2948621410265,
+          "x": -415.4120413176381,
+          "y": 141.3730985138418,
           "angle": 42.299999999999955
         },
         {
@@ -996,84 +1007,89 @@
           }
         },
         {
-          "x": -479.2946404308908,
-          "y": 187.19011988752067,
+          "x": -479.2530710335859,
+          "y": 187.2394579159947,
           "angle": 66.29999999999995
         },
         {
-          "x": -516.9466689773645,
-          "y": 199.17447411858086,
+          "x": -516.9164343808325,
+          "y": 199.24241844135202,
           "angle": 78.29999999999995
         },
         {
-          "x": -556.2615533457616,
-          "y": 203.12920130254258,
+          "x": -556.2373631178651,
+          "y": 203.13658886099174,
           "angle": 90.29999999999995
         },
         {
-          "x": -595.5543360284894,
-          "y": 198.80748531836196,
+          "x": -595.5153569514803,
+          "y": 198.83087168420252,
           "angle": 102.29999999999995
         },
         {
-          "x": -633.0589445998128,
-          "y": 186.35419916924377,
+          "x": -633.0509627812402,
+          "y": 186.4341666787226,
           "angle": 114.29999999999995
         },
         {
-          "x": -667.2016798295047,
-          "y": 166.46466345231062,
+          "x": -667.14682189224,
+          "y": 166.45536812918908,
           "angle": 126.29999999999995
         },
         {
-          "x": -696.408842487338,
-          "y": 139.83419876468523,
+          "x": -696.408189439165,
+          "y": 139.90179267721328,
           "angle": 138.29999999999995
         },
         {
-          "x": -719.3970288196564,
-          "y": 107.7288520269437,
+          "x": -719.4403205767,
+          "y": 107.78075696440675,
           "angle": 150.29999999999995
         },
         {
-          "x": -735.3521677485785,
-          "y": 71.61398608840261,
+          "x": -735.2510829583446,
+          "y": 71.59747639297194,
           "angle": 162.29999999999995
         },
         {
-          "x": -743.3825446446964,
-          "y": 32.836762787780685,
+          "x": -743.3488609801054,
+          "y": 32.954547012420505,
           "angle": 174.29999999999995
         },
         {
-          "x": -743.0825849172971,
-          "y": -6.644372253678526,
+          "x": -743.1415168123813,
+          "y": -6.644910160577599,
           "angle": 186.29999999999995
         },
         {
-          "x": -734.7356413097191,
-          "y": -45.23891244282848,
+          "x": -734.6395223828349,
+          "y": -45.2009225415275,
           "angle": 198.29999999999995
         },
         {
-          "x": -718.5068655547025,
-          "y": -81.27870763499608,
+          "x": -718.4507234125618,
+          "y": -81.21665227035692,
           "angle": 210.29999999999995
         },
         {
-          "x": -695.0712995198346,
-          "y": -113.0921363188922,
+          "x": -695.0834905898162,
+          "y": -113.09473926138567,
           "angle": 222.29999999999995
         },
         {
-          "x": -665.5970678446291,
-          "y": -139.41607347039587,
+          "x": -665.5456641525924,
+          "y": -139.34044004007404,
           "angle": 234.29999999999995
         },
         {
-          "x": -631.2522951686002,
-          "y": -158.98739406538635,
+          "x": -631.2424608738684,
+          "y": -158.96109866353856,
           "angle": 246.29999999999995
+        },
+        {
+          "x": -593.5790975266218,
+          "y": -170.96405918889587,
+          "angle": 258.29999999999995
         }
       ],
       "powerFeed": false,
@@ -1142,7 +1158,9 @@
       ],
       "powerFeed": false,
       "layerId": "layer-1",
-      "hasCatenary": true
+      "hasCatenary": true,
+      "hasSignal": true,
+      "signalDirection": "backward"
     },
     {
       "id": "track-1794587597347-gi3s",
@@ -1309,7 +1327,10 @@
       ],
       "powerFeed": false,
       "layerId": "layer-1",
-      "hasCatenary": true
+      "hasCatenary": true,
+      "hasSignal": true,
+      "signalDirection": "forward",
+      "signalSide": "left"
     },
     {
       "id": "p-1794587710922-0-3ta8z",
@@ -1344,7 +1365,8 @@
         "start": 18.4,
         "end": 13.8
       },
-      "hasCatenary": true
+      "hasCatenary": true,
+      "hasBridge": true
     },
     {
       "id": "p-1794587713874-0-513o8",
@@ -1379,7 +1401,8 @@
         "start": 23,
         "end": 18.4
       },
-      "hasCatenary": true
+      "hasCatenary": true,
+      "hasBridge": true
     },
     {
       "id": "track-1794587789064-hi33",
@@ -1865,7 +1888,7 @@
         }
       ],
       "layerId": "layer-1",
-      "hasCatenary": true
+      "hasCatenary": false
     },
     {
       "id": "p-1794589387376-0-zsn18",
@@ -1922,7 +1945,8 @@
         "start": 0,
         "end": 0
       },
-      "hasCatenary": true
+      "hasCatenary": true,
+      "hasBridge": true
     },
     {
       "id": "p-1794589392859-0-h58pl",
@@ -1957,7 +1981,8 @@
         "start": 0,
         "end": 0
       },
-      "hasCatenary": true
+      "hasCatenary": true,
+      "hasBridge": true
     },
     {
       "id": "p-1794589425698-0-yw7a5",
@@ -1992,7 +2017,8 @@
         "start": 0,
         "end": 0
       },
-      "hasCatenary": true
+      "hasCatenary": true,
+      "hasBridge": true
     },
     {
       "id": "track-1794589429387-iqe6",
@@ -2028,7 +2054,8 @@
         "start": 0,
         "end": 0
       },
-      "hasCatenary": true
+      "hasCatenary": true,
+      "hasBridge": true
     },
     {
       "id": "track-1794589431346-pgok",
@@ -2064,7 +2091,8 @@
         "start": 0,
         "end": 0
       },
-      "hasCatenary": true
+      "hasCatenary": true,
+      "hasBridge": true
     },
     {
       "id": "track-1794590017940-3pxl",
@@ -3326,6 +3354,112 @@
       "powerFeed": false,
       "layerId": "layer-0",
       "hasCatenary": true
+    },
+    {
+      "id": "p-1794659025517-0-y2ydy",
+      "catalogId": "24977",
+      "transform": {
+        "x": -197.03447684980142,
+        "y": 132.566417723625,
+        "rotation": 18.299999999999955
+      },
+      "connectors": [
+        {
+          "x": -197.03447684980142,
+          "y": 132.566417723625,
+          "angle": 198.29999999999995,
+          "connectedTo": {
+            "pieceId": "p-1794659025517-1-wp654",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1",
+      "hasCatenary": true
+    },
+    {
+      "id": "p-1794659025517-1-wp654",
+      "catalogId": "24188",
+      "transform": {
+        "x": -197.03447684980142,
+        "y": 132.566417723625,
+        "rotation": 198.29999999999995
+      },
+      "connectors": [
+        {
+          "x": -197.03447684980142,
+          "y": 132.566417723625,
+          "angle": 18.299999999999955,
+          "connectedTo": {
+            "pieceId": "p-1794659025517-0-y2ydy",
+            "connectorIndex": 0
+          }
+        },
+        {
+          "x": -375.811294289772,
+          "y": 73.44163826496279,
+          "angle": 198.29999999999995,
+          "connectedTo": {
+            "pieceId": "track-1794587517467-rckt",
+            "connectorIndex": 9
+          }
+        }
+      ],
+      "layerId": "layer-1",
+      "hasCatenary": true
+    },
+    {
+      "id": "p-1794659037894-0-exef3",
+      "catalogId": "24977",
+      "transform": {
+        "x": -180.3015027699835,
+        "y": 55.510068854256524,
+        "rotation": 6.2999999999999545
+      },
+      "connectors": [
+        {
+          "x": -180.3015027699835,
+          "y": 55.510068854256524,
+          "angle": 186.29999999999995,
+          "connectedTo": {
+            "pieceId": "p-1794659037894-1-c9l25",
+            "connectorIndex": 0
+          }
+        }
+      ],
+      "layerId": "layer-1",
+      "hasCatenary": true
+    },
+    {
+      "id": "p-1794659037894-1-c9l25",
+      "catalogId": "24188",
+      "transform": {
+        "x": -180.3015027699835,
+        "y": 55.510068854256524,
+        "rotation": 186.29999999999995
+      },
+      "connectors": [
+        {
+          "x": -180.3015027699835,
+          "y": 55.510068854256524,
+          "angle": 6.2999999999999545,
+          "connectedTo": {
+            "pieceId": "p-1794659037894-0-exef3",
+            "connectorIndex": 0
+          }
+        },
+        {
+          "x": -367.46435068219387,
+          "y": 34.84709807581284,
+          "angle": 186.29999999999995,
+          "connectedTo": {
+            "pieceId": "track-1794587517467-rckt",
+            "connectorIndex": 8
+          }
+        }
+      ],
+      "layerId": "layer-1",
+      "hasCatenary": true
     }
   ],
   "models": [
@@ -3366,15 +3500,15 @@
       "name": "Mountain 1",
       "category": "nature",
       "transform": {
-        "x": -491.1334377267228,
-        "y": -351.7475562273277,
-        "rotation": 352.5
+        "x": -582.5745381580473,
+        "y": -449.0705946534404,
+        "rotation": 180
       },
       "elevation": 0,
       "scale": 1,
       "layerId": "layer-1",
-      "width": 730,
-      "depth": 270,
+      "width": 1290,
+      "depth": 430,
       "height": 220,
       "modelType": "builtin",
       "builtinId": "mountain"
@@ -3386,7 +3520,7 @@
       "transform": {
         "x": -222,
         "y": -92,
-        "rotation": 252.28782116735567
+        "rotation": 252.29655934963705
       },
       "elevation": 0,
       "scale": 1,
@@ -3492,8 +3626,8 @@
       "name": "Laubbaum / Eiche",
       "category": "nature",
       "transform": {
-        "x": -1182,
-        "y": -163,
+        "x": -974.9411764705882,
+        "y": 493.47058823529414,
         "rotation": 0
       },
       "elevation": 0,
@@ -3528,8 +3662,8 @@
       "name": "Laubbaum / Eiche",
       "category": "nature",
       "transform": {
-        "x": -1147,
-        "y": -522,
+        "x": 424.7647058823529,
+        "y": -237.29411764705878,
         "rotation": 0
       },
       "elevation": 0,
@@ -3546,8 +3680,8 @@
       "name": "Laubbaum / Eiche",
       "category": "nature",
       "transform": {
-        "x": -925,
-        "y": -522,
+        "x": -950.2795333009236,
+        "y": -24.1876519202728,
         "rotation": 0
       },
       "elevation": 0,
@@ -3654,18 +3788,36 @@
       "name": "Berg / Gebirgsmassiv",
       "category": "nature",
       "transform": {
-        "x": 512.3497339782343,
-        "y": -152.21619105199522,
-        "rotation": 120
+        "x": -1094.7090895511778,
+        "y": -180.45148516964232,
+        "rotation": 180
       },
       "elevation": 0,
       "scale": 1,
       "width": 370,
-      "depth": 450,
+      "depth": 870,
       "height": 100,
       "modelType": "builtin",
       "builtinId": "mountain",
       "layerId": "layer-1"
+    },
+    {
+      "id": "model-1794659937928-enms",
+      "name": "Mountain 3",
+      "category": "nature",
+      "transform": {
+        "x": -971.3316910329269,
+        "y": -432.3570542573367,
+        "rotation": 0
+      },
+      "elevation": 0,
+      "scale": 1,
+      "layerId": "layer-1",
+      "width": 600,
+      "depth": 450,
+      "height": 220,
+      "modelType": "builtin",
+      "builtinId": "mountain"
     }
   ],
   "layers": [
@@ -3693,7 +3845,7 @@
       "id": "layer-0",
       "name": "Schattenbahnhof",
       "heightMm": -100,
-      "color": "#94a3b8",
+      "color": "#f472b6",
       "visible": true,
       "locked": false,
       "plates": [
@@ -3711,7 +3863,8 @@
           "depth": 1250
         }
       ],
-      "woodPlateMode": "table"
+      "woodPlateMode": "table",
+      "woodPlateThicknessMm": 10
     }
   ],
   "activeLayerId": "layer-1",

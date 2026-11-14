@@ -26,6 +26,10 @@ export interface TrackPiece {
   hasLantern?: boolean;
   hasDecoder?: boolean;
   turnoutCurrentMa?: number;
+  hasSignal?: boolean;
+  signalSide?: SignalSide;
+  signalDirection?: SignalDirection;
+  hasBridge?: boolean;
   customName?: string;
   customLength?: number;
   customRadius?: number;
@@ -35,6 +39,9 @@ export interface TrackPiece {
 }
 
 export type ColorMode = "off" | "types" | "layers";
+
+export type SignalSide = "right" | "left" | "both";
+export type SignalDirection = "forward" | "backward" | "both";
 
 export type LayerWoodPlateMode = "none" | "table" | "tight";
 

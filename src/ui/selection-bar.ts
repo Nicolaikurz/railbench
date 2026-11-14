@@ -21,6 +21,8 @@ export interface SelectionBarCallbacks {
   onToggleCatenaryIsolator: () => void;
   onToggleTurnoutDecoder: () => void;
   onToggleTurnoutLantern: () => void;
+  onToggleSignal?: () => void;
+  onToggleBridge?: () => void;
   onRotate?: (deltaDegrees?: number) => void;
   onDelete: () => void;
   getSelectedPieceIds: () => string[];
@@ -272,6 +274,8 @@ export class SelectionBar {
   private selBarBtnCatenary: HTMLButtonElement;
   private selBarBtnCatenaryFeed: HTMLButtonElement;
   private selBarBtnCatenaryIso: HTMLButtonElement;
+  private selBarBtnSignal: HTMLButtonElement;
+  private selBarBtnBridge: HTMLButtonElement;
   private selBarBtnRotate: HTMLButtonElement;
   private selBarBtnDelete: HTMLButtonElement;
 
@@ -299,7 +303,7 @@ export class SelectionBar {
       </div>
 
       <div class="sel-bar-angle-group" id="sel-bar-elev-group">
-        <span class="sel-bar-angle-label" id="sel-bar-elev-label" title="${isDe ? "Gleishöhe in mm" : "Track height in mm"}">⤉</span>
+        <span class="sel-bar-angle-label" id="sel-bar-elev-label" style="cursor: pointer;" title="${isDe ? "Gleishöhe & Steigung anpassen (Klick zum Öffnen)" : "Track height & ramp (Click to open)"}">⤉</span>
         <input type="number" id="sel-bar-elev-input" class="sel-bar-angle-input" step="any" placeholder="0" title="${isDe ? "Gleishöhe in mm (Enter zum Anwenden, ↑/↓ für ±1 mm, Shift für ±0.1)" : "Set exact height in mm (Enter to apply, Up/Down for ±1 mm, Shift for ±0.1)"}" />
         <span class="sel-bar-unit">mm</span>
       </div>
@@ -332,6 +336,8 @@ export class SelectionBar {
       <button id="sel-bar-btn-catenary" class="sel-bar-btn" title="${initialSelT.catenaryInactiveTitle}">⌁</button>
       <button id="sel-bar-btn-catenary-feed" class="sel-bar-btn" title="${initialSelT.catenaryFeederInactiveTitle}">⌁⚡</button>
       <button id="sel-bar-btn-catenary-iso" class="sel-bar-btn" title="${initialSelT.catenaryIsolatorInactiveTitle}">⌁⊘</button>
+      <button id="sel-bar-btn-signal" class="sel-bar-btn" title="${isDe ? "Signal aufstellen (Shift+S)" : "Place Signal (Shift+S)"}">🚦</button>
+      <button id="sel-bar-btn-bridge" class="sel-bar-btn" title="${isDe ? "Als Brücke definieren (B)" : "Define as Bridge (B)"}">🌉</button>
 
       <span class="sel-bar-divider" id="sel-bar-div-quick"></span>
 
@@ -363,6 +369,8 @@ export class SelectionBar {
     this.selBarBtnCatenary = this.container.querySelector("#sel-bar-btn-catenary") as HTMLButtonElement;
     this.selBarBtnCatenaryFeed = this.container.querySelector("#sel-bar-btn-catenary-feed") as HTMLButtonElement;
     this.selBarBtnCatenaryIso = this.container.querySelector("#sel-bar-btn-catenary-iso") as HTMLButtonElement;
+    this.selBarBtnSignal = this.container.querySelector("#sel-bar-btn-signal") as HTMLButtonElement;
+    this.selBarBtnBridge = this.container.querySelector("#sel-bar-btn-bridge") as HTMLButtonElement;
     this.selBarBtnRotate = this.container.querySelector("#sel-bar-btn-rotate") as HTMLButtonElement;
     this.selBarBtnDelete = this.container.querySelector("#sel-bar-btn-delete") as HTMLButtonElement;
 
@@ -470,6 +478,10 @@ export class SelectionBar {
       }
     });
 
+    this.selBarElevLabel?.addEventListener("click", () => {
+      this.callbacks.onOpenHeightDialog();
+    });
+
     this.selBarBtnHeight?.addEventListener("click", () => {
       this.callbacks.onOpenHeightDialog();
     });
@@ -505,6 +517,14 @@ export class SelectionBar {
 
     this.selBarBtnCatenaryIso.addEventListener("click", () => {
       this.callbacks.onToggleCatenaryIsolator();
+    });
+
+    this.selBarBtnSignal.addEventListener("click", () => {
+      this.callbacks.onToggleSignal?.();
+    });
+
+    this.selBarBtnBridge.addEventListener("click", () => {
+      this.callbacks.onToggleBridge?.();
     });
 
     this.selBarBtnDelete.addEventListener("click", () => {
@@ -562,6 +582,8 @@ export class SelectionBar {
       this.selBarBtnCatenary.style.display = "none";
       this.selBarBtnCatenaryFeed.style.display = "none";
       this.selBarBtnCatenaryIso.style.display = "none";
+      this.selBarBtnSignal.style.display = "none";
+      this.selBarBtnBridge.style.display = "none";
       if (this.selBarDivFlex) this.selBarDivFlex.style.display = "none";
       if (this.selBarFlexGroup) this.selBarFlexGroup.style.display = "none";
 
@@ -590,6 +612,8 @@ export class SelectionBar {
     this.selBarBtnCatenary.style.display = "";
     this.selBarBtnCatenaryFeed.style.display = "";
     this.selBarBtnCatenaryIso.style.display = "";
+    this.selBarBtnSignal.style.display = "";
+    this.selBarBtnBridge.style.display = "";
 
     // 1. Info: Selection count & Track type
     const pieceWord = selectedIds.length === 1 ? (isDe ? "Gleis" : "track") : (isDe ? "Gleise" : "tracks");
@@ -699,6 +723,35 @@ export class SelectionBar {
           ? (isDe ? "Oberleitungs-Trennstelle: gemischt (Shift+I)" : "Catenary isolator: mixed (Shift+I)")
           : tSel.catenaryIsolatorInactiveTitle;
     }
+
+    // Signal
+    const signalCount = selectedPieces.filter((p) => !!p.hasSignal).length;
+    const allSignal = signalCount === selectedPieces.length && selectedPieces.length > 0;
+    const mixedSignal = signalCount > 0 && signalCount < selectedPieces.length;
+    const firstSig = selectedPieces.find((p) => !!p.hasSignal);
+    const sideBadge = firstSig?.signalSide === "both" ? "L+R" : firstSig?.signalSide === "left" ? "L" : "R";
+    const dirBadge = firstSig?.signalDirection === "both" ? "⇄" : firstSig?.signalDirection === "backward" ? "◀" : "▶";
+    this.selBarBtnSignal.classList.toggle("active", allSignal);
+    this.selBarBtnSignal.classList.toggle("mixed", mixedSignal);
+    this.selBarBtnSignal.textContent = allSignal && (firstSig?.signalSide || firstSig?.signalDirection) ? `🚦${dirBadge}` : "🚦";
+    this.selBarBtnSignal.title = allSignal
+      ? (isDe ? `Signal: montiert (${sideBadge}, ${dirBadge}) – Klicken zum Entfernen (Shift+S)` : `Signal: placed (${sideBadge}, ${dirBadge}) – Click to remove (Shift+S)`)
+      : mixedSignal
+        ? (isDe ? "Signal: gemischt (Klicken zum Setzen für alle, Shift+S)" : "Signal: mixed (Click to set for all, Shift+S)")
+        : (isDe ? "Signal aufstellen (Shift+S)" : "Place Signal (Shift+S)");
+
+    // Bridge
+    const bridgeCount = selectedPieces.filter((p) => !!p.hasBridge).length;
+    const allBridge = bridgeCount === selectedPieces.length && selectedPieces.length > 0;
+    const mixedBridge = bridgeCount > 0 && bridgeCount < selectedPieces.length;
+    this.selBarBtnBridge.classList.toggle("active", allBridge);
+    this.selBarBtnBridge.classList.toggle("mixed", mixedBridge);
+    this.selBarBtnBridge.textContent = "🌉";
+    this.selBarBtnBridge.title = allBridge
+      ? (isDe ? "Brücke: aktiv (Klicken zum Entfernen, B)" : "Bridge: active (Click to remove, B)")
+      : mixedBridge
+        ? (isDe ? "Brücke: gemischt (Klicken zum Setzen für alle, B)" : "Bridge: mixed (Click to set for all, B)")
+        : (isDe ? "Als Brücke definieren (B)" : "Define as Bridge (B)");
 
     // Quick actions
     this.selBarBtnRotate.title = isDe ? "Drehen (+7,5°, R)" : "Rotate (+7.5°, R)";

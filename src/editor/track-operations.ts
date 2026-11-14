@@ -1,10 +1,11 @@
-import type { Layout, TrackPiece, Model3D, Transform } from "@/core/types";
+import type { Layout, TrackPiece, Model3D, Transform, SignalSide, SignalDirection } from "@/core/types";
 import { ensureDefaultLayers } from "@/core/layout";
 import {
   computeWorldConnectors,
   getLocalConnectors,
   isFeederEntry,
   isIsolatingEntry,
+  catalogRegistry,
   type Catalog,
   type CatalogEntry,
 } from "@/catalog/catalog";
@@ -24,6 +25,9 @@ import {
   ToggleCatenaryIsolatorCommand,
   ToggleTurnoutLanternCommand,
   ToggleTurnoutDecoderCommand,
+  ToggleSignalCommand,
+  SetSignalConfigCommand,
+  ToggleBridgeCommand,
   MovePiecesToLayerCommand,
   ApplyRampElevationsCommand,
   AddModelCommand,
@@ -45,6 +49,35 @@ import { calculateAutoRamp } from "@/core/ramp";
 import type { PlanManager, PlanFormat } from "@/io/plan-manager";
 import type { Renderer } from "@/render/renderer";
 
+import {
+  copySelected,
+  pasteClipboard,
+  duplicateSelected,
+  selectConnectedTracks,
+  selectLayerTracks,
+  toggleGroupSelected,
+  splitTrack,
+  replaceTrack,
+} from "./track-clipboard-ops";
+import {
+  toggleSelectedFeeder,
+  toggleSelectedIsolator,
+  toggleSelectedCatenary,
+  toggleSelectedCatenaryFeeder,
+  toggleSelectedCatenaryIsolator,
+  toggleSelectedTurnoutLantern,
+  toggleSelectedTurnoutDecoder,
+  toggleSelectedSignal,
+  cycleSelectedSignalSide,
+  cycleSelectedSignalDirection,
+  setSignalConfig,
+  toggleSelectedBridge,
+  moveSelectedToLayer,
+  applyHeightInput,
+  applyAutoRamp,
+  applyAngleInput,
+} from "./track-attribute-ops";
+
 export interface EditorContext {
   getLayout: () => Layout;
   setLayout: (l: Layout) => void;
@@ -61,14 +94,6 @@ export interface EditorContext {
   sync: (dirty?: boolean) => void;
   showToast: (msg: string, icon?: string) => void;
 }
-
-interface TrackClipboardData {
-  pieces: TrackPiece[];
-  models: Model3D[];
-}
-
-let trackClipboard: TrackClipboardData | null = null;
-let pasteOffsetCount = 1;
 
 /**
  * Ermittelt, ob der Gleisverlauf an einem bestimmten Anschluss nach links oder rechts biegt.
@@ -128,12 +153,22 @@ function detectTrackTurn(
 
 export class TrackOperations {
   private ctx: EditorContext;
+  private lastPlacedCatalogId: string | null = null;
 
   constructor(ctx: EditorContext) {
     this.ctx = ctx;
   }
 
+  public getLastPlacedCatalogId(): string | null {
+    return this.lastPlacedCatalogId;
+  }
+
+  public setLastPlacedCatalogId(id: string | null): void {
+    this.lastPlacedCatalogId = id;
+  }
+
   public addPieceToLayout(entry: CatalogEntry, initialPos?: { x: number; y: number }): void {
+    this.lastPlacedCatalogId = entry.id;
     const layout = this.ctx.getLayout();
     const history = this.ctx.getHistory();
     const selection = this.ctx.getSelection();
@@ -279,6 +314,99 @@ export class TrackOperations {
     selection.set(id);
   }
 
+  /**
+   * Hängt das zuletzt platzierte Gleis (oder das Gleis selbst) an einen freien Anschluss an.
+   */
+  public appendTrackToConnector(
+    anchorPiece: TrackPiece,
+    connectorIndex: number,
+    specificCatalogId?: string
+  ): TrackPiece | null {
+    const layout = this.ctx.getLayout();
+    const history = this.ctx.getHistory();
+    const selection = this.ctx.getSelection();
+
+    const anchorConn = anchorPiece.connectors[connectorIndex];
+    if (!anchorConn || anchorConn.connectedTo) return null;
+
+    const catalog = this.ctx.getCatalog();
+    const targetCatalogId = specificCatalogId || this.lastPlacedCatalogId || anchorPiece.catalogId;
+    let entry =
+      catalog.entries.find((e) => e.id === targetCatalogId) ??
+      catalogRegistry.findEntry(targetCatalogId) ??
+      this.ctx.getCatalogEntry(anchorPiece);
+
+    if (!entry) return null;
+
+    const locals = getLocalConnectors(entry);
+    let movingLocal = locals[0] ?? { x: 0, y: 0, angle: 180 };
+
+    // Kurven-Richtung: Fortführung einer Kurve nach links oder rechts
+    if (entry.kind === "curve" && locals.length >= 2) {
+      const trackTurn = detectTrackTurn(
+        anchorPiece,
+        connectorIndex,
+        layout.pieces,
+        (p) => this.ctx.getCatalogEntry(p)
+      );
+      if (trackTurn === "right") {
+        movingLocal = locals[1]!;
+      } else {
+        movingLocal = locals[0]!;
+      }
+    }
+
+    const snappedRotation = normAngle(anchorConn.angle + 180 - movingLocal.angle);
+    const rotatedOffset = rotate(movingLocal, snappedRotation);
+    const targetTransform: Transform = {
+      x: anchorConn.x - rotatedOffset.x,
+      y: anchorConn.y - rotatedOffset.y,
+      rotation: snappedRotation,
+    };
+
+    let targetLayerId = anchorPiece.layerId || layout.activeLayerId || "layer-1";
+    let targetElevation: { start: number; end: number } | undefined = undefined;
+    if (anchorPiece.elevation) {
+      const elevVal = connectorIndex === 0
+        ? (anchorPiece.elevation.start ?? 0)
+        : (anchorPiece.elevation.end ?? (anchorPiece.elevation.start ?? 0));
+      if (Math.abs(elevVal) > 0.01) {
+        targetElevation = { start: elevVal, end: elevVal };
+      }
+    }
+
+    const id = `track-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+    const connectors = computeWorldConnectors(entry, targetTransform);
+    const isFeeder = isFeederEntry(entry);
+    const isIso = isIsolatingEntry(entry);
+
+    const piece: TrackPiece = {
+      id,
+      catalogId: entry.id,
+      transform: targetTransform,
+      connectors,
+      powerFeed: isFeeder,
+      isIsolator: isIso || undefined,
+      isolatedConnectorIndex: isIso ? 0 : undefined,
+      layerId: targetLayerId,
+      elevation: targetElevation,
+      hasCatenary: anchorPiece.hasCatenary ? true : undefined,
+    };
+
+    history.run(new AddPieceCommand(piece));
+    updatePieceConnections(layout.pieces, layout.layers);
+    selection.set(id);
+    this.lastPlacedCatalogId = entry.id;
+
+    const isDe = getLanguage() === "de";
+    this.ctx.showToast(
+      isDe ? `Gleis ${entry.name || entry.id} hinzugefügt` : `Added track ${entry.name || entry.id}`,
+      "➕"
+    );
+
+    return piece;
+  }
+
   public addModelToLayout(model: Model3D, customPosition?: { x: number; y: number }): void {
     const layout = this.ctx.getLayout();
     const history = this.ctx.getHistory();
@@ -380,152 +508,19 @@ export class TrackOperations {
   }
 
   public copySelected(): boolean {
-    const layout = this.ctx.getLayout();
-    const selection = this.ctx.getSelection();
-    const selectedIds = selection.all();
-    if (selectedIds.length === 0) return false;
-
-    const piecesToCopy: TrackPiece[] = [];
-    for (const id of selectedIds) {
-      const p = layout.pieces.find((x) => x.id === id);
-      if (p) {
-        piecesToCopy.push(JSON.parse(JSON.stringify(p)));
-      }
-    }
-
-    const modelsToCopy: Model3D[] = [];
-    if (layout.models) {
-      for (const id of selectedIds) {
-        const m = layout.models.find((x) => x.id === id);
-        if (m) {
-          modelsToCopy.push(JSON.parse(JSON.stringify(m)));
-        }
-      }
-    }
-
-    if (piecesToCopy.length > 0 || modelsToCopy.length > 0) {
-      trackClipboard = { pieces: piecesToCopy, models: modelsToCopy };
-      pasteOffsetCount = 1;
-
-      try {
-        const payload = JSON.stringify(trackClipboard);
-        localStorage.setItem("railbench_clipboard", payload);
-        if (navigator.clipboard?.writeText) {
-          navigator.clipboard.writeText(payload).catch(() => {});
-        }
-      } catch {}
-
-      const total = piecesToCopy.length + modelsToCopy.length;
-      const isDe = getLanguage() === "de";
-      const itemLabel = isDe
-        ? `${total} Element${total === 1 ? "" : "e"}`
-        : `${total} item${total === 1 ? "" : "s"}`;
-      this.ctx.showToast(isDe ? `${itemLabel} in Zwischenablage kopiert (Strg+C)` : `${itemLabel} copied to clipboard (Ctrl+C)`, "📋");
-      return true;
-    }
-    return false;
+    return copySelected(this.ctx);
   }
 
   public pasteClipboard(customOffset?: { x: number; y: number }): boolean {
-    const layout = this.ctx.getLayout();
-    const history = this.ctx.getHistory();
-    const selection = this.ctx.getSelection();
-
-    if (!trackClipboard || (trackClipboard.pieces.length === 0 && trackClipboard.models.length === 0)) {
-      try {
-        const stored = localStorage.getItem("railbench_clipboard");
-        if (stored) {
-          trackClipboard = JSON.parse(stored);
-        }
-      } catch {}
-    }
-
-    if (!trackClipboard || (trackClipboard.pieces.length === 0 && trackClipboard.models.length === 0)) {
-      const isDe = getLanguage() === "de";
-      this.ctx.showToast(isDe ? "Zwischenablage ist leer" : "Clipboard is empty", "⚠️");
-      return false;
-    }
-
-    const offset = customOffset ?? {
-      x: 40 * pasteOffsetCount,
-      y: 40 * pasteOffsetCount,
-    };
-    if (!customOffset) {
-      pasteOffsetCount++;
-    }
-
-    const newPieces: TrackPiece[] = [];
-    const newModels: Model3D[] = [];
-    const newIds: string[] = [];
-    const now = Date.now();
-
-    for (let i = 0; i < trackClipboard.pieces.length; i++) {
-      const orig = trackClipboard.pieces[i];
-      if (!orig) continue;
-      const newId = `p-${now}-${i}-${Math.random().toString(36).substring(2, 7)}`;
-      const entry = this.ctx.getCatalogEntry(orig);
-      const newTransform = {
-        x: orig.transform.x + offset.x,
-        y: orig.transform.y + offset.y,
-        rotation: orig.transform.rotation,
-      };
-
-      const copyPiece: TrackPiece = {
-        ...JSON.parse(JSON.stringify(orig)),
-        id: newId,
-        transform: newTransform,
-        connectors: entry ? computeWorldConnectors(entry, newTransform) : orig.connectors,
-      };
-      newPieces.push(copyPiece);
-      newIds.push(newId);
-    }
-
-    for (let i = 0; i < trackClipboard.models.length; i++) {
-      const orig = trackClipboard.models[i];
-      if (!orig) continue;
-      const newId = `m-${now}-${i}-${Math.random().toString(36).substring(2, 7)}`;
-      const copyModel: Model3D = {
-        ...JSON.parse(JSON.stringify(orig)),
-        id: newId,
-        transform: {
-          ...orig.transform,
-          x: orig.transform.x + offset.x,
-          y: orig.transform.y + offset.y,
-        },
-      };
-      newModels.push(copyModel);
-      newIds.push(newId);
-    }
-
-    if (newPieces.length > 0 || newModels.length > 0) {
-      history.run(new AddPiecesCommand(newPieces, newModels));
-      selection.clear();
-      for (const id of newIds) {
-        selection.add(id);
-      }
-      this.ctx.sync(true);
-
-      const total = newPieces.length + newModels.length;
-      const isDe = getLanguage() === "de";
-      const itemLabel = isDe
-        ? `${total} Element${total === 1 ? "" : "e"}`
-        : `${total} item${total === 1 ? "" : "s"}`;
-      this.ctx.showToast(isDe ? `${itemLabel} eingefügt (Strg+V)` : `${itemLabel} pasted (Ctrl+V)`, "📥");
-      return true;
-    }
-    return false;
+    return pasteClipboard(this.ctx, customOffset, (id) => {
+      this.lastPlacedCatalogId = id;
+    });
   }
 
   public duplicateSelected(): void {
-    const selection = this.ctx.getSelection();
-    const selectedIds = selection.all();
-    if (selectedIds.length === 0) {
-      const isDe = getLanguage() === "de";
-      this.ctx.showToast(isDe ? "Keine Gleise zum Duplizieren markiert" : "No tracks selected to duplicate", "⚠️");
-      return;
-    }
-    this.copySelected();
-    this.pasteClipboard({ x: 40, y: 40 });
+    duplicateSelected(this.ctx, (id) => {
+      this.lastPlacedCatalogId = id;
+    });
   }
 
   public selectAll(): void {
@@ -591,418 +586,93 @@ export class TrackOperations {
   }
 
   public selectConnectedTracks(startPieceId?: string): void {
-    const layout = this.ctx.getLayout();
-    const selection = this.ctx.getSelection();
-    const initialIds = startPieceId ? [startPieceId] : selection.all();
-    if (initialIds.length === 0) return;
-
-    const visited = new Set<string>();
-    const queue = [...initialIds];
-
-    while (queue.length > 0) {
-      const curId = queue.shift()!;
-      if (visited.has(curId)) continue;
-      visited.add(curId);
-
-      const piece = layout.pieces.find((p) => p.id === curId);
-      if (!piece) continue;
-
-      for (const conn of piece.connectors) {
-        if (conn.connectedTo && !visited.has(conn.connectedTo.pieceId)) {
-          queue.push(conn.connectedTo.pieceId);
-        }
-      }
-    }
-
-    selection.clear();
-    for (const id of visited) {
-      selection.add(id);
-    }
-    this.ctx.sync();
-    const isDe = getLanguage() === "de";
-    this.ctx.showToast(isDe ? `${visited.size} verbundene Gleise ausgewählt` : `Selected ${visited.size} connected tracks`, "🔗");
+    selectConnectedTracks(this.ctx, startPieceId);
   }
 
   public selectLayerTracks(layerId?: string): void {
-    const layout = this.ctx.getLayout();
-    const selection = this.ctx.getSelection();
-    let targetLayerId = layerId;
-
-    if (!targetLayerId) {
-      const selectedIds = selection.all();
-      const firstPiece = layout.pieces.find((p) => selectedIds.includes(p.id));
-      targetLayerId = firstPiece?.layerId || layout.activeLayerId || layout.layers?.[0]?.id;
-    }
-
-    if (!targetLayerId) return;
-
-    selection.clear();
-    let count = 0;
-    for (const p of layout.pieces) {
-      if ((p.layerId || "layer-1") === targetLayerId && this.ctx.isPieceInteractive(p)) {
-        selection.add(p.id);
-        count++;
-      }
-    }
-    this.ctx.sync();
-    const layer = layout.layers?.find((l) => l.id === targetLayerId);
-    const layerName = layer?.name || targetLayerId;
-    const isDe = getLanguage() === "de";
-    this.ctx.showToast(isDe ? `${count} Gleise auf Ebene "${layerName}" ausgewählt` : `Selected ${count} tracks on layer "${layerName}"`, "📑");
+    selectLayerTracks(this.ctx, layerId);
   }
 
   public toggleGroupSelected(): void {
-    const layout = this.ctx.getLayout();
-    const selection = this.ctx.getSelection();
-    const selectedIds = selection.all();
-    if (selectedIds.length < 2) {
-      const isDe = getLanguage() === "de";
-      this.ctx.showToast(isDe ? "Mindestens 2 Gleise zum Gruppieren markieren" : "Select at least 2 tracks to group", "⚠️");
-      return;
-    }
-
-    const selectedPieces = layout.pieces.filter((p) => selectedIds.includes(p.id));
-    const firstGroupId = selectedPieces[0]?.groupId;
-    const allHaveSameGroup = firstGroupId && selectedPieces.every((p) => p.groupId === firstGroupId);
-
-    const isDe = getLanguage() === "de";
-    if (allHaveSameGroup) {
-      for (const p of selectedPieces) {
-        delete p.groupId;
-      }
-      this.ctx.showToast(isDe ? "Gruppierung aufgehoben" : "Tracks ungrouped", "🗂");
-    } else {
-      const newGroupId = `group-${Date.now()}`;
-      for (const p of selectedPieces) {
-        p.groupId = newGroupId;
-      }
-      this.ctx.showToast(isDe ? `${selectedPieces.length} Gleise gruppiert` : `Grouped ${selectedPieces.length} tracks`, "🗂");
-    }
-    this.ctx.sync(true);
+    toggleGroupSelected(this.ctx);
   }
 
   public splitTrack(pieceId: string): boolean {
-    const layout = this.ctx.getLayout();
-    const history = this.ctx.getHistory();
-    const piece = layout.pieces.find((p) => p.id === pieceId);
-    if (!piece) return false;
-    const entry = this.ctx.getCatalogEntry(piece);
-    if (!entry) return false;
-
-    const catalog = this.ctx.getCatalog();
-    const isDe = getLanguage() === "de";
-
-    if (isFlexTrack(entry, piece)) {
-      const curLen = piece.customLength ?? entry.length ?? 900;
-      const half = Math.round(curLen / 2);
-      this.adjustFlexTrack(pieceId, half);
-      this.ctx.showToast(isDe ? `Flexgleis bei ${half} mm geteilt` : `Flex track split at ${half} mm`, "✂");
-      return true;
-    }
-
-    const curLen = entry.length ?? 180;
-    const halfLen = curLen / 2;
-    const halfCandidate = catalog.entries.find(
-      (e) => e.kind === "straight" && Math.abs((e.length || 0) - halfLen) <= 6,
-    );
-
-    if (halfCandidate) {
-      piece.catalogId = halfCandidate.id;
-      piece.connectors = computeWorldConnectors(halfCandidate, piece.transform);
-
-      const rad = deg2rad(piece.transform.rotation);
-      const halfActual = halfCandidate.length ?? halfLen;
-      const secondPos = {
-        x: piece.transform.x + halfActual * Math.cos(rad),
-        y: piece.transform.y + halfActual * Math.sin(rad),
-        rotation: piece.transform.rotation,
-      };
-      const secondPiece: TrackPiece = {
-        id: `p-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        catalogId: halfCandidate.id,
-        transform: secondPos,
-        connectors: computeWorldConnectors(halfCandidate, secondPos),
-        layerId: piece.layerId,
-        elevation: piece.elevation ? { ...piece.elevation } : undefined,
-      };
-
-      history.run(new AddPieceCommand(secondPiece));
-      updatePieceConnections(layout.pieces, layout.layers);
-      this.ctx.sync(true);
-      this.ctx.showToast(
-        isDe
-          ? `Gleis geteilt in 2× #${halfCandidate.id} (${halfCandidate.length} mm)`
-          : `Split track into 2× #${halfCandidate.id} (${halfCandidate.length} mm)`,
-        "✂",
-      );
-      return true;
-    } else {
-      this.ctx.showToast(
-        isDe ? "Kein passendes Teilgleis im Katalog gefunden" : "No matching half-track found in catalog",
-        "⚠️",
-      );
-      return false;
-    }
+    return splitTrack(this.ctx, pieceId, (id, len) => this.adjustFlexTrack(id, len));
   }
 
   public replaceTrack(pieceId: string, newCatalogId: string): boolean {
-    const layout = this.ctx.getLayout();
-    const piece = layout.pieces.find((p) => p.id === pieceId);
-    if (!piece) return false;
-    const newEntry = this.ctx.getCatalog().entries.find((e) => e.id === newCatalogId);
-    if (!newEntry) return false;
-
-    piece.catalogId = newCatalogId;
-    piece.connectors = computeWorldConnectors(newEntry, piece.transform);
-    updatePieceConnections(layout.pieces, layout.layers);
-    this.ctx.sync(true);
-    const isDe = getLanguage() === "de";
-    this.ctx.showToast(isDe ? `Gleis ersetzt durch #${newCatalogId}` : `Replaced track with #${newCatalogId}`, "✂");
-    return true;
+    return replaceTrack(this.ctx, pieceId, newCatalogId);
   }
 
   public toggleSelectedFeeder(): void {
-    const selection = this.ctx.getSelection();
-    const history = this.ctx.getHistory();
-    const layout = this.ctx.getLayout();
-    const selected = selection.all();
-    if (selected.length === 0) return;
-
-    if (selected.length === 1) {
-      history.run(new ToggleFeederCommand(selected[0]!));
-    } else {
-      const selectedPieces = layout.pieces.filter((p) => selected.includes(p.id));
-      const allHave = selectedPieces.length > 0 && selectedPieces.every((p) => !!p.powerFeed);
-      for (const id of selected) {
-        const piece = layout.pieces.find((p) => p.id === id);
-        if (piece) {
-          if (allHave && piece.powerFeed) history.run(new ToggleFeederCommand(id));
-          else if (!allHave && !piece.powerFeed) history.run(new ToggleFeederCommand(id));
-        }
-      }
-    }
-    this.ctx.sync(true);
+    toggleSelectedFeeder(this.ctx);
   }
 
   public toggleSelectedIsolator(): void {
-    const selection = this.ctx.getSelection();
-    const history = this.ctx.getHistory();
-    const layout = this.ctx.getLayout();
-    const selected = selection.all();
-    if (selected.length === 0) return;
-
-    if (selected.length === 1) {
-      history.run(new ToggleIsolatorCommand(selected[0]!));
-    } else {
-      const selectedPieces = layout.pieces.filter((p) => selected.includes(p.id));
-      const allHave = selectedPieces.length > 0 && selectedPieces.every((p) => !!p.isIsolator);
-      for (const id of selected) {
-        const piece = layout.pieces.find((p) => p.id === id);
-        if (piece) {
-          if (allHave && piece.isIsolator) history.run(new ToggleIsolatorCommand(id));
-          else if (!allHave && !piece.isIsolator) history.run(new ToggleIsolatorCommand(id));
-        }
-      }
-    }
-    this.ctx.sync(true);
+    toggleSelectedIsolator(this.ctx);
   }
 
   public toggleSelectedCatenary(): void {
-    const selection = this.ctx.getSelection();
-    const history = this.ctx.getHistory();
-    const selected = selection.all();
-    if (selected.length > 0) {
-      history.run(new ToggleCatenaryCommand(selected));
-      this.ctx.sync(true);
-    }
+    toggleSelectedCatenary(this.ctx);
   }
 
   public toggleSelectedCatenaryFeeder(): void {
-    const selection = this.ctx.getSelection();
-    const history = this.ctx.getHistory();
-    const selected = selection.all();
-    if (selected.length > 0) {
-      history.run(new ToggleCatenaryFeederCommand(selected));
-      this.ctx.sync(true);
-    }
+    toggleSelectedCatenaryFeeder(this.ctx);
   }
 
   public toggleSelectedCatenaryIsolator(): void {
-    const selection = this.ctx.getSelection();
-    const history = this.ctx.getHistory();
-    const selected = selection.all();
-    if (selected.length > 0) {
-      history.run(new ToggleCatenaryIsolatorCommand(selected));
-      this.ctx.sync(true);
-    }
+    toggleSelectedCatenaryIsolator(this.ctx);
   }
 
   public toggleSelectedTurnoutLantern(): void {
-    const selection = this.ctx.getSelection();
-    const history = this.ctx.getHistory();
-    const selected = selection.all();
-    if (selected.length > 0) {
-      history.run(new ToggleTurnoutLanternCommand(selected));
-      this.ctx.sync(true);
-    }
+    toggleSelectedTurnoutLantern(this.ctx);
   }
 
   public toggleSelectedTurnoutDecoder(): void {
-    const selection = this.ctx.getSelection();
-    const history = this.ctx.getHistory();
-    const selected = selection.all();
-    if (selected.length > 0) {
-      history.run(new ToggleTurnoutDecoderCommand(selected));
-      this.ctx.sync(true);
-    }
+    toggleSelectedTurnoutDecoder(this.ctx);
+  }
+
+  public toggleSelectedSignal(targetState?: boolean): void {
+    toggleSelectedSignal(this.ctx, targetState);
+  }
+
+  public cycleSelectedSignalSide(): void {
+    cycleSelectedSignalSide(this.ctx);
+  }
+
+  public cycleSelectedSignalDirection(): void {
+    cycleSelectedSignalDirection(this.ctx);
+  }
+
+  public setSignalConfig(
+    pieceIds: string[],
+    config: { hasSignal?: boolean; signalSide?: SignalSide; signalDirection?: SignalDirection },
+  ): void {
+    setSignalConfig(this.ctx, pieceIds, config);
+  }
+
+  public toggleSelectedBridge(targetState?: boolean): void {
+    toggleSelectedBridge(this.ctx, targetState);
   }
 
   public moveSelectedToLayer(
     layerId: string,
     elevation?: { start: number; end: number } | Map<string, { start: number; end: number }>,
   ): void {
-    const selection = this.ctx.getSelection();
-    const history = this.ctx.getHistory();
-    const selected = selection.all();
-    if (selected.length === 0) return;
-    history.run(new MovePiecesToLayerCommand(selected, layerId, elevation));
-    this.ctx.sync(true);
+    moveSelectedToLayer(this.ctx, layerId, elevation);
   }
 
   public applyHeightInput(target: number): void {
-    if (isNaN(target)) return;
-    const layout = this.ctx.getLayout();
-    const history = this.ctx.getHistory();
-    const selection = this.ctx.getSelection();
-    const layers = layout.layers || [];
-
-    const byLayer = new Map<string, string[]>();
-    for (const id of selection.all()) {
-      const p = layout.pieces.find((x) => x.id === id);
-      if (!p || !this.ctx.isPieceInteractive(p)) continue;
-      const lid = p.layerId || "layer-1";
-      const base = layers.find((l) => l.id === lid)?.heightMm ?? 0;
-      const elev = target - base;
-      if (Math.abs((p.elevation?.start ?? 0) - elev) < 0.05 && Math.abs((p.elevation?.end ?? 0) - elev) < 0.05) continue;
-      if (!byLayer.has(lid)) byLayer.set(lid, []);
-      byLayer.get(lid)!.push(id);
-    }
-    if (byLayer.size === 0) return;
-
-    for (const [lid, ids] of byLayer) {
-      const base = layers.find((l) => l.id === lid)?.heightMm ?? 0;
-      const elev = target - base;
-      history.run(new MovePiecesToLayerCommand(ids, lid, { start: elev, end: elev }));
-    }
-    this.ctx.sync(true);
+    applyHeightInput(this.ctx, target);
   }
 
   public applyAutoRamp(onFallbackToDialog?: () => void): boolean {
-    const layout = this.ctx.getLayout();
-    const selection = this.ctx.getSelection();
-    const selectedIds = selection.all();
-    const isDe = getLanguage() === "de";
-
-    if (selectedIds.length === 0) {
-      this.ctx.showToast(isDe ? "Bitte zuerst Gleise für die Rampe auswählen" : "Please select tracks for the ramp first", "⚠️");
-      return false;
-    }
-
-    const selectedPieces = layout.pieces.filter((p) => selectedIds.includes(p.id));
-    if (selectedPieces.length === 0) {
-      this.ctx.showToast(isDe ? "Keine Gleise ausgewählt" : "No tracks selected", "⚠️");
-      return false;
-    }
-
-    const result = calculateAutoRamp({
-      pieces: selectedPieces,
-      allPieces: layout.pieces,
-      layers: layout.layers || [],
-      catalog: this.ctx.getCatalog(),
-      profile: "linear",
-    });
-
-    if (!result.success) {
-      if (result.reason === "not_continuous") {
-        this.ctx.showToast(
-          isDe
-            ? "Gleise müssen eine zusammenhängende Strecke ohne Verzweigungen bilden"
-            : "Selected tracks must form a continuous chain without branches",
-          "⚠️",
-        );
-      } else if (result.reason === "same_height") {
-        this.ctx.showToast(
-          isDe
-            ? `Start und Ende haben dieselbe Höhe (${result.startHeightMm ?? 0} mm). Bitte Höhen-Dialog (⤉) nutzen.`
-            : `Start and end tracks have the same height (${result.startHeightMm ?? 0} mm). Please use Height Dialog (⤉).`,
-          "⚠️",
-        );
-        if (onFallbackToDialog) {
-          onFallbackToDialog();
-        }
-      } else {
-        this.ctx.showToast(isDe ? "Rampe konnte nicht berechnet werden" : "Could not calculate ramp", "⚠️");
-      }
-      return false;
-    }
-
-    if (result.pieceElevations && result.pieceElevations.size > 0) {
-      this.ctx.getHistory().run(new ApplyRampElevationsCommand(result.pieceElevations));
-      this.ctx.sync(true);
-
-      const sH = result.startHeightMm ?? 0;
-      const eH = result.endHeightMm ?? 0;
-      const lenCm = Math.round((result.totalLengthMm ?? 0) / 10);
-      const grad = result.gradientPercent ?? 0;
-      const warnIcon = grad > 4.5 ? " ⚠️" : "";
-
-      const msg = isDe
-        ? `Rampe berechnet: ${sH} mm ➔ ${eH} mm (${lenCm} cm, ${grad.toFixed(1)}% Steigung${warnIcon})`
-        : `Ramp applied: ${sH} mm ➔ ${eH} mm (${lenCm} cm, slope ${grad.toFixed(1)}%${warnIcon})`;
-
-      this.ctx.showToast(msg, "📐");
-      return true;
-    }
-    return false;
+    return applyAutoRamp(this.ctx, onFallbackToDialog);
   }
 
   public applyAngleInput(rawVal: number): void {
-    if (isNaN(rawVal)) return;
-    const layout = this.ctx.getLayout();
-    const history = this.ctx.getHistory();
-    const selection = this.ctx.getSelection();
-    const targetAngle = normAngle(rawVal);
-    const selectedIds = selection.all();
-    if (selectedIds.length === 0) return;
-
-    const firstPiece = layout.pieces.find((p) => p.id === selectedIds[0]);
-    const firstModel = layout.models?.find((m) => m.id === selectedIds[0]);
-    const currentBaseAngle = firstPiece ? firstPiece.transform.rotation : (firstModel ? firstModel.transform.rotation : 0);
-    const delta = targetAngle - currentBaseAngle;
-
-    for (const id of selectedIds) {
-      const piece = layout.pieces.find((p) => p.id === id);
-      if (piece && this.ctx.isPieceInteractive(piece)) {
-        const oldT = { ...piece.transform };
-        const newRot = selectedIds.length === 1 ? targetAngle : normAngle(piece.transform.rotation + delta);
-        const newT: Transform = { ...piece.transform, rotation: newRot };
-        const entry = this.ctx.getCatalogEntry(piece);
-        if (entry) {
-          piece.transform = newT;
-          piece.connectors = computeWorldConnectors(entry, newT);
-          history.run(new MovePieceCommand(piece.id, oldT, newT));
-        }
-      }
-      const model = layout.models?.find((m) => m.id === id);
-      if (model) {
-        const oldT = { ...model.transform };
-        const newRot = selectedIds.length === 1 ? targetAngle : normAngle(model.transform.rotation + delta);
-        const newT: Transform = { ...oldT, rotation: newRot };
-        model.transform = newT;
-        history.run(new MoveModelCommand(model.id, oldT, newT));
-      }
-    }
-    this.ctx.sync(true);
+    applyAngleInput(this.ctx, rawVal);
   }
 
   public async triggerExportCSV(): Promise<void> {

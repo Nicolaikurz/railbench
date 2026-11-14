@@ -121,6 +121,8 @@ export function buildToolbarEvents(deps: ToolbarFactoryDeps): ToolbarEvents {
     onToggleCatenaryIsolator: () => operations.toggleSelectedCatenaryIsolator(),
     onToggleTurnoutLantern: () => operations.toggleSelectedTurnoutLantern(),
     onToggleTurnoutDecoder: () => operations.toggleSelectedTurnoutDecoder(),
+    onToggleSignal: () => operations.toggleSelectedSignal(),
+    onToggleBridge: () => operations.toggleSelectedBridge(),
     onSetFeedVoltage: (v: number) => {
       layout.feedVoltage = v;
       if (!deps.isPowerSimEnabled()) deps.setPowerSimEnabled(true);

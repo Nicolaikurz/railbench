@@ -92,8 +92,8 @@ export const DEMO_LAYOUTS: DemoLayoutDef[] = [
       "Klassischer Alpen-Rundkurs mit Ausweichgleis, Prellbock, Einspeisung, Bergbahnhof und Stellwerk.",
     descriptionEn:
       "Classic alpine circuit with passing siding, buffer stop, power feeder, mountain station, and signal box.",
-    dimensionsMm: { width: 1800, height: 1000 },
-    pieceCount: 21,
+    dimensionsMm: { width: 2200, height: 1250 },
+    pieceCount: 99,
     icon: "🏔️",
     tags: ["H0", "Märklin", "Oval", "Bahnhof", "Klassiker"],
     createLayout: createAlpenlandH0Layout,
@@ -109,8 +109,8 @@ export const DEMO_LAYOUTS: DemoLayoutDef[] = [
       "Vollständige 2-gleisige Hauptstrecke (R1/R2) mit Güter- und Lokschuppen-Abstellgleisen, Prellböcken, Hauptbahnhof, BW-Lokschuppen und Stellwerk.",
     descriptionEn:
       "Complete double-track mainline circuit (R1/R2) with freight and engine shed sidings, buffer stops, main station, depot, and signal box.",
-    dimensionsMm: { width: 2500, height: 1300 },
-    pieceCount: 46,
+    dimensionsMm: { width: 1850, height: 1350 },
+    pieceCount: 45,
     icon: "🚂",
     tags: ["H0", "Märklin", "2-Gleisig", "Hauptstrecke", "BW"],
     createLayout: createMainlineH0Layout,
@@ -126,7 +126,7 @@ export const DEMO_LAYOUTS: DemoLayoutDef[] = [
       "Kompakte Spur-N Anlage mit R2-Stammoval, 3 parallelen Industrie-Anschlussgleisen, Entkupplungsgleisen, Prellböcken, Industriewerk und Stellwerk.",
     descriptionEn:
       "Compact N-scale layout with R2 main loop, 3 parallel industrial spurs, uncouplers, buffer stops, factory building, and signal box.",
-    dimensionsMm: { width: 1200, height: 650 },
+    dimensionsMm: { width: 1100, height: 900 },
     pieceCount: 31,
     icon: "🏭",
     tags: ["N", "Minitrix", "Rangieren", "Industrie", "Kompakt"],
@@ -143,7 +143,7 @@ export const DEMO_LAYOUTS: DemoLayoutDef[] = [
       "Großzügiger Gartenbahn-Rundkurs mit R1-Bögen, 2 Abstellgleisen mit beleuchteten Prellböcken, Gartenbahnhof und historischem Wasserturm.",
     descriptionEn:
       "Generous garden railway loop with R1 curves, 2 sidings with illuminated buffer stops, garden station, and historic water tower.",
-    dimensionsMm: { width: 3200, height: 2000 },
+    dimensionsMm: { width: 2650, height: 2200 },
     pieceCount: 27,
     icon: "🌲",
     tags: ["G", "LGB", "Gartenbahn", "45 mm", "Outdoor"],
@@ -160,7 +160,7 @@ export const DEMO_LAYOUTS: DemoLayoutDef[] = [
       "Klassisches Inglenook-Rangierrätsel in Spur 0: Ausziehgleis mit Weichenstraße zu 3 parallelen Abstellgleisen, Entkupplern, Prellböcken und Güterschuppen.",
     descriptionEn:
       "Classic Inglenook shunting puzzle in Scale 0: Lead track with turnouts into 3 parallel sidings, uncouplers, buffer stops, and goods shed.",
-    dimensionsMm: { width: 2600, height: 750 },
+    dimensionsMm: { width: 2700, height: 650 },
     pieceCount: 17,
     icon: "🧩",
     tags: ["0", "Lenz", "Inglenook", "Rangieren", "32 mm"],
@@ -178,7 +178,7 @@ export const DEMO_LAYOUTS: DemoLayoutDef[] = [
     descriptionEn:
       "Delicate miniature suitcase layout with R2 loop, isolating and contact tracks, station spur with uncoupler, alpine halt, and chalet.",
     dimensionsMm: { width: 750, height: 500 },
-    pieceCount: 16,
+    pieceCount: 15,
     icon: "💼",
     tags: ["Z", "Märklin Z", "Miniatur", "Koffer", "6.5 mm"],
     createLayout: createSuitcaseZLayout,

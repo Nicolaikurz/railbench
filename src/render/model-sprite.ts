@@ -57,6 +57,8 @@ export function createModel2DGraphics(model: Model3D, isSelected: boolean): Cont
     drawBufferStopTopView(g, w, d, halfW, halfD, isSelected);
   } else if (builtinId === "platform-lamp") {
     drawPlatformLampTopView(g, w, d, halfW, halfD, isSelected);
+  } else if (builtinId === "platform" || builtinId === "bahnsteig") {
+    drawPlatformTopView(g, w, d, halfW, halfD, isSelected);
   } else if (builtinId === "mountain") {
     drawMountainTopView(g, w, d, halfW, halfD, isSelected);
   } else {
@@ -746,6 +748,115 @@ function drawMountainTopView(g: Graphics, w: number, d: number, halfW: number, h
   g.moveTo(-halfW * 0.3, 0).lineTo(halfW * 0.3, 0);
   g.moveTo(0, -halfD * 0.25).lineTo(0, halfD * 0.25);
   g.stroke({ width: 1.4, color: 0xffffff, alpha: 0.9 });
+}
+
+/** Bahnsteig: Pflasterbelag, Bahnsteigkanten, taktile Sicherheitsstreifen, Treppenabgang & Glas-Stahldach */
+function drawPlatformTopView(g: Graphics, w: number, d: number, halfW: number, halfD: number, isSelected: boolean) {
+  // 1. Weicher Schatten
+  g.roundRect(-halfW + 3, -halfD + 3, w, d, 2);
+  g.fill({ color: 0x000000, alpha: 0.22 });
+
+  // 2. Beton-Bahnsteigkörper
+  g.roundRect(-halfW, -halfD, w, d, 2);
+  g.fill({ color: 0x94a3b8 });
+
+  // 3. Schräge Rampenenden (Abschrägung links und rechts)
+  const rampW = Math.min(22, halfW * 0.15);
+  g.poly([-halfW, -halfD, -halfW + rampW, -halfD, -halfW + rampW, halfD, -halfW, halfD]);
+  g.fill({ color: 0x64748b, alpha: 0.5 });
+  g.poly([halfW - rampW, -halfD, halfW, -halfD, halfW, halfD, halfW - rampW, halfD]);
+  g.fill({ color: 0x64748b, alpha: 0.5 });
+
+  // Gelbe Warnstreifen an den Rampenschwellen
+  g.rect(-halfW + rampW - 1, -halfD + 2, 2, d - 4);
+  g.fill({ color: 0xeab308 });
+  g.rect(halfW - rampW - 1, -halfD + 2, 2, d - 4);
+  g.fill({ color: 0xeab308 });
+
+  // 4. Granit-Bahnsteigkanten oben und unten (Gleisseiten)
+  g.rect(-halfW, -halfD, w, 2.5);
+  g.fill({ color: 0x475569 });
+  g.rect(-halfW, halfD - 2.5, w, 2.5);
+  g.fill({ color: 0x475569 });
+
+  // 5. Taktile weiße Sicherheitslinien (Blindenleitsystem)
+  g.rect(-halfW + rampW, -halfD + 4.5, w - 2 * rampW, 1.6);
+  g.fill({ color: 0xf8fafc });
+  g.rect(-halfW + rampW, halfD - 6.1, w - 2 * rampW, 1.6);
+  g.fill({ color: 0xf8fafc });
+
+  // 6. Treppenabgang zur Personenunterführung (Zentrum)
+  const stairW = Math.min(36, halfW * 0.25);
+  const stairD = Math.min(18, halfD * 0.7);
+  g.roundRect(-stairW / 2, -stairD / 2, stairW, stairD, 1);
+  g.fill({ color: 0x0f172a });
+
+  // Stufenlinien
+  for (let s = -stairW / 2 + 5; s < stairW / 2 - 2; s += 4) {
+    g.rect(s, -stairD / 2 + 1.5, 1.5, stairD - 3);
+    g.fill({ color: 0x475569 });
+  }
+  // Edelstahlgeländer-Rahmen um Treppenabgang
+  g.roundRect(-stairW / 2, -stairD / 2, stairW, stairD, 1);
+  g.stroke({ width: 1.2, color: 0x38bdf8 });
+
+  // 7. Sitzbänke (links und rechts des Abgangs)
+  for (const bx of [-halfW * 0.38, halfW * 0.38]) {
+    g.rect(bx - 8, -3.5, 16, 7);
+    g.fill({ color: 0xb45309 });
+    g.stroke({ width: 0.8, color: 0x1e293b });
+  }
+
+  // 8. Bahnsteigdach (Mittelbereich)
+  const canopyW = w * 0.65;
+  const canopyD = d * 0.92;
+  const cHalfW = canopyW / 2;
+  const cHalfD = canopyD / 2;
+
+  // Dach-Schatten
+  g.roundRect(-cHalfW + 2, -cHalfD + 2, canopyW, canopyD, 2);
+  g.fill({ color: 0x000000, alpha: 0.2 });
+
+  // Dachhaut (Dunkelblau/Grau)
+  g.roundRect(-cHalfW, -cHalfD, canopyW, canopyD, 2);
+  g.fill({ color: 0x1e293b, alpha: 0.85 });
+
+  // Transluzentes Lichtband / Glasverglasung in der Dachmitte
+  g.rect(-cHalfW + 6, -cHalfD * 0.35, canopyW - 12, canopyD * 0.7);
+  g.fill({ color: 0x7dd3fc, alpha: 0.6 });
+
+  // Firstbalken
+  g.moveTo(-cHalfW, 0).lineTo(cHalfW, 0);
+  g.stroke({ width: 1.8, color: 0x0f172a });
+
+  // Stützen
+  for (const px of [-cHalfW * 0.75, -cHalfW * 0.3, cHalfW * 0.3, cHalfW * 0.75]) {
+    g.circle(px, 0, 2.5);
+    g.fill({ color: 0x0f172a });
+    g.circle(px, 0, 1.2);
+    g.fill({ color: 0x94a3b8 });
+  }
+
+  // Zugzielanzeiger (ZZA) & Schilder unter dem Dach
+  for (const zzaX of [-cHalfW * 0.45, cHalfW * 0.45]) {
+    g.rect(zzaX - 7, -2.5, 14, 5);
+    g.fill({ color: 0x0369a1 });
+    g.rect(zzaX - 5, -1.2, 10, 2.4);
+    g.fill({ color: 0x38bdf8 });
+  }
+
+  // 9. Bahnsteigleuchten an den offenen Enden
+  for (const lx of [-halfW + 16, halfW - 16]) {
+    g.circle(lx, 0, 3);
+    g.fill({ color: 0xfef08a });
+    g.stroke({ width: 1.0, color: 0xca8a04 });
+    g.circle(lx, 0, 1.2);
+    g.fill({ color: 0xffffff });
+  }
+
+  // 10. Äußere Umrandung
+  g.roundRect(-halfW, -halfD, w, d, 2);
+  g.stroke({ width: isSelected ? 2.5 : 1.2, color: isSelected ? 0x38bdf8 : 0x334155 });
 }
 
 function drawGenericBuildingTopView(

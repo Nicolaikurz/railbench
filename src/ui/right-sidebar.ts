@@ -84,7 +84,8 @@ export class RightSidebar {
   public autoFitLayers(forceReset = false): void {
     const layerCount = (this.layout.layers || []).length;
     const hasWoodBtn = Boolean(this.callbacks.onToggleWoodPlate);
-    const minRequiredHeight = layerCount * 38 + (hasWoodBtn ? 68 : 36);
+    const hasHeightBtn = Boolean(this.callbacks.onOpenHeightDialog);
+    const minRequiredHeight = layerCount * 38 + (hasWoodBtn && hasHeightBtn ? 96 : (hasWoodBtn || hasHeightBtn ? 68 : 36));
 
     const layerCountChanged = this.lastLayerCount !== -1 && this.lastLayerCount !== layerCount;
     this.lastLayerCount = layerCount;
@@ -156,33 +157,59 @@ export class RightSidebar {
       body.appendChild(alertBox);
     }
 
-    // Action buttons container for Woodplate
-    if (this.callbacks.onToggleWoodPlate) {
+    // Action buttons container for Height/Ramp and Woodplate
+    const hasWood = Boolean(this.callbacks.onToggleWoodPlate);
+    const hasHeight = Boolean(this.callbacks.onOpenHeightDialog);
+
+    if (hasWood || hasHeight) {
       const btnGroup = document.createElement("div");
       btnGroup.className = "cl-btn-group";
+      const de = getLanguage() === "de";
+
+      // Height & Ramp panel button
+      if (hasHeight) {
+        const heightBtn = document.createElement("button");
+        heightBtn.type = "button";
+        heightBtn.className = "cl-btn";
+        heightBtn.id = "cl-open-height-panel";
+        heightBtn.title = de
+          ? "Höhe & Steigung (Rampe) für Gleise festlegen oder generieren"
+          : "Set or generate track height and ramps";
+        heightBtn.innerHTML = `
+          <span style="display: flex; align-items: center; gap: 6px;">
+            <span class="cl-btn-icon">📐</span>
+            <span>${de ? "Höhe & Rampe..." : "Height & Ramp..."}</span>
+          </span>
+        `;
+        heightBtn.addEventListener("click", () => {
+          this.callbacks.onOpenHeightDialog?.();
+        });
+        btnGroup.appendChild(heightBtn);
+      }
 
       // Wood plate button
-      const de = getLanguage() === "de";
-      const on = this.callbacks.isWoodPlateActive?.() ?? false;
-      const woodBtn = document.createElement("button");
-      woodBtn.type = "button";
-      woodBtn.className = `cl-btn ${on ? "is-active" : ""}`;
-      woodBtn.id = "cl-toggle-woodplate";
-      woodBtn.title = de
-        ? "Trassenbrett / Woodplatte unter Gleisen und Straßen ein- oder ausblenden"
-        : "Show or hide wood roadbed plate under tracks and roads";
-      woodBtn.innerHTML = `
-        <span style="display: flex; align-items: center; gap: 6px;">
-          <span class="cl-btn-icon">${ICONS.wood}</span>
-          <span>${de ? "Woodplatte" : "Wood plate"}</span>
-        </span>
-        <span class="cl-btn-badge">${on ? (de ? "An" : "On") : (de ? "Aus" : "Off")}</span>
-      `;
-      woodBtn.addEventListener("click", () => {
-        this.callbacks.onToggleWoodPlate?.();
-        this.render();
-      });
-      btnGroup.appendChild(woodBtn);
+      if (hasWood) {
+        const on = this.callbacks.isWoodPlateActive?.() ?? false;
+        const woodBtn = document.createElement("button");
+        woodBtn.type = "button";
+        woodBtn.className = `cl-btn ${on ? "is-active" : ""}`;
+        woodBtn.id = "cl-toggle-woodplate";
+        woodBtn.title = de
+          ? "Trassenbrett / Woodplatte unter Gleisen und Straßen ein- oder ausblenden"
+          : "Show or hide wood roadbed plate under tracks and roads";
+        woodBtn.innerHTML = `
+          <span style="display: flex; align-items: center; gap: 6px;">
+            <span class="cl-btn-icon">${ICONS.wood}</span>
+            <span>${de ? "Woodplatte" : "Wood plate"}</span>
+          </span>
+          <span class="cl-btn-badge">${on ? (de ? "An" : "On") : (de ? "Aus" : "Off")}</span>
+        `;
+        woodBtn.addEventListener("click", () => {
+          this.callbacks.onToggleWoodPlate?.();
+          this.render();
+        });
+        btnGroup.appendChild(woodBtn);
+      }
 
       body.appendChild(btnGroup);
     }

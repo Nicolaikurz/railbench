@@ -11,6 +11,9 @@ export interface BaseboardRenderOptions {
   snapGuides?: BaseboardSnapGuide[];
   layout?: Layout;
   catalog?: Catalog;
+  previewElevations?: Map<string, { start: number; end: number }>;
+  layerElevation?: number;
+  layerThickness?: number;
 }
 
 export interface StyleColorConfig {
@@ -119,7 +122,22 @@ export function createBaseboardGraphics(
     container.addChild(glow);
   }
 
-  // 2. Tischplatte Oberfläche
+  // 1C. Tischdurchbrüche / Ausschnitte für Rampen und Strecken unter der Platte berechnen
+  const layerElev = options.layerElevation ?? 0;
+  const layerThick = options.layerThickness ?? 35;
+  const cutouts =
+    options.layout && options.catalog
+      ? computeTableTrackCutouts(
+          options.layout,
+          options.catalog,
+          config,
+          layerElev,
+          layerThick,
+          options.previewElevations,
+        )
+      : [];
+
+  // 2. Tischplatte Oberfläche (mit Durchbrüchen für durchdringende Strecken)
   const g = new Graphics();
   if (isRect) {
     g.roundRect(x, y, width, depth, radius);
@@ -127,6 +145,13 @@ export function createBaseboardGraphics(
     g.poly(polygon);
   }
   g.fill({ color: styleConfig.surfaceColor });
+
+  for (const cutout of cutouts) {
+    if (cutout.points.length >= 3) {
+      g.poly(cutout.points);
+      g.cut();
+    }
+  }
   container.addChild(g);
 
   // Gras- / Wiesenstruktur oder Holzmaserung
@@ -187,13 +212,23 @@ export function createBaseboardGraphics(
       }
     }
 
-    if (!isRect) {
-      const maskG = new Graphics();
+    // Maskierung für Holzmaserung / Gras (Tischform abzüglich Durchbrüche)
+    const maskG = new Graphics();
+    if (isRect) {
+      maskG.roundRect(x, y, width, depth, radius);
+    } else {
       maskG.poly(polygon);
-      maskG.fill({ color: 0xffffff });
-      patternG.mask = maskG;
-      container.addChild(maskG);
     }
+    maskG.fill({ color: 0xffffff });
+
+    for (const cutout of cutouts) {
+      if (cutout.points.length >= 3) {
+        maskG.poly(cutout.points);
+        maskG.cut();
+      }
+    }
+    patternG.mask = maskG;
+    container.addChild(maskG);
     container.addChild(patternG);
   }
 
@@ -216,27 +251,28 @@ export function createBaseboardGraphics(
   container.addChild(borderG);
 
   // 3B. Tischdurchbrüche / Ausschnitte für Rampen und Strecken unter der Platte
-  if (options.layout && options.catalog) {
-    const cutouts = computeTableTrackCutouts(options.layout, options.catalog, config);
-    if (cutouts.length > 0) {
-      const cutoutGraphics = new Graphics();
-      for (const cutout of cutouts) {
-        if (cutout.points.length < 3) continue;
+  if (cutouts.length > 0) {
+    const cutoutGraphics = new Graphics();
+    for (const cutout of cutouts) {
+      if (cutout.points.length < 3) continue;
 
-        // Dunkle Aussparung / Durchbruch nach unten
-        cutoutGraphics.poly(cutout.points);
-        cutoutGraphics.fill({ color: 0x18181b, alpha: 0.72 });
+      // 1. Dunkler Aussparungs-Boden / Tiefenschacht nach unten (subterranean opening)
+      cutoutGraphics.poly(cutout.points);
+      cutoutGraphics.fill({ color: 0x090d16, alpha: 0.94 });
 
-        // Umleimer- / Schnittkante des Holzausschnitts
-        cutoutGraphics.poly(cutout.points);
-        cutoutGraphics.stroke({ width: 2.2, color: styleConfig.edgeColor, alpha: 0.95 });
+      // 2. Weicher innerer Tiefenschatten der 35mm dicken Holzplatte
+      cutoutGraphics.poly(cutout.points);
+      cutoutGraphics.stroke({ width: 3.8, color: 0x000000, alpha: 0.38 });
 
-        // Schattierte Innenkante
-        cutoutGraphics.poly(cutout.points);
-        cutoutGraphics.stroke({ width: 1.0, color: 0x09090b, alpha: 0.5 });
-      }
-      container.addChild(cutoutGraphics);
+      // 3. Solide Schnittkante / Multiplex-Umleimer des Holzausschnitts
+      cutoutGraphics.poly(cutout.points);
+      cutoutGraphics.stroke({ width: 2.8, color: styleConfig.edgeColor, alpha: 0.95 });
+
+      // 4. Glanzkante / Fase oben am Schnittrand
+      cutoutGraphics.poly(cutout.points);
+      cutoutGraphics.stroke({ width: 1.0, color: styleConfig.highlightColor, alpha: 0.4 });
     }
+    container.addChild(cutoutGraphics);
   }
 
   // 4. Bemaßungslinien und -beschriftungen
@@ -325,8 +361,10 @@ function createDimBadge(textString: string): Container {
 
   const padX = 7;
   const padY = 3;
-  const bgW = text.width + padX * 2;
-  const bgH = text.height + padY * 2;
+  const textW = typeof document !== "undefined" ? (text.width || 60) : 60;
+  const textH = typeof document !== "undefined" ? (text.height || 16) : 16;
+  const bgW = textW + padX * 2;
+  const bgH = textH + padY * 2;
 
   const bg = new Graphics();
   // Schatten

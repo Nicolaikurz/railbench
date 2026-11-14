@@ -34,6 +34,10 @@ export interface TrackContextMenuOptions {
   onReplaceTrack?: (newCatalogId: string) => void;
   onToggleTurnoutDecoder?: () => void;
   onToggleTurnoutLantern?: () => void;
+  onToggleSignal?: () => void;
+  onCycleSignalSide?: () => void;
+  onCycleSignalDirection?: () => void;
+  onToggleBridge?: () => void;
   // Backward compatibility
   onRotate?: () => void;
   onToggleFeeder?: () => void;
@@ -74,6 +78,11 @@ export function showTrackContextMenu(options: TrackContextMenuOptions): void {
     onReplaceTrack,
     onToggleTurnoutDecoder,
     onToggleTurnoutLantern,
+    onToggleSignal,
+    onCycleSignalSide,
+    onCycleSignalDirection,
+    onToggleBridge,
+    onToggleCatenary,
     onRotate,
   } = options;
 
@@ -95,6 +104,22 @@ export function showTrackContextMenu(options: TrackContextMenuOptions): void {
 
   const trackTypeName = catalogEntry?.name || (isDe ? "Gleisstück" : "Track Piece");
 
+  const signalSide = piece.signalSide ?? "right";
+  const signalSideText =
+    signalSide === "both"
+      ? (isDe ? "Beide Seiten" : "Both Sides")
+      : signalSide === "left"
+        ? (isDe ? "Links" : "Left")
+        : (isDe ? "Rechts" : "Right");
+
+  const signalDir = piece.signalDirection ?? "forward";
+  const signalDirText =
+    signalDir === "both"
+      ? (isDe ? "Beide Richtungen" : "Both Directions")
+      : signalDir === "backward"
+        ? (isDe ? "Rückwärts" : "Backward")
+        : (isDe ? "Vorwärts" : "Forward");
+
   const menu = document.createElement("div");
   menu.id = MENU_ID;
   menu.className = "track-context-menu";
@@ -110,30 +135,23 @@ export function showTrackContextMenu(options: TrackContextMenuOptions): void {
       </div>
     </div>
 
-    <!-- 1. Ramp / height -->
-    <div class="ctx-section-title">${isDe ? "Rampe / Höhe" : "Ramp / Height"}</div>
+    <!-- 1. Height & Ramp -->
+    <div class="ctx-section-title">${isDe ? "Höhe & Steigung" : "Height & Ramp"}</div>
 
-    <div class="ctx-item primary-accent" data-action="ramp-generator">
+    <div class="ctx-item primary-accent" data-action="height-dialog">
       <div class="ctx-item-left">
         <span class="ctx-icon">📐</span>
-        <span>${isDe ? "Rampe zu Ebene erstellen..." : "Auto-Create Ramp to Layer..."}</span>
-      </div>
-    </div>
-
-    <div class="ctx-item" data-action="auto-ramp">
-      <div class="ctx-item-left">
-        <span class="ctx-icon">📐</span>
-        <span>${isDe ? "Auto-Rampe berechnen" : "Auto-Calculate Ramp"}</span>
-      </div>
-      <span class="ctx-shortcut">⇧M</span>
-    </div>
-
-    <div class="ctx-item" data-action="height-dialog">
-      <div class="ctx-item-left">
-        <span class="ctx-icon">⤉</span>
-        <span>${isDe ? "Gleishöhe & Ebene anpassen..." : "Track Height & Layer..."}</span>
+        <span>${isDe ? "Höhe & Steigung (Rampe)..." : "Height & Ramp..."}</span>
       </div>
       <span class="ctx-shortcut">M</span>
+    </div>
+
+    <div class="ctx-item" data-action="ramp-generator">
+      <div class="ctx-item-left">
+        <span class="ctx-icon">⚡</span>
+        <span>${isDe ? "Auto-Rampe generieren..." : "Auto-Generate Ramp..."}</span>
+      </div>
+      <span class="ctx-shortcut">⇧M</span>
     </div>
 
     <div class="ctx-divider"></div>
@@ -179,6 +197,50 @@ export function showTrackContextMenu(options: TrackContextMenuOptions): void {
         <span class="ctx-icon">ℹ</span>
         <span>${isDe ? "Eigenschaften / Info..." : "Properties / Info..."}</span>
       </div>
+    </div>
+
+    <div class="ctx-item" data-action="toggle-signal">
+      <div class="ctx-item-left">
+        <span class="ctx-icon">🚦</span>
+        <span>${piece.hasSignal ? (isDe ? "Signal entfernen" : "Remove Signal") : (isDe ? "Signal aufstellen" : "Place Signal")}</span>
+      </div>
+      <span class="ctx-shortcut">⇧S</span>
+    </div>
+
+    ${
+      piece.hasSignal
+        ? `
+    <div class="ctx-item" data-action="cycle-signal-side">
+      <div class="ctx-item-left">
+        <span class="ctx-icon">⇄</span>
+        <span>${isDe ? `Signal-Seite: ${signalSideText}` : `Signal Side: ${signalSideText}`}</span>
+      </div>
+    </div>
+
+    <div class="ctx-item" data-action="cycle-signal-direction">
+      <div class="ctx-item-left">
+        <span class="ctx-icon">⇅</span>
+        <span>${isDe ? `Signal-Richtung: ${signalDirText}` : `Signal Direction: ${signalDirText}`}</span>
+      </div>
+    </div>
+    `
+        : ""
+    }
+
+    <div class="ctx-item" data-action="toggle-bridge">
+      <div class="ctx-item-left">
+        <span class="ctx-icon">🌉</span>
+        <span>${piece.hasBridge ? (isDe ? "Brücke entfernen" : "Remove Bridge") : (isDe ? "Als Brücke definieren" : "Define as Bridge")}</span>
+      </div>
+      <span class="ctx-shortcut">B</span>
+    </div>
+
+    <div class="ctx-item" data-action="toggle-catenary">
+      <div class="ctx-item-left">
+        <span class="ctx-icon">⌁</span>
+        <span>${piece.hasCatenary ? (isDe ? "Oberleitung entfernen" : "Remove Catenary") : (isDe ? "Oberleitung aktivieren" : "Enable Catenary")}</span>
+      </div>
+      <span class="ctx-shortcut">O</span>
     </div>
 
     ${
@@ -322,6 +384,21 @@ export function showTrackContextMenu(options: TrackContextMenuOptions): void {
       case "toggle-lantern":
         onToggleTurnoutLantern?.();
         break;
+      case "toggle-signal":
+        onToggleSignal?.();
+        break;
+      case "cycle-signal-side":
+        onCycleSignalSide?.();
+        break;
+      case "cycle-signal-direction":
+        onCycleSignalDirection?.();
+        break;
+      case "toggle-bridge":
+        onToggleBridge?.();
+        break;
+      case "toggle-catenary":
+        onToggleCatenary?.();
+        break;
     }
   });
 
@@ -410,6 +487,10 @@ export function openPropertiesDialog(piece: TrackPiece, catalogEntry?: CatalogEn
     .replace("{{ISOLATOR_VALUE}}", piece.isIsolator ? `⊘ Pin ${(piece.isolatedConnectorIndex ?? 0) + 1}` : (isDe ? "Nein" : "No"))
     .replace("{{CATENARY_LABEL}}", isDe ? "Oberleitung:" : "Catenary:")
     .replace("{{CATENARY_VALUE}}", piece.hasCatenary ? (isDe ? "⌁ Aktiv" : "⌁ Active") : (isDe ? "Nein" : "No"))
+    .replace("{{SIGNAL_LABEL}}", isDe ? "Signal:" : "Signal:")
+    .replace("{{SIGNAL_VALUE}}", piece.hasSignal ? (isDe ? `🚦 Montiert (${piece.signalSide === "both" ? "beidseitig" : piece.signalSide === "left" ? "links" : "rechts"}, ${piece.signalDirection === "both" ? "beide Richtungen" : piece.signalDirection === "backward" ? "rückwärts" : "vorwärts"})` : `🚦 Mounted (${piece.signalSide ?? "right"}, ${piece.signalDirection ?? "forward"})`) : (isDe ? "Nein" : "No"))
+    .replace("{{BRIDGE_LABEL}}", isDe ? "Brücke / Viadukt:" : "Bridge / Viaduct:")
+    .replace("{{BRIDGE_VALUE}}", piece.hasBridge ? (isDe ? "🌉 Aktiv" : "🌉 Active") : (isDe ? "Nein" : "No"))
     .replace("{{GROUP_SECTION}}", groupSection)
     .replace("{{CLOSE_BTN}}", isDe ? "Schließen" : "Close");
 

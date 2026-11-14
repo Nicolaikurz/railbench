@@ -9,6 +9,7 @@ import { buildBufferStop3D } from "./buffer-stop";
 import { buildPineTree3D } from "./pine-tree";
 import { buildDeciduousTree3D } from "./deciduous-tree";
 import { buildPlatformLamp3D } from "./platform-lamp";
+import { buildPlatform3D } from "./platform";
 import { buildGenericBuilding3D } from "./generic-building";
 import { buildTurntableTrainhall3D } from "./turntable-trainhall";
 import { buildSkyscraper3D } from "./skyscraper";
@@ -26,6 +27,7 @@ export {
   buildPineTree3D,
   buildDeciduousTree3D,
   buildPlatformLamp3D,
+  buildPlatform3D,
   buildGenericBuilding3D,
   buildTurntableTrainhall3D,
   buildSkyscraper3D,
@@ -47,6 +49,8 @@ export const BUILTIN_MODEL_BUILDERS: Record<string, Model3DBuilder> = {
   "pine-tree": buildPineTree3D,
   "deciduous-tree": buildDeciduousTree3D,
   "platform-lamp": buildPlatformLamp3D,
+  platform: buildPlatform3D,
+  bahnsteig: buildPlatform3D,
   "turntable-trainhall": buildTurntableTrainhall3D,
   skyscraper: buildSkyscraper3D,
   "industry-building": buildIndustryBuilding3D,

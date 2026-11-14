@@ -44,6 +44,8 @@ export const de: Translations = {
       toggleCatenaryIsolator: "Oberleitungs-Trennstelle umschalten (Shift+I)",
       toggleTurnoutLantern: "Weichenlaterne umschalten (Shift+L)",
       toggleTurnoutDecoder: "Weichendecoder umschalten (Shift+D)",
+      toggleSignal: "Signal umschalten (Shift+S)",
+      toggleBridge: "Brücke umschalten (B)",
     },
     viewMenu: {
       resetView: "Gleisplan einpassen / Zentrieren",
@@ -139,6 +141,8 @@ export const de: Translations = {
       toggleCatenaryIsolator: "Oberleitungs-Trennstelle umschalten (Shift+I)",
       toggleTurnoutLantern: "Weichenlaterne umschalten (Shift+L)",
       toggleTurnoutDecoder: "Weichendecoder umschalten (Shift+D)",
+      toggleSignal: "Signal umschalten (Shift+S)",
+      toggleBridge: "Brücke umschalten (B)",
     },
     status: {
       tracksUnit: "Gleis",

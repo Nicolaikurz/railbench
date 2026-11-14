@@ -32,6 +32,8 @@ export interface ToolbarEvents {
   onToggleCatenaryIsolator?: () => void;
   onToggleTurnoutLantern?: () => void;
   onToggleTurnoutDecoder?: () => void;
+  onToggleSignal?: () => void;
+  onToggleBridge?: () => void;
   onResetView: () => void;
   onToggleRulers?: () => void;
   onToggleBaseboard?: () => void;
@@ -312,6 +314,9 @@ export function createToolbar(host: HTMLElement, events: ToolbarEvents) {
     { isDivider: true },
     { label: t.powerMenu.toggleTurnoutLantern, shortcut: "Shift+L", onClick: events.onToggleTurnoutLantern },
     { label: t.powerMenu.toggleTurnoutDecoder, shortcut: "Shift+D", onClick: events.onToggleTurnoutDecoder },
+    { isDivider: true },
+    { label: t.powerMenu.toggleSignal, shortcut: "Shift+S", onClick: events.onToggleSignal },
+    { label: t.powerMenu.toggleBridge, shortcut: "B", onClick: events.onToggleBridge },
   ]);
   powerMenu.classList.add("power-split-dropdown");
   powerWrapper.appendChild(powerMenu);

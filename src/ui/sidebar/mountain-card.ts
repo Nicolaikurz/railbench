@@ -65,6 +65,7 @@ export function buildMountainCard(sidebar: Sidebar, ctx: BoardCtx): HTMLElement 
 
       sidebar.activeMountainId = newMountain.id;
       sidebar.mountainsOpen = true;
+      sidebar.callbacks.onSelectModel?.(newMountain.id);
       ctx.refresh();
     },
     "rb-btn rb-btn-secondary",
@@ -101,6 +102,7 @@ export function buildMountainCard(sidebar: Sidebar, ctx: BoardCtx): HTMLElement 
         currentMountain.id,
         (id) => {
           sidebar.activeMountainId = id;
+          sidebar.callbacks.onSelectModel?.(id);
           ctx.refresh();
         },
       ),

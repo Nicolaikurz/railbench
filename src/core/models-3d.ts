@@ -138,6 +138,18 @@ export const BUILTIN_MODELS: BuiltinModelDef[] = [
     badgeColor: "#000000",
   },
   {
+    id: "platform",
+    name: "Bahnsteig",
+    category: "railway",
+    icon: "🚉",
+    description: "Überdachter Personenbahnsteig mit Beton-Bahnsteigkanten, taktilen Sicherheitslinien, Glas-Stahldach, Sitzbänken, Bahnhofsuhren, ZZA und Treppenabgang.",
+    width: 320,
+    depth: 54,
+    height: 55,
+    badgeBg: "#0284c7",
+    badgeColor: "#ffffff",
+  },
+  {
     id: "turntable-trainhall",
     name: "Ringlokschuppen (Drehscheibe)",
     category: "railway",
@@ -173,22 +185,25 @@ export const BUILTIN_MODELS: BuiltinModelDef[] = [
     badgeBg: "#475569",
     badgeColor: "#ffffff",
   },
-  {
-    id: "mountain",
-    name: "Berg / Gebirgsmassiv",
-    category: "nature",
-    icon: "⛰️",
-    description: "Massiver Gebirgszug mit Felsformationen, Schneegipfel und automatischen Tunnelausschnitten für kreuzende Gleise und Straßen.",
-    width: 600,
-    depth: 450,
-    height: 220,
-    badgeBg: "#44403c",
-    badgeColor: "#ffffff",
-  },
 ];
 
+export const MOUNTAIN_MODEL_DEF: BuiltinModelDef = {
+  id: "mountain",
+  name: "Berg / Gebirgsmassiv",
+  category: "nature",
+  icon: "⛰️",
+  description: "Massiver Gebirgszug mit Felsformationen, Schneegipfel und automatischen Tunnelausschnitten für kreuzende Gleise und Straßen.",
+  width: 600,
+  depth: 450,
+  height: 220,
+  badgeBg: "#44403c",
+  badgeColor: "#ffffff",
+};
+
 export function findBuiltinModelDef(id: string): BuiltinModelDef | undefined {
-  return BUILTIN_MODELS.find((m) => m.id === id);
+  if (id === "mountain") return MOUNTAIN_MODEL_DEF;
+  const normId = id === "bahnsteig" ? "platform" : id;
+  return BUILTIN_MODELS.find((m) => m.id === normId);
 }
 
 export function createBuiltinModel(

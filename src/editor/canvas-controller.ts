@@ -1,77 +1,56 @@
-import type { Layout, TrackPiece, Model3D, Transform, ColorMode } from "@/core/types";
-import type { Catalog, CatalogEntry } from "@/catalog/catalog";
+import type { Layout, TrackPiece, Model3D, Transform, BaseboardConfig } from "@/core/types";
+import type { CatalogEntry } from "@/catalog/catalog";
 import { computeWorldConnectors } from "@/catalog/catalog";
-import { findBestSnapForPiece, updatePieceConnections, type BestPieceSnap } from "@/core/snapping";
+import { updatePieceConnections } from "@/core/snapping";
 import { snapBaseboard, type BaseboardSnapGuide } from "@/core/baseboard-snapping";
-import type { BaseboardConfig } from "@/core/types";
 import {
   getBaseboards, getBaseboardBounds, isPointInsideBaseboard, isPointNearBaseboardEdge, isPointInBaseboardHeader,
 } from "@/core/layout";
 import { isPointInsideModel, getModelRotationHandleWorld } from "@/core/models-3d";
-import { snapModelToTurntable } from "@/core/turntable-snap";
-import { snapEngineShedToTrack, snapTrainhallToTrack, snapTrackPieceToBuilding } from "@/core/engine-shed-snap";
 import {
   dist,
   normAngle,
   rad2deg,
-  rotate,
   distanceToTrackPiece,
   getPieceCenterWorld,
   getPieceRotationHandleWorld,
   isPieceInSelectionBox,
   computeGroupCentroid,
-  rotateGroupAroundCentroid,
   type RotatableItem,
 } from "@/core/geometry";
 import {
-  MovePieceCommand,
   MoveModelCommand,
   MoveBaseboardCommand,
-  type History,
 } from "@/editor/commands";
 import type { Selection } from "@/editor/selection";
-import type { Renderer } from "@/render/renderer";
-import type { CollabClient } from "@/collab/collab-client";
-import type { Sidebar } from "@/ui/sidebar";
-import type { PerfMonitor } from "@/ui/perf-monitor";
-import type { Ruler } from "@/ui/ruler";
-import type { PlanManager } from "@/io/plan-manager";
-import type { TrackOperations } from "./track-operations";
 import { handleCanvasDrop } from "./canvas-drop-handler";
-import { KeyboardController, type KeyboardControllerDeps } from "./keyboard-controller";
-import { isFlexTrack, adjustFlexTrackOpenConnector, flipFlexTrackPiece } from "@/core/flextrack";
-import { showTrackContextMenu, closeTrackContextMenu } from "@/ui/track-context-menu";
+import { KeyboardController } from "./keyboard-controller";
+import { adjustFlexTrackOpenConnector } from "@/core/flextrack";
+import { closeTrackContextMenu } from "@/ui/track-context-menu";
+import type { CanvasControllerDeps } from "./canvas-controller-types";
+import { openTrackContextMenu } from "./canvas-context-menu";
+import {
+  findOpenConnectorAt,
+  findPointMarkerAt,
+  checkFlexHandleHit,
+  isNearFlexHandle,
+  findTrackPieceAt,
+} from "./canvas-hit-test";
+import {
+  populateDraggedPiecesMap,
+  commitMovedItems,
+  applyGroupRotationWithSnapping,
+  applyGroupDragWithSnapping,
+} from "./canvas-drag-helper";
 
-export interface CanvasControllerDeps {
-  canvas: HTMLCanvasElement;
-  renderer: Renderer;
-  getLayout: () => Layout; getCatalog: () => Catalog; getSelection: () => Selection;
-  getHistory: () => History; getOperations: () => TrackOperations; getCollabClient: () => CollabClient;
-  getSidebar: () => Sidebar | null; getPerfMonitor: () => PerfMonitor; getRuler: () => Ruler;
-  getPlanManager: () => PlanManager; is3DMode: () => boolean; toggle3D: (force?: boolean) => void;
-  isMeasureToolActive: () => boolean; toggleMeasureTool: (force?: boolean) => void;
-  findMeasureSnapPoint: (pos: { x: number; y: number }, snapDist?: number, forceNoSnap?: boolean) => { x: number; y: number } | null;
-  updateMeasureHud: (updateInputs?: boolean) => void;
-  getMeasureState: () => { start: { x: number; y: number } | null; current: { x: number; y: number } | null; locked: boolean; snapPoint: { x: number; y: number } | null; snapEnabled: boolean; draggingPoint: "A" | "B" | null; };
-  setMeasureState: (update: Partial<{ start: { x: number; y: number } | null; current: { x: number; y: number } | null; locked: boolean; snapPoint: { x: number; y: number } | null; draggingPoint: "A" | "B" | null; }>) => void;
-  isSnappingEnabled: () => boolean; setSnappingEnabled: (val: boolean) => void; toggleSelectionLock?: () => void;
-  getColorMode: () => ColorMode; cycleColorMode: (target?: ColorMode) => void;
-  isTrackLabelsEnabled: () => boolean; setTrackLabelsEnabled: (val: boolean) => void;
-  isPowerSimEnabled: () => boolean; setPowerSimEnabled: (val: boolean) => void;
-  toggleRightSidebar: () => void; openHeightDialogForSelection: () => void;
-  openRampGeneratorForPiece?: (piece: TrackPiece) => void;
-  openHelpDialog: (tab?: any) => void; openPrintDialog: () => void;
-  isPieceInteractive: (piece: TrackPiece) => boolean; isModelInteractive: (model: Model3D) => boolean;
-  getCatalogEntryForPiece: (piece: TrackPiece) => CatalogEntry | undefined;
-  sync: (dirty?: boolean) => void; saveSettingsState: () => void; showToast: (msg: string, icon?: string) => void;
-  getCurrentSimulation: () => any;
-  setSelectionBox: (box: { start: { x: number; y: number }; end: { x: number; y: number } } | null) => void;
-  setDraggingBaseboardState: (isDragging: boolean, activeBoard: BaseboardConfig | null, guides: BaseboardSnapGuide[]) => void;
-}
+export type { CanvasControllerDeps } from "./canvas-controller-types";
 
 export class CanvasController {
   private deps: CanvasControllerDeps;
   private isDraggingPiece = false; private isRotatingPiece = false; private isRotatingModel = false;
+  private isDraggingPin = false;
+  private activePin: { x: number; y: number; label: string; color: number; id?: string } | null = null;
+  private activePinOriginalPos: { x: number; y: number } | null = null;
   private isBoxSelecting = false; private boxStartWorld = { x: 0, y: 0 };
   private initialBoxSelection = new Set<string>();
   private activePiece: TrackPiece | null = null; private activeModel: Model3D | null = null;
@@ -97,32 +76,21 @@ export class CanvasController {
     const scale = renderer.world.scale.x || 1;
     const catalog = this.deps.getCatalog();
     const hitGauge = catalog.gauge ?? 16.5;
-    let hit: TrackPiece | null = null;
-    let minD = Infinity;
-
-    for (const piece of layout.pieces) {
-      if (!this.deps.isPieceInteractive(piece)) continue;
-      const entry = this.deps.getCatalogEntryForPiece(piece);
-      if (!entry) continue;
-
-      const screenGrabBuffer = 20 / scale;
-      const maxAllowedDist = entry.isRoad
-        ? Math.max(35, (entry.roadWidth ?? 60) * 0.65, screenGrabBuffer)
-        : Math.max(32, hitGauge * 1.8, screenGrabBuffer);
-
-      const d = distanceToTrackPiece(wPos, piece.transform, entry);
-      if (d < maxAllowedDist && d < minD) {
-        minD = d;
-        hit = piece;
-      }
-    }
+    const hit = findTrackPieceAt(
+      layout,
+      wPos,
+      scale,
+      hitGauge,
+      (p) => this.deps.isPieceInteractive(p),
+      (p) => this.deps.getCatalogEntryForPiece(p),
+    );
 
     if (hit) {
       if (!selection.has(hit.id)) {
         selection.set(hit.id);
       }
       this.deps.sync();
-      this.openTrackContextMenu(hit, e.clientX, e.clientY);
+      openTrackContextMenu(this.deps, hit, e.clientX, e.clientY);
     } else {
       closeTrackContextMenu();
     }
@@ -217,16 +185,77 @@ export class CanvasController {
     if (e.button !== 0) return;
 
     const wPos = renderer.screenToWorld(e.clientX, e.clientY);
+    const scale = renderer.world.scale.x || 1;
+
+    // Pin Drag & Drop: Start- und Stoppunkt-Pins (A / B) mit der Maus greifen
+    const hitPin = findPointMarkerAt(this.deps.getPointMarkers?.(), wPos, scale);
+    if (hitPin && (this.deps.getPinDropHandler?.() || this.deps.getPickHandler?.())) {
+      this.isDraggingPin = true;
+      this.activePin = hitPin;
+      this.activePinOriginalPos = { x: hitPin.x, y: hitPin.y };
+      canvas.setPointerCapture(e.pointerId);
+      canvas.style.cursor = "grabbing";
+      return;
+    }
+
+    const pickHandler = this.deps.getPickHandler?.();
+    if (pickHandler) {
+      const catalog = this.deps.getCatalog();
+      const hitGauge = catalog.gauge ?? 16.5;
+      const hit = findTrackPieceAt(
+        layout,
+        wPos,
+        scale,
+        hitGauge,
+        (p) => this.deps.isPieceInteractive(p),
+        (p) => this.deps.getCatalogEntryForPiece(p),
+      );
+      pickHandler(wPos, hit);
+      return;
+    }
+
     const isMultiSelect = e.ctrlKey || e.metaKey || e.shiftKey;
     this.hasDragMoved = false;
     this.pendingSingleSelect = null;
 
     const selectedIds = selection.all();
-    const scale = renderer.world.scale.x || 1;
     const handleHitRadius = Math.max(24, 20 / scale);
 
-    if (!isMultiSelect && this.checkFlexHandleHit(wPos, handleHitRadius)) {
-      return;
+    // Klick auf Plus-Button an offenem Gleisende
+    if (!isMultiSelect) {
+      const openHit = findOpenConnectorAt(
+        layout,
+        selection,
+        (p) => this.deps.isPieceInteractive(p),
+        wPos,
+        scale,
+      );
+      if (openHit) {
+        const added = this.deps.getOperations().appendTrackToConnector(openHit.piece, openHit.connectorIndex);
+        if (added) {
+          this.deps.sync(true);
+          return;
+        }
+      }
+    }
+
+    if (!isMultiSelect) {
+      const flexHit = checkFlexHandleHit(
+        layout,
+        selection,
+        (p) => this.deps.isPieceInteractive(p),
+        (p) => this.deps.getCatalogEntryForPiece(p),
+        wPos,
+        handleHitRadius,
+      );
+      if (flexHit) {
+        this.isAdjustingFlex = true;
+        this.activeFlexPiece = flexHit.piece;
+        this.activeFlexEntry = flexHit.entry;
+        this.deps.canvas.style.cursor = "crosshair";
+        this.deps.sync();
+        return;
+      }
     }
 
     if (selectedIds.length > 0 && !isMultiSelect) {
@@ -248,6 +277,9 @@ export class CanvasController {
           const handlePos = getModelRotationHandleWorld(selModel);
           if (dist(wPos, handlePos) <= handleHitRadius) {
             clickedHandle = true;
+            if (selModel.builtinId === "mountain") {
+              this.deps.getSidebar()?.selectMountain(selModel.id);
+            }
             break;
           }
         }
@@ -307,38 +339,37 @@ export class CanvasController {
           selection.set(hitModel.id);
         }
       }
+      if (hitModel.builtinId === "mountain") {
+        this.deps.getSidebar()?.selectMountain(hitModel.id);
+      }
       this.isDraggingPiece = true;
       this.activePiece = null;
       this.activeModel = hitModel;
       this.dragStartWorld = { ...wPos };
       this.originalTransform = { ...hitModel.transform };
-      this.populateDraggedPiecesMap(layout, selection);
+      populateDraggedPiecesMap(
+        layout,
+        selection,
+        (p) => this.deps.isPieceInteractive(p),
+        (m) => this.deps.isModelInteractive(m),
+        this.draggedPiecesMap,
+        this.draggedInitialConnections,
+      );
       canvas.style.cursor = "move";
       this.deps.sync();
       return;
     }
 
-    let hit: TrackPiece | null = null;
     const catalog = this.deps.getCatalog();
     const hitGauge = catalog.gauge ?? 16.5;
-    let minD = Infinity;
-
-    for (const piece of layout.pieces) {
-      if (!this.deps.isPieceInteractive(piece)) continue;
-      const entry = this.deps.getCatalogEntryForPiece(piece);
-      if (!entry) continue;
-
-      const screenGrabBuffer = 20 / scale;
-      const maxAllowedDist = entry.isRoad
-        ? Math.max(35, (entry.roadWidth ?? 60) * 0.65, screenGrabBuffer)
-        : Math.max(32, hitGauge * 1.8, screenGrabBuffer);
-
-      const d = distanceToTrackPiece(wPos, piece.transform, entry);
-      if (d < maxAllowedDist && d < minD) {
-        minD = d;
-        hit = piece;
-      }
-    }
+    const hit = findTrackPieceAt(
+      layout,
+      wPos,
+      scale,
+      hitGauge,
+      (p) => this.deps.isPieceInteractive(p),
+      (p) => this.deps.getCatalogEntryForPiece(p),
+    );
 
     if (hit) {
       if (isMultiSelect) {
@@ -360,7 +391,14 @@ export class CanvasController {
       this.activeModel = null;
       this.dragStartWorld = { ...wPos };
       this.originalTransform = { ...hit.transform };
-      this.populateDraggedPiecesMap(layout, selection);
+      populateDraggedPiecesMap(
+        layout,
+        selection,
+        (p) => this.deps.isPieceInteractive(p),
+        (m) => this.deps.isModelInteractive(m),
+        this.draggedPiecesMap,
+        this.draggedInitialConnections,
+      );
       canvas.style.cursor = "move";
       this.deps.sync();
     } else {
@@ -462,6 +500,49 @@ export class CanvasController {
       return;
     }
 
+    // Pin Dragging aktiv: Pin folgt der Maus und snappt an naheliegende Anschlüsse
+    if (this.isDraggingPin && this.activePin) {
+      canvas.style.cursor = "grabbing";
+      const scale = renderer.world.scale.x || 1;
+      const layout = this.deps.getLayout();
+      let snapTarget: { x: number; y: number } | null = null;
+      let bestSnapDist = 32 / scale;
+
+      for (const p of layout.pieces) {
+        if (!this.deps.isPieceInteractive(p)) continue;
+        for (const c of p.connectors) {
+          const d = Math.hypot(currentWPos.x - c.x, currentWPos.y - c.y);
+          if (d < bestSnapDist) {
+            bestSnapDist = d;
+            snapTarget = { x: c.x, y: c.y };
+          }
+        }
+      }
+
+      if (snapTarget) {
+        this.activePin.x = snapTarget.x;
+        this.activePin.y = snapTarget.y;
+      } else {
+        this.activePin.x = currentWPos.x;
+        this.activePin.y = currentWPos.y;
+      }
+
+      this.deps.sync(false);
+      return;
+    }
+
+    // Hover über Pin Marker: Mauszeiger wird zur Hand ("grab")
+    const hoveringPin = findPointMarkerAt(this.deps.getPointMarkers?.(), currentWPos, renderer.world.scale.x || 1);
+    if (hoveringPin && (this.deps.getPinDropHandler?.() || this.deps.getPickHandler?.())) {
+      canvas.style.cursor = "grab";
+      return;
+    }
+
+    if (this.deps.getPickHandler?.()) {
+      canvas.style.cursor = "crosshair";
+      return;
+    }
+
     if (this.isAdjustingFlex && this.activeFlexPiece && this.activeFlexEntry) {
       adjustFlexTrackOpenConnector(
         this.activeFlexPiece,
@@ -501,6 +582,13 @@ export class CanvasController {
           }
         }
         selection.setMany([...newlyFound]);
+        if (newlyFound.size === 1) {
+          const onlyId = newlyFound.values().next().value;
+          const m = layout.models?.find((x) => x.id === onlyId);
+          if (m?.builtinId === "mountain") {
+            this.deps.getSidebar()?.selectMountain(m.id);
+          }
+        }
       }
       this.deps.sync();
       return;
@@ -528,106 +616,14 @@ export class CanvasController {
         deltaDeg = Math.round(deltaDeg / 7.5) * 7.5;
       }
 
-      const rotItems: RotatableItem[] = [];
-      for (const [id, origT] of this.draggedPiecesMap.entries()) {
-        const p = layout.pieces.find((x) => x.id === id);
-        if (p) {
-          const pEntry = this.deps.getCatalogEntryForPiece(p);
-          rotItems.push({ id, type: "piece", transform: origT, entry: pEntry });
-        }
-        const m = layout.models?.find((x) => x.id === id);
-        if (m) {
-          rotItems.push({ id, type: "model", transform: origT });
-        }
-      }
-
-      const newTransforms = rotateGroupAroundCentroid(rotItems, deltaDeg, this.pieceCenterWorld);
-
-      if (this.deps.isSnappingEnabled() && !e.altKey) {
-        const otherPieces = layout.pieces.filter((p) => !this.draggedPiecesMap.has(p.id));
-        let bestSnap: { itemSnap: BestPieceSnap; origT: Transform } | null = null;
-        let bestDist = Infinity;
-
-        for (const [id] of this.draggedPiecesMap.entries()) {
-          const p = layout.pieces.find((x) => x.id === id);
-          if (p) {
-            const pEntry = this.deps.getCatalogEntryForPiece(p);
-            if (!pEntry) continue;
-            const candT = newTransforms.get(id);
-            if (!candT) continue;
-
-            let snap = findBestSnapForPiece(pEntry, candT, otherPieces, undefined, 35, 30, undefined, p, layout.layers);
-            if (layout.models) {
-              const bSnap = snapTrackPieceToBuilding(pEntry, candT, layout.models);
-              if (bSnap && (!snap || bSnap.dist < snap.dist)) {
-                snap = bSnap;
-              }
-            }
-            if (snap && snap.dist < bestDist) {
-              bestDist = snap.dist;
-              bestSnap = { itemSnap: snap, origT: this.draggedPiecesMap.get(id)! };
-            }
-          } else {
-            const m = layout.models?.find((x) => x.id === id);
-            if (m && (m.builtinId === "engine-shed" || m.builtinId === "turntable-trainhall")) {
-              const candT = newTransforms.get(id);
-              if (!candT) continue;
-              const snap = m.builtinId === "engine-shed"
-                ? snapEngineShedToTrack(candT, layout.pieces, (pc) => this.deps.getCatalogEntryForPiece(pc))
-                : snapTrainhallToTrack(candT, layout.pieces);
-              if (snap && snap.dist < bestDist) {
-                bestDist = snap.dist;
-                bestSnap = {
-                  itemSnap: {
-                    movingConnectorIndex: 0,
-                    targetPieceId: snap.targetPiece.id,
-                    targetConnectorIndex: snap.connectorIndex,
-                    snappedTransform: snap.snappedTransform,
-                    dist: snap.dist,
-                  },
-                  origT: this.draggedPiecesMap.get(id)!,
-                };
-              }
-            }
-          }
-        }
-
-        if (bestSnap) {
-          const { itemSnap, origT } = bestSnap;
-          const snapDeltaRot = normAngle(itemSnap.snappedTransform.rotation - origT.rotation);
-          for (const [id, oT] of this.draggedPiecesMap.entries()) {
-            const relOffset = { x: oT.x - origT.x, y: oT.y - origT.y };
-            const rotOffset = rotate(relOffset, snapDeltaRot);
-            const snappedPos: Transform = {
-              x: itemSnap.snappedTransform.x + rotOffset.x,
-              y: itemSnap.snappedTransform.y + rotOffset.y,
-              rotation: normAngle(oT.rotation + snapDeltaRot),
-            };
-            const p = layout.pieces.find((x) => x.id === id);
-            if (p) {
-              p.transform = snappedPos;
-              const pEntry = this.deps.getCatalogEntryForPiece(p);
-              if (pEntry) p.connectors = computeWorldConnectors(pEntry, p.transform);
-            }
-            const m = layout.models?.find((x) => x.id === id);
-            if (m) m.transform = snappedPos;
-          }
-          this.deps.sync();
-          return;
-        }
-      }
-
-      for (const [id, newT] of newTransforms.entries()) {
-        const p = layout.pieces.find((x) => x.id === id);
-        if (p) {
-          p.transform = { ...newT };
-          const pEntry = this.deps.getCatalogEntryForPiece(p);
-          if (pEntry) p.connectors = computeWorldConnectors(pEntry, p.transform);
-        }
-        const m = layout.models?.find((x) => x.id === id);
-        if (m) m.transform = { ...newT };
-      }
-
+      applyGroupRotationWithSnapping(
+        layout,
+        this.draggedPiecesMap,
+        this.pieceCenterWorld,
+        deltaDeg,
+        this.deps.isSnappingEnabled() && !e.altKey,
+        (p) => this.deps.getCatalogEntryForPiece(p),
+      );
       this.deps.sync();
       return;
     }
@@ -691,99 +687,17 @@ export class CanvasController {
         this.pendingSingleSelect = null;
       }
 
-      let groupSnap: {
-        snappedTransform: Transform;
-        sourceId: string;
-        origTransform: Transform;
-      } | null = null;
-
-      if (this.deps.isSnappingEnabled()) {
-        const otherPieces = layout.pieces.filter((p) => !this.draggedPiecesMap.has(p.id));
-        let bestDist = Infinity;
-        if (!this.hasUnlatchedFromInitial && dragDist >= 24) {
-          this.hasUnlatchedFromInitial = true;
-        }
-        const ignoreConn = !this.hasUnlatchedFromInitial ? this.draggedInitialConnections : undefined;
-
-        for (const [id, origT] of this.draggedPiecesMap.entries()) {
-          const piece = layout.pieces.find((p) => p.id === id);
-          if (piece) {
-            const entry = this.deps.getCatalogEntryForPiece(piece);
-            if (!entry) continue;
-            const candT: Transform = { x: origT.x + dx, y: origT.y + dy, rotation: origT.rotation };
-            let snap = findBestSnapForPiece(entry, candT, otherPieces, undefined, 45, 60, ignoreConn, piece, layout.layers);
-            if (layout.models) {
-              const bSnap = snapTrackPieceToBuilding(entry, candT, layout.models);
-              if (bSnap && (!snap || bSnap.dist < snap.dist)) {
-                snap = bSnap;
-              }
-            }
-            if (snap && snap.dist < bestDist) {
-              bestDist = snap.dist;
-              groupSnap = { snappedTransform: snap.snappedTransform, sourceId: id, origTransform: origT };
-            }
-          } else {
-            const m = layout.models?.find((x) => x.id === id);
-            if (m && m.builtinId === "turntable-trainhall") {
-              const candT: Transform = { x: origT.x + dx, y: origT.y + dy, rotation: origT.rotation };
-              let snap: any = snapModelToTurntable(candT, layout.pieces, (p) => this.deps.getCatalogEntryForPiece(p));
-              if (!snap) {
-                snap = snapTrainhallToTrack(candT, layout.pieces);
-              }
-              if (snap && snap.dist < bestDist) {
-                bestDist = snap.dist;
-                groupSnap = { snappedTransform: snap.snappedTransform, sourceId: id, origTransform: origT };
-              }
-            } else if (m && m.builtinId === "engine-shed") {
-              const candT: Transform = { x: origT.x + dx, y: origT.y + dy, rotation: origT.rotation };
-              const snap = snapEngineShedToTrack(candT, layout.pieces, (p) => this.deps.getCatalogEntryForPiece(p));
-              if (snap && snap.dist < bestDist) {
-                bestDist = snap.dist;
-                groupSnap = { snappedTransform: snap.snappedTransform, sourceId: id, origTransform: origT };
-              }
-            }
-          }
-        }
-      }
-
-      if (groupSnap) {
-        const { snappedTransform, origTransform } = groupSnap;
-        const deltaRot = normAngle(snappedTransform.rotation - origTransform.rotation);
-
-        for (const [id, origT] of this.draggedPiecesMap.entries()) {
-          const relOffset = { x: origT.x - origTransform.x, y: origT.y - origTransform.y };
-          const rotOffset = rotate(relOffset, deltaRot);
-          const newPos: Transform = {
-            x: snappedTransform.x + rotOffset.x,
-            y: snappedTransform.y + rotOffset.y,
-            rotation: normAngle(origT.rotation + deltaRot),
-          };
-
-          const p = layout.pieces.find((x) => x.id === id);
-          if (p) {
-            p.transform = newPos;
-            const pEntry = this.deps.getCatalogEntryForPiece(p);
-            if (pEntry) p.connectors = computeWorldConnectors(pEntry, p.transform);
-          }
-          const m = layout.models?.find((x) => x.id === id);
-          if (m) m.transform = newPos;
-        }
-      } else {
-        for (const [id, origT] of this.draggedPiecesMap.entries()) {
-          const p = layout.pieces.find((x) => x.id === id);
-          if (p) {
-            p.transform = { x: origT.x + dx, y: origT.y + dy, rotation: origT.rotation };
-            const pEntry = this.deps.getCatalogEntryForPiece(p);
-            if (pEntry) {
-              p.connectors = computeWorldConnectors(pEntry, p.transform);
-            }
-          }
-          const m = layout.models?.find((x) => x.id === id);
-          if (m) {
-            m.transform = { x: origT.x + dx, y: origT.y + dy, rotation: origT.rotation };
-          }
-        }
-      }
+      applyGroupDragWithSnapping(
+        layout,
+        this.draggedPiecesMap,
+        dx,
+        dy,
+        dragDist,
+        this.deps.isSnappingEnabled(),
+        this.hasUnlatchedFromInitial,
+        this.draggedInitialConnections,
+        (p) => this.deps.getCatalogEntryForPiece(p),
+      );
 
       this.deps.sync();
       return;
@@ -794,7 +708,36 @@ export class CanvasController {
       const scale = renderer.world.scale.x || 1;
       const handleHitRadius = Math.max(24, 20 / scale);
 
-      if (this.isNearFlexHandle(currentWPos, handleHitRadius)) {
+      // Hover über offenem Gleisende / Plus-Button
+      const openHit = findOpenConnectorAt(
+        layout,
+        selection,
+        (p) => this.deps.isPieceInteractive(p),
+        currentWPos,
+        scale,
+      );
+      const currentHovered = this.deps.getHoveredOpenConnector?.() ?? null;
+      const newHovered = openHit ? { pieceId: openHit.piece.id, connectorIndex: openHit.connectorIndex } : null;
+
+      const hoveredChanged = (currentHovered?.pieceId !== newHovered?.pieceId) || (currentHovered?.connectorIndex !== newHovered?.connectorIndex);
+      if (hoveredChanged && this.deps.setHoveredOpenConnector) {
+        this.deps.setHoveredOpenConnector(newHovered);
+        this.deps.sync(false);
+      }
+
+      if (openHit) {
+        canvas.style.cursor = "pointer";
+        return;
+      }
+
+      if (isNearFlexHandle(
+        layout,
+        selection,
+        (p) => this.deps.isPieceInteractive(p),
+        (p) => this.deps.getCatalogEntryForPiece(p),
+        currentWPos,
+        handleHitRadius,
+      )) {
         canvas.style.cursor = "crosshair";
         return;
       }
@@ -888,6 +831,54 @@ export class CanvasController {
       return;
     }
 
+    // Pin Drag & Drop Abschluss: Pin auf Gleis fallen lassen
+    if (this.isDraggingPin && this.activePin) {
+      const currentWPos = renderer.screenToWorld(e.clientX, e.clientY);
+      const scale = renderer.world.scale.x || 1;
+      this.isDraggingPin = false;
+      try { canvas.releasePointerCapture(e.pointerId); } catch (_) {}
+      canvas.style.cursor = "default";
+
+      const catalog = this.deps.getCatalog();
+      const hitGauge = catalog.gauge ?? 16.5;
+      let hit: TrackPiece | null = null;
+      let minD = Infinity;
+
+      for (const piece of layout.pieces) {
+        if (!this.deps.isPieceInteractive(piece)) continue;
+        const entry = this.deps.getCatalogEntryForPiece(piece);
+        if (!entry) continue;
+
+        const screenGrabBuffer = 35 / scale;
+        const maxAllowedDist = entry.isRoad
+          ? Math.max(40, (entry.roadWidth ?? 60) * 0.7, screenGrabBuffer)
+          : Math.max(36, hitGauge * 2.2, screenGrabBuffer);
+
+        const d = distanceToTrackPiece(currentWPos, piece.transform, entry);
+        if (d < maxAllowedDist && d < minD) {
+          minD = d;
+          hit = piece;
+        }
+      }
+
+      const pinId = this.activePin.id || (this.activePin.label.includes("B") || this.activePin.label === "Stop" ? "B" : "A");
+      const pinDropHandler = this.deps.getPinDropHandler?.();
+
+      if (hit && pinDropHandler) {
+        pinDropHandler(pinId, currentWPos, hit);
+      } else if (hit && this.deps.getPickHandler?.()) {
+        this.deps.getPickHandler()!(currentWPos, hit);
+      } else if (this.activePinOriginalPos) {
+        this.activePin.x = this.activePinOriginalPos.x;
+        this.activePin.y = this.activePinOriginalPos.y;
+        this.deps.sync(false);
+      }
+
+      this.activePin = null;
+      this.activePinOriginalPos = null;
+      return;
+    }
+
     if (this.isAdjustingFlex) {
       if (this.activeFlexPiece) updatePieceConnections(layout.pieces, layout.layers);
       this.isAdjustingFlex = false;
@@ -925,7 +916,7 @@ export class CanvasController {
       canvas.style.cursor = "default";
       this.deps.sync();
     } else if (this.isRotatingPiece) {
-      if (this.commitMovedItems(layout, history)) {
+      if (commitMovedItems(layout, history, this.draggedPiecesMap)) {
         updatePieceConnections(layout.pieces, layout.layers);
         this.deps.sync(true);
       }
@@ -939,7 +930,11 @@ export class CanvasController {
 
       if (!this.hasDragMoved && this.pendingSingleSelect) {
         selection.set(this.pendingSingleSelect);
-      } else if (this.hasDragMoved && this.commitMovedItems(layout, history)) {
+        const m = layout.models?.find((x) => x.id === this.pendingSingleSelect);
+        if (m?.builtinId === "mountain") {
+          this.deps.getSidebar()?.selectMountain(m.id);
+        }
+      } else if (this.hasDragMoved && commitMovedItems(layout, history, this.draggedPiecesMap)) {
         updatePieceConnections(layout.pieces, layout.layers);
         this.deps.sync(true);
       }
@@ -970,99 +965,6 @@ export class CanvasController {
     }
   }
 
-  private populateDraggedPiecesMap(layout: Layout, selection: Selection): void {
-    this.hasUnlatchedFromInitial = false;
-    this.draggedPiecesMap.clear();
-    for (const id of selection.all()) {
-      const p = layout.pieces.find((x) => x.id === id);
-      if (p && this.deps.isPieceInteractive(p)) this.draggedPiecesMap.set(p.id, { ...p.transform });
-      const m = layout.models?.find((x) => x.id === id);
-      if (m && this.deps.isModelInteractive(m)) this.draggedPiecesMap.set(m.id, { ...m.transform });
-    }
-    this.draggedInitialConnections = [];
-    for (const [id] of this.draggedPiecesMap.entries()) {
-      const p = layout.pieces.find((x) => x.id === id);
-      if (p) {
-        for (const c of p.connectors) {
-          if (c.connectedTo && !this.draggedPiecesMap.has(c.connectedTo.pieceId)) {
-            this.draggedInitialConnections.push({ pieceId: c.connectedTo.pieceId, connectorIndex: c.connectedTo.connectorIndex });
-          }
-        }
-      }
-    }
-  }
-
-  private commitMovedItems(layout: Layout, history: History): boolean {
-    let movedAny = false;
-    for (const [id, origT] of this.draggedPiecesMap.entries()) {
-      const p = layout.pieces.find((x) => x.id === id);
-      if (p && (p.transform.x !== origT.x || p.transform.y !== origT.y || p.transform.rotation !== origT.rotation)) {
-        history.run(new MovePieceCommand(p.id, origT, { ...p.transform }));
-        movedAny = true;
-      }
-      const m = layout.models?.find((x) => x.id === id);
-      if (m && (m.transform.x !== origT.x || m.transform.y !== origT.y || m.transform.rotation !== origT.rotation)) {
-        history.run(new MoveModelCommand(m.id, origT, { ...m.transform }));
-        movedAny = true;
-      }
-    }
-    return movedAny;
-  }
-
-  private checkFlexHandleHit(wPos: { x: number; y: number }, hitRadius: number): boolean {
-    const layout = this.deps.getLayout();
-    const selection = this.deps.getSelection();
-    const selIds = selection.all();
-    const candidates = selIds.length === 1
-      ? [layout.pieces.find((p) => p.id === selIds[0])].filter(Boolean) as TrackPiece[]
-      : layout.pieces;
-
-    for (const p of candidates) {
-      if (!this.deps.isPieceInteractive(p)) continue;
-      const entry = this.deps.getCatalogEntryForPiece(p);
-      if (!entry || !isFlexTrack(entry, p)) continue;
-
-      if (p.connectors[1] && !p.connectors[1].connectedTo && dist(wPos, p.connectors[1]) <= hitRadius) {
-        selection.set(p.id);
-        this.isAdjustingFlex = true;
-        this.activeFlexPiece = p;
-        this.activeFlexEntry = entry;
-        this.deps.canvas.style.cursor = "crosshair";
-        this.deps.sync();
-        return true;
-      }
-      if (p.connectors[0] && !p.connectors[0].connectedTo && dist(wPos, p.connectors[0]) <= hitRadius) {
-        flipFlexTrackPiece(p, entry);
-        selection.set(p.id);
-        this.isAdjustingFlex = true;
-        this.activeFlexPiece = p;
-        this.activeFlexEntry = entry;
-        this.deps.canvas.style.cursor = "crosshair";
-        this.deps.sync();
-        return true;
-      }
-    }
-    return false;
-  }
-
-  private isNearFlexHandle(wPos: { x: number; y: number }, hitRadius: number): boolean {
-    const layout = this.deps.getLayout();
-    const selIds = this.deps.getSelection().all();
-    const candidates = selIds.length === 1
-      ? [layout.pieces.find((p) => p.id === selIds[0])].filter(Boolean) as TrackPiece[]
-      : layout.pieces;
-
-    for (const p of candidates) {
-      if (!this.deps.isPieceInteractive(p)) continue;
-      const entry = this.deps.getCatalogEntryForPiece(p);
-      if (!entry || !isFlexTrack(entry, p)) continue;
-      for (const c of p.connectors) {
-        if (!c.connectedTo && dist(wPos, c) <= hitRadius) return true;
-      }
-    }
-    return false;
-  }
-
   private onWheel(e: WheelEvent): void {
     closeTrackContextMenu();
     if (e.shiftKey || e.altKey) {
@@ -1074,84 +976,5 @@ export class CanvasController {
         this.deps.getOperations().rotateSelected(step);
       }
     }
-  }
-
-  private openTrackContextMenu(piece: TrackPiece, screenX: number, screenY: number): void {
-    const layout = this.deps.getLayout();
-    const entry = this.deps.getCatalogEntryForPiece(piece);
-    const ops = this.deps.getOperations();
-
-    showTrackContextMenu({
-      piece,
-      screenX,
-      screenY,
-      catalogEntry: entry,
-      layout,
-      onOpenRampGenerator: () => {
-        if (this.deps.openRampGeneratorForPiece) {
-          this.deps.openRampGeneratorForPiece(piece);
-        }
-      },
-      onAutoRamp: () => {
-        ops.applyAutoRamp(() => this.deps.openHeightDialogForSelection());
-      },
-      onOpenHeightDialog: () => {
-        this.deps.openHeightDialogForSelection();
-      },
-      onRotateCw: () => {
-        ops.rotateSelected(7.5);
-      },
-      onRotateCcw: () => {
-        ops.rotateSelected(-7.5);
-      },
-      onMirrorFlip: () => {
-        ops.flipSelected();
-      },
-      onCopy: () => {
-        ops.copySelected();
-      },
-      onPaste: () => {
-        ops.pasteClipboard();
-      },
-      onDuplicate: () => {
-        ops.duplicateSelected();
-      },
-      onDelete: () => {
-        ops.deleteSelected();
-      },
-      onSelectConnected: () => {
-        ops.selectConnectedTracks(piece.id);
-      },
-      onSelectLayer: () => {
-        ops.selectLayerTracks(piece.layerId);
-      },
-      onToggleGroup: () => {
-        ops.toggleGroupSelected();
-      },
-      onSplitTrack: () => {
-        ops.splitTrack(piece.id);
-      },
-      onReplaceTrack: (newCatalogId: string) => {
-        ops.replaceTrack(piece.id, newCatalogId);
-      },
-      onToggleTurnoutDecoder: () => {
-        ops.toggleSelectedTurnoutDecoder();
-      },
-      onToggleTurnoutLantern: () => {
-        ops.toggleSelectedTurnoutLantern();
-      },
-      onToggleFeeder: () => {
-        ops.toggleSelectedFeeder();
-      },
-      onToggleIsolator: () => {
-        ops.toggleSelectedIsolator();
-      },
-      onToggleCatenary: () => {
-        ops.toggleSelectedCatenary();
-      },
-      onRotate: () => {
-        ops.rotateSelected(7.5);
-      },
-    });
   }
 }

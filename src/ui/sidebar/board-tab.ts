@@ -525,7 +525,19 @@ export function buildSurfaceCard(sidebar: Sidebar, ctx: BoardCtx): HTMLElement {
         tb.style,
         getSurfaceStyleOptions(isDe),
         bb.style ?? "wood",
-        (v) => { bb.style = v; ctx.notifyBoard(); },
+        (v) => {
+          bb.style = v;
+          for (const l of sidebar.layout.layers || []) {
+            if ((l.heightMm ?? 0) === 0 && l.plates) {
+              for (const p of l.plates) {
+                if (p.baseboardId === bb.id || !p.baseboardId) {
+                  p.style = v;
+                }
+              }
+            }
+          }
+          ctx.notifyBoard();
+        },
       ),
     ]),
   );
@@ -711,6 +723,10 @@ export function buildPlateEditor(
         plate.style ?? bb.style ?? "wood",
         (v) => {
           plate.style = v;
+          if ((layer.heightMm ?? 0) === 0 && (plate.baseboardId === bb.id || !plate.baseboardId)) {
+            bb.style = v;
+            ctx.notifyBoard();
+          }
           ctx.notifyLayer();
         },
       ),

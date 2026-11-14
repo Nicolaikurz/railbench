@@ -33,6 +33,7 @@ export function isPiecePassingThroughTable(
   minClearance?: number,
   deckElevation = 0,
   deckThickness = 35,
+  previewElevations?: Map<string, { start: number; end: number }>,
 ): { passesThrough: boolean; minElev: number; maxElev: number } {
   const layer = layout.layers?.find((l) => l.id === piece.layerId);
   if (layer && !layer.visible) {
@@ -40,8 +41,11 @@ export function isPiecePassingThroughTable(
   }
 
   const baseH = layer?.heightMm ?? 0;
-  const startH = baseH + (piece.elevation?.start ?? 0);
-  const endH = baseH + (piece.elevation?.end ?? 0);
+  const prev = previewElevations?.get(piece.id);
+  const pStart = prev !== undefined ? prev.start : (piece.elevation?.start ?? 0);
+  const pEnd = prev !== undefined ? prev.end : (piece.elevation?.end ?? pStart);
+  const startH = baseH + pStart;
+  const endH = baseH + pEnd;
   const minElev = Math.min(startH, endH);
   const maxElev = Math.max(startH, endH);
 
@@ -166,72 +170,69 @@ export function groupConnectedPieces(
     }
   }
 
-  const visited = new Set<string>();
+  const unvisited = new Set(pieces.map((p) => p.id));
   const chains: Array<Array<{ piece: TrackPiece; fromConn: number; toConn: number }>> = [];
 
-  for (const startPiece of pieces) {
-    if (visited.has(startPiece.id)) continue;
-
-    // Find all pieces in this connected component
-    const componentPieces: TrackPiece[] = [];
-    const queue = [startPiece.id];
-    visited.add(startPiece.id);
-
-    while (queue.length > 0) {
-      const curId = queue.shift()!;
-      componentPieces.push(pieceMap.get(curId)!);
-      for (const edge of adj.get(curId) || []) {
-        if (!visited.has(edge.neighborId) && pieceSet.has(edge.neighborId)) {
-          visited.add(edge.neighborId);
-          queue.push(edge.neighborId);
-        }
+  while (unvisited.size > 0) {
+    // 1. Pick a start piece: prefer endpoints (degree <= 1 among unvisited or overall in pieceSet)
+    let startId: string | undefined;
+    let minDeg = Infinity;
+    for (const id of unvisited) {
+      const edges = (adj.get(id) || []).filter((e) => pieceSet.has(e.neighborId));
+      const unvisitedEdges = edges.filter((e) => unvisited.has(e.neighborId));
+      const deg = unvisitedEdges.length;
+      if (deg < minDeg) {
+        minDeg = deg;
+        startId = id;
+        if (deg <= 1) break; // Found an endpoint
       }
     }
 
-    if (componentPieces.length === 1) {
-      chains.push([{ piece: componentPieces[0]!, fromConn: 0, toConn: 1 }]);
-      continue;
-    }
+    if (!startId) startId = unvisited.values().next().value!;
 
-    // Find an endpoint piece (degree <= 1 in this component)
-    const endPiece = componentPieces.find((p) => (adj.get(p.id)?.filter((e) => pieceSet.has(e.neighborId)).length ?? 0) <= 1) || componentPieces[0]!;
-
-    // Walk linearly from endPiece
-    const ordered: Array<{ piece: TrackPiece; fromConn: number; toConn: number }> = [];
-    const walkVisited = new Set<string>();
-    let currentPiece: TrackPiece | undefined = endPiece;
+    // Walk forward linearly from startId
+    const chainForward: Array<{ piece: TrackPiece; fromConn: number; toConn: number }> = [];
+    let currentId: string | undefined = startId;
     let prevExitConn: number | undefined = undefined;
 
-    while (currentPiece && !walkVisited.has(currentPiece.id)) {
-      walkVisited.add(currentPiece.id);
-      const pieceEdges: PieceEdge[] = adj.get(currentPiece.id) ?? [];
-      const edges: PieceEdge[] = pieceEdges.filter((e: PieceEdge) => pieceSet.has(e.neighborId) && !walkVisited.has(e.neighborId));
+    while (currentId && unvisited.has(currentId)) {
+      unvisited.delete(currentId);
+      const piece = pieceMap.get(currentId)!;
+      const pieceEdges: PieceEdge[] = adj.get(currentId) || [];
 
       let fromConn = 0;
       let toConn = 1;
 
       if (prevExitConn !== undefined) {
-        // Find which connector was closest to previous exit
-        // We find the edge that brought us here
-        const parentEdges: PieceEdge[] = pieceEdges.filter((e: PieceEdge) => walkVisited.has(e.neighborId));
-        if (parentEdges.length > 0) {
-          fromConn = parentEdges[0]!.myConn;
+        // Find which connector matched the previous piece's exit
+        const edgeFromPrev = pieceEdges.find((e: PieceEdge) => e.neighborId === chainForward[chainForward.length - 1]?.piece.id);
+        if (edgeFromPrev) {
+          fromConn = edgeFromPrev.myConn;
           toConn = fromConn === 0 ? 1 : 0;
         }
       } else {
-        // First piece
-        if (edges.length > 0) {
-          toConn = edges[0]!.myConn;
+        // For start piece, pick toConn towards an unvisited neighbor if available
+        const unvisitedEdge = pieceEdges.find((e: PieceEdge) => unvisited.has(e.neighborId));
+        if (unvisitedEdge) {
+          toConn = unvisitedEdge.myConn;
+          fromConn = toConn === 0 ? 1 : 0;
+        } else if (pieceEdges.length > 0) {
+          toConn = pieceEdges[0]!.myConn;
           fromConn = toConn === 0 ? 1 : 0;
         }
       }
 
-      ordered.push({ piece: currentPiece, fromConn, toConn });
+      chainForward.push({ piece, fromConn, toConn });
       prevExitConn = toConn;
-      currentPiece = edges.length > 0 ? pieceMap.get(edges[0]!.neighborId) : undefined;
+
+      // Next piece: neighbor connected to toConn that is unvisited
+      const nextEdge = pieceEdges.find((e: PieceEdge) => e.myConn === toConn && unvisited.has(e.neighborId));
+      currentId = nextEdge ? nextEdge.neighborId : undefined;
     }
 
-    chains.push(ordered);
+    if (chainForward.length > 0) {
+      chains.push(chainForward);
+    }
   }
 
   return chains;
@@ -246,6 +247,7 @@ export function computeTableTrackCutouts(
   baseboard: BaseboardConfig,
   deckElevation = 0,
   deckThickness = 35,
+  previewElevations?: Map<string, { start: number; end: number }>,
 ): TrackCutoutPolygon[] {
   if (!baseboard.enabled || !layout.pieces || layout.pieces.length === 0) {
     return [];
@@ -283,6 +285,7 @@ export function computeTableTrackCutouts(
       undefined,
       deckElevation,
       deckThickness,
+      previewElevations,
     );
     if (!passesThrough) continue;
 
@@ -339,8 +342,11 @@ export function computeTableTrackCutouts(
       // Clip segment to the breakthrough elevation band [deckElevation - clearance, deckElevation]
       const layer = layout.layers?.find((l) => l.id === piece.layerId);
       const baseH = layer?.heightMm ?? 0;
-      const h0 = baseH + (piece.elevation?.start ?? 0);
-      const h1 = baseH + (piece.elevation?.end ?? 0);
+      const prev = previewElevations?.get(piece.id);
+      const pStart = prev !== undefined ? prev.start : (piece.elevation?.start ?? 0);
+      const pEnd = prev !== undefined ? prev.end : (piece.elevation?.end ?? pStart);
+      const h0 = baseH + pStart;
+      const h1 = baseH + pEnd;
       const hFrom = item.fromConn === 0 ? h0 : h1;
       const hTo = item.toConn === 0 ? h0 : h1;
       let tStart = 0;
@@ -408,8 +414,8 @@ export function computeTableTrackCutouts(
     // Assemble closed polygon: left points forward, then right points backward
     const rawPolygon: Array<{ x: number; y: number }> = [...leftPts, ...rightPts.reverse()];
 
-    // Clamp vertices to stay within baseboard bounding bounds (with 1.5mm inset so holes are strictly internal)
-    const inset = 1.5;
+    // Clamp vertices to stay within baseboard bounds (with 6mm inset so holes are strictly internal and 3D bevels do not collide)
+    const inset = 6.0;
     const bMinX = baseboardBounds.x + inset;
     const bMaxX = baseboardBounds.x + baseboardBounds.width - inset;
     const bMinY = baseboardBounds.y + inset;
@@ -420,27 +426,31 @@ export function computeTableTrackCutouts(
       y: Math.max(bMinY, Math.min(bMaxY, Math.round(p.y * 10) / 10)),
     }));
 
-    // Deduplicate consecutive points to prevent zero-length edges
+    // Deduplicate consecutive points and filter micro-segments to prevent self-intersecting bevel contours
     const dedupedPolygon: Array<{ x: number; y: number }> = [];
     for (const p of clampedPolygon) {
       if (
         dedupedPolygon.length === 0 ||
-        dist(p, dedupedPolygon[dedupedPolygon.length - 1]!) > 0.5
+        dist(p, dedupedPolygon[dedupedPolygon.length - 1]!) >= 3.0
       ) {
         dedupedPolygon.push(p);
       }
     }
+
+    // Remove collinear points along boundary edges and straight runs
+    const simplified = simplifyCollinear(dedupedPolygon, 0.04);
+
     if (
-      dedupedPolygon.length > 2 &&
-      dist(dedupedPolygon[0]!, dedupedPolygon[dedupedPolygon.length - 1]!) <= 0.5
+      simplified.length > 2 &&
+      dist(simplified[0]!, simplified[simplified.length - 1]!) <= 2.0
     ) {
-      dedupedPolygon.pop();
+      simplified.pop();
     }
 
-    if (dedupedPolygon.length < 3) continue;
+    if (simplified.length < 3) continue;
 
     cutouts.push({
-      points: dedupedPolygon,
+      points: simplified,
       pieceIds,
       depthRange: { min: overallMinElev, max: overallMaxElev },
       widthMm: maxCorridorWidth,
@@ -448,6 +458,36 @@ export function computeTableTrackCutouts(
   }
 
   return cutouts;
+}
+
+/**
+ * Eliminates redundant collinear points in a polygon.
+ */
+function simplifyCollinear(
+  pts: Array<{ x: number; y: number }>,
+  tolerance = 0.04,
+): Array<{ x: number; y: number }> {
+  if (pts.length <= 3) return pts;
+  const result: Array<{ x: number; y: number }> = [];
+  const N = pts.length;
+  for (let i = 0; i < N; i++) {
+    const prev = result.length > 0 ? result[result.length - 1]! : pts[(i - 1 + N) % N]!;
+    const cur = pts[i]!;
+    const next = pts[(i + 1) % N]!;
+
+    const dx1 = cur.x - prev.x;
+    const dy1 = cur.y - prev.y;
+    const dx2 = next.x - cur.x;
+    const dy2 = next.y - cur.y;
+    const cross = Math.abs(dx1 * dy2 - dy1 * dx2);
+    const len1 = Math.hypot(dx1, dy1) || 1;
+    const len2 = Math.hypot(dx2, dy2) || 1;
+
+    if (cross / (len1 * len2) > tolerance || result.length < 2) {
+      result.push(cur);
+    }
+  }
+  return result;
 }
 
 /**

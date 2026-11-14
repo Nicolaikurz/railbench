@@ -43,6 +43,8 @@ export interface Translations {
       toggleCatenaryIsolator: string;
       toggleTurnoutLantern: string;
       toggleTurnoutDecoder: string;
+      toggleSignal: string;
+      toggleBridge: string;
     };
     viewMenu: {
       resetView: string;
@@ -138,6 +140,8 @@ export interface Translations {
       toggleCatenaryIsolator: string;
       toggleTurnoutLantern: string;
       toggleTurnoutDecoder: string;
+      toggleSignal: string;
+      toggleBridge: string;
     };
     status: {
       tracksUnit: string;

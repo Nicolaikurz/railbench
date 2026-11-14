@@ -26,6 +26,7 @@ import { PlanManager } from "@/io/plan-manager";
 import { openPrintDialog } from "@/io/print";
 import { openChangeHeightDialog } from "@/ui/height-dialog";
 import { openRampGeneratorDialog } from "@/ui/ramp-generator-dialog";
+import { openHeightPanel } from "@/ui/height-panel";
 import { openHelpDialog, type HelpTab } from "@/ui/help-dialog";
 import { openCatalogImportDialog } from "@/catalog/catalog-importer";
 import { openCollabDialog } from "@/ui/collab-dialog";
@@ -36,6 +37,20 @@ import { themeManager } from "@/theme/theme-manager";
 import { loadAppSettings, saveAppSettings } from "@/settings/settings-manager";
 import { SelectionBar } from "@/ui/selection-bar";
 import { MeasureHud, getScaleRatio } from "@/ui/measure-hud";
+import { MeasureController } from "@/editor/measure-controller";
+import { showToast, showCollabToast } from "@/ui/toast";
+import {
+  openHeightPanelUnified,
+  openHeightDialogForSelection,
+  openRampGeneratorForPiece,
+  type HeightPanelDeps,
+} from "@/editor/height-panel-integration";
+import {
+  applyStartupAction,
+  triggerDemoTracksDialog,
+  triggerWelcomeDialog,
+  type AppStartupContext,
+} from "@/editor/app-startup";
 import { TrackOperations } from "@/editor/track-operations";
 import { CanvasController } from "@/editor/canvas-controller";
 import { initDemoTracks, generateStressTracks, type DemoLayoutDef } from "@/editor/demo-tracks";
@@ -72,14 +87,6 @@ async function main() {
   let isDraggingBaseboard = false;
   let activeBaseboard: BaseboardConfig | null = null;
   let activeBaseboardSnapGuides: BaseboardSnapGuide[] = [];
-
-  let isMeasureToolActive = false;
-  let measureStart: { x: number; y: number } | null = null;
-  let measureCurrent: { x: number; y: number } | null = null;
-  let measureLocked = false;
-  let measureSnapPoint: { x: number; y: number } | null = null;
-  let measureSnapEnabled = true;
-  let measureDraggingPoint: "A" | "B" | null = null;
   let layoutResizer: any = null;
 
   if (rightSidebarCollapsed) {
@@ -219,44 +226,6 @@ async function main() {
   const collabOverlay = new CollabOverlay(canvasHost, renderer);
   const collabClient = new CollabClient();
   let isApplyingRemote = false;
-
-  function showToast(msg: string, icon = "ℹ️") {
-    const existing = document.getElementById("app-global-toast");
-    if (existing) existing.remove();
-    const toast = document.createElement("div");
-    toast.id = "app-global-toast";
-    toast.className = "app-global-toast";
-    toast.style.position = "fixed";
-    toast.style.bottom = "64px";
-    toast.style.left = "50%";
-    toast.style.transform = "translateX(-50%)";
-    toast.style.background = "var(--bg-toolbar, #1e293b)";
-    toast.style.color = "var(--toolbar-text, #f8fafc)";
-    toast.style.border = "1px solid var(--border-main, #334155)";
-    toast.style.borderRadius = "20px";
-    toast.style.padding = "7px 18px";
-    toast.style.fontSize = "13px";
-    toast.style.fontWeight = "600";
-    toast.style.boxShadow = "0 8px 24px rgba(0,0,0,0.35)";
-    toast.style.zIndex = "999";
-    toast.style.pointerEvents = "none";
-    toast.style.display = "flex";
-    toast.style.alignItems = "center";
-    toast.style.gap = "8px";
-    toast.style.transition = "opacity 0.2s ease, transform 0.2s ease";
-    toast.innerHTML = `<span>${icon}</span> <span>${msg}</span>`;
-
-    document.body.appendChild(toast);
-    setTimeout(() => {
-      toast.style.opacity = "0";
-      toast.style.transform = "translateX(-50%) translateY(6px)";
-      setTimeout(() => toast.remove(), 250);
-    }, 2200);
-  }
-
-  function showCollabToast(msg: string) {
-    showToast(msg, "👥");
-  }
 
   function applyRemoteLayout(remoteLayout: Layout, fromUserName: string) {
     isApplyingRemote = true;
@@ -408,135 +377,33 @@ async function main() {
     sync();
   }
 
-  function openHeightDialogForSelection(preselectedLayerId?: string) {
-    const selected = selection.all();
-    if (selected.length === 0) {
-      alert(getTranslations().dialogs.selectTracksFirst);
-      return;
-    }
-    openChangeHeightDialog({
-      layout,
-      catalog,
-      selectedPieceIds: selected,
-      preselectedLayerId,
-      onApply: (targetLayerId, elevation) => {
-        operations.moveSelectedToLayer(targetLayerId, elevation);
-      },
-    });
-  }
+  let activePickHandler: ((wPos: { x: number; y: number }, piece: TrackPiece | null) => void) | null = null;
+  let activePinDropHandler: ((pinId: string, wPos: { x: number; y: number }, hitPiece: TrackPiece | null) => void) | null = null;
+  let activePointMarkers: Array<{ x: number; y: number; label: string; color: number; id?: string }> | null = null;
+  let activeHoveredConnector: { pieceId: string; connectorIndex: number } | null = null;
+  let previewRampElevations: Map<string, { start: number; end: number }> | null = null;
+  let previewGeneratedPieces: TrackPiece[] | null = null;
 
-  function openRampGeneratorForPiece(anchorPiece: TrackPiece) {
-    openRampGeneratorDialog({
-      layout,
-      catalog,
-      anchorPiece,
-      onApply: (generatedPieces, newLayer) => {
-        if (newLayer) {
-          if (!layout.layers) layout.layers = [];
-          if (!layout.layers.some((l) => l.id === newLayer.id)) {
-            layout.layers.push(newLayer);
-          }
-          layout.activeLayerId = newLayer.id;
-        }
-        history.run(new AddPiecesCommand(generatedPieces));
-        selection.setMany(generatedPieces.map((p) => p.id));
-        sync(true);
-        const isDe = getLanguage() === "de";
-        showToast(
-          isDe ? `${generatedPieces.length} Rampengleise erstellt` : `Created ${generatedPieces.length} ramp tracks`,
-          "📐",
-        );
-      },
-    });
-  }
+  const heightPanelDeps: HeightPanelDeps = {
+    getLayout: () => layout,
+    getCatalog: () => catalog,
+    getSelection: () => selection,
+    getHistory: () => history,
+    getOperations: () => operations,
+    sync,
+    setPreviewRampElevations: (map) => { previewRampElevations = map; },
+    setPreviewGeneratedPieces: (pieces) => { previewGeneratedPieces = pieces; },
+    setActivePointMarkers: (markers) => { activePointMarkers = markers; },
+    setActivePickHandler: (handler) => { activePickHandler = handler; },
+    setActivePinDropHandler: (handler) => { activePinDropHandler = handler; },
+  };
 
-  function findMeasureSnapPoint(pos: { x: number; y: number }, snapDist = 20, forceNoSnap = false): { x: number; y: number } | null {
-    if (!snappingEnabled || !measureSnapEnabled || forceNoSnap) return null;
-    let closestPt: { x: number; y: number } | null = null;
-    let closestD = snapDist;
-
-    for (const piece of layout.pieces) {
-      if (isPieceLockedOrHidden(piece)) continue;
-      for (const conn of piece.connectors) {
-        const d = Math.hypot(pos.x - conn.x, pos.y - conn.y);
-        if (d < closestD) {
-          closestD = d;
-          closestPt = { x: conn.x, y: conn.y };
-        }
-      }
-    }
-
-    const baseboards = getBaseboards(layout);
-    for (const bb of baseboards) {
-      if (!bb.enabled) continue;
-      const poly = getBaseboardPolygon(bb);
-      for (const pt of poly) {
-        const d = Math.hypot(pos.x - pt.x, pos.y - pt.y);
-        if (d < closestD) {
-          closestD = d;
-          closestPt = { x: pt.x, y: pt.y };
-        }
-      }
-    }
-
-    return closestPt;
-  }
-
-  function updateMeasureHud(updateInputs = true) {
-    measureHud.update({
-      isActive: isMeasureToolActive,
-      start: measureStart,
-      current: measureCurrent,
-      locked: measureLocked,
-      snapEnabled: measureSnapEnabled,
-      scale: layout.scale,
-    }, updateInputs);
-  }
-
-  function toggleMeasureTool(force?: boolean) {
-    isMeasureToolActive = force !== undefined ? force : !isMeasureToolActive;
-    if (!isMeasureToolActive) {
-      measureStart = null;
-      measureCurrent = null;
-      measureLocked = false;
-      measureDraggingPoint = null;
-      measureSnapPoint = null;
-      renderer.app.canvas.style.cursor = "default";
-    } else {
-      renderer.app.canvas.style.cursor = "crosshair";
-    }
-    updateMeasureHud();
-    sync();
-  }
-
-  // Floating Measure Tool HUD
-  const measureHud = new MeasureHud({
-    onToggleSnap: (enabled) => {
-      measureSnapEnabled = enabled;
-      updateMeasureHud();
-    },
-    onReset: () => {
-      measureStart = null;
-      measureCurrent = null;
-      measureLocked = false;
-      measureDraggingPoint = null;
-      updateMeasureHud();
-      sync();
-    },
-    onClose: () => {
-      toggleMeasureTool(false);
-    },
-    onManualCoordsChange: ({ ax, ay, bx, by }) => {
-      if (ax !== undefined && ay !== undefined) {
-        measureStart = { x: ax, y: ay };
-      }
-      if (bx !== undefined && by !== undefined) {
-        measureCurrent = { x: bx, y: by };
-        measureLocked = true;
-      }
-      updateMeasureHud(false);
-      sync();
-    },
+  const measureController = new MeasureController({
+    getLayout: () => layout,
+    getSnappingEnabled: () => snappingEnabled,
+    isPieceLockedOrHidden,
+    getCanvas: () => renderer.app.canvas,
+    sync: () => sync(),
   });
 
   // Floating Selection Action Bar (Eigenes Modul)
@@ -545,13 +412,13 @@ async function main() {
     onApplyAngle: (deg) => operations.applyAngleInput(deg),
     onAdjustFlexTrack: (id, len, r, a) => operations.adjustFlexTrack(id, len, r, a),
     onSelectLayer: (layerId) => operations.moveSelectedToLayer(layerId, { start: 0, end: 0 }),
-    onOpenHeightDialog: () => openHeightDialogForSelection(),
-    onApplyAutoRamp: () => operations.applyAutoRamp(() => openHeightDialogForSelection()),
+    onOpenHeightDialog: () => openHeightDialogForSelection(heightPanelDeps),
+    onApplyAutoRamp: () => operations.applyAutoRamp(() => openHeightDialogForSelection(heightPanelDeps)),
     onOpenRampGenerator: () => {
       const sel = selection.all();
       if (sel.length === 1) {
         const piece = layout.pieces.find((p) => p.id === sel[0]);
-        if (piece) openRampGeneratorForPiece(piece);
+        if (piece) openRampGeneratorForPiece(heightPanelDeps, piece);
       }
     },
     onToggleFeeder: () => operations.toggleSelectedFeeder(),
@@ -561,6 +428,8 @@ async function main() {
     onToggleCatenaryIsolator: () => operations.toggleSelectedCatenaryIsolator(),
     onToggleTurnoutDecoder: () => operations.toggleSelectedTurnoutDecoder(),
     onToggleTurnoutLantern: () => operations.toggleSelectedTurnoutLantern(),
+    onToggleSignal: () => operations.toggleSelectedSignal(),
+    onToggleBridge: () => operations.toggleSelectedBridge(),
     onRotate: (delta) => operations.rotateSelected(delta ?? 7.5),
     onDelete: () => operations.deleteSelected(),
     getSelectedPieceIds: () => selection.all(),
@@ -608,12 +477,16 @@ async function main() {
       activeBaseboardId: activeBaseboard?.id ?? sidebar?.getActiveBoardId(),
       isDraggingBaseboard,
       baseboardSnapGuides: activeBaseboardSnapGuides,
-      measureTool: isMeasureToolActive
+      pointMarkers: activePointMarkers || undefined,
+      previewElevations: previewRampElevations || undefined,
+      previewPieces: previewGeneratedPieces || undefined,
+      hoveredOpenConnector: activeHoveredConnector,
+      measureTool: measureController.isActive
         ? {
-            start: measureStart,
-            current: measureCurrent,
-            locked: measureLocked,
-            snapPoint: measureSnapPoint,
+            start: measureController.start,
+            current: measureController.current,
+            locked: measureController.locked,
+            snapPoint: measureController.snapPoint,
             scaleRatio: getScaleRatio(layout.scale),
             scaleName: layout.scale,
           }
@@ -640,7 +513,7 @@ async function main() {
       hasSelection: selectedIds.size > 0,
       snappingEnabled,
       selectionLockDisabled,
-      measureToolActive: isMeasureToolActive,
+      measureToolActive: measureController.isActive,
       colorCodeEnabled: colorMode !== "off",
       colorMode,
       trackLabelsEnabled,
@@ -730,6 +603,10 @@ async function main() {
     isWoodPlateActive: () => viewer3D?.isWoodPlateEnabled() ?? false,
     getZoom: () => renderer.world.scale.x || 1.0,
     selectedPieceIds: () => selection.all(),
+    onSelectModel: (modelId) => {
+      selection.set(modelId);
+      sync();
+    },
   });
 
   if (savedSettings.activeSidebarTab) {
@@ -764,7 +641,7 @@ async function main() {
       operations.moveSelectedToLayer(layerId, elevation);
     },
     onOpenHeightDialog: (preselectedLayerId) => {
-      openHeightDialogForSelection(preselectedLayerId);
+      openHeightDialogForSelection(heightPanelDeps, preselectedLayerId);
     },
     onSelectActiveLayer: (layerId) => {
       layout.activeLayerId = layerId;
@@ -801,7 +678,7 @@ async function main() {
     getHistory: () => history, getOperations: () => operations, getPlanManager: () => planManager,
     getRenderer: () => renderer, getRuler: () => ruler, getViewer3D: () => viewer3D,
     getSidebar: () => sidebar, getPerfMonitor: () => perfMonitor, getCurrentShortCircuit: () => currentShortCircuit,
-    is3DMode: () => is3DMode, toggle3D, toggleMeasureTool, toggleRightSidebar, saveSettingsState, sync,
+    is3DMode: () => is3DMode, toggle3D, toggleMeasureTool: () => measureController.toggle(), toggleRightSidebar, saveSettingsState, sync,
     onResetUiSizes: () => layoutResizer.resetAll(),
     onToggleLockBars: () => {
       const locked = layoutResizer.toggleLocked();
@@ -818,10 +695,10 @@ async function main() {
     setTrackLabelsEnabled: (val) => { trackLabelsEnabled = val; },
     isPowerSimEnabled: () => powerSimEnabled,
     setPowerSimEnabled: (val) => { powerSimEnabled = val; },
-    openHeightDialogForSelection,
+    openHeightDialogForSelection: () => openHeightDialogForSelection(heightPanelDeps),
     triggerCollabDialog,
-    triggerWelcomeDialog: () => triggerWelcome(),
-    triggerDemoTracksDialog: () => triggerDemoTracks(),
+    triggerWelcomeDialog: () => triggerWelcomeDialog(startupCtx),
+    triggerDemoTracksDialog: () => triggerDemoTracksDialog(startupCtx),
     triggerImportCatalog,
     showToast,
   });
@@ -889,24 +766,24 @@ async function main() {
     getPlanManager: () => planManager,
     is3DMode: () => is3DMode,
     toggle3D,
-    isMeasureToolActive: () => isMeasureToolActive,
-    toggleMeasureTool,
-    findMeasureSnapPoint,
-    updateMeasureHud,
+    isMeasureToolActive: () => measureController.isActive,
+    toggleMeasureTool: (force) => measureController.toggle(force),
+    findMeasureSnapPoint: (pos, snapDist, forceNoSnap) => measureController.findSnapPoint(pos, snapDist, forceNoSnap),
+    updateMeasureHud: (updateInputs) => measureController.updateHud(updateInputs),
     getMeasureState: () => ({
-      start: measureStart,
-      current: measureCurrent,
-      locked: measureLocked,
-      snapPoint: measureSnapPoint,
-      snapEnabled: measureSnapEnabled,
-      draggingPoint: measureDraggingPoint,
+      start: measureController.start,
+      current: measureController.current,
+      locked: measureController.locked,
+      snapPoint: measureController.snapPoint,
+      snapEnabled: measureController.snapEnabled,
+      draggingPoint: measureController.draggingPoint,
     }),
     setMeasureState: (upd) => {
-      if (upd.start !== undefined) measureStart = upd.start;
-      if (upd.current !== undefined) measureCurrent = upd.current;
-      if (upd.locked !== undefined) measureLocked = upd.locked;
-      if (upd.snapPoint !== undefined) measureSnapPoint = upd.snapPoint;
-      if (upd.draggingPoint !== undefined) measureDraggingPoint = upd.draggingPoint;
+      if (upd.start !== undefined) measureController.start = upd.start;
+      if (upd.current !== undefined) measureController.current = upd.current;
+      if (upd.locked !== undefined) measureController.locked = upd.locked;
+      if (upd.snapPoint !== undefined) measureController.snapPoint = upd.snapPoint;
+      if (upd.draggingPoint !== undefined) measureController.draggingPoint = upd.draggingPoint;
     },
     isSnappingEnabled: () => snappingEnabled,
     setSnappingEnabled: (val) => { snappingEnabled = val; },
@@ -917,8 +794,10 @@ async function main() {
     setTrackLabelsEnabled: (val) => { trackLabelsEnabled = val; },
     isPowerSimEnabled: () => powerSimEnabled,
     setPowerSimEnabled: (val) => { powerSimEnabled = val; },
-    toggleRightSidebar, openHeightDialogForSelection, openHelpDialog,
-    openRampGeneratorForPiece,
+    toggleRightSidebar,
+    openHeightDialogForSelection: () => openHeightDialogForSelection(heightPanelDeps),
+    openHelpDialog,
+    openRampGeneratorForPiece: (anchorPiece) => openRampGeneratorForPiece(heightPanelDeps, anchorPiece),
     openPrintDialog: () => openPrintDialog(layout, catalog, renderer),
     isPieceInteractive, isModelInteractive, getCatalogEntryForPiece, sync, saveSettingsState, showToast,
     getCurrentSimulation: () => currentSimulation,
@@ -926,6 +805,11 @@ async function main() {
     setDraggingBaseboardState: (isDragging, activeBoard, guides) => {
       isDraggingBaseboard = isDragging; activeBaseboard = activeBoard; activeBaseboardSnapGuides = guides;
     },
+    getPickHandler: () => activePickHandler,
+    getPointMarkers: () => activePointMarkers,
+    getPinDropHandler: () => activePinDropHandler,
+    getHoveredOpenConnector: () => activeHoveredConnector,
+    setHoveredOpenConnector: (val) => { activeHoveredConnector = val; },
   });
 
   // Native Electron Menü-Aktionen empfangen
@@ -934,7 +818,7 @@ async function main() {
       switch (action) {
         case "newPlan": operations.triggerNewPlan(); break;
         case "openPlan": operations.triggerOpenPlan(); break;
-        case "demoTracks": triggerDemoTracks(); break;
+        case "demoTracks": triggerDemoTracksDialog(startupCtx); break;
         case "savePlan": operations.triggerSavePlan(); break;
         case "savePlanAs": operations.triggerSavePlanAs("railbench"); break;
         case "importCatalog": triggerImportCatalog(); break;
@@ -954,6 +838,8 @@ async function main() {
         case "rotateCcw": operations.rotateSelected(-7.5); break;
         case "delete": operations.deleteSelected(); break;
         case "toggleFeeder": operations.toggleSelectedFeeder(); break;
+        case "toggleSignal": operations.toggleSelectedSignal(); break;
+        case "toggleBridge": operations.toggleSelectedBridge(); break;
         case "resetView": renderer.resetView(); sync(); break;
         case "toggleSnapping": snappingEnabled = !snappingEnabled; sync(); break;
         case "toggleColorCode": cycleColorMode(); break;
@@ -973,10 +859,10 @@ async function main() {
         case "langDe": setLanguage("de"); break;
         case "langEn": setLanguage("en"); break;
         case "resetPersonalConfig": toolbarEvents.onResetPersonalConfig?.(); break;
-        case "changeHeight": openHeightDialogForSelection(); break;
+        case "changeHeight": openHeightDialogForSelection(heightPanelDeps); break;
         case "help": openHelpDialog("overview"); break;
         case "shortcuts": openHelpDialog("shortcuts"); break;
-        case "welcome": triggerWelcome(); break;
+        case "welcome": triggerWelcomeDialog(startupCtx); break;
         case "layersGuide": openHelpDialog("layers"); break;
         case "voltageGuide": openHelpDialog("power"); break;
         case "printGuide": openHelpDialog("print"); break;
@@ -996,91 +882,24 @@ async function main() {
       resolvedTheme: themeManager.getResolvedTheme(),
     });
     selectionBar.updateStaticTexts();
-    updateMeasureHud();
+    measureController.updateHud();
     sync(false);
   });
 
-  function loadDemoLayout(demo: DemoLayoutDef) {
-    const chosen = demo.createLayout();
-    layout.name = chosen.name;
-    layout.scale = chosen.scale;
-    layout.feedVoltage = chosen.feedVoltage;
-    layout.locoCurrentMa = chosen.locoCurrentMa;
-    layout.locoCount = chosen.locoCount;
-    layout.turnoutLanternCurrentMa = chosen.turnoutLanternCurrentMa;
-    layout.turnoutDecoderCurrentMa = chosen.turnoutDecoderCurrentMa;
-    layout.layers = chosen.layers;
-    layout.activeLayerId = chosen.activeLayerId;
-    layout.baseboard = chosen.baseboard;
-    layout.baseboards = chosen.baseboards;
-    layout.models = chosen.models;
-    layout.pieces = chosen.pieces;
-    ensureDefaultLayers(layout);
-
-    const matchedCat = catalogRegistry.get(demo.catalogId);
-    if (matchedCat) {
-      catalog = matchedCat;
-      sidebar?.setCatalog(catalog);
-    }
-
-    planManager.setPlanInfo(`${layout.name}.railbench`, null, "railbench");
-    history = new History(layout);
-    selection.clear();
-    sync(false);
-    saveSettingsState();
-    showToast(
-      getLanguage() === "de"
-        ? `Demo-Layout "${demo.name}" geladen!`
-        : `Demo layout "${demo.nameEn}" loaded!`,
-      ""
-    );
-  }
-
-  function triggerDemoTracks() {
-    showDemoTracksDialog({
-      currentLayoutDirty: planManager.getState().isDirty,
-      onSelect: (demo) => {
-        loadDemoLayout(demo);
-      },
-    });
-  }
-
-  function applyStartupAction(action: "recent" | "new" | "demo" | "open", cached?: Layout | null) {
-    if (action === "recent" && cached && cached.pieces?.length) {
-      layout = cached;
-      ensureDefaultLayers(layout);
-      planManager.setPlanInfo(layout.name + ".railbench", null, "railbench");
-    } else if (action === "new") {
-      layout.pieces = [];
-      layout.models = [];
-      ensureDefaultLayers(layout);
-      planManager.setPlanInfo(getLanguage() === "de" ? "Neuer Plan.railbench" : "New Layout.railbench", null, "railbench");
-    } else if (action === "demo") {
-      initDemoTracks(layout, catalog);
-      planManager.setPlanInfo(`${layout.name}.railbench`, null, "railbench");
-      triggerDemoTracks();
-    } else {
-      initDemoTracks(layout, catalog);
-      planManager.setPlanInfo(`${layout.name}.railbench`, null, "railbench");
-      if (action === "open") setTimeout(() => operations.triggerOpenPlan(), 50);
-    }
-    history = new History(layout);
-    selection.clear();
-    sync(false);
-  }
-
-  async function triggerWelcome() {
-    const cached = planManager.loadFromLocalStorage();
-    const hasRec = Boolean(cached && cached.pieces?.length);
-    const recName = cached?.name ? `${cached.name}.railbench` : undefined;
-    const choice = await showWelcomeDialog(hasRec, recName);
-    if (choice.dontAskAgain) {
-      saveAppSettings({ startupAction: choice.action });
-    } else {
-      saveAppSettings({ startupAction: "ask" });
-    }
-    applyStartupAction(choice.action, cached);
-  }
+  const startupCtx: AppStartupContext = {
+    getLayout: () => layout,
+    setLayout: (l) => { layout = l; },
+    getCatalog: () => catalog,
+    setCatalog: (c) => { catalog = c; },
+    getSelection: () => selection,
+    getHistory: () => history,
+    setHistory: (h) => { history = h; },
+    planManager,
+    saveSettingsState,
+    sync,
+    onCatalogChange: (c) => sidebar?.setCatalog(c),
+    triggerOpenPlan: () => operations.triggerOpenPlan(),
+  };
 
   // Startverhalten ermitteln (Willkommensdialog vs. gemerkte Auswahl)
   const cachedPlan = planManager.loadFromLocalStorage();
@@ -1109,9 +928,9 @@ async function main() {
     if (choice.dontAskAgain) {
       saveAppSettings({ startupAction: choice.action });
     }
-    applyStartupAction(choice.action, cachedPlan);
+    applyStartupAction(startupCtx, choice.action, cachedPlan);
   } else {
-    applyStartupAction(startupAction as "recent" | "new" | "demo" | "open", cachedPlan);
+    applyStartupAction(startupCtx, startupAction as "recent" | "new" | "demo" | "open", cachedPlan);
   }
 }
 

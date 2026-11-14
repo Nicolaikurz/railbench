@@ -44,6 +44,8 @@ export const en: Translations = {
       toggleCatenaryIsolator: "Toggle Catenary Isolator (Shift+I)",
       toggleTurnoutLantern: "Toggle Switch Lantern (Shift+L)",
       toggleTurnoutDecoder: "Toggle Turnout Decoder (Shift+D)",
+      toggleSignal: "Toggle Signal (Shift+S)",
+      toggleBridge: "Toggle Bridge (B)",
     },
     viewMenu: {
       resetView: "Zoom to Fit / Center",
@@ -139,6 +141,8 @@ export const en: Translations = {
       toggleCatenaryIsolator: "Toggle Catenary Isolator (Shift+I)",
       toggleTurnoutLantern: "Toggle Switch Lantern (Shift+L)",
       toggleTurnoutDecoder: "Toggle Turnout Decoder (Shift+D)",
+      toggleSignal: "Toggle Signal (Shift+S)",
+      toggleBridge: "Toggle Bridge (B)",
     },
     status: {
       tracksUnit: "track",

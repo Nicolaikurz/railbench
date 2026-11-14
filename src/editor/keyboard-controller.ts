@@ -168,8 +168,12 @@ export class KeyboardController {
       ops.toggleSelectedCatenary();
     } else if (e.key.toLowerCase() === "s" && !ctrlOrMeta) {
       e.preventDefault();
-      this.deps.setSnappingEnabled(!this.deps.isSnappingEnabled());
-      this.deps.sync();
+      if (e.shiftKey) {
+        ops.toggleSelectedSignal();
+      } else {
+        this.deps.setSnappingEnabled(!this.deps.isSnappingEnabled());
+        this.deps.sync();
+      }
     } else if (e.key.toLowerCase() === "c" && !ctrlOrMeta) {
       e.preventDefault();
       this.deps.cycleColorMode();
@@ -181,9 +185,13 @@ export class KeyboardController {
       e.preventDefault();
       this.deps.setPowerSimEnabled(!this.deps.isPowerSimEnabled());
       this.deps.sync();
-    } else if (e.key.toLowerCase() === "b" && e.shiftKey && !ctrlOrMeta) {
+    } else if (e.key.toLowerCase() === "b" && !ctrlOrMeta) {
       e.preventDefault();
-      this.deps.toggleRightSidebar();
+      if (e.shiftKey) {
+        this.deps.toggleRightSidebar();
+      } else {
+        ops.toggleSelectedBridge();
+      }
     } else if (e.altKey && (e.key.toLowerCase() === "l" || e.code === "KeyL")) {
       e.preventDefault();
       this.deps.toggleSelectionLock?.();

@@ -76,6 +76,7 @@ export interface SidebarCallbacks {
   onBaseboardChange?: () => void;
   getZoom?: () => number;
   onTabChange?: (tab: SidebarTab) => void;
+  onSelectModel?: (modelId: string) => void;
 }
 
 const SIDEBAR_DRILLDOWN_STYLES_ID = "sidebar-drilldown-styles";
@@ -300,7 +301,7 @@ const SIDEBAR_DRILLDOWN_STYLES = `
 `;
 
 function ensureSidebarDrilldownStyles() {
-  if (document.getElementById(SIDEBAR_DRILLDOWN_STYLES_ID)) return;
+  if (typeof document === "undefined" || document.getElementById(SIDEBAR_DRILLDOWN_STYLES_ID)) return;
   const styleEl = document.createElement("style");
   styleEl.id = SIDEBAR_DRILLDOWN_STYLES_ID;
   styleEl.textContent = SIDEBAR_DRILLDOWN_STYLES;
@@ -569,6 +570,7 @@ export class Sidebar {
 
   /** Registers a window click listener that is automatically removed on the next render(). */
   addWindowClickListener(handler: (e: MouseEvent) => void) {
+    if (typeof window === "undefined") return;
     window.addEventListener("click", handler);
     this.windowCleanups.push(() => window.removeEventListener("click", handler));
   }
@@ -658,6 +660,19 @@ export class Sidebar {
   setActiveBoardId(id?: string) {
     this.activeBoardId = id;
     this.render();
+  }
+
+  selectMountain(mountainId: string) {
+    this.activeMountainId = mountainId;
+    this.mountainsOpen = true;
+    this.setActiveTab("board");
+    this.callbacks.onSelectModel?.(mountainId);
+    setTimeout(() => {
+      const summary = Array.from(this.host.querySelectorAll("summary")).find((s) =>
+        s.textContent?.includes("Berg") || s.textContent?.includes("Mountain"),
+      );
+      summary?.parentElement?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }, 50);
   }
 
   isBaseboardTabActive(): boolean {
