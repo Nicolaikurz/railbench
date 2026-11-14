@@ -239,7 +239,7 @@
         "end": 16.5
       },
       "hasCatenary": true,
-      "hasTunnel": true,
+      "hasTunnel": false,
       "hasBridge": false
     },
     {
@@ -1409,7 +1409,7 @@
         "end": 18.4
       },
       "hasCatenary": true,
-      "hasTunnel": true,
+      "hasTunnel": false,
       "hasBridge": false
     },
     {
@@ -3682,14 +3682,118 @@
       "layerId": "layer-1"
     }
   ],
+  "layers": [
+    {
+      "id": "layer-2",
+      "name": "Bergstrecke",
+      "heightMm": 23,
+      "color": "#4ade80",
+      "visible": true,
+      "locked": false,
+      "woodPlateMode": "none",
+      "woodPlateThicknessMm": 10,
+      "plates": []
+    },
+    {
+      "id": "layer-1",
+      "name": "Hauptstrecke",
+      "heightMm": 0,
+      "color": "#38bdf8",
+      "visible": true,
+      "locked": false,
+      "woodPlateMode": "table"
+    },
+    {
+      "id": "layer-0",
+      "name": "Schattenbahnhof",
+      "heightMm": -120,
+      "color": "#f472b6",
+      "visible": true,
+      "locked": false,
+      "plates": [
+        {
+          "id": "plate-1794589844729-28421",
+          "name": "Plate 1",
+          "baseboardId": "demo-baseboard",
+          "x": 0,
+          "y": 0,
+          "thicknessMm": 12,
+          "positionMode": "custom",
+          "style": "grass",
+          "shape": "rect",
+          "width": 2400,
+          "depth": 1450,
+          "triangleType": "corner-tl",
+          "lWingWidth": 800,
+          "lWingDepth": 800,
+          "lSide": "left",
+          "uLeftWingWidth": 700,
+          "uRightWingWidth": 700,
+          "uBackDepth": 600
+        }
+      ],
+      "woodPlateMode": "table",
+      "woodPlateThicknessMm": 10
+    }
+  ],
+  "activeLayerId": "layer-1",
+  "baseboard": {
+    "id": "demo-baseboard",
+    "name": "Hauptplatte (180 x 100 cm)",
+    "enabled": true,
+    "shape": "rect",
+    "width": 2400,
+    "depth": 1450,
+    "positionMode": "custom",
+    "customX": -1300,
+    "customY": -720,
+    "style": "grass",
+    "cornerRadius": 16,
+    "showDimensions": true,
+    "triangleType": "corner-tl",
+    "uLeftWingWidth": 700,
+    "uRightWingWidth": 700,
+    "uBackDepth": 600,
+    "lWingWidth": 800,
+    "lWingDepth": 800,
+    "lSide": "left"
+  },
+  "baseboards": [
+    {
+      "id": "demo-baseboard",
+      "name": "Hauptplatte (180 x 100 cm)",
+      "enabled": true,
+      "shape": "rect",
+      "width": 2400,
+      "depth": 1450,
+      "positionMode": "custom",
+      "customX": -1300,
+      "customY": -720,
+      "style": "grass",
+      "cornerRadius": 16,
+      "showDimensions": true,
+      "triangleType": "corner-tl",
+      "uLeftWingWidth": 700,
+      "uRightWingWidth": 700,
+      "uBackDepth": 600,
+      "lWingWidth": 800,
+      "lWingDepth": 800,
+      "lSide": "left"
+    }
+  ],
+  "feedVoltage": 16,
+  "locoCurrentMa": 350,
+  "locoCount": 1,
+  "turnoutLanternCurrentMa": 20,
+  "turnoutDecoderCurrentMa": 15,
   "models": [
     {
       "id": "demo-station",
       "name": "Bahnhof Neustadt",
       "category": "buildings",
       "transform": {
-        "x": 176.1920635597068,
-        "y": 225.11293018424533,
+        "x": 184.1920635597068,
+        "y": 265.11293018424533,
         "rotation": 0
       },
       "width": 320,
@@ -3704,8 +3808,8 @@
       "name": "Stellwerk W1",
       "category": "railway",
       "transform": {
-        "x": -411.1150932838224,
-        "y": 482.46877295830325,
+        "x": -408.1150932838224,
+        "y": 506.46877295830325,
         "rotation": 180
       },
       "width": 120,
@@ -3720,8 +3824,8 @@
       "name": "Ringlokschuppen (Drehscheibe)",
       "category": "railway",
       "transform": {
-        "x": -222,
-        "y": -92,
+        "x": -142,
+        "y": -52,
         "rotation": 252.29655934963705
       },
       "elevation": 0,
@@ -3900,7 +4004,7 @@
       "name": "Fachwerkhaus",
       "category": "buildings",
       "transform": {
-        "x": 67.83474852752472,
+        "x": 113.83474852752472,
         "y": 4.559536248396011,
         "rotation": 270
       },
@@ -3918,8 +4022,8 @@
       "name": "Fachwerkhaus",
       "category": "buildings",
       "transform": {
-        "x": 68.15489873235612,
-        "y": -115.14764861718837,
+        "x": 112.15489873235612,
+        "y": -116.14764861718837,
         "rotation": 270
       },
       "elevation": 0,
@@ -3954,8 +4058,8 @@
       "name": "Industriehalle / Fabrik",
       "category": "buildings",
       "transform": {
-        "x": 774,
-        "y": 489,
+        "x": 893,
+        "y": 542,
         "rotation": 0
       },
       "elevation": 0,
@@ -4318,46 +4422,12 @@
       "layerId": "layer-1"
     },
     {
-      "id": "model-1794683393862-m5z2",
-      "name": "Mountain 4",
-      "category": "nature",
-      "modelType": "builtin",
-      "builtinId": "mountain",
-      "transform": {
-        "x": -754,
-        "y": -413,
-        "rotation": 0
-      },
-      "width": 440,
-      "depth": 385,
-      "height": 220,
-      "mountainStyle": "alpine",
-      "layerId": "layer-2"
-    },
-    {
-      "id": "model-1794683402562-4hm4",
-      "name": "Mountain 5",
-      "category": "nature",
-      "modelType": "builtin",
-      "builtinId": "mountain",
-      "transform": {
-        "x": -757,
-        "y": -428,
-        "rotation": 0
-      },
-      "width": 440,
-      "depth": 385,
-      "height": 220,
-      "mountainStyle": "alpine",
-      "layerId": "layer-2"
-    },
-    {
       "id": "model-1794684808923-xloy",
       "name": "Bekohlungsanlage (Dampflok)",
       "category": "railway",
       "transform": {
-        "x": -309.5421658737988,
-        "y": 191.1202661450383,
+        "x": -214.5421658737988,
+        "y": 212.1202661450383,
         "rotation": 210
       },
       "elevation": 0,
@@ -4374,8 +4444,8 @@
       "name": "Dieseltankstelle (Diesellok)",
       "category": "railway",
       "transform": {
-        "x": -709.2754399556036,
-        "y": 457.91132599357087,
+        "x": -688.2754399556036,
+        "y": 502.91132599357087,
         "rotation": 180
       },
       "elevation": 0,
@@ -4393,7 +4463,7 @@
       "category": "railway",
       "transform": {
         "x": 127.89893617021275,
-        "y": 450.96808510638294,
+        "y": 492.96808510638294,
         "rotation": 0
       },
       "elevation": 0,
@@ -4405,109 +4475,5 @@
       "builtinId": "platform",
       "layerId": "layer-1"
     }
-  ],
-  "layers": [
-    {
-      "id": "layer-2",
-      "name": "Bergstrecke",
-      "heightMm": 23,
-      "color": "#4ade80",
-      "visible": true,
-      "locked": false,
-      "woodPlateMode": "none",
-      "woodPlateThicknessMm": 10,
-      "plates": []
-    },
-    {
-      "id": "layer-1",
-      "name": "Hauptstrecke",
-      "heightMm": 0,
-      "color": "#38bdf8",
-      "visible": true,
-      "locked": false,
-      "woodPlateMode": "table"
-    },
-    {
-      "id": "layer-0",
-      "name": "Schattenbahnhof",
-      "heightMm": -120,
-      "color": "#f472b6",
-      "visible": true,
-      "locked": false,
-      "plates": [
-        {
-          "id": "plate-1794589844729-28421",
-          "name": "Plate 1",
-          "baseboardId": "demo-baseboard",
-          "x": 0,
-          "y": 0,
-          "thicknessMm": 12,
-          "positionMode": "custom",
-          "style": "grass",
-          "shape": "rect",
-          "width": 2400,
-          "depth": 1450,
-          "triangleType": "corner-tl",
-          "lWingWidth": 800,
-          "lWingDepth": 800,
-          "lSide": "left",
-          "uLeftWingWidth": 700,
-          "uRightWingWidth": 700,
-          "uBackDepth": 600
-        }
-      ],
-      "woodPlateMode": "table",
-      "woodPlateThicknessMm": 10
-    }
-  ],
-  "activeLayerId": "layer-1",
-  "baseboard": {
-    "id": "demo-baseboard",
-    "name": "Hauptplatte (180 x 100 cm)",
-    "enabled": true,
-    "shape": "rect",
-    "width": 2400,
-    "depth": 1450,
-    "positionMode": "custom",
-    "customX": -1300,
-    "customY": -720,
-    "style": "grass",
-    "cornerRadius": 16,
-    "showDimensions": true,
-    "triangleType": "corner-tl",
-    "uLeftWingWidth": 700,
-    "uRightWingWidth": 700,
-    "uBackDepth": 600,
-    "lWingWidth": 800,
-    "lWingDepth": 800,
-    "lSide": "left"
-  },
-  "baseboards": [
-    {
-      "id": "demo-baseboard",
-      "name": "Hauptplatte (180 x 100 cm)",
-      "enabled": true,
-      "shape": "rect",
-      "width": 2400,
-      "depth": 1450,
-      "positionMode": "custom",
-      "customX": -1300,
-      "customY": -720,
-      "style": "grass",
-      "cornerRadius": 16,
-      "showDimensions": true,
-      "triangleType": "corner-tl",
-      "uLeftWingWidth": 700,
-      "uRightWingWidth": 700,
-      "uBackDepth": 600,
-      "lWingWidth": 800,
-      "lWingDepth": 800,
-      "lSide": "left"
-    }
-  ],
-  "feedVoltage": 16,
-  "locoCurrentMa": 350,
-  "locoCount": 1,
-  "turnoutLanternCurrentMa": 20,
-  "turnoutDecoderCurrentMa": 15
+  ]
 }

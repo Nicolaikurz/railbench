@@ -122,52 +122,52 @@ export const helpDe: HelpDialogTranslations = {
     ],
   },
   baseboard: {
-    title: "Grundplatte & Tischkonstruktion",
+    title: "Grundplatte, Ebenenplatten, CAD-Sketcher & Gelände",
     intro:
-      "Planen Sie Ihre Modellbahn passgenau für den Raum und Ihre handwerklichen Rahmenbedingungen.",
+      "Planen Sie Ihre Modellbahn passgenau für den Raum – wahlweise mit parametrischen Tischformen oder frei gezeichnet per 2D-CAD-Sketcher sowie eigenem Gelände-Editor.",
     cards: [
       {
-        title: "Modulare Tischformen",
-        body: "Wählen Sie zwischen vier gängigen Modellbahn-Tischformen:<br>• <strong>Rechteckig</strong>: Klassischer Anlagentisch<br>• <strong>L-Form</strong>: Eckanlage mit linkem oder rechtem Schenkel<br>• <strong>U-Form</strong>: Anlage mit Bedienertrog<br>• <strong>T-Form</strong>: Zungenanlage oder Nebenbahnausläufer",
+        title: "Modulare Tischformen & 2D-CAD-Sketcher",
+        body: "Wählen Sie zwischen <strong>Rechteckig</strong>, <strong>L-Form</strong>, <strong>U-Form</strong>, <strong>T-Form</strong> oder zeichnen Sie Ihre Tisch- und Ebenenplatten frei auf dem Canvas mit dem <strong>2D-CAD-Sketcher</strong> (<code>Polygon-Stift</code>, <code>Rechteck</code> sowie <code>Ecken & Kanten</code> zum nachträglichen Verschieben, Einfügen und Löschen von Eckpunkten).",
+      },
+      {
+        title: "Gelände- & Berg-Editor (inkl. Tunnel-Automatik)",
+        body: "Im eigenen Menü <strong>Gelände</strong> modellieren Sie 3D-Berge mit Pinsel-Werkzeugen (<code>Hebepinsel</code>, <code>Glätten</code>, <code>Plateau</code>, <code>Radierer</code>), Freihand-Konturen oder 5 Berg-Vorlagen. Gleise und Straßen im Berg erhalten auf Klick automatisch 3D-Tunnelröhren mit Steinportalen.",
       },
       {
         title: "Holzarten & Oberflächen",
-        body: "Wählen Sie realistische Texturen wie <strong>Birke hell</strong>, <strong>Nussbaum dunkel</strong>, <strong>Multiplex</strong>, <strong>Schiefer</strong> oder neutrales <strong>CAD-Weiß</strong>.",
+        body: "Wählen Sie realistische Texturen wie <strong>Birke hell</strong>, <strong>Nussbaum dunkel</strong>, <strong>Multiplex</strong>, <strong>Schiefer</strong>, <strong>Grasmatte</strong> oder neutrales <strong>CAD-Weiß</strong>.",
       },
       {
-        title: "Maßketten & Lineale",
-        body: "Zeigt Millimeter-Bemaßungen direkt an den Kanten an. Taste <code>Umschalt+L</code> schaltet zusätzliche Randlineale ein.",
-      },
-      {
-        title: "Platte an Gleise anpassen",
-        body: 'Ein Klick auf <strong>"Platte an Gleise anpassen"</strong> berechnet automatisch die Mindestmaße des Tisches mit Sicherheitsabstand.',
+        title: "Platte an Gleise anpassen & Lineale",
+        body: 'Ein Klick auf <strong>"Platte an Gleise anpassen"</strong> berechnet automatisch die Mindestmaße des Tisches mit Sicherheitsabstand. Taste <code>Umschalt+L</code> schaltet zusätzliche Millimeter-Randlineale ein.',
       },
     ],
   },
   view3d: {
-    title: "3D-Perspektive & Ansicht",
+    title: "3D-Perspektive, CAD-Ansichtswürfel & 3D-Modelle",
     intro:
-      "Der 3D-Viewer rendert Ihre gesamte Modellbahnanlage in Echtzeit dreidimensional inklusive Grundplatte, Brückenpfeilern, Ebenen und 3D-Ausschmückung.",
+      "Der 3D-Viewer rendert Ihre gesamte Modellbahnanlage in Echtzeit dreidimensional mit voller 360°-/180°-Kamerafreiheit, interaktivem CAD-Ansichtswürfel (ViewCube), Tag/Nacht-Zyklus und 25 prozeduralen 3D-Modellen.",
     cards: [
       {
-        title: "Kamera-Navigation",
-        body: '• <strong>Drehen:</strong> Linksklick und über die 3D-Szene ziehen.<br>• <strong>Verschieben:</strong> Rechtsklick und ziehen (oder Umschalt + Linksklick).<br>• <strong>Zoomen:</strong> Mausrad oder Trackpad-Geste.<br>• <strong>Zurücksetzen:</strong> "⌖ Ansicht zurücksetzen" zentriert die Kamera auf die Grundplatte.',
+        title: "Volle 360°/180°-Perspektive & CAD-Ansichtswürfel (ViewCube)",
+        body: '• <strong>Freie Rundumsicht (auch von unten):</strong> Drehen Sie die Kamera per Linksklick in jede beliebige Perspektive – inklusive direktem Blick <strong>unter die Tischplatte (Unten / Bottom)</strong> zur Kontrolle von Unterbau und Schattenbahnhöfen.<br>• <strong>CAD-Ansichtswürfel:</strong> Klicken Sie unter dem Hintergrund-Umschalter direkt auf eine der 6 Würfelflächen (<code>Vorne</code>, <code>Hinten</code>, <code>Links</code>, <code>Rechts</code>, <code>Oben</code>, <code>Unten</code>), die 4 Isometrie-Ecken oder ziehen Sie direkt am Würfel.',
       },
       {
-        title: "Brücken & Pfeiler",
-        body: "Gleise in Höhenlagen werden vertikal akkurat dargestellt. Ab 15 mm Höhe werden automatisch Brückenpfeiler bis zur Grundplatte generiert!",
+        title: "Brücken, Tunnel & Ebenenplatten",
+        body: "Gleise in Höhenlagen werden vertikal akkurat dargestellt. Ab 15 mm Höhe werden automatisch Brückenpfeiler generiert; Gebirgsstrecken zeigen echte 3D-Tunneldurchfahrten mit Portalen.",
       },
       {
-        title: "3D-Tisch & Unterbau",
-        body: "Der Holztisch wird mit Plattenstärke und soliden Stahlfüßen gerendert.",
+        title: "Umgebungsmodi & 24h Tag/Nacht-Zyklus",
+        body: "Wechseln Sie oben links zwischen der detaillierten <strong>Lokhalle</strong> und dem <strong>CAD / Minimal</strong>-Modus und steuern Sie den dynamischen 24-Stunden-Sonnenlauf samt Nachtbeleuchtung.",
       },
       {
-        title: "3D-Modelle & Ausschmückung (.glb / .gltf)",
-        body: "Platzieren Sie Gebäude (Bahnhof, Stellwerk, Lokschuppen, Wasserturm, Fachwerkhaus, Signale, Prellböcke, Bäume, Lampen) aus dem Katalog oder importieren Sie eigene GLB/GLTF-Dateien.",
+        title: "25 Integrierte 3D-Modelle & Betriebswerk (.glb / .gltf)",
+        body: "Platzieren Sie 25 eingebaute 3D-Modelle – darunter <strong>Bekohlungsanlage (Dampflok)</strong>, <strong>Dieseltankstelle (Diesellok)</strong>, <strong>Ringlokschuppen</strong>, <strong>Schiebebühne</strong>, <strong>Drehscheibe</strong>, Bahnhof, Stellwerk, Lokschuppen, Wasserturm, Stadtkirche, Fachwerkhäuser, Brücken, Berge, Signale und Bäume – oder importieren Sie eigene GLB/GLTF-Dateien.",
       },
       {
         title: "3D-Modell-Lizenzen & Herkunft",
-        body: "• <strong>Integrierte 3D-Objekte:</strong> Alle 10 mitgelieferten 3D-Modelle sind zu <strong>100 % prozeduraler Open-Source-Code</strong> (Three.js Geometrien in <code>src/render/builtin-models-3d.ts</code>). Sie enthalten keine externen Binärmodelle oder proprietären Texturen, sind frei von Urheberrechtsansprüchen Dritter und unterliegen der freien Open-Source-Lizenz (GPLv3 / Royalty-Free).<br>• <strong>Eigene Modelle (.glb / .gltf):</strong> Selbst importierte 3D-Modelle unterliegen den jeweiligen Original-Lizenzen ihrer Autoren (z. B. Creative Commons CC0, CC-BY).",
+        body: "• <strong>Integrierte 3D-Objekte:</strong> Alle 25 mitgelieferten 3D-Modelle sind zu <strong>100 % prozeduraler Open-Source-Code</strong> (Three.js Geometrien in <code>src/render/models-3d/</code>). Sie enthalten keine externen Binärmodelle oder proprietären Texturen und unterliegen der freien Open-Source-Lizenz (GPLv3 / Royalty-Free).<br>• <strong>Eigene Modelle (.glb / .gltf):</strong> Selbst importierte 3D-Modelle unterliegen den jeweiligen Original-Lizenzen ihrer Autoren.",
       },
       {
         title: "Rückkehr zur 2D-Zeichnung",

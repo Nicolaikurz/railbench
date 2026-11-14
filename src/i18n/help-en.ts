@@ -122,52 +122,52 @@ export const helpEn: HelpDialogTranslations = {
     ],
   },
   baseboard: {
-    title: "Table & Baseboard Benchwork Planning",
+    title: "Table, Layer Plates, 2D CAD Sketcher & Terrain",
     intro:
-      "Design your layout to fit your actual room and carpentry constraints using realistic baseboard boundaries.",
+      "Design your layout to fit your actual room using parametric table shapes, the interactive 2D CAD Sketcher for custom tables and layer plates, and the dedicated Terrain Editor.",
     cards: [
       {
-        title: "Modular Table Shapes",
-        body: "Choose between four common model railway benchwork forms:<br>• <strong>Rectangular</strong>: Classic flat table or island layout<br>• <strong>L-Shape</strong>: Corner layouts with left or right return wing<br>• <strong>U-Shape</strong>: Walk-in operator pit layout<br>• <strong>T-Shape</strong>: Peninsula or branch line extension",
+        title: "Modular Table Shapes & 2D CAD Sketcher",
+        body: "Choose between <strong>Rectangular</strong>, <strong>L-Shape</strong>, <strong>U-Shape</strong>, <strong>T-Shape</strong>, or sketch custom freeform tables and layer plates directly on the canvas using the <strong>2D CAD Sketcher</strong> (<code>Polygon Pen</code>, <code>Rectangle</code>, and <code>Vertices & Edges</code> to drag, insert, or delete polygon points).",
+      },
+      {
+        title: "Terrain & Mountain Editor (with Auto-Tunnels)",
+        body: "Use the dedicated <strong>Terrain</strong> sidebar tab to sculpt 3D mountains with brushes (<code>Raise</code>, <code>Smooth</code>, <code>Flatten</code>, <code>Erase</code>), freehand contours, or 5 mountain presets. Tracks and roads passing through mountains can automatically generate 3D tunnel tubes and stone portals.",
       },
       {
         title: "Wood Finishes & Materials",
-        body: "Select realistic table textures including <strong>Natural Birch Wood</strong>, <strong>Dark Walnut</strong>, <strong>Plywood</strong>, <strong>Dark Slate</strong>, or clean <strong>Drafting White</strong>.",
+        body: "Select realistic table textures including <strong>Natural Birch Wood</strong>, <strong>Dark Walnut</strong>, <strong>Plywood</strong>, <strong>Dark Slate</strong>, <strong>Grass Mat</strong>, or clean <strong>Drafting White</strong>.",
       },
       {
-        title: "Live Dimensions & Rulers",
-        body: "Displays millimetric dimension arrows directly on the board. Toggle millimeter rulers along canvas borders with <code>Shift+L</code>.",
-      },
-      {
-        title: "Fit Table to Tracks",
-        body: 'In the Table tab of the left sidebar, click <strong>"Fit Table to Tracks"</strong> to automatically calculate the minimum table dimensions needed to enclose all track pieces with a safe buffer.',
+        title: "Fit Table to Tracks & Rulers",
+        body: 'In the Table tab of the left sidebar, click <strong>"Fit Table to Tracks"</strong> to automatically calculate the minimum table dimensions needed to enclose all track pieces with a safe buffer. Toggle millimeter rulers with <code>Shift+L</code>.',
       },
     ],
   },
   view3d: {
-    title: "3D Perspective & Elevation View",
+    title: "3D Perspective, CAD ViewCube & 3D Scenery",
     intro:
-      "The 3D Viewer renders your entire model railroad layout in real-time three dimensions, including the baseboard table, multi-deck elevations, bridge pillars, ballasting, and tracks.",
+      "The 3D Viewer renders your entire model railroad layout in real-time three dimensions with full 360°/180° camera freedom, an interactive CAD ViewCube, a 24h Day/Night cycle, and 25 built-in procedural 3D models.",
     cards: [
       {
-        title: "Camera Navigation",
-        body: '• <strong>Orbit / Rotate:</strong> Left-click and drag across the 3D scene.<br>• <strong>Pan:</strong> Right-click and drag (or Shift + Left-click).<br>• <strong>Zoom:</strong> Scroll wheel or trackpad pinch.<br>• <strong>Reset:</strong> Click "⌖ Reset View" to re-center on the benchwork.',
+        title: "Full 360°/180° Camera Freedom & CAD ViewCube",
+        body: '• <strong>Inspect from Every Perspective (Including Underneath):</strong> Left-click and drag to orbit anywhere—including straight underneath the table (<code>Bottom</code>) to inspect benchwork framing and staging yards.<br>• <strong>Interactive CAD ViewCube:</strong> Click any of the 6 cube faces (<code>Front</code>, <code>Back</code>, <code>Left</code>, <code>Right</code>, <code>Top</code>, <code>Bottom</code>), the 4 isometric corner buttons, or drag the cube directly beneath the background toggle button.',
       },
       {
-        title: "Bridges & Elevated Decks",
-        body: "Tracks on elevated layers (or custom ramps) are rendered at their true vertical heights. Tracks elevated &gt; 15 mm automatically generate realistic bridge support pillars connecting to the baseboard!",
+        title: "Bridges, Tunnels & Layer Plates",
+        body: "Tracks on elevated layers or ramps are rendered at their true vertical heights with automatic bridge pillars (&gt; 15 mm) and realistic 3D mountain tunnel tubes.",
       },
       {
-        title: "Modular 3D Benchwork",
-        body: "The wooden baseboard table (Rectangular, L-shape, U-shape, or T-profile) is extruded in full 3D with authentic wood grain shading and sturdy steel table legs.",
+        title: "Environment Modes & 24h Day/Night Cycle",
+        body: "Toggle between the detailed <strong>Locomotive Hall</strong> and <strong>CAD / Minimal</strong> mode in the top-left overlay, and control the 24-hour sun/moon cycle with automatic night illumination.",
       },
       {
-        title: "3D Models & Scenery (.glb / .gltf)",
-        body: "Place built-in open-source models (Passenger Station, Signal Box, Engine Shed, Water Tower, Half-Timbered House, Light Signal, Buffer Stop, Trees, Platform Lamps) or import custom <code>.glb</code> / <code>.gltf</code> files via the <strong>3D Models</strong> sidebar tab or by dragging files onto the canvas!",
+        title: "25 Built-in 3D Models & Motive Power Depot (.glb / .gltf)",
+        body: "Place 25 built-in 3D models—including <strong>Coaling Station (Steam Loco)</strong>, <strong>Diesel Fueling Station (Diesel Loco)</strong>, <strong>3-Stall Roundhouse</strong>, <strong>Transfer Table</strong>, <strong>Turntable</strong>, Passenger Station, Signal Box, Engine Shed, Water Tower, Town Church, Half-Timbered Houses, Bridges, Mountains, Signals, and Trees—or import custom <code>.glb</code> / <code>.gltf</code> files!",
       },
       {
         title: "3D Models Licensing & Origin",
-        body: "• <strong>Built-in 3D Scenery:</strong> All 10 included models are <strong>100% procedurally generated pure code</strong> (Three.js procedural geometry in <code>src/render/builtin-models-3d.ts</code>). They contain no third-party binary assets or proprietary textures and are fully covered by the project's open-source license (GPLv3 / royalty-free for personal, hobby, and commercial layout design).<br>• <strong>Imported Models (.glb / .gltf):</strong> Custom models imported from external sources remain governed by their respective authors' licenses (e.g. Creative Commons CC0, CC-BY).",
+        body: "• <strong>Built-in 3D Scenery:</strong> All 25 included models are <strong>100% procedurally generated pure code</strong> (Three.js procedural geometry in <code>src/render/models-3d/</code>). They contain no third-party binary assets or proprietary textures and are fully covered by the project's open-source license (GPLv3 / royalty-free).<br>• <strong>Imported Models (.glb / .gltf):</strong> Custom models imported from external sources remain governed by their respective authors' licenses.",
       },
       {
         title: "Return to 2D Plan",
