@@ -1,13 +1,13 @@
 import * as THREE from "three";
-import { buildStation3D } from "./station";
-import { buildSignalBox3D } from "./signal-box";
+import { buildStation3D, buildStationLowPoly3D } from "./station";
+import { buildSignalBox3D, buildSignalBoxLowPoly3D } from "./signal-box";
 import { buildEngineShed3D } from "./engine-shed";
-import { buildTownHouse3D } from "./town-house";
+import { buildTownHouse3D, buildTownHouseLowPoly3D } from "./town-house";
 import { buildWaterTower3D } from "./water-tower";
 import { buildLightSignal3D } from "./light-signal";
 import { buildBufferStop3D } from "./buffer-stop";
-import { buildPineTree3D } from "./pine-tree";
-import { buildDeciduousTree3D } from "./deciduous-tree";
+import { buildPineTree3D, buildPineTreeLowPoly3D } from "./pine-tree";
+import { buildDeciduousTree3D, buildDeciduousTreeLowPoly3D } from "./deciduous-tree";
 import { buildPlatformLamp3D } from "./platform-lamp";
 import { buildPlatform3D } from "./platform";
 import { buildGenericBuilding3D } from "./generic-building";
@@ -20,14 +20,19 @@ import { buildDieselFuelStation3D } from "./diesel-fuel-station";
 
 export {
   buildStation3D,
+  buildStationLowPoly3D,
   buildSignalBox3D,
+  buildSignalBoxLowPoly3D,
   buildEngineShed3D,
   buildTownHouse3D,
+  buildTownHouseLowPoly3D,
   buildWaterTower3D,
   buildLightSignal3D,
   buildBufferStop3D,
   buildPineTree3D,
+  buildPineTreeLowPoly3D,
   buildDeciduousTree3D,
+  buildDeciduousTreeLowPoly3D,
   buildPlatformLamp3D,
   buildPlatform3D,
   buildGenericBuilding3D,
@@ -39,6 +44,8 @@ export {
   buildCoalingStation3D,
   buildDieselFuelStation3D,
 };
+
+export * from "./primitive-cache";
 
 export type Model3DBuilder = (group: THREE.Group, model?: any, extraData?: any) => void;
 
@@ -61,4 +68,12 @@ export const BUILTIN_MODEL_BUILDERS: Record<string, Model3DBuilder> = {
   skyscraper: buildSkyscraper3D,
   "industry-building": buildIndustryBuilding3D,
   mountain: buildMountain3D,
+};
+
+export const BUILTIN_MODEL_LOW_POLY_BUILDERS: Record<string, Model3DBuilder> = {
+  station: buildStationLowPoly3D,
+  "signal-box": buildSignalBoxLowPoly3D,
+  "town-house": buildTownHouseLowPoly3D,
+  "pine-tree": buildPineTreeLowPoly3D,
+  "deciduous-tree": buildDeciduousTreeLowPoly3D,
 };

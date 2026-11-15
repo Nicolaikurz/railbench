@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { showWelcomeDialog } from "@/ui/welcome-dialog";
+import { applyStartupAction } from "@/editor/app-startup";
 
 describe("Welcome Dialog", () => {
   let originalDocument: any;
@@ -109,5 +110,39 @@ describe("Welcome Dialog", () => {
     const result = await promise;
 
     expect(result.action).toBe("recent");
+  });
+
+  it("applyStartupAction with 'new' replaces custom tables and models with a fresh layout", () => {
+    let currentLayout: any = {
+      name: "Old Demo",
+      scale: "H0",
+      pieces: [{ id: "p1" }],
+      models: [{ id: "m1" }],
+      baseboards: [{ id: "old-table", width: 3000, depth: 1500, shape: "l-shape" }],
+      layers: [{ id: "l1" }, { id: "l2" }],
+    };
+
+    const ctx: any = {
+      getLayout: () => currentLayout,
+      setLayout: (l: any) => { currentLayout = l; },
+      getCatalog: () => ({ scale: "H0" }),
+      setCatalog: () => {},
+      getSelection: () => ({ clear: () => {} }),
+      setHistory: () => {},
+      planManager: {
+        setPlanInfo: () => {},
+        markDirty: () => {},
+      },
+      saveSettingsState: () => {},
+      sync: () => {},
+    };
+
+    applyStartupAction(ctx, "new");
+
+    expect(currentLayout.pieces.length).toBe(0);
+    expect(currentLayout.models.length).toBe(0);
+    expect(currentLayout.baseboards.length).toBe(1);
+    expect(currentLayout.baseboards[0].id).not.toBe("old-table");
+    expect(currentLayout.baseboards[0].shape).toBe("rect");
   });
 });

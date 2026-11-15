@@ -1,7 +1,108 @@
 import * as THREE from "three";
+import * as BufferGeometryUtils from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import type { CatalogEntry } from "@/catalog/catalog";
 import type { Layout, TrackPiece } from "@/core/types";
 import { deg2rad, isCurvedTrackEntry, isStraightTrackEntry } from "@/core/geometry";
+
+// Shared materials for all catenary elements to minimize memory & state switches
+const SHARED_WIRE_MAT = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.3, metalness: 0.85 });
+SHARED_WIRE_MAT.userData.shared = true;
+
+const SHARED_MESSENGER_MAT = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.4, metalness: 0.7 });
+SHARED_MESSENGER_MAT.userData.shared = true;
+
+const SHARED_MAST_MAT = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.5, metalness: 0.6 });
+SHARED_MAST_MAT.userData.shared = true;
+
+const SHARED_BASE_MAT = new THREE.MeshStandardMaterial({ color: 0x71717a, roughness: 0.9 });
+SHARED_BASE_MAT.userData.shared = true;
+
+const SHARED_INS_MAT = new THREE.MeshStandardMaterial({ color: 0x854d0e, roughness: 0.3 });
+SHARED_INS_MAT.userData.shared = true;
+
+// Shared geometries for masts and accessories
+const SHARED_BASE_GEO = new THREE.BoxGeometry(6, 8, 6);
+SHARED_BASE_GEO.userData.shared = true;
+
+const SHARED_POLE_GEO = new THREE.BoxGeometry(3, 86, 3);
+SHARED_POLE_GEO.userData.shared = true;
+
+const SHARED_ARM_GEO = new THREE.BoxGeometry(1.6, 1.6, 24);
+SHARED_ARM_GEO.userData.shared = true;
+
+const SHARED_DIAG_GEO = new THREE.BoxGeometry(1.2, 1.2, Math.hypot(13, 16));
+SHARED_DIAG_GEO.userData.shared = true;
+
+const SHARED_INS_GEO = new THREE.CylinderGeometry(1.2, 1.2, 3, 8);
+SHARED_INS_GEO.userData.shared = true;
+
+function createMastBracketGeo(side: 1 | -1): THREE.BufferGeometry {
+  const mastDist = 24 * side;
+  const contactH = 72;
+  const messengerH = 85;
+
+  const arm = new THREE.BoxGeometry(1.6, 1.6, 24);
+  arm.translate(0, messengerH, mastDist / 2);
+
+  const diag = new THREE.BoxGeometry(1.2, 1.2, Math.hypot(13, 16));
+  diag.rotateX(Math.atan2(13, 16) * side);
+  diag.translate(0, (contactH + messengerH) / 2, mastDist * 0.6);
+
+  const merged = BufferGeometryUtils.mergeGeometries([arm, diag]);
+  merged.userData.shared = true;
+  arm.dispose();
+  diag.dispose();
+  return merged;
+}
+
+function createMastInsGeo(side: 1 | -1): THREE.BufferGeometry {
+  const contactH = 72;
+  const messengerH = 85;
+
+  const ins1 = new THREE.CylinderGeometry(1.2, 1.2, 3, 8);
+  ins1.translate(0, messengerH, 3 * side);
+
+  const ins2 = new THREE.CylinderGeometry(1.2, 1.2, 3, 8);
+  ins2.translate(0, contactH, 1 * side);
+
+  const merged = BufferGeometryUtils.mergeGeometries([ins1, ins2]);
+  merged.userData.shared = true;
+  ins1.dispose();
+  ins2.dispose();
+  return merged;
+}
+
+const SHARED_MAST_BRACKET_POS = createMastBracketGeo(1);
+const SHARED_MAST_BRACKET_NEG = createMastBracketGeo(-1);
+const SHARED_MAST_INS_POS = createMastInsGeo(1);
+const SHARED_MAST_INS_NEG = createMastInsGeo(-1);
+
+const SHARED_DROPPER_GEO = new THREE.CylinderGeometry(0.3, 0.3, 13, 6);
+SHARED_DROPPER_GEO.userData.shared = true;
+
+const _wireGeoCache = new Map<number, THREE.BoxGeometry>();
+function getSharedWireGeometry(len: number): THREE.BoxGeometry {
+  const key = Math.round(len * 10);
+  let geo = _wireGeoCache.get(key);
+  if (!geo) {
+    geo = new THREE.BoxGeometry(len, 0.8, 0.8);
+    geo.userData.shared = true;
+    _wireGeoCache.set(key, geo);
+  }
+  return geo;
+}
+
+const _msgGeoCache = new Map<number, THREE.BoxGeometry>();
+function getSharedMessengerGeometry(len: number): THREE.BoxGeometry {
+  const key = Math.round(len * 10);
+  let geo = _msgGeoCache.get(key);
+  if (!geo) {
+    geo = new THREE.BoxGeometry(len, 0.7, 0.7);
+    geo.userData.shared = true;
+    _msgGeoCache.set(key, geo);
+  }
+  return geo;
+}
 
 export function buildTurntableCatenary3D(
   group: THREE.Group,
@@ -11,11 +112,11 @@ export function buildTurntableCatenary3D(
 ) {
   const catGroup = new THREE.Group();
 
-  const wireMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.3, metalness: 0.85 });
-  const messengerMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.4, metalness: 0.7 });
-  const mastMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.5, metalness: 0.6 });
-  const baseMat = new THREE.MeshStandardMaterial({ color: 0x71717a, roughness: 0.9 });
-  const insMat = new THREE.MeshStandardMaterial({ color: 0x854d0e, roughness: 0.3 });
+  const wireMat = SHARED_WIRE_MAT;
+  const messengerMat = SHARED_MESSENGER_MAT;
+  const mastMat = SHARED_MAST_MAT;
+  const baseMat = SHARED_BASE_MAT;
+  const insMat = SHARED_INS_MAT;
 
   const contactH = 72;
   const messengerH = 85;
@@ -27,39 +128,25 @@ export function buildTurntableCatenary3D(
 
     const mastDist = 24 * side;
 
-    const baseGeo = new THREE.BoxGeometry(6, 8, 6);
-    const baseMesh = new THREE.Mesh(baseGeo, baseMat);
+    const baseMesh = new THREE.Mesh(SHARED_BASE_GEO, baseMat);
     baseMesh.position.set(0, 4, mastDist);
     baseMesh.castShadow = true;
     baseMesh.receiveShadow = true;
     mastGroup.add(baseMesh);
 
-    const poleGeo = new THREE.BoxGeometry(3, 86, 3);
-    const poleMesh = new THREE.Mesh(poleGeo, mastMat);
+    const poleMesh = new THREE.Mesh(SHARED_POLE_GEO, mastMat);
     poleMesh.position.set(0, 47, mastDist);
     poleMesh.castShadow = true;
     mastGroup.add(poleMesh);
 
-    const armGeo = new THREE.BoxGeometry(1.6, 1.6, 24);
-    const armMesh = new THREE.Mesh(armGeo, mastMat);
-    armMesh.position.set(0, messengerH, mastDist / 2);
-    mastGroup.add(armMesh);
+    const bracketGeo = side === -1 ? SHARED_MAST_BRACKET_NEG : SHARED_MAST_BRACKET_POS;
+    const bracketMesh = new THREE.Mesh(bracketGeo, mastMat);
+    bracketMesh.castShadow = true;
+    mastGroup.add(bracketMesh);
 
-    const diagLen = Math.hypot(13, 16);
-    const diagGeo = new THREE.BoxGeometry(1.2, 1.2, diagLen);
-    const diagMesh = new THREE.Mesh(diagGeo, mastMat);
-    diagMesh.position.set(0, (contactH + messengerH) / 2, mastDist * 0.6);
-    diagMesh.rotation.x = Math.atan2(13, 16) * side;
-    mastGroup.add(diagMesh);
-
-    const insGeo = new THREE.CylinderGeometry(1.2, 1.2, 3, 8);
-    const ins1 = new THREE.Mesh(insGeo, insMat);
-    ins1.position.set(0, messengerH, 3 * side);
-    mastGroup.add(ins1);
-
-    const ins2 = new THREE.Mesh(insGeo, insMat);
-    ins2.position.set(0, contactH, 1 * side);
-    mastGroup.add(ins2);
+    const insGeo = side === -1 ? SHARED_MAST_INS_NEG : SHARED_MAST_INS_POS;
+    const insMesh = new THREE.Mesh(insGeo, insMat);
+    mastGroup.add(insMesh);
 
     catGroup.add(mastGroup);
   };
@@ -85,27 +172,28 @@ export function buildTurntableCatenary3D(
     const dirVec = new THREE.Vector3(dx, 0, dz).normalize();
     const quat = new THREE.Quaternion().setFromUnitVectors(unitX, dirVec);
 
-    const wireGeo = new THREE.BoxGeometry(horizLen, 0.8, 0.8);
-    const wireMesh = new THREE.Mesh(wireGeo, wireMat);
+    const wireMesh = new THREE.Mesh(getSharedWireGeometry(horizLen), wireMat);
     wireMesh.position.set(mx, contactH, mz);
     wireMesh.quaternion.copy(quat);
     catGroup.add(wireMesh);
 
-    const msgGeo = new THREE.BoxGeometry(horizLen, 0.7, 0.7);
-    const msgMesh = new THREE.Mesh(msgGeo, messengerMat);
+    const msgMesh = new THREE.Mesh(getSharedMessengerGeometry(horizLen), messengerMat);
     msgMesh.position.set(mx, messengerH, mz);
     msgMesh.quaternion.copy(quat);
     catGroup.add(msgMesh);
 
     const dropperCount = Math.max(1, Math.floor(horizLen / 35));
-    for (let i = 1; i <= dropperCount; i++) {
-      const u = i / (dropperCount + 1);
-      const hx = x1 + dx * u;
-      const hz = z1 + dz * u;
-      const dropperGeo = new THREE.CylinderGeometry(0.3, 0.3, 13, 6);
-      const dropperMesh = new THREE.Mesh(dropperGeo, messengerMat);
-      dropperMesh.position.set(hx, (contactH + messengerH) / 2, hz);
-      catGroup.add(dropperMesh);
+    if (dropperCount > 0) {
+      const droppersInst = new THREE.InstancedMesh(SHARED_DROPPER_GEO, messengerMat, dropperCount);
+      const dummy = new THREE.Object3D();
+      for (let i = 1; i <= dropperCount; i++) {
+        const u = i / (dropperCount + 1);
+        dummy.position.set(x1 + dx * u, (contactH + messengerH) / 2, z1 + dz * u);
+        dummy.updateMatrix();
+        droppersInst.setMatrixAt(i - 1, dummy.matrix);
+      }
+      droppersInst.instanceMatrix.needsUpdate = true;
+      catGroup.add(droppersInst);
     }
 
     if (withMasts) {
@@ -158,11 +246,11 @@ export function buildTransferTableCatenary3D(
 ) {
   const catGroup = new THREE.Group();
 
-  const wireMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.3, metalness: 0.85 });
-  const messengerMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.4, metalness: 0.7 });
-  const mastMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.5, metalness: 0.6 });
-  const baseMat = new THREE.MeshStandardMaterial({ color: 0x71717a, roughness: 0.9 });
-  const insMat = new THREE.MeshStandardMaterial({ color: 0x854d0e, roughness: 0.3 });
+  const wireMat = SHARED_WIRE_MAT;
+  const messengerMat = SHARED_MESSENGER_MAT;
+  const mastMat = SHARED_MAST_MAT;
+  const baseMat = SHARED_BASE_MAT;
+  const insMat = SHARED_INS_MAT;
 
   const contactH = 72;
   const messengerH = 85;
@@ -174,39 +262,25 @@ export function buildTransferTableCatenary3D(
 
     const mastDist = 24 * side;
 
-    const baseGeo = new THREE.BoxGeometry(6, 8, 6);
-    const baseMesh = new THREE.Mesh(baseGeo, baseMat);
+    const baseMesh = new THREE.Mesh(SHARED_BASE_GEO, baseMat);
     baseMesh.position.set(0, 4, mastDist);
     baseMesh.castShadow = true;
     baseMesh.receiveShadow = true;
     mastGroup.add(baseMesh);
 
-    const poleGeo = new THREE.BoxGeometry(3, 86, 3);
-    const poleMesh = new THREE.Mesh(poleGeo, mastMat);
+    const poleMesh = new THREE.Mesh(SHARED_POLE_GEO, mastMat);
     poleMesh.position.set(0, 47, mastDist);
     poleMesh.castShadow = true;
     mastGroup.add(poleMesh);
 
-    const armGeo = new THREE.BoxGeometry(1.6, 1.6, 24);
-    const armMesh = new THREE.Mesh(armGeo, mastMat);
-    armMesh.position.set(0, messengerH, mastDist / 2);
-    mastGroup.add(armMesh);
+    const bracketGeo = side === -1 ? SHARED_MAST_BRACKET_NEG : SHARED_MAST_BRACKET_POS;
+    const bracketMesh = new THREE.Mesh(bracketGeo, mastMat);
+    bracketMesh.castShadow = true;
+    mastGroup.add(bracketMesh);
 
-    const diagLen = Math.hypot(13, 16);
-    const diagGeo = new THREE.BoxGeometry(1.2, 1.2, diagLen);
-    const diagMesh = new THREE.Mesh(diagGeo, mastMat);
-    diagMesh.position.set(0, (contactH + messengerH) / 2, mastDist * 0.6);
-    diagMesh.rotation.x = Math.atan2(13, 16) * side;
-    mastGroup.add(diagMesh);
-
-    const insGeo = new THREE.CylinderGeometry(1.2, 1.2, 3, 8);
-    const ins1 = new THREE.Mesh(insGeo, insMat);
-    ins1.position.set(0, messengerH, 3 * side);
-    mastGroup.add(ins1);
-
-    const ins2 = new THREE.Mesh(insGeo, insMat);
-    ins2.position.set(0, contactH, 1 * side);
-    mastGroup.add(ins2);
+    const insGeo = side === -1 ? SHARED_MAST_INS_NEG : SHARED_MAST_INS_POS;
+    const insMesh = new THREE.Mesh(insGeo, insMat);
+    mastGroup.add(insMesh);
 
     catGroup.add(mastGroup);
   };
@@ -232,27 +306,28 @@ export function buildTransferTableCatenary3D(
     const dirVec = new THREE.Vector3(dx, 0, dz).normalize();
     const quat = new THREE.Quaternion().setFromUnitVectors(unitX, dirVec);
 
-    const wireGeo = new THREE.BoxGeometry(horizLen, 0.8, 0.8);
-    const wireMesh = new THREE.Mesh(wireGeo, wireMat);
+    const wireMesh = new THREE.Mesh(getSharedWireGeometry(horizLen), wireMat);
     wireMesh.position.set(mx, contactH, mz);
     wireMesh.quaternion.copy(quat);
     catGroup.add(wireMesh);
 
-    const msgGeo = new THREE.BoxGeometry(horizLen, 0.7, 0.7);
-    const msgMesh = new THREE.Mesh(msgGeo, messengerMat);
+    const msgMesh = new THREE.Mesh(getSharedMessengerGeometry(horizLen), messengerMat);
     msgMesh.position.set(mx, messengerH, mz);
     msgMesh.quaternion.copy(quat);
     catGroup.add(msgMesh);
 
     const dropperCount = Math.max(1, Math.floor(horizLen / 35));
-    for (let i = 1; i <= dropperCount; i++) {
-      const u = i / (dropperCount + 1);
-      const hx = x1 + dx * u;
-      const hz = z1 + dz * u;
-      const dropperGeo = new THREE.CylinderGeometry(0.3, 0.3, 13, 6);
-      const dropperMesh = new THREE.Mesh(dropperGeo, messengerMat);
-      dropperMesh.position.set(hx, (contactH + messengerH) / 2, hz);
-      catGroup.add(dropperMesh);
+    if (dropperCount > 0) {
+      const droppersInst = new THREE.InstancedMesh(SHARED_DROPPER_GEO, messengerMat, dropperCount);
+      const dummy = new THREE.Object3D();
+      for (let i = 1; i <= dropperCount; i++) {
+        const u = i / (dropperCount + 1);
+        dummy.position.set(x1 + dx * u, (contactH + messengerH) / 2, z1 + dz * u);
+        dummy.updateMatrix();
+        droppersInst.setMatrixAt(i - 1, dummy.matrix);
+      }
+      droppersInst.instanceMatrix.needsUpdate = true;
+      catGroup.add(droppersInst);
     }
 
     if (withMasts) {
@@ -303,11 +378,11 @@ export function buildCatenary3D(
 ) {
   const catGroup = new THREE.Group();
 
-  const wireMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.3, metalness: 0.85 });
-  const messengerMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.4, metalness: 0.7 });
-  const mastMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.5, metalness: 0.6 });
-  const baseMat = new THREE.MeshStandardMaterial({ color: 0x71717a, roughness: 0.9 });
-  const insMat = new THREE.MeshStandardMaterial({ color: 0x854d0e, roughness: 0.3 });
+  const wireMat = SHARED_WIRE_MAT;
+  const messengerMat = SHARED_MESSENGER_MAT;
+  const mastMat = SHARED_MAST_MAT;
+  const baseMat = SHARED_BASE_MAT;
+  const insMat = SHARED_INS_MAT;
 
   const contactH = 72;
   const messengerH = 85;
@@ -319,39 +394,25 @@ export function buildCatenary3D(
 
     const mastDist = 24 * side;
 
-    const baseGeo = new THREE.BoxGeometry(6, 8, 6);
-    const baseMesh = new THREE.Mesh(baseGeo, baseMat);
+    const baseMesh = new THREE.Mesh(SHARED_BASE_GEO, baseMat);
     baseMesh.position.set(0, 4, mastDist);
     baseMesh.castShadow = true;
     baseMesh.receiveShadow = true;
     mastGroup.add(baseMesh);
 
-    const poleGeo = new THREE.BoxGeometry(3, 86, 3);
-    const poleMesh = new THREE.Mesh(poleGeo, mastMat);
+    const poleMesh = new THREE.Mesh(SHARED_POLE_GEO, mastMat);
     poleMesh.position.set(0, 47, mastDist);
     poleMesh.castShadow = true;
     mastGroup.add(poleMesh);
 
-    const armGeo = new THREE.BoxGeometry(1.6, 1.6, 24);
-    const armMesh = new THREE.Mesh(armGeo, mastMat);
-    armMesh.position.set(0, messengerH, mastDist / 2);
-    mastGroup.add(armMesh);
+    const bracketGeo = side === -1 ? SHARED_MAST_BRACKET_NEG : SHARED_MAST_BRACKET_POS;
+    const bracketMesh = new THREE.Mesh(bracketGeo, mastMat);
+    bracketMesh.castShadow = true;
+    mastGroup.add(bracketMesh);
 
-    const diagLen = Math.hypot(13, 16);
-    const diagGeo = new THREE.BoxGeometry(1.2, 1.2, diagLen);
-    const diagMesh = new THREE.Mesh(diagGeo, mastMat);
-    diagMesh.position.set(0, (contactH + messengerH) / 2, mastDist * 0.6);
-    diagMesh.rotation.x = Math.atan2(13, 16) * side;
-    mastGroup.add(diagMesh);
-
-    const insGeo = new THREE.CylinderGeometry(1.2, 1.2, 3, 8);
-    const ins1 = new THREE.Mesh(insGeo, insMat);
-    ins1.position.set(0, messengerH, 3 * side);
-    mastGroup.add(ins1);
-
-    const ins2 = new THREE.Mesh(insGeo, insMat);
-    ins2.position.set(0, contactH, 1 * side);
-    mastGroup.add(ins2);
+    const insGeo = side === -1 ? SHARED_MAST_INS_NEG : SHARED_MAST_INS_POS;
+    const insMesh = new THREE.Mesh(insGeo, insMat);
+    mastGroup.add(insMesh);
 
     catGroup.add(mastGroup);
   };
@@ -382,28 +443,28 @@ export function buildCatenary3D(
     const dirVec = new THREE.Vector3(dx, dy, dz).normalize();
     const quat = new THREE.Quaternion().setFromUnitVectors(unitX, dirVec);
 
-    const wireGeo = new THREE.BoxGeometry(totalLen, 0.8, 0.8);
-    const wireMesh = new THREE.Mesh(wireGeo, wireMat);
+    const wireMesh = new THREE.Mesh(getSharedWireGeometry(totalLen), wireMat);
     wireMesh.position.set(mx, contactH + my, mz);
     wireMesh.quaternion.copy(quat);
     catGroup.add(wireMesh);
 
-    const msgGeo = new THREE.BoxGeometry(totalLen, 0.7, 0.7);
-    const msgMesh = new THREE.Mesh(msgGeo, messengerMat);
+    const msgMesh = new THREE.Mesh(getSharedMessengerGeometry(totalLen), messengerMat);
     msgMesh.position.set(mx, messengerH + my, mz);
     msgMesh.quaternion.copy(quat);
     catGroup.add(msgMesh);
 
     const dropperCount = Math.max(1, Math.floor(horizLen / 35));
-    for (let i = 1; i <= dropperCount; i++) {
-      const u = i / (dropperCount + 1);
-      const hx = x1 + dx * u;
-      const hy = y1 + dy * u;
-      const hz = z1 + dz * u;
-      const dropperGeo = new THREE.CylinderGeometry(0.3, 0.3, 13, 6);
-      const dropperMesh = new THREE.Mesh(dropperGeo, messengerMat);
-      dropperMesh.position.set(hx, (contactH + messengerH) / 2 + hy, hz);
-      catGroup.add(dropperMesh);
+    if (dropperCount > 0) {
+      const droppersInst = new THREE.InstancedMesh(SHARED_DROPPER_GEO, messengerMat, dropperCount);
+      const dummy = new THREE.Object3D();
+      for (let i = 1; i <= dropperCount; i++) {
+        const u = i / (dropperCount + 1);
+        dummy.position.set(x1 + dx * u, (contactH + messengerH) / 2 + (y1 + dy * u), z1 + dz * u);
+        dummy.updateMatrix();
+        droppersInst.setMatrixAt(i - 1, dummy.matrix);
+      }
+      droppersInst.instanceMatrix.needsUpdate = true;
+      catGroup.add(droppersInst);
     }
 
     if (withMasts) {
@@ -451,20 +512,17 @@ export function buildCatenary3D(
       const dirVec = new THREE.Vector3(dx, dy, dz).normalize();
       const quat = new THREE.Quaternion().setFromUnitVectors(unitX, dirVec);
 
-      const wGeo = new THREE.BoxGeometry(segLen, 0.8, 0.8);
-      const wMesh = new THREE.Mesh(wGeo, wireMat);
+      const wMesh = new THREE.Mesh(getSharedWireGeometry(segLen), wireMat);
       wMesh.position.set(mx, contactH + my, mz);
       wMesh.quaternion.copy(quat);
       catGroup.add(wMesh);
 
-      const mGeo = new THREE.BoxGeometry(segLen, 0.7, 0.7);
-      const mMesh = new THREE.Mesh(mGeo, messengerMat);
+      const mMesh = new THREE.Mesh(getSharedMessengerGeometry(segLen), messengerMat);
       mMesh.position.set(mx, messengerH + my, mz);
       mMesh.quaternion.copy(quat);
       catGroup.add(mMesh);
 
-      const dropGeo = new THREE.CylinderGeometry(0.3, 0.3, 13, 6);
-      const dropMesh = new THREE.Mesh(dropGeo, messengerMat);
+      const dropMesh = new THREE.Mesh(SHARED_DROPPER_GEO, messengerMat);
       dropMesh.position.set(mx, (contactH + messengerH) / 2 + my, mz);
       catGroup.add(dropMesh);
     }

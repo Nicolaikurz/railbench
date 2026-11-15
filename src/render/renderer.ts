@@ -1,4 +1,4 @@
-import { Application, Container, Graphics, Text, TextStyle } from "pixi.js";
+import { Application, Container, Graphics, Text, TextStyle, TexturePool } from "pixi.js";
 import type { Layout, ColorMode, TrackPiece, BaseboardConfig } from "@/core/types";
 import { catalogRegistry, type Catalog, type CatalogEntry } from "@/catalog/catalog";
 import type { SimulationSummary, ShortCircuitDetectionResult } from "@/core/simulation";
@@ -79,14 +79,46 @@ export class Renderer {
     return this.baseboardLayer;
   }
 
+  private clearLayer(layer: Container) {
+    while (layer.children.length > 0) {
+      const child = layer.children[0]!;
+      layer.removeChild(child);
+      child.destroy({ children: true });
+    }
+  }
+
+  pause() {
+    this.app.stop();
+  }
+
+  resume() {
+    this.app.start();
+  }
+
+  destroy() {
+    this.clearLayer(this.baseboardLayer);
+    this.clearLayer(this.modelsLayer);
+    this.clearLayer(this.tracksLayer);
+    this.clearLayer(this.overlayLayer);
+    try {
+      TexturePool.clear();
+      if (this.app?.renderer && (this.app.renderer as any).textureGC) {
+        (this.app.renderer as any).textureGC.run();
+      }
+    } catch {}
+    this.app.destroy(true, { children: true });
+  }
+
   async init(host: HTMLElement) {
     const isDark = document.documentElement.getAttribute("data-theme") === "dark";
     this.currentTheme = isDark ? "dark" : "light";
+    const dpr = Math.min(typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1, 1.25);
     await this.app.init({
       resizeTo: host,
       background: isDark ? "#131b2e" : "#e4dfd5",
       antialias: true,
       autoDensity: true,
+      resolution: dpr,
     });
     host.appendChild(this.app.canvas);
 
@@ -105,6 +137,101 @@ export class Renderer {
     const bgColor = theme === "dark" ? 0x131b2e : 0xe4dfd5;
     this.app.renderer.background.color = bgColor;
     this.drawGrid();
+    this.invalidateCaches();
+  }
+
+  private lastBaseboardSignature = "";
+  private lastModelsSignature = "";
+  private lastTracksSignature = "";
+  private lastVisibleTrackItems: Array<{
+    piece: TrackPiece;
+    layer?: any;
+    baseElev: number;
+    minElev: number;
+    maxElev: number;
+    avgElev: number;
+    isInactiveLayer: boolean;
+    isSelected: boolean;
+    index: number;
+  }> = [];
+
+  invalidateCaches() {
+    this.lastBaseboardSignature = "";
+    this.lastModelsSignature = "";
+    this.lastTracksSignature = "";
+    this.lastVisibleTrackItems = [];
+    try {
+      TexturePool.clear();
+      if (this.app?.renderer && (this.app.renderer as any).textureGC) {
+        (this.app.renderer as any).textureGC.run();
+      }
+    } catch {}
+  }
+
+  private computeBaseboardSignature(layout: Layout, options: RenderStateOptions): string {
+    const bbs = layout.baseboards ?? [];
+    let bbHash = bbs.length;
+    for (let i = 0; i < bbs.length; i++) {
+      const b = bbs[i]!;
+      bbHash = (bbHash * 31 + (b.width | 0) + ((b.depth | 0) << 5) + ((b.style?.length ?? 0) << 10) + (b.enabled ? 1 : 0)) | 0;
+    }
+    const layers = layout.layers ?? [];
+    let layerHash = layers.length;
+    for (let i = 0; i < layers.length; i++) {
+      const l = layers[i]!;
+      const h = l.heightMm ?? 0;
+      layerHash = (layerHash * 31 + (h | 0) + ((l.visible === false ? 0 : 1) << 8)) | 0;
+    }
+    return `${layout.activeLayerId || ""}_${bbHash}_${layerHash}_${options.activeBaseboardId || ""}_${Boolean(options.isDraggingBaseboard)}_${options.baseboardSnapGuides?.length ?? 0}_${options.previewElevations?.size ?? 0}`;
+  }
+
+  private computeModelsSignature(layout: Layout, options: RenderStateOptions): string {
+    const models = layout.models;
+    if (!models || models.length === 0) return "0";
+    let hash = models.length;
+    let selectedModels = "";
+    for (let i = 0; i < models.length; i++) {
+      const m = models[i]!;
+      hash = (hash * 31 + (m.transform.x | 0) + ((m.transform.y | 0) << 5) + ((m.transform.rotation | 0) << 10) + ((m.elevation ?? 0) | 0)) | 0;
+      if (options.selectedIds && options.selectedIds.has(m.id)) {
+        selectedModels += m.id + ",";
+      }
+    }
+    return `${hash}_${layout.activeLayerId || ""}_${selectedModels}`;
+  }
+
+  private computeTracksSignature(layout: Layout, catalog: Catalog | undefined, options: RenderStateOptions): string {
+    const pieces = layout.pieces;
+    let piecesHash = pieces.length;
+    let selectedTracks = "";
+    for (let i = 0; i < pieces.length; i++) {
+      const p = pieces[i]!;
+      const eStart = p.elevation?.start ?? 0;
+      const eEnd = p.elevation?.end ?? eStart;
+      piecesHash = (piecesHash * 31 + (p.transform.x | 0) + ((p.transform.y | 0) << 5) + ((p.transform.rotation | 0) << 10) + ((eStart | 0) << 15) + ((eEnd | 0) << 20)) | 0;
+      if (options.selectedIds && options.selectedIds.has(p.id)) {
+        selectedTracks += p.id + ",";
+      }
+    }
+    const prevPieces = options.previewPieces?.length ?? 0;
+    let prevElevHash = 0;
+    if (options.previewElevations && options.previewElevations.size > 0) {
+      for (const [id, val] of options.previewElevations) {
+        prevElevHash = (prevElevHash * 31 + id.length + ((val.start | 0) << 4) + ((val.end | 0) << 8)) | 0;
+      }
+    }
+    const layers = layout.layers ?? [];
+    let layerHash = layers.length;
+    for (let i = 0; i < layers.length; i++) {
+      const l = layers[i]!;
+      const h = l.heightMm ?? 0;
+      layerHash = (layerHash * 31 + (h | 0) + ((l.visible === false ? 0 : 1) << 8)) | 0;
+    }
+    const catId = catalog?.id ?? "";
+    const powerHash = options.powerSimulation ? options.powerSimulation.results.size : 0;
+    const scHash = options.shortCircuit ? options.shortCircuit.shortCircuitPieces.size : 0;
+
+    return `${piecesHash}_${selectedTracks}_${prevPieces}_${prevElevHash}_${layerHash}_${layout.activeLayerId || ""}_${catId}_${options.colorMode || ""}_${Boolean(options.showColorCode)}_${Boolean(options.showTrackLabels)}_${Boolean(options.showConnectors)}_${Boolean(options.showPowerDrop)}_${powerHash}_${scHash}`;
   }
 
   drawGrid(size = 50, extent = 6000) {
@@ -147,8 +274,18 @@ export class Renderer {
     const activeLayer = layerMap.get(activeLayerId);
     const activeLayerElev = activeLayer?.heightMm ?? 0;
 
+    const selectedIds = options.selectedIds ?? new Set<string>();
+    const entryMap = new Map<string, CatalogEntry>();
+    if (catalog) {
+      for (const e of catalog.entries) {
+        entryMap.set(e.id, e);
+      }
+    }
+
     // 0. Baseboard / Tischplatte & Zwischenebenen rendern (sortiert nach realer 3D-Höhe)
-    this.baseboardLayer.removeChildren();
+    const baseboardSig = this.computeBaseboardSignature(layout, options);
+    if (baseboardSig !== this.lastBaseboardSignature) {
+      this.clearLayer(this.baseboardLayer);
     const baseboards = getBaseboards(layout);
     const tableLayer = layout.layers?.find((l) => (l.heightMm ?? 0) === 0);
     const tableVisible = tableLayer ? tableLayer.visible !== false : true;
@@ -311,66 +448,66 @@ export class Renderer {
       return a.order - b.order;
     });
 
-    for (const item of boardItems) {
-      this.baseboardLayer.addChild(item.sprite);
+      for (const item of boardItems) {
+        this.baseboardLayer.addChild(item.sprite);
+      }
+      this.lastBaseboardSignature = baseboardSig;
     }
 
     // 0B. 3D-Modelle / Scenery im 2D-Grundriss rendern
-    this.modelsLayer.removeChildren();
-    const selectedIds = options.selectedIds ?? new Set<string>();
+    const modelsSig = this.computeModelsSignature(layout, options);
+    if (modelsSig !== this.lastModelsSignature) {
+      this.clearLayer(this.modelsLayer);
 
-    if (layout.models && layout.models.length > 0) {
-      const sortedModels = layout.models
-        .map((model, index) => {
-          const layer = model.layerId ? layerMap.get(model.layerId) : undefined;
-          const elev = (layer?.heightMm ?? 0) + (model.elevation ?? 0);
-          const mLayerId = model.layerId || defaultLayerId;
-          const isInactive = hasMultipleLayers && mLayerId !== activeLayerId;
-          return { model, layer, elev, isInactive, index };
-        })
-        .filter((item) => !item.layer || item.layer.visible !== false)
-        .sort((a, b) => {
-          if (Math.abs(a.elev - b.elev) > 0.05) return a.elev - b.elev;
-          if (a.isInactive !== b.isInactive) return a.isInactive ? -1 : 1;
-          return a.index - b.index;
-        });
+      if (layout.models && layout.models.length > 0) {
+        const sortedModels = layout.models
+          .map((model, index) => {
+            const layer = model.layerId ? layerMap.get(model.layerId) : undefined;
+            const elev = (layer?.heightMm ?? 0) + (model.elevation ?? 0);
+            const mLayerId = model.layerId || defaultLayerId;
+            const isInactive = hasMultipleLayers && mLayerId !== activeLayerId;
+            return { model, layer, elev, isInactive, index };
+          })
+          .filter((item) => !item.layer || item.layer.visible !== false)
+          .sort((a, b) => {
+            if (Math.abs(a.elev - b.elev) > 0.05) return a.elev - b.elev;
+            if (a.isInactive !== b.isInactive) return a.isInactive ? -1 : 1;
+            return a.index - b.index;
+          });
 
-      for (const { model, layer, isInactive } of sortedModels) {
-        const isSelected = selectedIds.has(model.id);
+        for (const { model, layer, isInactive } of sortedModels) {
+          const isSelected = selectedIds.has(model.id);
 
-        // Holzfundamentplatte rendern, wenn Layer im tight-Modus
-        if (layer?.woodPlateMode === "tight") {
-          const baseG = new Graphics();
-          const scale = model.scale ?? 1.0;
-          const w = (model.width * scale) + 12;
-          const d = (model.depth * scale) + 12;
-          baseG.rect(-w / 2, -d / 2, w, d);
-          baseG.fill({ color: 0xcbb89d, alpha: isInactive && !isSelected ? 0.18 : 0.35 });
-          baseG.stroke({ width: 1.5, color: 0x8c6d48, alpha: isInactive && !isSelected ? 0.38 : 0.7 });
-          baseG.position.set(model.transform.x, model.transform.y);
-          baseG.rotation = (model.transform.rotation * Math.PI) / 180;
-          this.modelsLayer.addChild(baseG);
+          // Holzfundamentplatte rendern, wenn Layer im tight-Modus
+          if (layer?.woodPlateMode === "tight") {
+            const baseG = new Graphics();
+            const scale = model.scale ?? 1.0;
+            const w = (model.width * scale) + 12;
+            const d = (model.depth * scale) + 12;
+            baseG.rect(-w / 2, -d / 2, w, d);
+            baseG.fill({ color: 0xcbb89d, alpha: isInactive && !isSelected ? 0.18 : 0.35 });
+            baseG.stroke({ width: 1.5, color: 0x8c6d48, alpha: isInactive && !isSelected ? 0.38 : 0.7 });
+            baseG.position.set(model.transform.x, model.transform.y);
+            baseG.rotation = (model.transform.rotation * Math.PI) / 180;
+            this.modelsLayer.addChild(baseG);
+          }
+
+          const modelSprite = createModel2DGraphics(model, isSelected);
+          if (isInactive && !isSelected) {
+            modelSprite.alpha = 0.58;
+          }
+          this.modelsLayer.addChild(modelSprite);
         }
-
-        const modelSprite = createModel2DGraphics(model, isSelected);
-        if (isInactive && !isSelected) {
-          modelSprite.alpha = 0.58;
-        }
-        this.modelsLayer.addChild(modelSprite);
       }
+      this.lastModelsSignature = modelsSig;
     }
 
     // 1. Tracks rendern (sortiert nach realer 3D-Höhe: tiefere Gleise unten, höhere Gleise darüber)
-    this.tracksLayer.removeChildren();
+    const tracksSig = this.computeTracksSignature(layout, catalog, options);
+    if (tracksSig !== this.lastTracksSignature) {
+      this.clearLayer(this.tracksLayer);
 
-    const entryMap = new Map<string, CatalogEntry>();
-    if (catalog) {
-      for (const e of catalog.entries) {
-        entryMap.set(e.id, e);
-      }
-    }
-
-    const showPowerDrop = options.showPowerDrop ?? false;
+      const showPowerDrop = options.showPowerDrop ?? false;
     const powerSim = options.powerSimulation;
 
     const visibleTrackItems = layout.pieces
@@ -469,15 +606,18 @@ export class Renderer {
         this.tracksLayer.addChild(sprite);
       }
     }
+      this.lastVisibleTrackItems = visibleTrackItems;
+      this.lastTracksSignature = tracksSig;
+    }
 
     // 2. Overlays rendern (Connectors, Snap-Ziele)
-    this.overlayLayer.removeChildren();
+    this.clearLayer(this.overlayLayer);
     const ov = new Graphics();
     this.overlayLayer.addChild(ov);
 
     if (options.showConnectors) {
       const drawnConnected = new Set<string>();
-      for (const { piece, isInactiveLayer } of visibleTrackItems) {
+      for (const { piece, isInactiveLayer } of this.lastVisibleTrackItems) {
         const alphaMul = isInactiveLayer ? 0.5 : 1.0;
         const pieceLayerKey = piece.layerId || defaultLayerId;
         for (let cIdx = 0; cIdx < piece.connectors.length; cIdx++) {

@@ -92,7 +92,7 @@ export const DEMO_LAYOUTS: DemoLayoutDef[] = [
       "Klassischer Alpen-Rundkurs mit Ausweichgleis, Prellbock, Einspeisung, Bergbahnhof und Stellwerk.",
     descriptionEn:
       "Classic alpine circuit with passing siding, buffer stop, power feeder, mountain station, and signal box.",
-    dimensionsMm: { width: 2200, height: 1250 },
+    dimensionsMm: { width: 2400, height: 1450 },
     pieceCount: 103,
     icon: "🏔️",
     tags: ["H0", "Märklin", "Oval", "Bahnhof", "Klassiker"],

@@ -234,57 +234,74 @@ function buildTrainHallArches(
   const halfW = wHall / 2;
   const colHeight = wallH - floorY;
 
+  const colGeo = new THREE.BoxGeometry(70, colHeight, 70);
+
+  const outerCurve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(-halfW, wallH, 0),
+    new THREE.Vector3(-halfW * 0.65, (wallH + apexH) / 2 + 260, 0),
+    new THREE.Vector3(0, apexH, 0),
+    new THREE.Vector3(halfW * 0.65, (wallH + apexH) / 2 + 260, 0),
+    new THREE.Vector3(halfW, wallH, 0),
+  ]);
+  const outerGeo = new THREE.TubeGeometry(outerCurve, 24, 20, 8, false);
+
+  const innerCurve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(-halfW + 160, wallH + 10, 0),
+    new THREE.Vector3((-halfW + 160) * 0.65, (wallH + apexH) / 2 + 70, 0),
+    new THREE.Vector3(0, apexH - 220, 0),
+    new THREE.Vector3((halfW - 160) * 0.65, (wallH + apexH) / 2 + 70, 0),
+    new THREE.Vector3(halfW - 160, wallH + 10, 0),
+  ]);
+  const innerGeo = new THREE.TubeGeometry(innerCurve, 24, 15, 8, false);
+
+  const strutSteps = 9;
+  const strutGeos: THREE.CylinderGeometry[] = [];
+  const strutTransforms: { midX: number; midY: number; quat: THREE.Quaternion }[] = [];
+  const unitY = new THREE.Vector3(0, 1, 0);
+
+  for (let s = 1; s < strutSteps; s++) {
+    const t = s / strutSteps;
+    const ptOut = outerCurve.getPoint(t);
+    const ptIn = innerCurve.getPoint(t);
+    const vLen = ptOut.distanceTo(ptIn);
+
+    const sGeo = new THREE.CylinderGeometry(8, 8, vLen, 6);
+    strutGeos.push(sGeo);
+
+    const dir = ptOut.clone().sub(ptIn).normalize();
+    const quat = new THREE.Quaternion().setFromUnitVectors(unitY, dir);
+    strutTransforms.push({
+      midX: (ptOut.x + ptIn.x) / 2,
+      midY: (ptOut.y + ptIn.y) / 2,
+      quat,
+    });
+  }
+
   for (let i = 0; i <= numBays; i++) {
     const z = cz - lHall / 2 + i * stepZ;
 
-    const colL = new THREE.Mesh(new THREE.BoxGeometry(70, colHeight, 70), steelMat);
+    const colL = new THREE.Mesh(colGeo, steelMat);
     colL.position.set(cx - halfW, (floorY + wallH) / 2, z);
-    colL.castShadow = true;
-    colL.receiveShadow = true;
     trainHallGroup.add(colL);
 
-    const colR = new THREE.Mesh(new THREE.BoxGeometry(70, colHeight, 70), steelMat);
+    const colR = new THREE.Mesh(colGeo, steelMat);
     colR.position.set(cx + halfW, (floorY + wallH) / 2, z);
-    colR.castShadow = true;
-    colR.receiveShadow = true;
     trainHallGroup.add(colR);
 
-    const outerCurve = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(-halfW, wallH, 0),
-      new THREE.Vector3(-halfW * 0.65, (wallH + apexH) / 2 + 260, 0),
-      new THREE.Vector3(0, apexH, 0),
-      new THREE.Vector3(halfW * 0.65, (wallH + apexH) / 2 + 260, 0),
-      new THREE.Vector3(halfW, wallH, 0),
-    ]);
-    const outerGeo = new THREE.TubeGeometry(outerCurve, 24, 20, 8, false);
     const outerMesh = new THREE.Mesh(outerGeo, steelMat);
     outerMesh.position.set(cx, 0, z);
-    outerMesh.castShadow = true;
     trainHallGroup.add(outerMesh);
 
-    const innerCurve = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(-halfW + 160, wallH + 10, 0),
-      new THREE.Vector3((-halfW + 160) * 0.65, (wallH + apexH) / 2 + 70, 0),
-      new THREE.Vector3(0, apexH - 220, 0),
-      new THREE.Vector3((halfW - 160) * 0.65, (wallH + apexH) / 2 + 70, 0),
-      new THREE.Vector3(halfW - 160, wallH + 10, 0),
-    ]);
-    const innerGeo = new THREE.TubeGeometry(innerCurve, 24, 15, 8, false);
     const innerMesh = new THREE.Mesh(innerGeo, steelMat);
     innerMesh.position.set(cx, 0, z);
     trainHallGroup.add(innerMesh);
 
-    const strutSteps = 9;
-    for (let s = 1; s < strutSteps; s++) {
-      const t = s / strutSteps;
-      const ptOut = outerCurve.getPoint(t);
-      const ptIn = innerCurve.getPoint(t);
-      const vLen = ptOut.distanceTo(ptIn);
-
-      const strutGeo = new THREE.CylinderGeometry(8, 8, vLen, 6);
-      const strut = new THREE.Mesh(strutGeo, steelMat);
-      strut.position.set(cx + (ptOut.x + ptIn.x) / 2, (ptOut.y + ptIn.y) / 2, z);
-      strut.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), ptOut.clone().sub(ptIn).normalize());
+    for (let s = 0; s < strutGeos.length; s++) {
+      const sGeo = strutGeos[s]!;
+      const st = strutTransforms[s]!;
+      const strut = new THREE.Mesh(sGeo, steelMat);
+      strut.position.set(cx + st.midX, st.midY, z);
+      strut.quaternion.copy(st.quat);
       trainHallGroup.add(strut);
     }
   }

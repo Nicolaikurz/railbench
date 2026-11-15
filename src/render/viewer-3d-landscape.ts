@@ -96,8 +96,8 @@ export function buildRealisticLandscape(
   const leafMat1 = new THREE.MeshStandardMaterial({ color: leafGreen1, roughness: 0.9 });
   const leafMat2 = new THREE.MeshStandardMaterial({ color: leafGreen2, roughness: 0.9 });
 
-  // 1. Weitläufiges Talboden-Gelände bis zum Horizont (Radius 180.000 mm)
-  const worldPlaneGeo = new THREE.CircleGeometry(180000, 64);
+  // 1. Weitläufiges Talboden-Gelände bis zum Horizont (Radius 180.000 mm, 32 Segmente reichen für den Horizont)
+  const worldPlaneGeo = new THREE.CircleGeometry(180000, 32);
   worldPlaneGeo.rotateX(-Math.PI / 2);
   const worldPlane = new THREE.Mesh(worldPlaneGeo, meadowMat);
   worldPlane.position.set(cx, floorY - 2, cz);
@@ -220,7 +220,7 @@ function buildLandscapeHills(
   ];
 
   for (const h of hills) {
-    const hillGeo = new THREE.CylinderGeometry(0, h.r, h.h, 24, 1, false);
+    const hillGeo = new THREE.CylinderGeometry(0, h.r, h.h, 14, 1, false);
     const hillMesh = new THREE.Mesh(hillGeo, hillMat);
     hillMesh.position.set(h.x, floorY + h.h / 2, h.z);
     hillMesh.receiveShadow = true;
@@ -253,7 +253,7 @@ function buildLandscapeHills(
     const hr = 10000 + ((a * 1523) % 8000);
     const hh = 3200 + ((a * 911) % 3500);
 
-    const hGeo = new THREE.CylinderGeometry(0, hr, hh, 16, 1, false);
+    const hGeo = new THREE.CylinderGeometry(0, hr, hh, 10, 1, false);
     const hMesh = new THREE.Mesh(hGeo, hillMat);
     hMesh.position.set(hx, floorY + hh / 2 - 100, hz);
     landscapeGroup.add(hMesh);
@@ -301,14 +301,14 @@ function buildLandscapeRiver(
   ];
 
   const riverCurve = new THREE.CatmullRomCurve3(curvePoints);
-  const riverGeo = new THREE.TubeGeometry(riverCurve, 40, 160, 8, false);
+  const riverGeo = new THREE.TubeGeometry(riverCurve, 20, 160, 6, false);
   riverGeo.scale(1, 0.08, 1); // Flaches Wasserband
   const riverMesh = new THREE.Mesh(riverGeo, riverMat);
   riverMesh.position.set(0, 0, 0);
   landscapeGroup.add(riverMesh);
 
   // Kiesel-/Sand-Ufer auf beiden Seiten
-  const bankGeo = new THREE.TubeGeometry(riverCurve, 40, 210, 8, false);
+  const bankGeo = new THREE.TubeGeometry(riverCurve, 20, 210, 6, false);
   bankGeo.scale(1, 0.05, 1);
   const bankMesh = new THREE.Mesh(bankGeo, riverBankMat);
   bankMesh.position.set(0, -3, 0);
@@ -399,7 +399,7 @@ function buildLandscapeRoad(
   ];
 
   const roadCurve = new THREE.CatmullRomCurve3(roadPoints);
-  const roadGeo = new THREE.TubeGeometry(roadCurve, 45, 75, 4, false);
+  const roadGeo = new THREE.TubeGeometry(roadCurve, 20, 75, 4, false);
   roadGeo.scale(1, 0.05, 1);
   const roadMesh = new THREE.Mesh(roadGeo, roadMat);
   roadMesh.receiveShadow = true;
@@ -444,6 +444,7 @@ function buildLandscapeForest(
     { cx: cx - wTable * 0.95 - 2400, cz: cz - 400, count: 16, spread: 1800 },
   ];
 
+  const pinePoints: { x: number; z: number; scale: number; isMat2: boolean }[] = [];
   for (const cl of pineClusters) {
     for (let i = 0; i < cl.count; i++) {
       const angle = (i / cl.count) * Math.PI * 2 + (i % 3);
@@ -451,36 +452,46 @@ function buildLandscapeForest(
       const px = cl.cx + Math.cos(angle) * dist;
       const pz = cl.cz + Math.sin(angle) * dist;
       const scale = 0.85 + (i % 5) * 0.12;
-
-      const tree = new THREE.Group();
-      tree.position.set(px, floorY, pz);
-      tree.scale.setScalar(scale);
-
-      // Stamm
-      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(4, 7, 45, 8), barkMat);
-      trunk.position.set(0, 22.5, 0);
-      trunk.castShadow = true;
-      tree.add(trunk);
-
-      // 3 gestufte Nadelkronen
-      const mat = i % 2 === 0 ? pineMat1 : pineMat2;
-      const c1 = new THREE.Mesh(new THREE.ConeGeometry(32, 45, 8), mat);
-      c1.position.set(0, 50, 0);
-      c1.castShadow = true;
-      tree.add(c1);
-
-      const c2 = new THREE.Mesh(new THREE.ConeGeometry(25, 40, 8), mat);
-      c2.position.set(0, 75, 0);
-      c2.castShadow = true;
-      tree.add(c2);
-
-      const c3 = new THREE.Mesh(new THREE.ConeGeometry(17, 35, 8), mat);
-      c3.position.set(0, 98, 0);
-      c3.castShadow = true;
-      tree.add(c3);
-
-      landscapeGroup.add(tree);
+      pinePoints.push({ x: px, z: pz, scale, isMat2: i % 2 !== 0 });
     }
+  }
+
+  const trunkGeo = new THREE.CylinderGeometry(4, 7, 45, 8);
+  trunkGeo.translate(0, 22.5, 0);
+  const c1Geo = new THREE.ConeGeometry(32, 45, 8);
+  c1Geo.translate(0, 50, 0);
+  const c2Geo = new THREE.ConeGeometry(25, 40, 8);
+  c2Geo.translate(0, 75, 0);
+  const c3Geo = new THREE.ConeGeometry(17, 35, 8);
+  c3Geo.translate(0, 98, 0);
+
+  const dummy = new THREE.Object3D();
+
+  if (pinePoints.length > 0) {
+    const trunkInst = new THREE.InstancedMesh(trunkGeo, barkMat, pinePoints.length);
+    const c1Inst1 = new THREE.InstancedMesh(c1Geo, pineMat1, pinePoints.length);
+    const c2Inst1 = new THREE.InstancedMesh(c2Geo, pineMat1, pinePoints.length);
+    const c3Inst1 = new THREE.InstancedMesh(c3Geo, pineMat1, pinePoints.length);
+
+    for (let i = 0; i < pinePoints.length; i++) {
+      const p = pinePoints[i]!;
+      dummy.position.set(p.x, floorY, p.z);
+      dummy.scale.setScalar(p.scale);
+      dummy.rotation.set(0, 0, 0);
+      dummy.updateMatrix();
+
+      trunkInst.setMatrixAt(i, dummy.matrix);
+      c1Inst1.setMatrixAt(i, dummy.matrix);
+      c2Inst1.setMatrixAt(i, dummy.matrix);
+      c3Inst1.setMatrixAt(i, dummy.matrix);
+    }
+
+    trunkInst.instanceMatrix.needsUpdate = true;
+    c1Inst1.instanceMatrix.needsUpdate = true;
+    c2Inst1.instanceMatrix.needsUpdate = true;
+    c3Inst1.instanceMatrix.needsUpdate = true;
+
+    landscapeGroup.add(trunkInst, c1Inst1, c2Inst1, c3Inst1);
   }
 
   // B. Laubbäume entlang des Flusses & der Straße (Auen- & Alleebäume)
@@ -493,32 +504,34 @@ function buildLandscapeForest(
     { x: cx - wTable * 0.65 - 1100, z: cz - lTable * 0.5, scale: 1.2 },
   ];
 
+  const decTrunkGeo = new THREE.CylinderGeometry(5, 8, 55, 8);
+  decTrunkGeo.translate(0, 27.5, 0);
+  const crownMainGeo = new THREE.DodecahedronGeometry(42, 1);
+  crownMainGeo.translate(0, 85, 0);
+  const crownSubGeo = new THREE.DodecahedronGeometry(28, 1);
+  crownSubGeo.translate(18, 78, 14);
+
+  const decTrunkInst = new THREE.InstancedMesh(decTrunkGeo, barkMat, deciduousPositions.length);
+  const crownMainInst = new THREE.InstancedMesh(crownMainGeo, leafMat1, deciduousPositions.length);
+  const crownSubInst = new THREE.InstancedMesh(crownSubGeo, leafMat1, deciduousPositions.length);
+
   for (let j = 0; j < deciduousPositions.length; j++) {
     const dp = deciduousPositions[j]!;
-    const tree = new THREE.Group();
-    tree.position.set(dp.x, floorY, dp.z);
-    tree.scale.setScalar(dp.scale);
+    dummy.position.set(dp.x, floorY, dp.z);
+    dummy.scale.setScalar(dp.scale);
+    dummy.rotation.set(0, 0, 0);
+    dummy.updateMatrix();
 
-    // Stamm
-    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(5, 8, 55, 8), barkMat);
-    trunk.position.set(0, 27.5, 0);
-    trunk.castShadow = true;
-    tree.add(trunk);
-
-    // Krone aus Dodekaeder-Kugeln
-    const mat = j % 2 === 0 ? leafMat1 : leafMat2;
-    const crownMain = new THREE.Mesh(new THREE.DodecahedronGeometry(42, 1), mat);
-    crownMain.position.set(0, 85, 0);
-    crownMain.castShadow = true;
-    tree.add(crownMain);
-
-    const crownSub = new THREE.Mesh(new THREE.DodecahedronGeometry(28, 1), mat);
-    crownSub.position.set(18, 78, 14);
-    crownSub.castShadow = true;
-    tree.add(crownSub);
-
-    landscapeGroup.add(tree);
+    decTrunkInst.setMatrixAt(j, dummy.matrix);
+    crownMainInst.setMatrixAt(j, dummy.matrix);
+    crownSubInst.setMatrixAt(j, dummy.matrix);
   }
+
+  decTrunkInst.instanceMatrix.needsUpdate = true;
+  crownMainInst.instanceMatrix.needsUpdate = true;
+  crownSubInst.instanceMatrix.needsUpdate = true;
+
+  landscapeGroup.add(decTrunkInst, crownMainInst, crownSubInst);
 }
 
 /** Malerische Almhütte / Bauernhaus auf dem Osthügel */
@@ -635,7 +648,7 @@ function buildLandscapeClouds(landscapeGroup: THREE.Group, cx: number, cz: numbe
     ];
 
     for (const sp of subSpheres) {
-      const puff = new THREE.Mesh(new THREE.DodecahedronGeometry(sp.r, 1), cloudMat);
+      const puff = new THREE.Mesh(new THREE.DodecahedronGeometry(sp.r, 0), cloudMat);
       puff.position.set(sp.x, sp.y, sp.z);
       cloud.add(puff);
     }

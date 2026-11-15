@@ -34,6 +34,44 @@ export function applyCurveElevation(
   geo.computeVertexNormals();
 }
 
+export const SHARED_WOOD_PLATE_MAT = new THREE.MeshStandardMaterial({
+  color: 0xcbb89d,
+  roughness: 0.85,
+  metalness: 0.05,
+});
+SHARED_WOOD_PLATE_MAT.userData.shared = true;
+
+const _straightWoodPlateGeoCache = new Map<string, THREE.BoxGeometry>();
+function getSharedStraightWoodPlateGeo(len: number, thickness: number, width: number): THREE.BoxGeometry {
+  const key = `${Math.round(len * 10)}:${Math.round(thickness * 10)}:${Math.round(width * 10)}`;
+  let geo = _straightWoodPlateGeoCache.get(key);
+  if (!geo) {
+    geo = new THREE.BoxGeometry(len, thickness, width);
+    geo.userData.shared = true;
+    _straightWoodPlateGeoCache.set(key, geo);
+  }
+  return geo;
+}
+
+const _curvedWoodPlateGeoCache = new Map<string, THREE.BufferGeometry>();
+
+const SHARED_ASPHALT_DEFAULT_MAT = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.92, side: THREE.DoubleSide });
+SHARED_ASPHALT_DEFAULT_MAT.userData.shared = true;
+
+const SHARED_LINE_MAT = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.4, side: THREE.DoubleSide });
+SHARED_LINE_MAT.userData.shared = true;
+
+const SHARED_YELLOW_MAT = new THREE.MeshStandardMaterial({ color: 0xfbbf24, roughness: 0.4, side: THREE.DoubleSide });
+SHARED_YELLOW_MAT.userData.shared = true;
+
+const SHARED_PLANK_MAT = new THREE.MeshStandardMaterial({ color: 0x272422, roughness: 0.85, side: THREE.DoubleSide });
+SHARED_PLANK_MAT.userData.shared = true;
+
+const SHARED_ROAD_RAIL_MAT = new THREE.MeshStandardMaterial({ color: 0xd1d5db, metalness: 0.85, roughness: 0.25, side: THREE.DoubleSide });
+SHARED_ROAD_RAIL_MAT.userData.shared = true;
+
+const _layerAsphaltMatCache = new Map<number, THREE.MeshStandardMaterial>();
+
 export function buildRoadPiece3D(
   group: THREE.Group,
   _piece: TrackPiece,
@@ -47,17 +85,24 @@ export function buildRoadPiece3D(
   const roadBaseY = 0.08;
   const kind = entry.kind;
 
-  let asphaltHex = 0x334155;
+  let asphaltMat = SHARED_ASPHALT_DEFAULT_MAT;
   if (colorMode === "layers" && layerColor) {
     const parsed = parseInt(layerColor.replace(/^#/, ""), 16);
-    if (!isNaN(parsed)) asphaltHex = parsed;
+    if (!isNaN(parsed)) {
+      let cached = _layerAsphaltMatCache.get(parsed);
+      if (!cached) {
+        cached = new THREE.MeshStandardMaterial({ color: parsed, roughness: 0.92, side: THREE.DoubleSide });
+        cached.userData.shared = true;
+        _layerAsphaltMatCache.set(parsed, cached);
+      }
+      asphaltMat = cached;
+    }
   }
 
-  const asphaltMat = new THREE.MeshStandardMaterial({ color: asphaltHex, roughness: 0.92, side: THREE.DoubleSide });
-  const lineMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.4, side: THREE.DoubleSide });
-  const yellowMat = new THREE.MeshStandardMaterial({ color: 0xfbbf24, roughness: 0.4, side: THREE.DoubleSide });
-  const plankMat = new THREE.MeshStandardMaterial({ color: 0x272422, roughness: 0.85, side: THREE.DoubleSide });
-  const railMat = new THREE.MeshStandardMaterial({ color: 0xd1d5db, metalness: 0.85, roughness: 0.25, side: THREE.DoubleSide });
+  const lineMat = SHARED_LINE_MAT;
+  const yellowMat = SHARED_YELLOW_MAT;
+  const plankMat = SHARED_PLANK_MAT;
+  const railMat = SHARED_ROAD_RAIL_MAT;
 
   const addStraightRoad = (target: THREE.Group, len: number, startX = 0, customZ = 0) => {
     const roadGeo = new THREE.BoxGeometry(len, roadH, roadW);
@@ -367,15 +412,11 @@ export function buildWoodPlatePiece3D(
   const roadW = entry.roadWidth ?? 60;
   const plateWidth = isRoad ? roadW + 8 : (entry.gauge ?? 16.5) * 2.4;
   const thickness = customThickness ?? 6;
-  const woodPlateMat = new THREE.MeshStandardMaterial({
-    color: 0xcbb89d,
-    roughness: 0.85,
-    metalness: 0.05,
-  });
+  const woodPlateMat = SHARED_WOOD_PLATE_MAT;
 
   if (isStraightTrackEntry(entry)) {
     const len = entry.length ?? (entry.kind === "flex" ? 900 : isRoad ? 200 : 180);
-    const geo = new THREE.BoxGeometry(len, thickness, plateWidth);
+    const geo = getSharedStraightWoodPlateGeo(len, thickness, plateWidth);
     const mesh = new THREE.Mesh(geo, woodPlateMat);
     mesh.position.set(len / 2, -thickness / 2, 0);
     if (Math.abs(heightDiff) > 0.01) {
@@ -390,27 +431,37 @@ export function buildWoodPlatePiece3D(
     const dir: 1 | -1 = angleVal < 0 ? -1 : 1;
     const deg = Math.abs(angleVal);
     const rad = deg2rad(deg);
-    const innerR = Math.max(10, r - plateWidth / 2);
-    const outerR = r + plateWidth / 2;
-    const segments = Math.max(8, Math.round(deg / 3));
+    const isFlat = Math.abs(heightDiff) < 0.01;
+    const cacheKey = isFlat ? `${Math.round(r * 10)}:${Math.round(rad * 1000)}:${dir}:${thickness}:${plateWidth}` : null;
 
-    const curveShape = new THREE.Shape();
-    if (dir === 1) {
-      curveShape.absarc(0, 0, outerR, -Math.PI / 2, -Math.PI / 2 + rad, false);
-      curveShape.absarc(0, 0, innerR, -Math.PI / 2 + rad, -Math.PI / 2, true);
-    } else {
-      curveShape.absarc(0, 0, outerR, Math.PI / 2, Math.PI / 2 - rad, true);
-      curveShape.absarc(0, 0, innerR, Math.PI / 2 - rad, Math.PI / 2, false);
-    }
-    curveShape.closePath();
+    let geo = cacheKey ? _curvedWoodPlateGeoCache.get(cacheKey) : undefined;
+    if (!geo) {
+      const innerR = Math.max(10, r - plateWidth / 2);
+      const outerR = r + plateWidth / 2;
+      const segments = Math.max(8, Math.round(deg / 3));
 
-    const extrudeSettings = { depth: thickness, bevelEnabled: false, curveSegments: segments };
-    const geo = new THREE.ExtrudeGeometry(curveShape, extrudeSettings);
-    geo.rotateX(Math.PI / 2);
-    geo.translate(0, 0, dir * r);
-    if (Math.abs(heightDiff) > 0.01) {
-      applyCurveElevation(geo, r, rad, heightDiff, dir, 0);
+      const curveShape = new THREE.Shape();
+      if (dir === 1) {
+        curveShape.absarc(0, 0, outerR, -Math.PI / 2, -Math.PI / 2 + rad, false);
+        curveShape.absarc(0, 0, innerR, -Math.PI / 2 + rad, -Math.PI / 2, true);
+      } else {
+        curveShape.absarc(0, 0, outerR, Math.PI / 2, Math.PI / 2 - rad, true);
+        curveShape.absarc(0, 0, innerR, Math.PI / 2 - rad, Math.PI / 2, false);
+      }
+      curveShape.closePath();
+
+      const extrudeSettings = { depth: thickness, bevelEnabled: false, curveSegments: segments };
+      geo = new THREE.ExtrudeGeometry(curveShape, extrudeSettings);
+      geo.rotateX(Math.PI / 2);
+      geo.translate(0, 0, dir * r);
+      if (!isFlat) {
+        applyCurveElevation(geo, r, rad, heightDiff, dir, 0);
+      } else {
+        geo.userData.shared = true;
+        _curvedWoodPlateGeoCache.set(cacheKey!, geo);
+      }
     }
+
     const mesh = new THREE.Mesh(geo, woodPlateMat);
     mesh.position.set(0, -thickness, 0);
     mesh.castShadow = true;
@@ -418,11 +469,133 @@ export function buildWoodPlatePiece3D(
     group.add(mesh);
   } else {
     const len = entry.length ?? 180;
-    const geo = new THREE.BoxGeometry(len, thickness, plateWidth);
+    const geo = getSharedStraightWoodPlateGeo(len, thickness, plateWidth);
     const mesh = new THREE.Mesh(geo, woodPlateMat);
     mesh.position.set(len / 2, -thickness / 2, 0);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     group.add(mesh);
+  }
+}
+
+export interface WoodPlateBuildItem {
+  piece: TrackPiece;
+  entry: CatalogEntry;
+  startElev: number;
+  endElev: number;
+  thickness: number;
+}
+
+export function buildAllWoodPlates3D(woodPlateGroup: THREE.Group, items: WoodPlateBuildItem[]) {
+  const flatGroups = new Map<string, WoodPlateBuildItem[]>();
+  const individualItems: WoodPlateBuildItem[] = [];
+
+  for (const item of items) {
+    const isFlat = Math.abs(item.endElev - item.startElev) < 0.01;
+    if (isFlat && (isStraightTrackEntry(item.entry) || isCurvedTrackEntry(item.entry))) {
+      const key = `${item.entry.id}:${item.thickness}`;
+      let list = flatGroups.get(key);
+      if (!list) {
+        list = [];
+        flatGroups.set(key, list);
+      }
+      list.push(item);
+    } else {
+      individualItems.push(item);
+    }
+  }
+
+  const worldMat = new THREE.Matrix4();
+  const localMat = new THREE.Matrix4();
+  const finalMat = new THREE.Matrix4();
+  const pos = new THREE.Vector3();
+  const quat = new THREE.Quaternion();
+  const scale = new THREE.Vector3(1, 1, 1);
+  const upAxis = new THREE.Vector3(0, 1, 0);
+
+  for (const [, list] of flatGroups) {
+    if (list.length >= 2) {
+      const first = list[0]!;
+      const entry = first.entry;
+      const thickness = first.thickness;
+      const isRoad = entry.isRoad === true || entry.id.startsWith("ST-");
+      const roadW = entry.roadWidth ?? 60;
+      const plateWidth = isRoad ? roadW + 8 : (entry.gauge ?? 16.5) * 2.4;
+
+      if (isStraightTrackEntry(entry)) {
+        const len = entry.length ?? (entry.kind === "flex" ? 900 : isRoad ? 200 : 180);
+        const geo = getSharedStraightWoodPlateGeo(len, thickness, plateWidth);
+        const instMesh = new THREE.InstancedMesh(geo, SHARED_WOOD_PLATE_MAT, list.length);
+        instMesh.castShadow = true;
+        instMesh.receiveShadow = true;
+        localMat.makeTranslation(len / 2, -thickness / 2, 0);
+
+        for (let i = 0; i < list.length; i++) {
+          const it = list[i]!;
+          pos.set(it.piece.transform.x, it.startElev, it.piece.transform.y);
+          quat.setFromAxisAngle(upAxis, -deg2rad(it.piece.transform.rotation));
+          worldMat.compose(pos, quat, scale);
+          finalMat.multiplyMatrices(worldMat, localMat);
+          instMesh.setMatrixAt(i, finalMat);
+        }
+        instMesh.instanceMatrix.needsUpdate = true;
+        woodPlateGroup.add(instMesh);
+      } else if (isCurvedTrackEntry(entry)) {
+        const r = entry.radius ?? 360;
+        const angleVal = entry.angle ?? 30;
+        const dir: 1 | -1 = angleVal < 0 ? -1 : 1;
+        const deg = Math.abs(angleVal);
+        const rad = deg2rad(deg);
+        const cacheKey = `${Math.round(r * 10)}:${Math.round(rad * 1000)}:${dir}:${thickness}:${plateWidth}`;
+        let geo = _curvedWoodPlateGeoCache.get(cacheKey);
+        if (!geo) {
+          const innerR = Math.max(10, r - plateWidth / 2);
+          const outerR = r + plateWidth / 2;
+          const segments = Math.max(8, Math.round(deg / 3));
+          const curveShape = new THREE.Shape();
+          if (dir === 1) {
+            curveShape.absarc(0, 0, outerR, -Math.PI / 2, -Math.PI / 2 + rad, false);
+            curveShape.absarc(0, 0, innerR, -Math.PI / 2 + rad, -Math.PI / 2, true);
+          } else {
+            curveShape.absarc(0, 0, outerR, Math.PI / 2, Math.PI / 2 - rad, true);
+            curveShape.absarc(0, 0, innerR, Math.PI / 2 - rad, Math.PI / 2, false);
+          }
+          curveShape.closePath();
+          geo = new THREE.ExtrudeGeometry(curveShape, { depth: thickness, bevelEnabled: false, curveSegments: segments });
+          geo.rotateX(Math.PI / 2);
+          geo.translate(0, 0, dir * r);
+          geo.userData.shared = true;
+          _curvedWoodPlateGeoCache.set(cacheKey, geo);
+        }
+
+        const instMesh = new THREE.InstancedMesh(geo, SHARED_WOOD_PLATE_MAT, list.length);
+        instMesh.castShadow = true;
+        instMesh.receiveShadow = true;
+        localMat.makeTranslation(0, -thickness, 0);
+
+        for (let i = 0; i < list.length; i++) {
+          const it = list[i]!;
+          pos.set(it.piece.transform.x, it.startElev, it.piece.transform.y);
+          quat.setFromAxisAngle(upAxis, -deg2rad(it.piece.transform.rotation));
+          worldMat.compose(pos, quat, scale);
+          finalMat.multiplyMatrices(worldMat, localMat);
+          instMesh.setMatrixAt(i, finalMat);
+        }
+        instMesh.instanceMatrix.needsUpdate = true;
+        woodPlateGroup.add(instMesh);
+      }
+    } else {
+      for (const item of list) {
+        individualItems.push(item);
+      }
+    }
+  }
+
+  for (const it of individualItems) {
+    const plateGroup = new THREE.Group();
+    plateGroup.position.set(it.piece.transform.x, it.startElev, it.piece.transform.y);
+    plateGroup.rotation.y = -deg2rad(it.piece.transform.rotation);
+    buildWoodPlatePiece3D(plateGroup, it.piece, it.entry, it.endElev - it.startElev, it.thickness);
+    woodPlateGroup.add(plateGroup);
   }
 }

@@ -6,10 +6,83 @@ import { deg2rad, distanceToTrackPiece, isCurvedTrackEntry, isStraightTrackEntry
 import { buildLightSignal3D } from "@/render/builtin-models-3d";
 import { applyCurveElevation } from "./viewer-3d-roads";
 
+// Shared materials for turnout accessories and bridges
+const SHARED_PILLAR_MAT = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.75, metalness: 0.1 });
+SHARED_PILLAR_MAT.userData.shared = true;
+
+const SHARED_TURNOUT_METAL_MAT = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.5, metalness: 0.8 });
+SHARED_TURNOUT_METAL_MAT.userData.shared = true;
+
+const SHARED_TURNOUT_BASE_MAT = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.8 });
+SHARED_TURNOUT_BASE_MAT.userData.shared = true;
+
+const SHARED_TURNOUT_HOUSING_MAT = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.7 });
+SHARED_TURNOUT_HOUSING_MAT.userData.shared = true;
+
+const SHARED_TURNOUT_LENS_MAT = new THREE.MeshStandardMaterial({
+  color: 0xfef08a,
+  emissive: 0xfef08a,
+  emissiveIntensity: 0.8,
+  roughness: 0.3,
+});
+SHARED_TURNOUT_LENS_MAT.userData.shared = true;
+
+const SHARED_TURNOUT_DEC_MAT = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.4, metalness: 0.5 });
+SHARED_TURNOUT_DEC_MAT.userData.shared = true;
+
+const SHARED_TURNOUT_LED_MAT = new THREE.MeshStandardMaterial({
+  color: 0x38bdf8,
+  emissive: 0x0284c7,
+  emissiveIntensity: 0.9,
+});
+SHARED_TURNOUT_LED_MAT.userData.shared = true;
+
+const SHARED_BRIDGE_STEEL_MAT = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.5, metalness: 0.7 });
+SHARED_BRIDGE_STEEL_MAT.userData.shared = true;
+
+const SHARED_BRIDGE_DECK_MAT = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.9 });
+SHARED_BRIDGE_DECK_MAT.userData.shared = true;
+
+const SHARED_BRIDGE_RAIL_MAT = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.4, metalness: 0.8 });
+SHARED_BRIDGE_RAIL_MAT.userData.shared = true;
+
+const SHARED_BRIDGE_PILLAR_MAT = new THREE.MeshStandardMaterial({ color: 0x71717a, roughness: 0.85 });
+SHARED_BRIDGE_PILLAR_MAT.userData.shared = true;
+
+// Shared turnout accessory geometries
+const SHARED_ROD_GEO = new THREE.CylinderGeometry(0.8, 0.8, 22, 6);
+SHARED_ROD_GEO.userData.shared = true;
+
+const SHARED_TURNOUT_BASE_GEO = new THREE.CylinderGeometry(3.5, 4, 3, 10);
+SHARED_TURNOUT_BASE_GEO.userData.shared = true;
+
+const SHARED_TURNOUT_HOUSING_GEO = new THREE.BoxGeometry(5.5, 6, 5.5);
+SHARED_TURNOUT_HOUSING_GEO.userData.shared = true;
+
+const SHARED_TURNOUT_LENS_GEO = new THREE.BoxGeometry(4.5, 4.5, 5.8);
+SHARED_TURNOUT_LENS_GEO.userData.shared = true;
+
+const SHARED_TURNOUT_DEC_GEO = new THREE.BoxGeometry(9, 3, 12);
+SHARED_TURNOUT_DEC_GEO.userData.shared = true;
+
+const SHARED_TURNOUT_LED_GEO = new THREE.CylinderGeometry(0.8, 0.8, 1, 8);
+SHARED_TURNOUT_LED_GEO.userData.shared = true;
+
+const _pillarGeoCache = new Map<number, THREE.CylinderGeometry>();
+function getSharedPillarGeometry(height: number): THREE.CylinderGeometry {
+  const key = Math.round(height * 10);
+  let geo = _pillarGeoCache.get(key);
+  if (!geo) {
+    geo = new THREE.CylinderGeometry(10, 13, height, 12);
+    geo.userData.shared = true;
+    _pillarGeoCache.set(key, geo);
+  }
+  return geo;
+}
+
 export function buildBridgePillar(pillarsGroup: THREE.Group, x: number, z: number, height: number) {
-  const pillarGeo = new THREE.CylinderGeometry(10, 13, height, 12);
-  const pillarMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.75, metalness: 0.1 });
-  const pillar = new THREE.Mesh(pillarGeo, pillarMat);
+  const pillarGeo = getSharedPillarGeometry(height);
+  const pillar = new THREE.Mesh(pillarGeo, SHARED_PILLAR_MAT);
   pillar.position.set(x, height / 2, z);
   pillar.castShadow = true;
   pillar.receiveShadow = true;
@@ -25,39 +98,26 @@ export function buildTurnoutAccessories3D(group: THREE.Group, entry: CatalogEntr
   const accGroup = new THREE.Group();
 
   // 1. Stellstange (metallisch)
-  const rodGeo = new THREE.CylinderGeometry(0.8, 0.8, Math.abs(lanternZ), 6);
-  const metalMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.5, metalness: 0.8 });
-  const rod = new THREE.Mesh(rodGeo, metalMat);
+  const rod = new THREE.Mesh(SHARED_ROD_GEO, SHARED_TURNOUT_METAL_MAT);
   rod.rotation.x = Math.PI / 2;
   rod.position.set(lanternX, 3.5, lanternZ / 2);
   accGroup.add(rod);
 
   if (piece.hasLantern) {
     // 2. Sockel & Gehäuse
-    const baseGeo = new THREE.CylinderGeometry(3.5, 4, 3, 10);
-    const baseMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.8 });
-    const base = new THREE.Mesh(baseGeo, baseMat);
+    const base = new THREE.Mesh(SHARED_TURNOUT_BASE_GEO, SHARED_TURNOUT_BASE_MAT);
     base.position.set(lanternX, 2.5, lanternZ);
     base.castShadow = true;
     accGroup.add(base);
 
     // Laternengehäuse (schwarzer Würfel)
-    const housingGeo = new THREE.BoxGeometry(5.5, 6, 5.5);
-    const housingMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.7 });
-    const housing = new THREE.Mesh(housingGeo, housingMat);
+    const housing = new THREE.Mesh(SHARED_TURNOUT_HOUSING_GEO, SHARED_TURNOUT_HOUSING_MAT);
     housing.position.set(lanternX, 6.5, lanternZ);
     housing.castShadow = true;
     accGroup.add(housing);
 
     // Beleuchtetes Weichensignal / Laternenoptik
-    const lensGeo = new THREE.BoxGeometry(4.5, 4.5, 5.8);
-    const lensMat = new THREE.MeshStandardMaterial({
-      color: 0xfef08a,
-      emissive: 0xfef08a,
-      emissiveIntensity: 0.8,
-      roughness: 0.3,
-    });
-    const lens = new THREE.Mesh(lensGeo, lensMat);
+    const lens = new THREE.Mesh(SHARED_TURNOUT_LENS_GEO, SHARED_TURNOUT_LENS_MAT);
     lens.position.set(lanternX, 6.5, lanternZ);
     accGroup.add(lens);
   }
@@ -66,21 +126,13 @@ export function buildTurnoutAccessories3D(group: THREE.Group, entry: CatalogEntr
     // 3. Digitaldecoder-Kasten
     const decX = piece.hasLantern ? lanternX + 11 : lanternX;
     const decZ = lanternZ;
-    const decGeo = new THREE.BoxGeometry(9, 3, 12);
-    const decMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.4, metalness: 0.5 });
-    const dec = new THREE.Mesh(decGeo, decMat);
+    const dec = new THREE.Mesh(SHARED_TURNOUT_DEC_GEO, SHARED_TURNOUT_DEC_MAT);
     dec.position.set(decX, 2, decZ);
     dec.castShadow = true;
     accGroup.add(dec);
 
     // Mini-LED Kontrollleuchte auf dem Decoder
-    const ledGeo = new THREE.CylinderGeometry(0.8, 0.8, 1, 8);
-    const ledMat = new THREE.MeshStandardMaterial({
-      color: 0x38bdf8,
-      emissive: 0x0284c7,
-      emissiveIntensity: 0.9,
-    });
-    const led = new THREE.Mesh(ledGeo, ledMat);
+    const led = new THREE.Mesh(SHARED_TURNOUT_LED_GEO, SHARED_TURNOUT_LED_MAT);
     led.position.set(decX + 2.5, 3.8, decZ);
     accGroup.add(led);
   }
@@ -236,10 +288,10 @@ export function buildTrackBridge3D(
   const bridgeW = Math.max(34, gauge + 18);
   const bridgeH = 3.5;
   const heightDiff = endElev - startElev;
-  const steelMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.5, metalness: 0.7 });
-  const deckMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.9 });
-  const railMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.4, metalness: 0.8 });
-  const pillarMat = new THREE.MeshStandardMaterial({ color: 0x71717a, roughness: 0.85 });
+  const steelMat = SHARED_BRIDGE_STEEL_MAT;
+  const deckMat = SHARED_BRIDGE_DECK_MAT;
+  const railMat = SHARED_BRIDGE_RAIL_MAT;
+  const pillarMat = SHARED_BRIDGE_PILLAR_MAT;
 
   const bridgeGroup = new THREE.Group();
 

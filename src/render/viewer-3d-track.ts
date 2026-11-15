@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import * as BufferGeometryUtils from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import type { CatalogEntry } from "@/catalog/catalog";
 import { isBufferStopPiece } from "@/catalog/catalog";
 import type { ColorMode, Layout, TrackPiece } from "@/core/types";
@@ -46,6 +47,60 @@ function getSharedTieGeometry(gauge: number): THREE.BoxGeometry {
   }
   return geo;
 }
+
+const _straightBallastGeoCache = new Map<string, THREE.BoxGeometry>();
+function getSharedStraightBallastGeometry(len: number, h: number, w: number): THREE.BoxGeometry {
+  const key = `${Math.round(len * 10)}:${Math.round(h * 10)}:${Math.round(w * 10)}`;
+  let geo = _straightBallastGeoCache.get(key);
+  if (!geo) {
+    geo = new THREE.BoxGeometry(len, h, w);
+    geo.userData.shared = true;
+    _straightBallastGeoCache.set(key, geo);
+  }
+  return geo;
+}
+
+const _straightRailGeoCache = new Map<string, THREE.BoxGeometry>();
+function getSharedStraightRailGeometry(len: number, h: number, w: number): THREE.BoxGeometry {
+  const key = `${Math.round(len * 10)}:${Math.round(h * 10)}:${Math.round(w * 10)}`;
+  let geo = _straightRailGeoCache.get(key);
+  if (!geo) {
+    geo = new THREE.BoxGeometry(len, h, w);
+    geo.userData.shared = true;
+    _straightRailGeoCache.set(key, geo);
+  }
+  return geo;
+}
+
+const _straightDualRailGeoCache = new Map<string, THREE.BufferGeometry>();
+function getSharedStraightDualRailGeometry(len: number, h: number, w: number, gaugeHalf: number): THREE.BufferGeometry {
+  const key = `${Math.round(len * 10)}:${Math.round(h * 10)}:${Math.round(w * 10)}:${Math.round(gaugeHalf * 100)}`;
+  let geo = _straightDualRailGeoCache.get(key);
+  if (!geo) {
+    const rL = new THREE.BoxGeometry(len, h, w);
+    rL.translate(0, 0, -gaugeHalf);
+    const rR = new THREE.BoxGeometry(len, h, w);
+    rR.translate(0, 0, gaugeHalf);
+    geo = BufferGeometryUtils.mergeGeometries([rL, rR]);
+    geo.userData.shared = true;
+    rL.dispose();
+    rR.dispose();
+    _straightDualRailGeoCache.set(key, geo);
+  }
+  return geo;
+}
+
+const _curvedBallastGeoCache = new Map<string, THREE.BufferGeometry>();
+const _curvedRailGeoCache = new Map<string, THREE.BufferGeometry>();
+const _curvedDualRailGeoCache = new Map<string, THREE.BufferGeometry>();
+
+const SHARED_BUFFER_LAMP_MAT = new THREE.MeshStandardMaterial({
+  color: 0xef4444,
+  emissive: 0xef4444,
+  emissiveIntensity: 0.95,
+  roughness: 0.25,
+});
+SHARED_BUFFER_LAMP_MAT.userData.shared = true;
 
 const _tieDummy = new THREE.Object3D();
 
@@ -124,7 +179,7 @@ export function buildTrackPiece3D(
     startX = 0,
     isAccessory = false,
   ) => {
-    const ballastGeo = new THREE.BoxGeometry(len, ballastH, ballastW);
+    const ballastGeo = getSharedStraightBallastGeometry(len, ballastH, ballastW);
     const ballastMesh = new THREE.Mesh(ballastGeo, ballastMat);
     ballastMesh.position.set(startX + len / 2, ballastH / 2, 0);
     ballastMesh.receiveShadow = true;
@@ -146,13 +201,10 @@ export function buildTrackPiece3D(
       targetGroup.add(tiesInstanced);
     }
 
-    const railGeo = new THREE.BoxGeometry(len, railH, railW);
-    const rL = new THREE.Mesh(railGeo, railMat);
-    rL.position.set(startX + len / 2, railY, -gaugeHalf);
-    const rR = new THREE.Mesh(railGeo, railMat);
-    rR.position.set(startX + len / 2, railY, gaugeHalf);
-    targetGroup.add(rL);
-    targetGroup.add(rR);
+    const dualRailGeo = getSharedStraightDualRailGeometry(len, railH, railW, gaugeHalf);
+    const railsMesh = new THREE.Mesh(dualRailGeo, railMat);
+    railsMesh.position.set(startX + len / 2, railY, 0);
+    targetGroup.add(railsMesh);
 
     if (isAccessory) {
       const bufferGroup = new THREE.Group();
@@ -172,12 +224,7 @@ export function buildTrackPiece3D(
       if (isIlluminated) {
         bufferGroup.traverse((obj) => {
           if (obj instanceof THREE.Mesh && obj.geometry instanceof THREE.CylinderGeometry) {
-            obj.material = new THREE.MeshStandardMaterial({
-              color: 0xef4444,
-              emissive: 0xef4444,
-              emissiveIntensity: 0.95,
-              roughness: 0.25,
-            });
+            obj.material = SHARED_BUFFER_LAMP_MAT;
           }
         });
       }
@@ -202,49 +249,75 @@ export function buildTrackPiece3D(
     customHDiff = heightDiff,
   ) => {
     const rad = deg2rad(a);
-    const rIn = r - ballastW / 2;
-    const rOut = r + ballastW / 2;
+    const isFlat = Math.abs(customHDiff) < 0.01;
+    const curveCacheKey = isFlat ? `${Math.round(r * 10)}:${Math.round(rad * 1000)}:${dir}:${leadX}:${ballastH}:${ballastW}` : null;
 
-    const curveShape = new THREE.Shape();
-    if (dir === 1) {
-      curveShape.absarc(0, 0, rOut, -Math.PI / 2, -Math.PI / 2 + rad, false);
-      curveShape.absarc(0, 0, rIn, -Math.PI / 2 + rad, -Math.PI / 2, true);
-    } else {
-      curveShape.absarc(0, 0, rOut, Math.PI / 2, Math.PI / 2 - rad, true);
-      curveShape.absarc(0, 0, rIn, Math.PI / 2 - rad, Math.PI / 2, false);
+    let curveGeo = curveCacheKey ? _curvedBallastGeoCache.get(curveCacheKey) : undefined;
+    if (!curveGeo) {
+      const rIn = r - ballastW / 2;
+      const rOut = r + ballastW / 2;
+
+      const curveShape = new THREE.Shape();
+      if (dir === 1) {
+        curveShape.absarc(0, 0, rOut, -Math.PI / 2, -Math.PI / 2 + rad, false);
+        curveShape.absarc(0, 0, rIn, -Math.PI / 2 + rad, -Math.PI / 2, true);
+      } else {
+        curveShape.absarc(0, 0, rOut, Math.PI / 2, Math.PI / 2 - rad, true);
+        curveShape.absarc(0, 0, rIn, Math.PI / 2 - rad, Math.PI / 2, false);
+      }
+      curveShape.closePath();
+
+      curveGeo = new THREE.ExtrudeGeometry(curveShape, { depth: ballastH, bevelEnabled: false });
+      curveGeo.rotateX(Math.PI / 2);
+      curveGeo.translate(leadX, ballastH, dir * r);
+      if (!isFlat) {
+        applyCurveElevation(curveGeo, r, rad, customHDiff, dir, leadX);
+      } else {
+        curveGeo.userData.shared = true;
+        _curvedBallastGeoCache.set(curveCacheKey!, curveGeo);
+      }
     }
-    curveShape.closePath();
-
-    const curveGeo = new THREE.ExtrudeGeometry(curveShape, { depth: ballastH, bevelEnabled: false });
-    curveGeo.rotateX(Math.PI / 2);
-    curveGeo.translate(leadX, ballastH, dir * r);
-    applyCurveElevation(curveGeo, r, rad, customHDiff, dir, leadX);
 
     const ballastMesh = new THREE.Mesh(curveGeo, ballastMat);
     ballastMesh.receiveShadow = true;
     ballastMesh.castShadow = true;
     targetGroup.add(ballastMesh);
 
-    for (const offset of [-gaugeHalf, gaugeHalf]) {
-      const railShape = new THREE.Shape();
-      const rr = r + offset;
-      if (dir === 1) {
-        railShape.absarc(0, 0, rr + railW / 2, -Math.PI / 2, -Math.PI / 2 + rad, false);
-        railShape.absarc(0, 0, rr - railW / 2, -Math.PI / 2 + rad, -Math.PI / 2, true);
-      } else {
-        railShape.absarc(0, 0, rr + railW / 2, Math.PI / 2, Math.PI / 2 - rad, true);
-        railShape.absarc(0, 0, rr - railW / 2, Math.PI / 2 - rad, Math.PI / 2, false);
+    const railCacheKey = isFlat ? `${Math.round(r * 10)}:${Math.round(gaugeHalf * 100)}:${Math.round(rad * 1000)}:${dir}:${leadX}:${railH}:${railW}` : null;
+    let dualCurvedGeo = railCacheKey ? _curvedDualRailGeoCache.get(railCacheKey) : undefined;
+
+    if (!dualCurvedGeo) {
+      const railGeos: THREE.BufferGeometry[] = [];
+      for (const offset of [-gaugeHalf, gaugeHalf]) {
+        const railShape = new THREE.Shape();
+        const rr = r + offset;
+        if (dir === 1) {
+          railShape.absarc(0, 0, rr + railW / 2, -Math.PI / 2, -Math.PI / 2 + rad, false);
+          railShape.absarc(0, 0, rr - railW / 2, -Math.PI / 2 + rad, -Math.PI / 2, true);
+        } else {
+          railShape.absarc(0, 0, rr + railW / 2, Math.PI / 2, Math.PI / 2 - rad, true);
+          railShape.absarc(0, 0, rr - railW / 2, Math.PI / 2 - rad, Math.PI / 2, false);
+        }
+        railShape.closePath();
+
+        const bRailGeo = new THREE.ExtrudeGeometry(railShape, { depth: railH, bevelEnabled: false });
+        bRailGeo.rotateX(Math.PI / 2);
+        bRailGeo.translate(leadX, railY, dir * r);
+        if (!isFlat) {
+          applyCurveElevation(bRailGeo, r, rad, customHDiff, dir, leadX);
+        }
+        railGeos.push(bRailGeo);
       }
-      railShape.closePath();
-
-      const bRailGeo = new THREE.ExtrudeGeometry(railShape, { depth: railH, bevelEnabled: false });
-      bRailGeo.rotateX(Math.PI / 2);
-      bRailGeo.translate(leadX, railY, dir * r);
-      applyCurveElevation(bRailGeo, r, rad, customHDiff, dir, leadX);
-
-      const bRailMesh = new THREE.Mesh(bRailGeo, railMat);
-      targetGroup.add(bRailMesh);
+      dualCurvedGeo = BufferGeometryUtils.mergeGeometries(railGeos);
+      railGeos.forEach((g) => g.dispose());
+      if (isFlat) {
+        dualCurvedGeo.userData.shared = true;
+        _curvedDualRailGeoCache.set(railCacheKey!, dualCurvedGeo);
+      }
     }
+
+    const bRailMesh = new THREE.Mesh(dualCurvedGeo, railMat);
+    targetGroup.add(bRailMesh);
 
     const arcLen = r * rad;
     const tieStep = Math.max(3.5, (gauge / 16.5) * 6.5);

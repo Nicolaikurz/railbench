@@ -39,9 +39,9 @@ describe("Demo Layout", () => {
     expect(layout.feedVoltage).toBe(16);
     expect(layout.pieces.length).toBe(103);
     expect(layout.layers?.length).toBe(3);
-    expect(layout.baseboard?.width).toBe(2200);
-    expect(layout.baseboard?.depth).toBe(1250);
-    expect(layout.models?.length).toBe(24);
+    expect(layout.baseboard?.width).toBe(2400);
+    expect(layout.baseboard?.depth).toBe(1450);
+    expect(layout.models?.length).toBe(21);
   });
 
   it("schließt das Gleisnetz nahtlos und fehlerfrei", () => {
@@ -86,8 +86,8 @@ describe("Demo Layout", () => {
     expect(restored.name).toBe(DEMO_LAYOUT_NAME);
     expect(restored.pieces.length).toBe(103);
     expect(restored.layers?.length).toBe(3);
-    expect(restored.models?.length).toBe(24);
-    expect(restored.baseboard?.width).toBe(2200);
+    expect(restored.models?.length).toBe(21);
+    expect(restored.baseboard?.width).toBe(2400);
   });
 
   it("initDemoTracks überschreibt ein leeres Layout mit dem vollständigen Demo-Plan", () => {
@@ -96,7 +96,7 @@ describe("Demo Layout", () => {
 
     expect(emptyLayout.name).toBe(DEMO_LAYOUT_NAME);
     expect(emptyLayout.pieces.length).toBe(103);
-    expect(emptyLayout.baseboard?.width).toBe(2200);
+    expect(emptyLayout.baseboard?.width).toBe(2400);
   });
 
   it("stellt 6 verschiedene Demo-Layouts über DEMO_LAYOUTS bereit", () => {

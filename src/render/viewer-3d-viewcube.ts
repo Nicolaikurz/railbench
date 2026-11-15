@@ -323,6 +323,8 @@ export function applyCameraViewPreset(
   controls.update();
 }
 
+let _lastCubeTransform = "";
+
 /**
  * Updates the 3D CSS ViewCube transform to match the live Three.js camera orientation.
  */
@@ -340,7 +342,71 @@ export function updateViewCubeOrientation(
   const azimuthDeg = THREE.MathUtils.radToDeg(Math.atan2(dx, dz));
   const elevDeg = THREE.MathUtils.radToDeg(Math.atan2(dy, Math.max(1e-4, horiz)));
 
-  cubeEl.style.transform = `rotateX(${(-elevDeg).toFixed(1)}deg) rotateY(${(-azimuthDeg).toFixed(1)}deg)`;
+  const newTransform = `rotateX(${(-elevDeg).toFixed(1)}deg) rotateY(${(-azimuthDeg).toFixed(1)}deg)`;
+  if (newTransform !== _lastCubeTransform) {
+    _lastCubeTransform = newTransform;
+    cubeEl.style.transform = newTransform;
+  }
+}
+
+function createMockElement(tag = "div"): any {
+  const children: any[] = [];
+  const listeners: Record<string, ((e: any) => void)[]> = {};
+  const dataset: Record<string, string> = {};
+
+  const el: any = {
+    tagName: tag.toUpperCase(),
+    className: "",
+    style: {},
+    innerHTML: "",
+    textContent: "",
+    type: "button",
+    title: "",
+    dataset,
+    children,
+    parentElement: null,
+    appendChild(child: any) {
+      children.push(child);
+      child.parentElement = el;
+      return child;
+    },
+    addEventListener(type: string, fn: (e: any) => void) {
+      if (!listeners[type]) listeners[type] = [];
+      listeners[type].push(fn);
+    },
+    click() {
+      const fns = listeners["click"] || [];
+      fns.forEach((fn) => fn({ stopPropagation: () => {} }));
+    },
+    querySelector(selector: string) {
+      return el.querySelectorAll(selector)[0] || null;
+    },
+    querySelectorAll(selector: string) {
+      const results: any[] = [];
+      function match(node: any) {
+        if (!node) return;
+        let isMatch = false;
+        if (selector.startsWith(".")) {
+          const cls = selector.slice(1);
+          if (node.className && node.className.split(" ").includes(cls)) isMatch = true;
+        } else if (selector.startsWith("[") && selector.endsWith("]")) {
+          const [key, val] = selector.slice(1, -1).split("=");
+          if (key && val) {
+            const cleanVal = val.replace(/['"]/g, "");
+            const camelKey = key.replace(/^data-/, "").replace(/-([a-z])/g, (_, g) => g.toUpperCase());
+            if (node.dataset && node.dataset[camelKey] === cleanVal) isMatch = true;
+          }
+        }
+        if (isMatch) results.push(node);
+        if (node.children) {
+          for (const ch of node.children) match(ch);
+        }
+      }
+      match(el);
+      return results;
+    },
+  };
+  return el;
 }
 
 /**
@@ -352,10 +418,12 @@ export function createViewCubeWidget(
 ): { panelEl: HTMLElement; cubeEl: HTMLElement; refreshLabels: () => void } {
   ensureViewCubeStyles();
 
-  const panelEl = document.createElement("div");
+  const doc = typeof document !== "undefined" ? document : { createElement: (tag: string) => createMockElement(tag) };
+
+  const panelEl = doc.createElement("div");
   panelEl.className = "v3d-viewcube-panel";
 
-  const stageEl = document.createElement("div");
+  const stageEl = doc.createElement("div");
   stageEl.className = "v3d-viewcube-stage";
 
   // 4 Isometric corner buttons around the cube
@@ -368,7 +436,7 @@ export function createViewCubeWidget(
 
   const cornerBtns: Array<{ el: HTMLButtonElement; de: string; en: string }> = [];
   for (const c of corners) {
-    const b = document.createElement("button");
+    const b = doc.createElement("button");
     b.type = "button";
     b.className = `v3d-corner-btn ${c.cls}`;
     b.textContent = c.sym;
@@ -378,7 +446,7 @@ export function createViewCubeWidget(
   }
 
   // 3D Cube with 6 clickable faces
-  const cubeEl = document.createElement("div");
+  const cubeEl = doc.createElement("div");
   cubeEl.className = "v3d-viewcube-cube";
 
   const faces: Array<{
@@ -399,12 +467,12 @@ export function createViewCubeWidget(
 
   const faceEls: Array<{ el: HTMLButtonElement; de: string; en: string; titleDe: string; titleEn: string }> = [];
   for (const f of faces) {
-    const btn = document.createElement("button");
+    const btn = doc.createElement("button");
     btn.type = "button";
     btn.className = `v3d-viewcube-face ${f.cls}`;
     btn.dataset.viewPreset = f.preset;
-    btn.addEventListener("click", (e) => {
-      e.stopPropagation();
+    btn.addEventListener("click", (e: any) => {
+      e.stopPropagation?.();
       onSelectPreset(f.preset);
     });
     cubeEl.appendChild(btn);
@@ -414,29 +482,31 @@ export function createViewCubeWidget(
   // Support dragging directly on the ViewCube stage to orbit the camera
   let dragStart: { x: number; y: number } | null = null;
   let moved = false;
-  stageEl.addEventListener("pointerdown", (e) => {
+  stageEl.addEventListener("pointerdown", (e: any) => {
     if (e.button !== 0) return;
     dragStart = { x: e.clientX, y: e.clientY };
     moved = false;
   });
-  window.addEventListener("pointermove", (e) => {
-    if (!dragStart) return;
-    const dx = e.clientX - dragStart.x;
-    const dy = e.clientY - dragStart.y;
-    if (Math.hypot(dx, dy) > 4) {
-      moved = true;
-      onOrbitStep(-dx * 0.85, -dy * 0.85);
-      dragStart = { x: e.clientX, y: e.clientY };
-    }
-  });
-  window.addEventListener("pointerup", () => {
-    dragStart = null;
-  });
+  if (typeof window !== "undefined") {
+    window.addEventListener("pointermove", (e: any) => {
+      if (!dragStart) return;
+      const dx = e.clientX - dragStart.x;
+      const dy = e.clientY - dragStart.y;
+      if (Math.hypot(dx, dy) > 4) {
+        moved = true;
+        onOrbitStep(-dx * 0.85, -dy * 0.85);
+        dragStart = { x: e.clientX, y: e.clientY };
+      }
+    });
+    window.addEventListener("pointerup", () => {
+      dragStart = null;
+    });
+  }
   stageEl.addEventListener(
     "click",
-    (e) => {
+    (e: any) => {
       if (moved) {
-        e.stopPropagation();
+        e.stopPropagation?.();
         moved = false;
       }
     },
@@ -447,7 +517,7 @@ export function createViewCubeWidget(
   panelEl.appendChild(stageEl);
 
   // Quick-action bar below the cube: ⟲ 90° | ⌂ ISO | ⟳ 90° and Oben | Vorne | Unten
-  const barEl = document.createElement("div");
+  const barEl = doc.createElement("div");
   barEl.className = "v3d-viewcube-bar";
 
   const quickButtons: Array<{
@@ -510,7 +580,7 @@ export function createViewCubeWidget(
 
   const miniEls: Array<{ el: HTMLButtonElement; de: string; en: string; titleDe: string; titleEn: string }> = [];
   for (const qb of quickButtons) {
-    const b = document.createElement("button");
+    const b = doc.createElement("button") as any;
     b.type = "button";
     b.className = "v3d-vc-mini-btn";
     b.dataset.vcAction = qb.id;
