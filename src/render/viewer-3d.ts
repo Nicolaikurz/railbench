@@ -13,8 +13,8 @@ import { getEffectiveFlexEntry } from "@/core/flextrack";
 import { buildRealisticLandscape } from "./viewer-3d-landscape";
 import { buildTrainHall } from "./viewer-3d-trainhall";
 import { buildBaseboard3D, buildCustomLayerPlate3D, buildLayerDeckPlate3D } from "./viewer-3d-baseboard";
-import { buildWoodPlatePiece3D } from "./viewer-3d-roads";
-import { buildBuildingWoodPlate3D, buildModel3D } from "./viewer-3d-models";
+import { buildWoodPlatePiece3D, buildAllWoodPlates3D, type WoodPlateBuildItem } from "./viewer-3d-roads";
+import { buildAllModels3D, buildBuildingWoodPlate3D, buildModel3D } from "./viewer-3d-models";
 import { buildTrackPiece3D } from "./viewer-3d-track";
 import { buildCatenary3D, buildTurntableCatenary3D, buildTransferTableCatenary3D } from "./viewer-3d-catenary";
 import { buildTrackSignal3D, isPillarColliding, buildTrackBridge3D } from "./viewer-3d-bridges";
@@ -47,6 +47,8 @@ export class Viewer3D {
   private landscapeGroup = new THREE.Group();
   private shortCircuitGroup = new THREE.Group();
   private currentLayout?: Layout;
+  private lastCatalog?: Catalog;
+  private lastOptions?: { showColorCode?: boolean; colorMode?: ColorMode; shortCircuit?: ShortCircuitDetectionResult };
   private currentShortCircuit?: ShortCircuitDetectionResult;
   private envMode: Viewer3DEnvironment = "hall";
   private showTrainHall = true;
@@ -84,6 +86,9 @@ export class Viewer3D {
   private lastTimeStr = "";
   private builtHallKey = "";
   private builtLandscapeKey = "";
+  private needsRender = true;
+  private lastShadowUpdateTime = 0;
+  private resizeHandler: (() => void) | null = null;
   private readonly _c1 = new THREE.Color();
   private readonly _curSky = new THREE.Color();
   private readonly _curFog = new THREE.Color();
@@ -128,16 +133,24 @@ export class Viewer3D {
     // 2. Camera
     const width = host.clientWidth || 800;
     const height = host.clientHeight || 600;
-    this.camera = new THREE.PerspectiveCamera(45, width / height, 5, 220000);
+    this.camera = new THREE.PerspectiveCamera(45, width / height, 8, 110000);
     this.camera.position.set(0, 1600, 2200);
 
-    // 3. WebGL Renderer
+    // 3. WebGL Renderer (bevorzugt dedizierte GPU für maximale 3D-Beschleunigung)
     try {
-      this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "default" });
+      this.renderer = new THREE.WebGLRenderer({
+        antialias: true,
+        alpha: false,
+        stencil: false,
+        powerPreference: "high-performance",
+      });
       this.renderer.setSize(width, height);
-      this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      // Begrenzung auf max. 1.25 DPR spart auf Retina/4K-Displays ~300-500 MB Framebuffer-VRAM bei gestochen scharfem MSAA
+      this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25));
       this.renderer.shadowMap.enabled = true;
       this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      this.renderer.shadowMap.autoUpdate = false;
+      this.renderer.shadowMap.needsUpdate = true;
       this.container.appendChild(this.renderer.domElement);
 
       // 4. Orbit Controls (Volle 360°/180° Perspektivenfreiheit inkl. Ansicht von unten)
@@ -151,6 +164,9 @@ export class Viewer3D {
       this.controls.minDistance = 30;
       this.controls.maxDistance = 65000;
       this.controls.target.set(0, 0, 0);
+      this.controls.addEventListener("change", () => {
+        this.needsRender = true;
+      });
     } catch (err) {
       console.warn("[Viewer3D] WebGL context initialization failed:", err);
       this.renderer = null as any;
@@ -179,7 +195,10 @@ export class Viewer3D {
     this.setupOverlayUI();
 
     // Resize listener
-    window.addEventListener("resize", () => this.onResize());
+    if (typeof window !== "undefined") {
+      this.resizeHandler = () => this.onResize();
+      window.addEventListener("resize", this.resizeHandler);
+    }
   }
 
   private getIsDark(): boolean {
@@ -204,11 +223,23 @@ export class Viewer3D {
     }
   }
 
+  requestRender() {
+    this.needsRender = true;
+  }
+
+  requestShadowUpdate() {
+    if (this.renderer) {
+      this.renderer.shadowMap.needsUpdate = true;
+    }
+    this.needsRender = true;
+  }
+
   setTheme(theme: "light" | "dark") {
     this.currentTheme = theme;
     this.updateSceneBackground();
     this.updateLighting();
     this.updateOverlayUIActiveStates();
+    this.requestShadowUpdate();
   }
 
   private setupLighting() {
@@ -219,8 +250,8 @@ export class Viewer3D {
     this.sunLight = new THREE.DirectionalLight(0xfff8ed, 1.4);
     this.sunLight.position.set(1600, 3200, 1400);
     this.sunLight.castShadow = true;
-    this.sunLight.shadow.mapSize.width = 2048;
-    this.sunLight.shadow.mapSize.height = 2048;
+    this.sunLight.shadow.mapSize.width = 1024;
+    this.sunLight.shadow.mapSize.height = 1024;
     this.sunLight.shadow.camera.near = 100;
     this.sunLight.shadow.camera.far = 18000;
     const d = 3200;
@@ -267,6 +298,19 @@ export class Viewer3D {
 
   setEnvironment(mode: Viewer3DEnvironment) {
     this.envMode = mode;
+    // Inaktive Umgebungen sofort aus dem RAM freigeben
+    if (mode === "hall") {
+      this.clearGroup(this.landscapeGroup);
+      this.builtLandscapeKey = "";
+    } else if (mode === "landscape") {
+      this.clearGroup(this.trainHallGroup);
+      this.builtHallKey = "";
+    } else if (mode === "minimal") {
+      this.clearGroup(this.trainHallGroup);
+      this.clearGroup(this.landscapeGroup);
+      this.builtHallKey = "";
+      this.builtLandscapeKey = "";
+    }
     this.ensureActiveEnvironmentBuilt();
     this.landscapeGroup.visible = mode === "landscape";
     this.trainHallGroup.visible = mode === "hall";
@@ -281,6 +325,7 @@ export class Viewer3D {
     } catch {}
 
     this.updateOverlayUIActiveStates();
+    this.requestShadowUpdate();
   }
 
   private updateOverlayUIActiveStates() {
@@ -426,6 +471,36 @@ export class Viewer3D {
     return Boolean(this.renderer && this.controls);
   }
 
+  /** Gibt Details über die aktive GPU und Hardware-Beschleunigung zurück. */
+  getGpuInfo(): { renderer: string; vendor: string; isHardwareAccelerated: boolean } {
+    if (!this.renderer) {
+      return { renderer: "None (WebGL unavailable)", vendor: "Unknown", isHardwareAccelerated: false };
+    }
+    try {
+      const gl = this.renderer.getContext();
+      if (!gl) {
+        return { renderer: "Unknown", vendor: "Unknown", isHardwareAccelerated: false };
+      }
+      const debugInfo = gl.getExtension("WEBGL_debug_renderer_info");
+      const unmaskedRenderer = debugInfo
+        ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL)
+        : gl.getParameter(gl.RENDERER) || "WebGL";
+      const unmaskedVendor = debugInfo
+        ? gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL)
+        : gl.getParameter(gl.VENDOR) || "Unknown";
+
+      const lower = String(unmaskedRenderer || "").toLowerCase();
+      const isSoftware = lower.includes("swiftshader") || lower.includes("llvmpipe") || lower.includes("software");
+      return {
+        renderer: String(unmaskedRenderer),
+        vendor: String(unmaskedVendor),
+        isHardwareAccelerated: !isSoftware,
+      };
+    } catch {
+      return { renderer: "WebGL", vendor: "Unknown", isHardwareAccelerated: true };
+    }
+  }
+
   show(onClose?: () => void) {
     if (!this.isSupported()) {
       onClose?.();
@@ -443,14 +518,37 @@ export class Viewer3D {
     if (closeBtn && onClose) {
       closeBtn.onclick = onClose;
     }
+    if (this.trackGroup.children.length === 0 && this.currentLayout && this.lastCatalog) {
+      this.updateLayout(this.currentLayout, this.lastCatalog, this.lastOptions);
+    }
     this.onResize();
+    this.requestShadowUpdate();
     this.startLoop();
+  }
+
+  resetScene() {
+    this.clearGroup(this.trainHallGroup);
+    this.clearGroup(this.landscapeGroup);
+    this.clearGroup(this.tableGroup);
+    this.clearGroup(this.pillarsGroup);
+    this.clearGroup(this.woodPlateGroup);
+    this.clearGroup(this.trackGroup);
+    this.clearGroup(this.modelsGroup);
+    this.clearGroup(this.shortCircuitGroup);
+    this.builtHallKey = "";
+    this.builtLandscapeKey = "";
+    this.currentLayout = undefined;
+    this.lastCatalog = undefined;
+    this.lastOptions = undefined;
+    this.gltfCache.clear();
+    (this.renderer as any)?.renderLists?.dispose?.();
   }
 
   hide() {
     this.isVisible = false;
     this.container.style.display = "none";
     this.stopLoop();
+    this.resetScene();
   }
 
   isOpen(): boolean {
@@ -465,6 +563,7 @@ export class Viewer3D {
     try {
       localStorage.setItem("railbench_3d_woodplate", enabled ? "1" : "0");
     } catch {}
+    this.requestRender();
   }
 
   isWoodPlateEnabled(): boolean {
@@ -605,16 +704,27 @@ export class Viewer3D {
     const deltaHours = (dt * (24 / this.cycleDayDurationSec)) * this.cycleSpeed;
     this.timeOfDay = (this.timeOfDay + deltaHours) % 24;
     this.applyTimeOfDay();
+    const now = performance.now();
+    // Shadow updates are expensive (2048/1024 depth pass) - throttle to ~8 FPS during day-night cycle
+    if (now - this.lastShadowUpdateTime > 120) {
+      this.lastShadowUpdateTime = now;
+      if (this.renderer) {
+        this.renderer.shadowMap.needsUpdate = true;
+      }
+    }
+    this.needsRender = true;
   }
 
   setTimeOfDay(hour: number) {
     this.timeOfDay = Math.max(0, Math.min(24, hour)) % 24;
     this.applyTimeOfDay();
+    this.requestShadowUpdate();
   }
 
   setDayNightActive(active: boolean) {
     this.dayNightActive = active;
     this.cycleBtnEl?.classList.toggle("active", active);
+    this.requestRender();
   }
 
   setCycleSpeed(speed: number) {
@@ -638,18 +748,26 @@ export class Viewer3D {
         this.updateDayNight(dt);
       }
 
-      if (this.sunCorona) this.sunCorona.quaternion.copy(this.camera.quaternion);
-      if (this.moonGlow) this.moonGlow.quaternion.copy(this.camera.quaternion);
-
-      if (this.controls) this.controls.update();
-      updateViewCubeOrientation(this.viewCubeEl, this.camera, this.controls);
-      if (this.camera) {
-        const aboveFloor = this.camera.position.y >= -700;
-        this.trainHallGroup.visible = this.envMode === "hall" && aboveFloor;
-        this.landscapeGroup.visible = this.envMode === "landscape" && aboveFloor;
+      // OrbitControls with damping: update() returns true if camera target or position changed
+      const controlsChanged = this.controls ? this.controls.update() : false;
+      if (controlsChanged) {
+        this.needsRender = true;
       }
-      if (this.renderer && this.scene && this.camera) {
-        this.renderer.render(this.scene, this.camera);
+
+      if (this.needsRender) {
+        if (this.sunCorona) this.sunCorona.quaternion.copy(this.camera.quaternion);
+        if (this.moonGlow) this.moonGlow.quaternion.copy(this.camera.quaternion);
+
+        updateViewCubeOrientation(this.viewCubeEl, this.camera, this.controls);
+        if (this.camera) {
+          const aboveFloor = this.camera.position.y >= -700;
+          this.trainHallGroup.visible = this.envMode === "hall" && aboveFloor;
+          this.landscapeGroup.visible = this.envMode === "landscape" && aboveFloor;
+        }
+        if (this.renderer && this.scene && this.camera) {
+          this.renderer.render(this.scene, this.camera);
+        }
+        this.needsRender = false;
       }
     };
     animate();
@@ -670,7 +788,9 @@ export class Viewer3D {
 
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25));
     this.renderer.setSize(width, height);
+    this.requestRender();
   }
 
   private computeEnvironmentKey(layout: Layout, isDark: boolean): string {
@@ -721,6 +841,8 @@ export class Viewer3D {
     options?: { showColorCode?: boolean; colorMode?: ColorMode; shortCircuit?: ShortCircuitDetectionResult },
   ) {
     this.currentLayout = layout;
+    this.lastCatalog = catalog;
+    this.lastOptions = options;
     this.currentShortCircuit = options?.shortCircuit;
     this.layoutScale = parseModelScale(layout.scale);
     this.clearGroup(this.tableGroup);
@@ -773,6 +895,8 @@ export class Viewer3D {
     const colorMode: ColorMode = options?.colorMode ?? (options?.showColorCode === false ? "off" : "types");
 
     // 3. Gleise mit realer 3D-Höhe (Elevation) nach Ebene erzeugen
+    const woodPlateItems: WoodPlateBuildItem[] = [];
+
     for (const piece of layout.pieces) {
       const layer = piece.layerId ? layerMap.get(piece.layerId) : undefined;
       if (layer && !layer.visible) continue;
@@ -806,24 +930,30 @@ export class Viewer3D {
       const plateMode = layer?.woodPlateMode ?? (baseElevation !== 0 || Math.abs(endElev - startElev) > 0.01 ? "tight" : "none");
       if (plateMode === "tight") {
         const plateThickness = layer?.woodPlateThicknessMm ?? 8;
-        const plateGroup = new THREE.Group();
-        plateGroup.position.set(piece.transform.x, startElev, piece.transform.y);
-        plateGroup.rotation.y = -deg2rad(piece.transform.rotation);
-        buildWoodPlatePiece3D(plateGroup, piece, entry, endElev - startElev, plateThickness);
-        this.woodPlateGroup.add(plateGroup);
+        woodPlateItems.push({
+          piece,
+          entry,
+          startElev,
+          endElev,
+          thickness: plateThickness,
+        });
       }
     }
 
-    // 4. 3D-Modelle & Scenery
+    if (woodPlateItems.length > 0) {
+      buildAllWoodPlates3D(this.woodPlateGroup, woodPlateItems);
+    }
+
+    // 4. 3D-Modelle & Scenery (mit Instanzierung identischer Modelle)
     if (layout.models && layout.models.length > 0) {
+      const modelsWithElev: Array<{ model: Model3D; elev: number }> = [];
       for (const model of layout.models) {
         const layer = model.layerId ? layerMap.get(model.layerId) : undefined;
         if (layer && !layer.visible) continue;
 
         const baseElevation = layer?.heightMm ?? 0;
         const elev = baseElevation + (model.elevation ?? 0);
-
-        buildModel3D(this.modelsGroup, this.gltfCache, this.gltfLoader, model, elev, this.layoutScale, layout, entryMap);
+        modelsWithElev.push({ model, elev });
 
         const plateMode = layer?.woodPlateMode ?? (baseElevation !== 0 ? "tight" : "none");
         if (plateMode === "tight" && model.builtinId !== "mountain") {
@@ -831,6 +961,16 @@ export class Viewer3D {
           buildBuildingWoodPlate3D(this.woodPlateGroup, model, elev, plateThickness);
         }
       }
+
+      buildAllModels3D(
+        this.modelsGroup,
+        this.gltfCache,
+        this.gltfLoader,
+        modelsWithElev,
+        this.layoutScale,
+        layout,
+        entryMap,
+      );
     }
 
     // 4B. Vollflächige Holzplatten / Tisch-Zwischenebenen
@@ -914,6 +1054,7 @@ export class Viewer3D {
         scBtn.style.display = "none";
       }
     }
+    this.requestShadowUpdate();
   }
 
   /** Fokussiert die 3D-Kamera auf bestimmte Weltkoordinaten (z.B. Kurzschluss-Stelle). */
@@ -921,6 +1062,7 @@ export class Viewer3D {
     if (this.controls) this.controls.target.set(x, y, z);
     if (this.camera) this.camera.position.set(x, y + 500, z + 700);
     if (this.controls) this.controls.update();
+    this.requestRender();
   }
 
   resetCamera() {
@@ -929,6 +1071,7 @@ export class Viewer3D {
       this.controls.target.set(0, 50, 0);
       this.controls.update();
     }
+    this.requestRender();
   }
 
   buildCatenary3D(group: THREE.Group, entry: CatalogEntry, startElev: number, endElev: number, piece?: TrackPiece) {
@@ -960,19 +1103,62 @@ export class Viewer3D {
       const obj = group.children[0]!;
       group.remove(obj);
       obj.traverse((child) => {
-        if (child instanceof THREE.Mesh) {
+        if (child instanceof THREE.InstancedMesh) {
+          child.instanceMatrix?.dispose?.();
+          (child as any).instanceColor?.dispose?.();
+        }
+        if (child instanceof THREE.Mesh || child instanceof THREE.Line || child instanceof THREE.Points) {
           if (child.geometry && !child.geometry.userData?.shared) {
             child.geometry.dispose();
           }
-          if (Array.isArray(child.material)) {
-            child.material.forEach((m) => {
-              if (!m.userData?.shared) m.dispose();
-            });
-          } else if (child.material && !child.material.userData?.shared) {
-            child.material.dispose();
+          const mats = Array.isArray(child.material) ? child.material : [child.material];
+          for (const m of mats) {
+            if (m && !m.userData?.shared) {
+              if (m.map) m.map.dispose();
+              if (m.alphaMap) m.alphaMap.dispose();
+              if (m.normalMap) m.normalMap.dispose();
+              if (m.roughnessMap) m.roughnessMap.dispose();
+              if (m.metalnessMap) m.metalnessMap.dispose();
+              m.dispose();
+            }
           }
         }
       });
+      (obj as any).clear?.();
+    }
+    (this.renderer as any)?.renderLists?.dispose?.();
+  }
+
+  dispose() {
+    this.stopLoop();
+    if (this.resizeHandler && typeof window !== "undefined") {
+      window.removeEventListener("resize", this.resizeHandler);
+      this.resizeHandler = null;
+    }
+    if (this.controls) {
+      this.controls.dispose();
+      this.controls = null as any;
+    }
+    this.clearGroup(this.celestialGroup);
+    this.clearGroup(this.landscapeGroup);
+    this.clearGroup(this.trainHallGroup);
+    this.clearGroup(this.tableGroup);
+    this.clearGroup(this.pillarsGroup);
+    this.clearGroup(this.woodPlateGroup);
+    this.clearGroup(this.trackGroup);
+    this.clearGroup(this.modelsGroup);
+    this.clearGroup(this.shortCircuitGroup);
+
+    if (this.renderer) {
+      this.renderer.dispose();
+      this.renderer.forceContextLoss?.();
+      if (this.renderer.domElement && this.renderer.domElement.parentElement) {
+        this.renderer.domElement.parentElement.removeChild(this.renderer.domElement);
+      }
+      this.renderer = null as any;
+    }
+    if (this.container && this.container.parentElement) {
+      this.container.parentElement.removeChild(this.container);
     }
   }
 }

@@ -1,5 +1,5 @@
 import type { Layout } from "@/core/types";
-import { ensureDefaultLayers } from "@/core/layout";
+import { ensureDefaultLayers, createLayout } from "@/core/layout";
 import { catalogRegistry, type Catalog } from "@/catalog/catalog";
 import { History } from "@/editor/commands";
 import { Selection } from "@/editor/selection";
@@ -28,21 +28,8 @@ export interface AppStartupContext {
 
 export function loadDemoLayout(ctx: AppStartupContext, demo: DemoLayoutDef) {
   const chosen = demo.createLayout();
-  const layout = ctx.getLayout();
-  layout.name = chosen.name;
-  layout.scale = chosen.scale;
-  layout.feedVoltage = chosen.feedVoltage;
-  layout.locoCurrentMa = chosen.locoCurrentMa;
-  layout.locoCount = chosen.locoCount;
-  layout.turnoutLanternCurrentMa = chosen.turnoutLanternCurrentMa;
-  layout.turnoutDecoderCurrentMa = chosen.turnoutDecoderCurrentMa;
-  layout.layers = chosen.layers;
-  layout.activeLayerId = chosen.activeLayerId;
-  layout.baseboard = chosen.baseboard;
-  layout.baseboards = chosen.baseboards;
-  layout.models = chosen.models;
-  layout.pieces = chosen.pieces;
-  ensureDefaultLayers(layout);
+  ensureDefaultLayers(chosen);
+  ctx.setLayout(chosen);
 
   const matchedCat = catalogRegistry.get(demo.catalogId);
   if (matchedCat) {
@@ -50,8 +37,9 @@ export function loadDemoLayout(ctx: AppStartupContext, demo: DemoLayoutDef) {
     ctx.onCatalogChange?.(matchedCat);
   }
 
-  ctx.planManager.setPlanInfo(`${layout.name}.railbench`, null, "railbench");
-  ctx.setHistory(new History(layout));
+  ctx.planManager.setPlanInfo(`${chosen.name}.railbench`, null, "railbench");
+  ctx.planManager.markDirty(false);
+  ctx.setHistory(new History(chosen));
   ctx.getSelection().clear();
   ctx.sync(false);
   ctx.saveSettingsState();
@@ -86,10 +74,13 @@ export function applyStartupAction(
     ensureDefaultLayers(layout);
     ctx.planManager.setPlanInfo(layout.name + ".railbench", null, "railbench");
   } else if (action === "new") {
-    layout.pieces = [];
-    layout.models = [];
-    ensureDefaultLayers(layout);
+    const newName = getLanguage() === "de" ? "Neuer Plan" : "New Layout";
+    const fresh = createLayout(newName);
+    fresh.scale = layout.scale || "H0";
+    ctx.setLayout(fresh);
     ctx.planManager.setPlanInfo(getLanguage() === "de" ? "Neuer Plan.railbench" : "New Layout.railbench", null, "railbench");
+    ctx.planManager.markDirty(false);
+    layout = fresh;
   } else if (action === "demo") {
     initDemoTracks(layout, catalog);
     ctx.planManager.setPlanInfo(`${layout.name}.railbench`, null, "railbench");

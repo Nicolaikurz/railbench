@@ -374,4 +374,53 @@ describe("Plan Workflow & Dirty State", () => {
     expect(p2.connectors[1]!.connectedTo?.pieceId).toBe(p3.id);
     expect(p3.connectors[0]!.connectedTo?.pieceId).toBe(p2.id);
   });
+
+  it("completely resets baseboards, table plates, layers, and models when creating a new plan", () => {
+    // Simulate an existing plan with custom table, cutouts, multiple boards, and custom layers
+    layout.baseboards = [
+      {
+        id: "custom-board-1",
+        name: "L-Platte",
+        shape: "l-shape",
+        width: 2400,
+        depth: 1200,
+        style: "wood",
+        positionMode: "center",
+        enabled: true,
+      } as any,
+      {
+        id: "custom-board-2",
+        name: "Anbau",
+        shape: "rect",
+        width: 1000,
+        depth: 600,
+        style: "wood",
+        positionMode: "center",
+        enabled: true,
+      } as any,
+    ];
+    layout.layers = [
+      { id: "layer-1", name: "Grundebene", color: "#3b82f6", visible: true, locked: false, heightMm: 0 },
+      { id: "layer-upper", name: "Bergebene", color: "#ef4444", visible: true, locked: false, heightMm: 120 },
+    ];
+    layout.pieces = [
+      { id: "p-1", catalogId: "24188", layerId: "layer-1", transform: { x: 0, y: 0, rotation: 0 }, connectors: [] },
+    ];
+    layout.models = [
+      { id: "m-1", builtinId: "station", name: "Bahnhof", category: "buildings", transform: { x: 50, y: 50, rotation: 0 }, width: 200, depth: 80, height: 90, modelType: "builtin" },
+    ];
+    planManager.setPlanInfo("Big Complex Layout.railbench", null, "railbench");
+
+    ops.triggerNewPlan();
+
+    // The layout must be a clean fresh layout: 1 default baseboard (rect), 0 pieces, 0 models
+    expect(layout.baseboards?.length).toBe(1);
+    expect(layout.baseboards?.[0]?.id).not.toBe("custom-board-1");
+    expect(layout.baseboards?.[0]?.shape).toBe("rect");
+    expect(layout.baseboards?.[0]?.name).toBe("Tisch 1 (Hauptplatte)");
+    expect(layout.pieces.length).toBe(0);
+    expect(layout.models?.length).toBe(0);
+    expect(layout.layers.length).toBe(1);
+    expect(layout.layers[0]!.id).toBe("layer-1");
+  });
 });

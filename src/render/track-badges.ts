@@ -19,6 +19,70 @@ export function getPieceRunningLength(entry: CatalogEntry): number {
   return 188.3;
 }
 
+// Statische Shared TextStyles, um GC-Allokationen bei jedem Render-Durchlauf zu vermeiden
+const TRACK_NUMBER_STYLE = new TextStyle({
+  fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+  fontSize: 10,
+  fontWeight: "bold",
+  fill: 0xffffff,
+  align: "center",
+  letterSpacing: 0.4,
+});
+
+const VOLT_STYLE_GOOD = new TextStyle({
+  fontFamily: "Inter, system-ui, -apple-system, sans-serif",
+  fontSize: 9.5,
+  fontWeight: "bold",
+  fill: 0xf0fdf4,
+  align: "center",
+  letterSpacing: 0.3,
+});
+
+const VOLT_STYLE_WARN = new TextStyle({
+  fontFamily: "Inter, system-ui, -apple-system, sans-serif",
+  fontSize: 9.5,
+  fontWeight: "bold",
+  fill: 0xfffbeb,
+  align: "center",
+  letterSpacing: 0.3,
+});
+
+const VOLT_STYLE_CRIT = new TextStyle({
+  fontFamily: "Inter, system-ui, -apple-system, sans-serif",
+  fontSize: 9.5,
+  fontWeight: "bold",
+  fill: 0xfef2f2,
+  align: "center",
+  letterSpacing: 0.3,
+});
+
+const RAMP_STYLE_NORMAL = new TextStyle({
+  fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+  fontSize: 9,
+  fontWeight: "bold",
+  fill: 0xf0fdf4,
+  align: "center",
+  letterSpacing: 0.3,
+});
+
+const RAMP_STYLE_WARN = new TextStyle({
+  fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+  fontSize: 9,
+  fontWeight: "bold",
+  fill: 0xfffbeb,
+  align: "center",
+  letterSpacing: 0.3,
+});
+
+const RAMP_STYLE_CRIT = new TextStyle({
+  fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+  fontSize: 9,
+  fontWeight: "bold",
+  fill: 0xfef2f2,
+  align: "center",
+  letterSpacing: 0.3,
+});
+
 export function drawTrackNumberLabel(
   container: Container,
   entry: CatalogEntry,
@@ -35,14 +99,7 @@ export function drawTrackNumberLabel(
 
   const text = new Text({
     text: entry.id,
-    style: new TextStyle({
-      fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
-      fontSize: 10,
-      fontWeight: "bold",
-      fill: 0xffffff,
-      align: "center",
-      letterSpacing: 0.4,
-    }),
+    style: TRACK_NUMBER_STYLE,
   });
   text.anchor.set(0.5);
   text.position.set(0, yOffset);
@@ -128,16 +185,16 @@ export function drawVoltageBadge(
     textColor = 0xfffbeb;
   }
 
+  let textStyle = VOLT_STYLE_GOOD;
+  if (isShort || isDisc || powerResult.status === "critical") {
+    textStyle = VOLT_STYLE_CRIT;
+  } else if (powerResult.status === "warning") {
+    textStyle = VOLT_STYLE_WARN;
+  }
+
   const text = new Text({
     text: voltText,
-    style: new TextStyle({
-      fontFamily: "Inter, system-ui, -apple-system, sans-serif",
-      fontSize: 9.5,
-      fontWeight: "bold",
-      fill: textColor,
-      align: "center",
-      letterSpacing: 0.3,
-    }),
+    style: textStyle,
   });
   text.anchor.set(0.5);
   text.position.set(0, yOffset);
@@ -418,25 +475,18 @@ export function drawRampBadge(
   const badgeText = `${arrow} ${gradPercent.toFixed(1)}% (${s0}➔${s1})`;
 
   let strokeColor = 0x10b981;
-  let textColor = 0xecfdf5;
+  let textStyle = RAMP_STYLE_NORMAL;
   if (gradPercent > 4.5) {
     strokeColor = 0xef4444;
-    textColor = 0xfef2f2;
+    textStyle = RAMP_STYLE_CRIT;
   } else if (gradPercent > 3.0) {
     strokeColor = 0xf59e0b;
-    textColor = 0xfffbeb;
+    textStyle = RAMP_STYLE_WARN;
   }
 
   const text = new Text({
     text: badgeText,
-    style: new TextStyle({
-      fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
-      fontSize: 9,
-      fontWeight: "bold",
-      fill: textColor,
-      align: "center",
-      letterSpacing: 0.3,
-    }),
+    style: textStyle,
   });
   text.anchor.set(0.5);
   text.position.set(0, yOffset);

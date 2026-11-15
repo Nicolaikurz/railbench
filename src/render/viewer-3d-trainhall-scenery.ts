@@ -60,54 +60,15 @@ export function buildTrainHallForest(
   const crown2Geo = new THREE.DodecahedronGeometry(140, 1);
   crown2Geo.translate(70, 350, 40);
 
-  // Helfer für einen Baum mit Stamm und Nadelkrone (auf dem grünen Boden stehend)
+  const pineTrees: { x: number; z: number; scale: number }[] = [];
+  const deciduousTrees: { x: number; z: number; scale: number }[] = [];
+
   const addPineTree = (x: number, z: number, scale: number) => {
-    const tree = new THREE.Group();
-    tree.position.set(x, floorY, z);
-    tree.scale.setScalar(scale);
-
-    const trunk = new THREE.Mesh(pineTrunkGeo, barkMat);
-    trunk.castShadow = true;
-    tree.add(trunk);
-
-    const c1 = new THREE.Mesh(c1Geo, pineMat1);
-    c1.castShadow = true;
-    tree.add(c1);
-
-    const c2 = new THREE.Mesh(c2Geo, pineMat2);
-    c2.castShadow = true;
-    tree.add(c2);
-
-    const c3 = new THREE.Mesh(c3Geo, pineMat1);
-    c3.castShadow = true;
-    tree.add(c3);
-
-    const c4 = new THREE.Mesh(c4Geo, pineMat2);
-    c4.castShadow = true;
-    tree.add(c4);
-
-    trainHallGroup.add(tree);
+    pineTrees.push({ x, z, scale });
   };
 
-  // Helfer für einen Laubbaum (auf dem grünen Boden stehend)
   const addDeciduousTree = (x: number, z: number, scale: number) => {
-    const tree = new THREE.Group();
-    tree.position.set(x, floorY, z);
-    tree.scale.setScalar(scale);
-
-    const trunk = new THREE.Mesh(decTrunkGeo, barkMat);
-    trunk.castShadow = true;
-    tree.add(trunk);
-
-    const crown1 = new THREE.Mesh(crown1Geo, leafMat);
-    crown1.castShadow = true;
-    tree.add(crown1);
-
-    const crown2 = new THREE.Mesh(crown2Geo, leafMat);
-    crown2.castShadow = true;
-    tree.add(crown2);
-
-    trainHallGroup.add(tree);
+    deciduousTrees.push({ x, z, scale });
   };
 
   // 1. WESTSEITE: Riesiges, tiefes und weitläufiges Waldmassiv
@@ -206,6 +167,63 @@ export function buildTrainHallForest(
     addDeciduousTree(xOpen + 1800, zOpen + signZ * 1200, 4.0);
   }
 
+  // Erzeuge InstancedMeshes für Hunderte von Bäumen
+  const dummy = new THREE.Object3D();
+
+  if (pineTrees.length > 0) {
+    const trunkInst = new THREE.InstancedMesh(pineTrunkGeo, barkMat, pineTrees.length);
+    const c1Inst = new THREE.InstancedMesh(c1Geo, pineMat1, pineTrees.length);
+    const c2Inst = new THREE.InstancedMesh(c2Geo, pineMat2, pineTrees.length);
+    const c3Inst = new THREE.InstancedMesh(c3Geo, pineMat1, pineTrees.length);
+    const c4Inst = new THREE.InstancedMesh(c4Geo, pineMat2, pineTrees.length);
+
+    for (let i = 0; i < pineTrees.length; i++) {
+      const pt = pineTrees[i]!;
+      dummy.position.set(pt.x, floorY, pt.z);
+      dummy.scale.setScalar(pt.scale);
+      dummy.rotation.set(0, 0, 0);
+      dummy.updateMatrix();
+
+      trunkInst.setMatrixAt(i, dummy.matrix);
+      c1Inst.setMatrixAt(i, dummy.matrix);
+      c2Inst.setMatrixAt(i, dummy.matrix);
+      c3Inst.setMatrixAt(i, dummy.matrix);
+      c4Inst.setMatrixAt(i, dummy.matrix);
+    }
+
+    trunkInst.instanceMatrix.needsUpdate = true;
+    c1Inst.instanceMatrix.needsUpdate = true;
+    c2Inst.instanceMatrix.needsUpdate = true;
+    c3Inst.instanceMatrix.needsUpdate = true;
+    c4Inst.instanceMatrix.needsUpdate = true;
+
+    trainHallGroup.add(trunkInst, c1Inst, c2Inst, c3Inst, c4Inst);
+  }
+
+  if (deciduousTrees.length > 0) {
+    const dTrunkInst = new THREE.InstancedMesh(decTrunkGeo, barkMat, deciduousTrees.length);
+    const cr1Inst = new THREE.InstancedMesh(crown1Geo, leafMat, deciduousTrees.length);
+    const cr2Inst = new THREE.InstancedMesh(crown2Geo, leafMat, deciduousTrees.length);
+
+    for (let i = 0; i < deciduousTrees.length; i++) {
+      const dt = deciduousTrees[i]!;
+      dummy.position.set(dt.x, floorY, dt.z);
+      dummy.scale.setScalar(dt.scale);
+      dummy.rotation.set(0, 0, 0);
+      dummy.updateMatrix();
+
+      dTrunkInst.setMatrixAt(i, dummy.matrix);
+      cr1Inst.setMatrixAt(i, dummy.matrix);
+      cr2Inst.setMatrixAt(i, dummy.matrix);
+    }
+
+    dTrunkInst.instanceMatrix.needsUpdate = true;
+    cr1Inst.instanceMatrix.needsUpdate = true;
+    cr2Inst.instanceMatrix.needsUpdate = true;
+
+    trainHallGroup.add(dTrunkInst, cr1Inst, cr2Inst);
+  }
+
   // 4. Sanfte Hügelketten am fernen Horizont
   const horizonHillsCount = 20;
   for (let h = 0; h < horizonHillsCount; h++) {
@@ -222,15 +240,21 @@ export function buildTrainHallForest(
     trainHallGroup.add(hillMesh);
   }
 
-  // 5. Kleine Zierbüsche am Hallensockel
+  // 5. Kleine Zierbüsche am Hallensockel (InstancedMesh)
+  const bushGeo = new THREE.DodecahedronGeometry(55, 1);
+  const bushInst = new THREE.InstancedMesh(bushGeo, bushMat, 18);
   for (let k = 0; k < 18; k++) {
     const side = k % 2 === 0 ? -1 : 1;
     const bz = cz - halfL + k * (lHall / 16);
     const bx = cx + side * (halfW + 120);
-    const bush = new THREE.Mesh(new THREE.DodecahedronGeometry(55, 1), bushMat);
-    bush.position.set(bx, floorY + 30, bz);
-    trainHallGroup.add(bush);
+    dummy.position.set(bx, floorY + 30, bz);
+    dummy.rotation.set(0, k * 0.4, 0);
+    dummy.scale.set(1, 1, 1);
+    dummy.updateMatrix();
+    bushInst.setMatrixAt(k, dummy.matrix);
   }
+  bushInst.instanceMatrix.needsUpdate = true;
+  trainHallGroup.add(bushInst);
 }
 
 /**
@@ -301,12 +325,16 @@ export function buildTrainHallLake(
   waterMesh.receiveShadow = true;
   trainHallGroup.add(waterMesh);
 
-  // 4. Ufersteine & Granitblöcke (Findlinge) am Wasser
+  // 4. Ufersteine & Granitblöcke (Findlinge) am Wasser (InstancedMesh)
   const rockMat = new THREE.MeshStandardMaterial({
     color: isDark ? 0x334155 : 0x64748b,
     roughness: 0.9,
   });
   const rocksCount = 18;
+  const rockGeo = new THREE.DodecahedronGeometry(100, 1);
+  const rockInst = new THREE.InstancedMesh(rockGeo, rockMat, rocksCount);
+  const dummy = new THREE.Object3D();
+
   for (let r = 0; r < rocksCount; r++) {
     const angle = (r / rocksCount) * Math.PI * 2;
     const noise = 1 + Math.sin(angle * 2) * 0.14 + Math.cos(angle * 3) * 0.08;
@@ -314,17 +342,18 @@ export function buildTrainHallLake(
     const rx = lakeX + Math.cos(angle) * (lakeRadiusX * noise * distOffset);
     const rz = lakeZ + Math.sin(angle) * (lakeRadiusZ * noise * distOffset);
     const rRadius = 90 + ((r * 29) % 120);
+    const s = rRadius / 100;
 
-    const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(rRadius, 1), rockMat);
-    rock.scale.set(1.3, 0.75, 1.1);
-    rock.position.set(rx, floorY + 16 + rRadius * 0.45, rz);
-    rock.rotation.y = (r * 37) % 3;
-    rock.castShadow = true;
-    rock.receiveShadow = true;
-    trainHallGroup.add(rock);
+    dummy.position.set(rx, floorY + 16 + rRadius * 0.45, rz);
+    dummy.scale.set(1.3 * s, 0.75 * s, 1.1 * s);
+    dummy.rotation.set(0, (r * 37) % 3, 0);
+    dummy.updateMatrix();
+    rockInst.setMatrixAt(r, dummy.matrix);
   }
+  rockInst.instanceMatrix.needsUpdate = true;
+  trainHallGroup.add(rockInst);
 
-  // 5. Schilfgürtel & Binsen in den seichten Uferbuchten
+  // 5. Schilfgürtel & Binsen in den seichten Uferbuchten (InstancedMesh)
   const reedMat = new THREE.MeshStandardMaterial({
     color: isDark ? 0x064e3b : 0x15803d,
     roughness: 0.9,
@@ -339,7 +368,13 @@ export function buildTrainHallLake(
     { baseAngle: Math.PI * 0.85, count: 18 },
     { baseAngle: Math.PI * 1.6, count: 22 },
   ];
+  const totalReeds = reedBeds.reduce((acc, b) => acc + b.count, 0);
 
+  const stemGeo = new THREE.CylinderGeometry(2, 3.5, 1, 5);
+  stemGeo.translate(0, 0.5, 0);
+  const stemInst = new THREE.InstancedMesh(stemGeo, reedMat, totalReeds);
+
+  let reedIdx = 0;
   for (const bed of reedBeds) {
     for (let s = 0; s < bed.count; s++) {
       const angle = bed.baseAngle + ((s - bed.count / 2) / bed.count) * 0.35;
@@ -349,18 +384,15 @@ export function buildTrainHallLake(
       const sz = lakeZ + Math.sin(angle) * (lakeRadiusZ * noise * offset);
       const stemH = 160 + ((s * 23) % 80);
 
-      const stem = new THREE.Mesh(new THREE.CylinderGeometry(2, 3.5, stemH, 5), reedMat);
-      stem.position.set(sx, floorY + 16 + stemH / 2, sz);
-      stem.rotation.z = (((s * 11) % 7) - 3) * 0.04;
-      trainHallGroup.add(stem);
-
-      if (s % 2 === 0) {
-        const cattail = new THREE.Mesh(new THREE.CylinderGeometry(5, 5, 35, 6), reedTopMat);
-        cattail.position.set(sx, floorY + 16 + stemH - 15, sz);
-        trainHallGroup.add(cattail);
-      }
+      dummy.position.set(sx, floorY + 16, sz);
+      dummy.scale.set(1, stemH, 1);
+      dummy.rotation.set(0, 0, (((s * 11) % 7) - 3) * 0.04);
+      dummy.updateMatrix();
+      stemInst.setMatrixAt(reedIdx++, dummy.matrix);
     }
   }
+  stemInst.instanceMatrix.needsUpdate = true;
+  trainHallGroup.add(stemInst);
 
   // 6. Kleiner hölzerner Boots- & Badesteg (ragt in den See)
   const pierMat = new THREE.MeshStandardMaterial({ color: 0x451a03, roughness: 0.85 });
@@ -369,28 +401,34 @@ export function buildTrainHallLake(
   const pierLen = 1400;
   const pierW = 380;
 
+  const pilingGeo = new THREE.CylinderGeometry(10, 12, 120, 6);
   for (const dx of [pierLen * 0.35, pierLen * 0.85]) {
     for (const dz of [-pierW * 0.35, pierW * 0.35]) {
-      const piling = new THREE.Mesh(new THREE.CylinderGeometry(10, 12, 120, 6), pierMat);
+      const piling = new THREE.Mesh(pilingGeo, pierMat);
       piling.position.set(pierX + dx, floorY + 16 + 45, pierZ + dz);
-      piling.castShadow = true;
       trainHallGroup.add(piling);
     }
   }
 
+  const pierBeamGeo = new THREE.BoxGeometry(pierLen, 14, 18);
   for (const dz of [-pierW * 0.32, pierW * 0.32]) {
-    const beam = new THREE.Mesh(new THREE.BoxGeometry(pierLen, 14, 18), pierMat);
+    const beam = new THREE.Mesh(pierBeamGeo, pierMat);
     beam.position.set(pierX + pierLen / 2, floorY + 18 + 80, pierZ + dz);
     trainHallGroup.add(beam);
   }
 
   const plankCount = Math.floor(pierLen / 55);
+  const plankGeo = new THREE.BoxGeometry(45, 10, pierW);
+  const plankInst = new THREE.InstancedMesh(plankGeo, pierMat, plankCount);
   for (let p = 0; p < plankCount; p++) {
-    const plank = new THREE.Mesh(new THREE.BoxGeometry(45, 10, pierW), pierMat);
-    plank.position.set(pierX + 30 + p * 55, floorY + 18 + 92, pierZ);
-    plank.receiveShadow = true;
-    trainHallGroup.add(plank);
+    dummy.position.set(pierX + 30 + p * 55, floorY + 18 + 92, pierZ);
+    dummy.scale.set(1, 1, 1);
+    dummy.rotation.set(0, 0, 0);
+    dummy.updateMatrix();
+    plankInst.setMatrixAt(p, dummy.matrix);
   }
+  plankInst.instanceMatrix.needsUpdate = true;
+  trainHallGroup.add(plankInst);
 
   // 7. Kleines Holz-Ruderboot (am Steg vertäut)
   const boatGroup = new THREE.Group();

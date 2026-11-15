@@ -338,11 +338,13 @@ async function main() {
     is3DMode = force !== undefined ? force : !is3DMode;
     if (is3DMode) {
       ruler?.setVisible(false);
+      renderer.pause();
       viewer3D.show(() => toggle3D(false));
       viewer3D.updateLayout(layout, catalog, { colorMode, showColorCode: colorMode !== "off" });
       viewer3D.resetCamera();
     } else {
       viewer3D.hide();
+      renderer.resume();
       ruler?.setVisible(true);
     }
     sync();
@@ -351,7 +353,11 @@ async function main() {
   // Initialisiere Editor Operations
   const operations = new TrackOperations({
     getLayout: () => layout,
-    setLayout: (l: Layout) => { layout = l; },
+    setLayout: (l: Layout) => {
+      layout = l;
+      renderer.invalidateCaches();
+      viewer3D?.resetScene?.();
+    },
     getCatalog: () => catalog,
     getSelection: () => selection,
     getHistory: () => history,
@@ -465,36 +471,37 @@ async function main() {
     const selectedIds = new Set(selection.all());
     const selectedPiece = layout.pieces.find((p) => selectedIds.has(p.id));
 
-    renderer.render(layout, catalog, {
-      selectedIds,
-      showConnectors: snappingEnabled,
-      powerSimulation: currentSimulation,
-      shortCircuit: currentShortCircuit,
-      showPowerDrop: powerSimEnabled,
-      showTrackLabels: trackLabelsEnabled,
-      showColorCode: colorMode !== "off",
-      colorMode,
-      selectionBox: currentSelectionBox,
-      activeBaseboardId: activeBaseboard?.id ?? sidebar?.getActiveBoardId(),
-      isDraggingBaseboard,
-      baseboardSnapGuides: activeBaseboardSnapGuides,
-      pointMarkers: activePointMarkers || undefined,
-      previewElevations: previewRampElevations || undefined,
-      previewPieces: previewGeneratedPieces || undefined,
-      hoveredOpenConnector: activeHoveredConnector,
-      measureTool: measureController.isActive
-        ? {
-            start: measureController.start,
-            current: measureController.current,
-            locked: measureController.locked,
-            snapPoint: measureController.snapPoint,
-            scaleRatio: getScaleRatio(layout.scale),
-            scaleName: layout.scale,
-          }
-        : null,
-    });
-
-    ruler?.update();
+    if (!is3DMode) {
+      renderer.render(layout, catalog, {
+        selectedIds,
+        showConnectors: snappingEnabled,
+        powerSimulation: currentSimulation,
+        shortCircuit: currentShortCircuit,
+        showPowerDrop: powerSimEnabled,
+        showTrackLabels: trackLabelsEnabled,
+        showColorCode: colorMode !== "off",
+        colorMode,
+        selectionBox: currentSelectionBox,
+        activeBaseboardId: activeBaseboard?.id ?? sidebar?.getActiveBoardId(),
+        isDraggingBaseboard,
+        baseboardSnapGuides: activeBaseboardSnapGuides,
+        pointMarkers: activePointMarkers || undefined,
+        previewElevations: previewRampElevations || undefined,
+        previewPieces: previewGeneratedPieces || undefined,
+        hoveredOpenConnector: activeHoveredConnector,
+        measureTool: measureController.isActive
+          ? {
+              start: measureController.start,
+              current: measureController.current,
+              locked: measureController.locked,
+              snapPoint: measureController.snapPoint,
+              scaleRatio: getScaleRatio(layout.scale),
+              scaleName: layout.scale,
+            }
+          : null,
+      });
+      ruler?.update();
+    }
     collabOverlay.update();
     collabClient.broadcastSelection(selection.all());
     selectionBar.update();
@@ -889,7 +896,11 @@ async function main() {
 
   const startupCtx: AppStartupContext = {
     getLayout: () => layout,
-    setLayout: (l) => { layout = l; },
+    setLayout: (l) => {
+      layout = l;
+      renderer.invalidateCaches();
+      viewer3D?.resetScene?.();
+    },
     getCatalog: () => catalog,
     setCatalog: (c) => { catalog = c; },
     getSelection: () => selection,

@@ -1,5 +1,5 @@
 import type { Layout, TrackPiece, Model3D, Transform, SignalSide, SignalDirection } from "@/core/types";
-import { ensureDefaultLayers } from "@/core/layout";
+import { ensureDefaultLayers, createLayout } from "@/core/layout";
 import {
   computeWorldConnectors,
   getLocalConnectors,
@@ -34,7 +34,7 @@ import {
   RemoveModelCommand,
   MoveModelCommand,
 } from "@/editor/commands";
-import type { History } from "@/editor/commands";
+import { History } from "@/editor/commands";
 import type { Selection } from "@/editor/selection";
 import {
   deg2rad,
@@ -703,17 +703,17 @@ export class TrackOperations {
         return;
       }
     }
-    layout.pieces = [];
-    layout.models = [];
-    ensureDefaultLayers(layout);
+    const newName = getLanguage() === "de" ? "Neuer Plan" : "New Layout";
+    const freshLayout = createLayout(newName);
+    freshLayout.scale = layout.scale || "H0";
+    this.ctx.setLayout(freshLayout);
+    this.ctx.setHistory(new History(freshLayout));
     this.ctx.getSelection().clear();
-    const hist = this.ctx.getHistory();
-    if (hist && typeof (hist as any).clear === "function") {
-      (hist as any).clear();
-    }
-    const newName = getLanguage() === "de" ? "Neuer Plan.railbench" : "New Layout.railbench";
-    planManager.setPlanInfo(newName, null, "railbench");
+    this.ctx.getRenderer().invalidateCaches?.();
     this.ctx.getRenderer().resetView();
+    const planFileName = getLanguage() === "de" ? "Neuer Plan.railbench" : "New Layout.railbench";
+    planManager.setPlanInfo(planFileName, null, "railbench");
+    planManager.markDirty(false);
     this.ctx.sync(false);
   }
 
