@@ -1,6 +1,7 @@
 # RAILbench – Model Railway Track Planner (v0.6.0)
 
 An intuitive, fast, and precise model railway CAD track planning, 3D visualization, terrain sculpting, and electrical simulation application built with **TypeScript + PixiJS v8 + Three.js + Vite + Electron**.
+<img width="2346" height="1428" alt="Screenshot From 2026-11-14 21-49-15" src="https://github.com/user-attachments/assets/33434aab-9b8e-4923-9fc9-fb291fcc4329" />
 
 ---
 
@@ -14,18 +15,17 @@ An intuitive, fast, and precise model railway CAD track planning, 3D visualizati
 
 ### 🪟 Windows (`x64` & `arm64`)
 1. **Download**:
-   * **Portable Single-File EXE**: `railbench-0.6.0-portable-x64.exe` (Intel/AMD) or `railbench-0.6.0-portable-arm64.exe` (Windows on ARM / Snapdragon X).
    * **Unpacked Portable Folder**: `win-unpacked` (`x64`) or `win-arm64-unpacked` (`arm64`).
 2. **Run**:
-   * Double-click `railbench-0.6.0-portable-x64.exe` (or `railbench.exe` inside the unpacked folder). No installation or administrator privileges are required.
+   * Double-click `railbench.exe` inside the unpacked folder. No installation or administrator privileges are required.
 3. **Windows Defender SmartScreen Note**:
    * Because the open-source binary is not signed with a commercial EV certificate, Windows SmartScreen may show an *"Windows protected your PC"* prompt on first launch. Click **More info** (*Weitere Informationen*) $\rightarrow$ **Run anyway** (*Trotzdem ausführen*).
 
 ### 🍎 macOS (Apple Silicon `arm64` & Intel `x64`)
 1. **Download & Extract**:
-   * **Apple Silicon (M1 / M2 / M3 / M4)**: `railbench-0.6.0-mac-arm64.zip` (or `.dmg`)
+   * **Apple Silicon (M1 / M2 / M3 / M4)**: `railbench-0.6.0-mac-arm64.zip`.
    * **Intel Mac**: `railbench-0.6.0-mac-x64.zip` (or `.dmg`)
-   * Double-click the `.zip` file to extract **`railbench.app`** (or open the `.dmg` image) and move **`railbench.app`** into `/Applications`.
+   * Double-click the `.zip` file to extract **`railbench.app`** and move **`railbench.app`** into `/Applications`.
 2. **Bypass macOS Gatekeeper on First Launch (Unsigned Open-Source Build)**:
    * Because the binary is built without a paid Apple Developer ID certificate, macOS Gatekeeper may block the first launch with *"railbench.app cannot be opened because the developer cannot be verified"* or *"is damaged"*.
    * **Option A — Terminal (Recommended, fastest)**:
@@ -44,11 +44,6 @@ An intuitive, fast, and precise model railway CAD track planning, 3D visualizati
   ./railbench-0.6.0-x64.AppImage
   ```
   *(If `libfuse.so.2` is not installed on Ubuntu 24.04+, either run `sudo apt install libfuse2` or run `./railbench-0.6.0-x64.AppImage --appimage-extract-and-run`.)*
-* **Flatpak**:
-  ```bash
-  flatpak install --user release/Railbench.flatpak
-  flatpak run de.railbench.Railbench
-  ```
 
 ---
 
@@ -198,14 +193,12 @@ node server.mjs --port 8080 --password mysecret --room layout1
   npm run dist:mac:zip:arm64
   npm run dist:mac:zip:x64
   npm run dist:mac:zip:all
-  npm run dist:mac:dmg
   ```
 * **Linux AppImage & Flatpak**:
   ```bash
   npm run dist:linux:appimage:x64
   npm run dist:linux:appimage:arm64
   npm run dist:linux:appimage:all
-  npm run dist:linux:flatpak
   ```
 
 ## Documentation
