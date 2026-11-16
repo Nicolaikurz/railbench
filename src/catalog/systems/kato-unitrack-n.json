@@ -74,7 +74,7 @@
     {
       "id": "20-042",
       "name": "Prellbockgleis 62 mm",
-      "kind": "straight",
+      "kind": "buffer-stop",
       "category": "Zubehör",
       "description": "Gleis S62 mit integriertem Prellbock",
       "length": 62,
@@ -83,7 +83,7 @@
     {
       "id": "20-043",
       "name": "Prellbock beleuchtet 62 mm",
-      "kind": "straight",
+      "kind": "buffer-stop",
       "category": "Zubehör",
       "description": "Gleis S62 mit rot beleuchtetem Prellbock",
       "length": 62,
@@ -92,19 +92,46 @@
     {
       "id": "20-045",
       "name": "Anschlussgleis S62",
-      "kind": "straight",
-      "category": "Zubehör",
+      "kind": "feeder",
+      "category": "Anschluss",
       "description": "Gerade 62 mm mit integriertem Zuleitungskabel",
       "length": 62,
       "gauge": 9
     },
     {
       "id": "20-050",
-      "name": "Ausgleichsgleis-Set S29 / S45.5",
+      "name": "Ausgleichsgleis S29",
       "kind": "straight",
       "category": "Geraden",
-      "description": "Ausgleichsgleis S29 (29 mm)",
+      "description": "Kurzes Ausgleichsgleis S29 (29 mm)",
       "length": 29,
+      "gauge": 9
+    },
+    {
+      "id": "20-051",
+      "name": "Ausgleichsgleis S45.5",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Ausgleichsgleis S45.5 (45,5 mm)",
+      "length": 45.5,
+      "gauge": 9
+    },
+    {
+      "id": "20-060",
+      "name": "Prellbockgleis A (62 mm)",
+      "kind": "buffer-stop",
+      "category": "Zubehör",
+      "description": "Gleisstück 62 mm mit Prellbock Bauart A",
+      "length": 62,
+      "gauge": 9
+    },
+    {
+      "id": "20-063",
+      "name": "Prellbockgleis B (62 mm)",
+      "kind": "buffer-stop",
+      "category": "Zubehör",
+      "description": "Gleisstück 62 mm mit Prellbock Bauart B",
+      "length": 62,
       "gauge": 9
     },
     {
@@ -178,6 +205,46 @@
       "gauge": 9
     },
     {
+      "id": "20-170",
+      "name": "Gebogenes Gleis Compact R216-45°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R216 = 216 mm, Bogen 45°",
+      "radius": 216,
+      "angle": 45,
+      "gauge": 9
+    },
+    {
+      "id": "20-171",
+      "name": "Gebogenes Gleis Compact R216-15°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R216 = 216 mm, Bogen 15°",
+      "radius": 216,
+      "angle": 15,
+      "gauge": 9
+    },
+    {
+      "id": "20-172",
+      "name": "Gebogenes Gleis Compact R183-45°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R183 = 183 mm, Bogen 45° (Kompaktkreis)",
+      "radius": 183,
+      "angle": 45,
+      "gauge": 9
+    },
+    {
+      "id": "20-174",
+      "name": "Gebogenes Gleis Compact R150-45°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Radius R150 = 150 mm, Bogen 45° (Super-Kompaktkreis)",
+      "radius": 150,
+      "angle": 45,
+      "gauge": 9
+    },
+    {
       "id": "20-202",
       "name": "Elektroweiche #6 links (15°)",
       "kind": "turnout-left",
@@ -234,8 +301,30 @@
       "gauge": 9
     },
     {
+      "id": "20-240",
+      "name": "Doppelkreuzungsweiche / Hosenträger",
+      "kind": "double-slip",
+      "category": "Kreuzungen",
+      "description": "Hosenträger-Verbindung (Double Crossover), Länge 310 mm, Gleisabstand 33 mm",
+      "length": 310,
+      "angle": 15,
+      "branchRadius": 481,
+      "branchAngle": 15,
+      "gauge": 9
+    },
+    {
       "id": "20-300",
       "name": "Kreuzung X15L (15° links)",
+      "kind": "crossing",
+      "category": "Kreuzungen",
+      "description": "Länge 124 mm, Kreuzungswinkel 15°",
+      "length": 124,
+      "angle": 15,
+      "gauge": 9
+    },
+    {
+      "id": "20-310",
+      "name": "Kreuzung X15R (15° rechts)",
       "kind": "crossing",
       "category": "Kreuzungen",
       "description": "Länge 124 mm, Kreuzungswinkel 15°",

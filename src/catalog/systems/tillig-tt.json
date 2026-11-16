@@ -9,6 +9,24 @@
   "conductors": 2,
   "entries": [
     {
+      "id": "07950",
+      "name": "Prellbock Fertigmodell",
+      "kind": "buffer-stop",
+      "category": "Zubehör",
+      "description": "Freistehender Prellbock / Fertigmodell",
+      "length": 20,
+      "gauge": 12
+    },
+    {
+      "id": "83100",
+      "name": "Prellbock mit Gleis (41,5 mm)",
+      "kind": "buffer-stop",
+      "category": "Zubehör",
+      "description": "Gleisstück mit werkseitig montiertem Prellbock (41,5 mm)",
+      "length": 41.5,
+      "gauge": 12
+    },
+    {
       "id": "83101",
       "name": "Gerades Gleis G1 (166 mm)",
       "kind": "straight",
@@ -143,6 +161,35 @@
       "gauge": 12
     },
     {
+      "id": "83115",
+      "name": "Gebogenes Gleis R04 / 7,5°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Industriekreis R04 = 267 mm, Bogen 7,5°",
+      "radius": 267,
+      "angle": 7.5,
+      "gauge": 12
+    },
+    {
+      "id": "83120",
+      "name": "Gerades Gleis G6 kurz (21,3 mm)",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Kurzes Passstück G6, Länge 21,3 mm",
+      "length": 21.3,
+      "gauge": 12
+    },
+    {
+      "id": "83131",
+      "name": "Anschlussgleis gebogen R21 / 30°",
+      "kind": "feeder",
+      "category": "Anschluss",
+      "description": "Bogeneinspeisung R21 (353 mm / 30°)",
+      "radius": 353,
+      "angle": 30,
+      "gauge": 12
+    },
+    {
       "id": "83140",
       "name": "Schaltgleis / Kontaktgleis 41,5 mm",
       "kind": "uncoupler",
@@ -189,21 +236,30 @@
       "gauge": 12
     },
     {
+      "id": "83145",
+      "name": "Trenngleis einpolig 41,5 mm",
+      "kind": "isolating",
+      "category": "Funktionsgleise",
+      "description": "Unterbrechergleis 41,5 mm mit einseitiger Schienentrennung",
+      "length": 41.5,
+      "gauge": 12
+    },
+    {
       "id": "83150",
-      "name": "Prellbock-Gleis 43 mm",
-      "kind": "buffer-stop",
-      "category": "Zubehör",
-      "description": "Gleisstück G3 (43 mm) mit montiertem Prellbock",
-      "length": 43,
+      "name": "Trenngleis beidseitig 41,5 mm",
+      "kind": "isolating",
+      "category": "Funktionsgleise",
+      "description": "Trenngleis 41,5 mm, beidseitig getrennt ohne Anschlüsse",
+      "length": 41.5,
       "gauge": 12
     },
     {
       "id": "83151",
-      "name": "Prellbock Bausatz",
-      "kind": "buffer-stop",
-      "category": "Zubehör",
-      "description": "Prellbock zum Aufklemmen auf Modellgleis",
-      "length": 20,
+      "name": "Trenngleis mit 4 Anschlüssen 41,5 mm",
+      "kind": "isolating",
+      "category": "Funktionsgleise",
+      "description": "Trenngleis 41,5 mm mit 4 getrennten Anschlussklemmen",
+      "length": 41.5,
       "gauge": 12
     },
     {
@@ -236,11 +292,34 @@
       "gauge": 12
     },
     {
+      "id": "83230",
+      "name": "Dreiwegweiche DWW symmetrisch",
+      "kind": "three-way",
+      "category": "Weichen",
+      "description": "Länge 166 mm, symmetrisch je R = 353 mm / 15° links & rechts",
+      "length": 166,
+      "branchRadius": 353,
+      "branchAngle": 15,
+      "gauge": 12
+    },
+    {
       "id": "83300",
       "name": "Doppelkreuzungsweiche DKW 15°",
       "kind": "double-slip",
       "category": "Kreuzungen",
       "description": "Länge 166 mm, Kreuzung 15°, 2x Abzweig R = 353 mm / 15° (innenliegende Zungen)",
+      "length": 166,
+      "angle": 15,
+      "branchRadius": 353,
+      "branchAngle": 15,
+      "gauge": 12
+    },
+    {
+      "id": "83310",
+      "name": "Einfache Kreuzungsweiche EKW 15°",
+      "kind": "double-slip",
+      "category": "Kreuzungen",
+      "description": "Länge 166 mm, Kreuzung 15°, 1x Abzweig R = 353 mm / 15° (einfache Kreuzungsweiche)",
       "length": 166,
       "angle": 15,
       "branchRadius": 353,
@@ -315,7 +394,7 @@
     },
     {
       "id": "83361",
-      "name": "Innenbogenweiche IBW links",
+      "name": "Innenbogenweiche IBW links (310/310)",
       "kind": "curved-turnout-left",
       "category": "Weichen",
       "description": "Stammbogen R = 310 mm / 30°, Abzweig R = 310 mm / 30°",
@@ -327,12 +406,36 @@
     },
     {
       "id": "83362",
-      "name": "Innenbogenweiche IBW rechts",
+      "name": "Innenbogenweiche IBW rechts (310/310)",
       "kind": "curved-turnout-right",
       "category": "Weichen",
       "description": "Stammbogen R = 310 mm / 30°, Abzweig R = 310 mm / 30°",
       "radius": 310,
       "angle": 30,
+      "branchRadius": 310,
+      "branchAngle": 30,
+      "gauge": 12
+    },
+    {
+      "id": "83363",
+      "name": "Innenbogenweiche IBW rechts (R631 / R310)",
+      "kind": "curved-turnout-right",
+      "category": "Weichen",
+      "description": "Stammbogen R = 631 mm / 15°, Abzweig R = 310 mm / 30°, Metallherzstück",
+      "radius": 631,
+      "angle": 15,
+      "branchRadius": 310,
+      "branchAngle": 30,
+      "gauge": 12
+    },
+    {
+      "id": "83364",
+      "name": "Innenbogenweiche IBW links (R631 / R310)",
+      "kind": "curved-turnout-left",
+      "category": "Weichen",
+      "description": "Stammbogen R = 631 mm / 15°, Abzweig R = 310 mm / 30°, Metallherzstück",
+      "radius": 631,
+      "angle": 15,
       "branchRadius": 310,
       "branchAngle": 30,
       "gauge": 12
@@ -350,6 +453,28 @@
       "gauge": 12
     },
     {
+      "id": "83381",
+      "name": "Außenbogenweiche ABW 15° (2x 7,5°)",
+      "kind": "turnout-left",
+      "category": "Weichen",
+      "description": "Symmetrische Außenbogenweiche 15° (2x 7,5°), R = 353 mm",
+      "length": 129.5,
+      "branchRadius": 353,
+      "branchAngle": 15,
+      "gauge": 12
+    },
+    {
+      "id": "83382",
+      "name": "Außenbogenweiche ABW 12° (2x 6°)",
+      "kind": "turnout-left",
+      "category": "Weichen",
+      "description": "Symmetrische Außenbogenweiche 12° (2x 6°), R = 631 mm",
+      "length": 166,
+      "branchRadius": 631,
+      "branchAngle": 12,
+      "gauge": 12
+    },
+    {
       "id": "83391",
       "name": "Dreiwegweiche DWW",
       "kind": "three-way",
@@ -358,6 +483,15 @@
       "length": 166,
       "branchRadius": 353,
       "branchAngle": 15,
+      "gauge": 12
+    },
+    {
+      "id": "83440",
+      "name": "Prellbock Bausatz",
+      "kind": "buffer-stop",
+      "category": "Zubehör",
+      "description": "Prellbock zum Aufklemmen auf Modellgleis (Bausatz)",
+      "length": 20,
       "gauge": 12
     },
     {

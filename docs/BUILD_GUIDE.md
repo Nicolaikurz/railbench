@@ -57,12 +57,12 @@ Diese Anleitung beschreibt, wie die vorkompilierten Binaries unter **Windows**, 
 | **Linux AppImage** | ARM64 | `npm run dist:linux:appimage:arm64` | `scripts/build-linux-appimage.sh arm64` | `release/railbench-0.6.0-arm64.AppImage` | Für Raspberry Pi 4/5, Asahi Linux |
 | **Linux AppImage (Alle)** | x64 + arm64 | `npm run dist:linux:appimage:all` | `scripts/build-linux-appimage.sh all` | `release/railbench-0.6.0-*.AppImage` | Baut beide Linux-Architekturen |
 | **Linux Flatpak** | x86_64 | `npm run dist:linux:flatpak` | `scripts/build-flatpak.sh` | `release/Railbench.flatpak` | Sandbox-Paket (Wayland/X11) |
-| **macOS Package (ZIP)** | ARM64 | `npm run dist:mac:zip:arm64` | `scripts/build-macos.sh arm64 zip` | `release/railbench-0.6.0-mac-arm64.zip` | Für Apple Silicon (M1/M2/M3/M4) |
-| **macOS Package (ZIP)** | x86_64 | `npm run dist:mac:zip:x64` | `scripts/build-macos.sh x64 zip` | `release/railbench-0.6.0-mac-x64.zip` | Für Intel-basierte Macs |
-| **macOS Packages (ZIP Alle)** | x64 + arm64 | `npm run dist:mac:zip:all` | `scripts/build-macos.sh all zip` | `release/railbench-0.6.0-mac-*.zip` | Baut beide macOS-Architekturen |
-| **macOS DMG (Apple Silicon)** | ARM64 | `npm run dist:mac:dmg:arm64` | `scripts/build-macos.sh arm64 dmg` | `release/railbench-0.6.0-mac-arm64.dmg` | DMG-Installer für Apple Silicon |
-| **macOS DMG (Intel)** | x86_64 | `npm run dist:mac:dmg:x64` | `scripts/build-macos.sh x64 dmg` | `release/railbench-0.6.0-mac-x64.dmg` | DMG-Installer für Intel Macs |
-| **macOS DMG (Alle)** | x64 + arm64 | `npm run dist:mac:dmg:all` | `scripts/build-macos.sh all dmg` | `release/railbench-0.6.0-mac-*.dmg` | Baut beide DMG-Installer |
+| **macOS DMG (Apple Silicon)** | ARM64 | `npm run dist:mac:dmg:arm64` | `scripts/build-macos.sh arm64` | `release/railbench-0.6.0-mac-arm64.dmg` | DMG-Installer für Apple Silicon (M1/M2/M3/M4) |
+| **macOS DMG (Intel)** | x86_64 | `npm run dist:mac:dmg:x64` | `scripts/build-macos.sh x64` | `release/railbench-0.6.0-mac-x64.dmg` | DMG-Installer für Intel Macs |
+| **macOS DMG (Alle, Standard)** | x64 + arm64 | `npm run dist:mac` | `scripts/build-macos.sh` | `release/railbench-0.6.0-mac-*.dmg` | Baut beide macOS DMG-Installer (Standard) |
+| **macOS Package (ZIP)** | ARM64 | `npm run dist:mac:zip:arm64` | `scripts/build-macos.sh arm64 zip` | `release/railbench-0.6.0-mac-arm64.zip` | Optionales ZIP für Apple Silicon |
+| **macOS Package (ZIP)** | x86_64 | `npm run dist:mac:zip:x64` | `scripts/build-macos.sh x64 zip` | `release/railbench-0.6.0-mac-x64.zip` | Optionales ZIP für Intel Macs |
+| **macOS Packages (ZIP Alle)** | x64 + arm64 | `npm run dist:mac:zip:all` | `scripts/build-macos.sh all zip` | `release/railbench-0.6.0-mac-*.zip` | Baut beide optionalen ZIP-Pakete |
 
 ---
 
@@ -112,20 +112,43 @@ npm run dist:linux:flatpak
 
 ---
 
-## 4. macOS Build (`.zip` & `.dmg`)
+## 4. macOS Build (`.dmg` & `.zip`) & Code Signing (`rcodesign`)
+
+Der Build-Prozess unterstützt Cross-Compiling von Linux aus und signiert die macOS `.app`-Bundles automatisch via **`rcodesign`** (apple-codesign):
 
 ```bash
-# Beide Architekturen (Apple Silicon arm64 & Intel x64) als ZIP verpacken:
-npm run dist:mac:zip:all
+# Beide Architekturen (Apple Silicon arm64 & Intel x64) als signierte DMG bauen (Standard):
+npm run dist:mac
 
-# Auf nativem macOS zusätzlich als DMG-Installer bauen:
-npm run dist:mac:dmg:all
+# Nur Apple Silicon (M1/M2/M3/M4):
+npm run dist:mac:dmg:arm64
+
+# Nur Intel (x86_64):
+npm run dist:mac:dmg:x64
+
+# Optional: Zusätzliche ZIPs mit erhaltenen Symlinks packen:
+npm run dist:mac:zip:all
 ```
+
+### Signierung via `rcodesign`:
+* **Ad-Hoc Signatur (Standard ohne Zertifikat)**:
+  `rcodesign` signiert rekursiv alle 12 verschachtelten Bundles (`Electron Framework`, `libffmpeg`, Helper-Apps und die Haupt-Executable). Dies erfüllt die strikten Anforderungen von macOS AMFI auf Apple Silicon (M1/M2/M3/M4) und verhindert Kernel-Abstürze (`SIGKILL`).
+* **Offizielles Apple Developer ID Zertifikat (.p12)**:
+  Falls ein Apple-Entwicklerzertifikat vorliegt, kann dieses vor dem Build per Umgebungsvariablen übergeben werden:
+  ```bash
+  export APPLE_CERT_P12="/pfad/zu/developer_id.p12"
+  export APPLE_CERT_PASSWORD="dein-zertifikats-passwort"
+  npm run dist:mac
+  ```
 
 ---
 
 ## 5. Fehlerbehebung (Troubleshooting)
 
 * **Windows SmartScreen**: Klicke beim ersten Start auf *„Weitere Informationen“* $\rightarrow$ *„Trotzdem ausführen“*.
-* **macOS Gatekeeper**: Führe `xattr -cr /Applications/railbench.app` im Terminal aus oder öffne die App per Rechtsklick $\rightarrow$ *Öffnen*.
+* **macOS Apple Silicon (M1+)**: Durch die integrierte `rcodesign`-Signierung starten die DMGs direkt. Falls Gatekeeper die App blockiert, genügt bei unnotarisierten Builds das einmalige Entfernen des Quarantäne-Flags:
+  ```bash
+  xattr -cr /Applications/railbench.app
+  ```
+  Oder per Finder: Rechtsklick auf `railbench.app` $\rightarrow$ *Öffnen* $\rightarrow$ *Öffnen bestätigen*.
 * **Linux AppImage ohne FUSE 2**: Installiere `libfuse2` (`sudo apt install libfuse2`) oder starte das AppImage mit `--appimage-extract-and-run`.

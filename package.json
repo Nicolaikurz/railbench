@@ -30,19 +30,21 @@
     "dist:win:portable:x64": "npm run build:all && electron-builder --win portable --x64",
     "dist:win:portable:arm64": "npm run build:all && electron-builder --win portable --arm64",
     "dist:win:portable:all": "npm run build:all && electron-builder --win portable --x64 --arm64",
-    "dist:mac": "npm run dist:mac:zip:all",
-    "dist:mac:zip": "npm run dist:mac:zip:all",
-    "dist:mac:zip:x64": "npm run build:all && electron-builder --mac zip --x64",
-    "dist:mac:zip:arm64": "npm run build:all && electron-builder --mac zip --arm64",
-    "dist:mac:zip:all": "npm run build:all && electron-builder --mac zip --x64 --arm64",
-    "dist:mac:dmg": "npm run dist:mac:dmg:all",
-    "dist:mac:dmg:x64": "npm run build:all && electron-builder --mac dmg --x64",
-    "dist:mac:dmg:arm64": "npm run build:all && electron-builder --mac dmg --arm64",
-    "dist:mac:dmg:all": "npm run build:all && electron-builder --mac dmg --x64 --arm64",
-    "dist:mac:script": "bash scripts/build-macos.sh all",
+    "dist:mac": "bash scripts/build-macos.sh all dmg",
+    "dist:mac:all": "bash scripts/build-macos.sh all dmg",
+    "dist:mac:both": "bash scripts/build-macos.sh all both",
+    "dist:mac:zip": "bash scripts/build-macos.sh all zip",
+    "dist:mac:zip:x64": "bash scripts/build-macos.sh x64 zip",
+    "dist:mac:zip:arm64": "bash scripts/build-macos.sh arm64 zip",
+    "dist:mac:zip:all": "bash scripts/build-macos.sh all zip",
+    "dist:mac:dmg": "bash scripts/build-macos.sh all dmg",
+    "dist:mac:dmg:x64": "bash scripts/build-macos.sh x64 dmg",
+    "dist:mac:dmg:arm64": "bash scripts/build-macos.sh arm64 dmg",
+    "dist:mac:dmg:all": "bash scripts/build-macos.sh all dmg",
+    "dist:mac:script": "bash scripts/build-macos.sh all dmg",
     "dist:mac:script:dmg": "bash scripts/build-macos.sh all dmg",
     "dist:mac:script:zip": "bash scripts/build-macos.sh all zip",
-    "dist:all": "npm run dist:win:portable:all && npm run dist:linux:appimage:all && npm run dist:mac:zip:all"
+    "dist:all": "npm run dist:win:portable:all && npm run dist:linux:appimage:all && npm run dist:mac"
   },
   "dependencies": {
     "@types/three": "^0.187.0",
@@ -86,6 +88,7 @@
     },
     "mac": {
       "target": [
+        "dmg",
         "zip"
       ],
       "icon": "build/icon.png",

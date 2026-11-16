@@ -25,6 +25,7 @@ export interface SelectionBarCallbacks {
   onToggleBridge?: () => void;
   onToggleTunnel?: () => void;
   onRotate?: (deltaDegrees?: number) => void;
+  getRotationStep?: () => number;
   onDelete: () => void;
   getSelectedPieceIds: () => string[];
   getLayout: () => Layout;
@@ -278,6 +279,7 @@ export class SelectionBar {
   private selBarBtnSignal: HTMLButtonElement;
   private selBarBtnBridge: HTMLButtonElement;
   private selBarBtnTunnel: HTMLButtonElement;
+  private selBarBtnRotateCcw: HTMLButtonElement;
   private selBarBtnRotate: HTMLButtonElement;
   private selBarBtnDelete: HTMLButtonElement;
 
@@ -344,8 +346,9 @@ export class SelectionBar {
 
       <span class="sel-bar-divider" id="sel-bar-div-quick"></span>
 
-      <!-- Quick actions: Rotate, Delete -->
-      <button id="sel-bar-btn-rotate" class="sel-bar-btn" title="${isDe ? "Drehen (+7,5°, R)" : "Rotate (+7.5°, R)"}">↻ 7.5°</button>
+      <!-- Quick actions: Rotate CCW, Rotate CW, Delete -->
+      <button id="sel-bar-btn-rotate-ccw" class="sel-bar-btn" title="${isDe ? "Gegen Uhrzeigersinn drehen (-30°, Shift+R)" : "Rotate Counter-Clockwise (-30°, Shift+R)"}">↺</button>
+      <button id="sel-bar-btn-rotate" class="sel-bar-btn" title="${isDe ? "Im Uhrzeigersinn drehen (+30°, R)" : "Rotate Clockwise (+30°, R)"}">↻ 30°</button>
       <button id="sel-bar-btn-delete" class="sel-bar-btn sel-bar-btn-danger" title="${initialSelT.deleteBtn} (Del)">🗑</button>
     `;
 
@@ -375,6 +378,7 @@ export class SelectionBar {
     this.selBarBtnSignal = this.container.querySelector("#sel-bar-btn-signal") as HTMLButtonElement;
     this.selBarBtnBridge = this.container.querySelector("#sel-bar-btn-bridge") as HTMLButtonElement;
     this.selBarBtnTunnel = this.container.querySelector("#sel-bar-btn-tunnel") as HTMLButtonElement;
+    this.selBarBtnRotateCcw = this.container.querySelector("#sel-bar-btn-rotate-ccw") as HTMLButtonElement;
     this.selBarBtnRotate = this.container.querySelector("#sel-bar-btn-rotate") as HTMLButtonElement;
     this.selBarBtnDelete = this.container.querySelector("#sel-bar-btn-delete") as HTMLButtonElement;
 
@@ -499,8 +503,14 @@ export class SelectionBar {
       this.callbacks.onApplyAutoRamp?.();
     });
 
+    this.selBarBtnRotateCcw.addEventListener("click", () => {
+      const step = this.callbacks.getRotationStep ? this.callbacks.getRotationStep() : 7.5;
+      this.callbacks.onRotate?.(-step);
+    });
+
     this.selBarBtnRotate.addEventListener("click", () => {
-      this.callbacks.onRotate?.(7.5);
+      const step = this.callbacks.getRotationStep ? this.callbacks.getRotationStep() : 7.5;
+      this.callbacks.onRotate?.(step);
     });
 
     this.selBarBtnFeeder.addEventListener("click", () => {
@@ -547,8 +557,16 @@ export class SelectionBar {
     if (this.selBarAngleLabel) {
       this.selBarAngleLabel.title = t.angleLabel;
     }
+    if (this.selBarBtnRotateCcw) {
+      const step = this.callbacks.getRotationStep ? this.callbacks.getRotationStep() : 7.5;
+      const angleStr = step === 5.7 ? "5.7°" : `${step}°`;
+      this.selBarBtnRotateCcw.title = isDe ? `Gegen den Uhrzeigersinn drehen (-${angleStr}, Shift+R)` : `Rotate Counter-Clockwise (-${angleStr}, Shift+R)`;
+    }
     if (this.selBarBtnRotate) {
-      this.selBarBtnRotate.title = isDe ? "Drehen (+7,5°, R)" : "Rotate (+7.5°, R)";
+      const step = this.callbacks.getRotationStep ? this.callbacks.getRotationStep() : 7.5;
+      const angleStr = step === 5.7 ? "5.7°" : `${step}°`;
+      this.selBarBtnRotate.textContent = `↻ ${angleStr}`;
+      this.selBarBtnRotate.title = isDe ? `Im Uhrzeigersinn drehen (+${angleStr}, R)` : `Rotate Clockwise (+${angleStr}, R)`;
     }
     if (this.selBarBtnCatenaryFeed) {
       this.selBarBtnCatenaryFeed.title = t.catenaryFeederInactiveTitle;
@@ -777,7 +795,13 @@ export class SelectionBar {
         : (isDe ? "Als Tunnel definieren (T)" : "Define as Tunnel (T)");
 
     // Quick actions
-    this.selBarBtnRotate.title = isDe ? "Drehen (+7,5°, R)" : "Rotate (+7.5°, R)";
+    const rotStep = this.callbacks.getRotationStep ? this.callbacks.getRotationStep() : 7.5;
+    const rotAngleStr = rotStep === 5.7 ? "5.7°" : `${rotStep}°`;
+    if (this.selBarBtnRotateCcw) {
+      this.selBarBtnRotateCcw.title = isDe ? `Gegen den Uhrzeigersinn drehen (-${rotAngleStr}, Shift+R)` : `Rotate Counter-Clockwise (-${rotAngleStr}, Shift+R)`;
+    }
+    this.selBarBtnRotate.textContent = `↻ ${rotAngleStr}`;
+    this.selBarBtnRotate.title = isDe ? `Im Uhrzeigersinn drehen (+${rotAngleStr}, R)` : `Rotate Clockwise (+${rotAngleStr}, R)`;
     this.selBarBtnDelete.title = `${tSel.deleteBtn} (Del)`;
 
     const firstLayerId = firstPiece?.layerId || layout.activeLayerId || layers[0]?.id;

@@ -186,6 +186,35 @@ export function updatePieceConnections(
   heightTolerance = 1.0,
 ): void {
   const maxReach = 1200;
+  const pieceMap = new Map<string, TrackPiece>();
+  for (let i = 0; i < pieces.length; i++) {
+    pieceMap.set(pieces[i]!.id, pieces[i]!);
+  }
+
+  // Für größere Anlagen (>30 Gleise): 2D-Spatial Grid (Zellengröße 200mm)
+  // reduziert die Verbindungssuche bei nicht-gematchten Anschlüssen von O(N^2) auf O(1) pro Connector
+  const useSpatialGrid = pieces.length > 30;
+  const cellSize = 200;
+  const grid = useSpatialGrid ? new Map<string, Array<{ piece: TrackPiece; cIdx: number; conn: Connector }>>() : null;
+
+  if (grid) {
+    for (let j = 0; j < pieces.length; j++) {
+      const p = pieces[j]!;
+      for (let c = 0; c < p.connectors.length; c++) {
+        const conn = p.connectors[c]!;
+        const gx = Math.floor(conn.x / cellSize);
+        const gy = Math.floor(conn.y / cellSize);
+        const key = `${gx}:${gy}`;
+        let bucket = grid.get(key);
+        if (!bucket) {
+          bucket = [];
+          grid.set(key, bucket);
+        }
+        bucket.push({ piece: p, cIdx: c, conn });
+      }
+    }
+  }
+
   for (let i = 0; i < pieces.length; i++) {
     const p1 = pieces[i]!;
     for (let c1 = 0; c1 < p1.connectors.length; c1++) {
@@ -197,7 +226,7 @@ export function updatePieceConnections(
       if (conn1.connectedTo) {
         const targetId = conn1.connectedTo.pieceId;
         const targetIdx = conn1.connectedTo.connectorIndex;
-        const p2 = pieces.find((p) => p.id === targetId);
+        const p2 = pieceMap.get(targetId);
         if (p2 && targetIdx < p2.connectors.length) {
           const conn2 = p2.connectors[targetIdx]!;
           const h2 = getPieceConnectorHeight(p2, targetIdx, layers);
@@ -208,22 +237,43 @@ export function updatePieceConnections(
       }
 
       if (!matched) {
-        for (let j = 0; j < pieces.length; j++) {
-          if (i === j) continue;
-          const p2 = pieces[j]!;
-          if (Math.abs(p2.transform.x - conn1.x) > maxReach || Math.abs(p2.transform.y - conn1.y) > maxReach) {
-            continue;
-          }
-          for (let c2 = 0; c2 < p2.connectors.length; c2++) {
-            const conn2 = p2.connectors[c2]!;
-            const h2 = getPieceConnectorHeight(p2, c2, layers);
-            if (areConnectorsConnected(conn1, conn2, h1, h2, distTolerance, angleTolerance, heightTolerance)) {
-              conn1.connectedTo = { pieceId: p2.id, connectorIndex: c2 };
-              matched = true;
-              break;
+        if (grid) {
+          const gx = Math.floor(conn1.x / cellSize);
+          const gy = Math.floor(conn1.y / cellSize);
+          outerGrid: for (let dx = -1; dx <= 1; dx++) {
+            for (let dy = -1; dy <= 1; dy++) {
+              const bucket = grid.get(`${gx + dx}:${gy + dy}`);
+              if (!bucket) continue;
+              for (let k = 0; k < bucket.length; k++) {
+                const item = bucket[k]!;
+                if (item.piece.id === p1.id) continue;
+                const h2 = getPieceConnectorHeight(item.piece, item.cIdx, layers);
+                if (areConnectorsConnected(conn1, item.conn, h1, h2, distTolerance, angleTolerance, heightTolerance)) {
+                  conn1.connectedTo = { pieceId: item.piece.id, connectorIndex: item.cIdx };
+                  matched = true;
+                  break outerGrid;
+                }
+              }
             }
           }
-          if (matched) break;
+        } else {
+          for (let j = 0; j < pieces.length; j++) {
+            if (i === j) continue;
+            const p2 = pieces[j]!;
+            if (Math.abs(p2.transform.x - conn1.x) > maxReach || Math.abs(p2.transform.y - conn1.y) > maxReach) {
+              continue;
+            }
+            for (let c2 = 0; c2 < p2.connectors.length; c2++) {
+              const conn2 = p2.connectors[c2]!;
+              const h2 = getPieceConnectorHeight(p2, c2, layers);
+              if (areConnectorsConnected(conn1, conn2, h1, h2, distTolerance, angleTolerance, heightTolerance)) {
+                conn1.connectedTo = { pieceId: p2.id, connectorIndex: c2 };
+                matched = true;
+                break;
+              }
+            }
+            if (matched) break;
+          }
         }
       }
 

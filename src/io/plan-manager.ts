@@ -240,7 +240,38 @@ export class PlanManager {
     return fromJSON(content);
   }
 
-  saveToLocalStorage(layout: Layout) {
+  private saveTimeout: any = null;
+
+  saveToLocalStorage(layout: Layout, immediate = false) {
+    if (immediate) {
+      if (this.saveTimeout) {
+        clearTimeout(this.saveTimeout);
+        this.saveTimeout = null;
+      }
+      this.doSaveToLocalStorage(layout);
+      return;
+    }
+
+    if (this.saveTimeout) {
+      clearTimeout(this.saveTimeout);
+    }
+    this.saveTimeout = setTimeout(() => {
+      this.saveTimeout = null;
+      this.doSaveToLocalStorage(layout);
+    }, 400);
+  }
+
+  flush(layout?: Layout) {
+    if (this.saveTimeout) {
+      clearTimeout(this.saveTimeout);
+      this.saveTimeout = null;
+    }
+    if (layout) {
+      this.doSaveToLocalStorage(layout);
+    }
+  }
+
+  private doSaveToLocalStorage(layout: Layout) {
     try {
       localStorage.setItem("railbench_current_plan", toJSON(layout));
       localStorage.setItem("railbench_last_saved", new Date().toISOString());

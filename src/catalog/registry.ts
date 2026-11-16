@@ -10,6 +10,7 @@ import { pikoACatalog } from "./systems/piko-a-h0";
 import { rocoLineCatalog } from "./systems/roco-line-h0";
 import { fleischmannPiccoloCatalog } from "./systems/fleischmann-piccolo-n";
 import { pecoStreamlineH0Catalog } from "./systems/peco-streamline-h0-code100";
+import { pecoStreamlineNCode55Catalog } from "./systems/peco-streamline-n-code55";
 import { katoUnitrackNCatalog } from "./systems/kato-unitrack-n";
 import { genericStreetsCatalog } from "./systems/generic-streets-h0";
 import { genericStreetsNCatalog } from "./systems/generic-streets-n";
@@ -89,6 +90,7 @@ export class CatalogRegistry {
     this.register(rocoLineCatalog);
     this.register(fleischmannPiccoloCatalog);
     this.register(pecoStreamlineH0Catalog);
+    this.register(pecoStreamlineNCode55Catalog);
     this.register(katoUnitrackNCatalog);
     this.register(tilligTTCatalog);
     this.register(genericStreetsCatalog);

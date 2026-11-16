@@ -47,6 +47,8 @@ export interface CanvasControllerDeps {
   }>) => void;
   isSnappingEnabled: () => boolean;
   setSnappingEnabled: (val: boolean) => void;
+  getRotationStep?: () => number;
+  isRotationSnapLocked?: () => boolean;
   toggleSelectionLock?: () => void;
   getColorMode: () => ColorMode;
   cycleColorMode: (target?: ColorMode) => void;
@@ -62,7 +64,7 @@ export interface CanvasControllerDeps {
   isPieceInteractive: (piece: TrackPiece) => boolean;
   isModelInteractive: (model: Model3D) => boolean;
   getCatalogEntryForPiece: (piece: TrackPiece) => CatalogEntry | undefined;
-  sync: (dirty?: boolean) => void;
+  sync: (dirty?: boolean, transient?: boolean) => void;
   saveSettingsState: () => void;
   showToast: (msg: string, icon?: string) => void;
   getCurrentSimulation: () => any;

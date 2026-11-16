@@ -82,8 +82,35 @@ export class CanvasController {
     }
   };
   private handlePointerDown = (e: PointerEvent) => this.onPointerDown(e);
-  private handlePointerMove = (e: PointerEvent) => this.onPointerMove(e);
-  private handlePointerUp = (e: PointerEvent) => this.onPointerUp(e);
+  private rafMoveId: number | null = null;
+  private latestMoveEvent: PointerEvent | null = null;
+
+  private handlePointerMove = (e: PointerEvent) => {
+    this.latestMoveEvent = e;
+    if (typeof requestAnimationFrame === "undefined") {
+      this.onPointerMove(e);
+      return;
+    }
+    if (this.rafMoveId === null) {
+      this.rafMoveId = requestAnimationFrame(() => {
+        this.rafMoveId = null;
+        if (this.latestMoveEvent) {
+          this.onPointerMove(this.latestMoveEvent);
+        }
+      });
+    }
+  };
+
+  private handlePointerUp = (e: PointerEvent) => {
+    if (this.rafMoveId !== null) {
+      cancelAnimationFrame(this.rafMoveId);
+      this.rafMoveId = null;
+      if (this.latestMoveEvent) {
+        this.onPointerMove(this.latestMoveEvent);
+      }
+    }
+    this.onPointerUp(e);
+  };
   private handleWheel = (e: WheelEvent) => this.onWheel(e);
   private keyboardController: KeyboardController;
 
@@ -105,6 +132,10 @@ export class CanvasController {
   }
 
   public destroy(): void {
+    if (this.rafMoveId !== null) {
+      cancelAnimationFrame(this.rafMoveId);
+      this.rafMoveId = null;
+    }
     closeTrackContextMenu();
     const { canvas } = this.deps;
     canvas.removeEventListener("dragover", this.handleDragOver);
@@ -509,7 +540,7 @@ export class CanvasController {
         this.activePin.y = currentWPos.y;
       }
 
-      this.deps.sync(false);
+      this.deps.sync(false, true);
       return;
     }
 
@@ -535,7 +566,7 @@ export class CanvasController {
         this.deps.isSnappingEnabled() ? 25 : 0,
       );
       canvas.style.cursor = "crosshair";
-      this.deps.sync(false);
+      this.deps.sync(false, true);
       return;
     }
 
@@ -572,7 +603,7 @@ export class CanvasController {
           }
         }
       }
-      this.deps.sync();
+      this.deps.sync(false, true);
       return;
     }
 
@@ -581,11 +612,14 @@ export class CanvasController {
       const dy = currentWPos.y - this.activeModel.transform.y;
       const pointerAngleDeg = rad2deg(Math.atan2(dy, dx));
       let newRot = normAngle(pointerAngleDeg + 90);
-      if (!e.altKey) {
-        newRot = Math.round(newRot / 7.5) * 7.5;
+      const isLocked = this.deps.isRotationSnapLocked ? this.deps.isRotationSnapLocked() : true;
+      const step = this.deps.getRotationStep ? this.deps.getRotationStep() : 7.5;
+      const shouldSnap = isLocked ? !e.altKey : e.altKey;
+      if (shouldSnap) {
+        newRot = Math.round(newRot / step) * step;
       }
       this.activeModel.transform.rotation = newRot;
-      this.deps.sync();
+      this.deps.sync(false, true);
       return;
     }
 
@@ -594,8 +628,11 @@ export class CanvasController {
       const currentAngle = Math.atan2(currentWPos.y - this.pieceCenterWorld.y, currentWPos.x - this.pieceCenterWorld.x);
       let deltaDeg = rad2deg(currentAngle - startAngle);
 
-      if (!e.altKey) {
-        deltaDeg = Math.round(deltaDeg / 7.5) * 7.5;
+      const isLocked = this.deps.isRotationSnapLocked ? this.deps.isRotationSnapLocked() : true;
+      const step = this.deps.getRotationStep ? this.deps.getRotationStep() : 7.5;
+      const shouldSnap = isLocked ? !e.altKey : e.altKey;
+      if (shouldSnap) {
+        deltaDeg = Math.round(deltaDeg / step) * step;
       }
 
       applyGroupRotationWithSnapping(
@@ -603,10 +640,10 @@ export class CanvasController {
         this.draggedPiecesMap,
         this.pieceCenterWorld,
         deltaDeg,
-        this.deps.isSnappingEnabled() && !e.altKey,
+        this.deps.isSnappingEnabled() && shouldSnap,
         (p) => this.deps.getCatalogEntryForPiece(p),
       );
-      this.deps.sync();
+      this.deps.sync(false, true);
       return;
     }
 
@@ -652,9 +689,8 @@ export class CanvasController {
         }
       }
 
-      this.deps.getSidebar()?.update(layout, this.deps.getCurrentSimulation());
       this.deps.setDraggingBaseboardState(true, this.activeBaseboard, this.activeBaseboardSnapGuides);
-      this.deps.sync();
+      this.deps.sync(false, true);
       return;
     }
 
@@ -681,7 +717,7 @@ export class CanvasController {
         (p) => this.deps.getCatalogEntryForPiece(p),
       );
 
-      this.deps.sync();
+      this.deps.sync(false, true);
       return;
     }
 
@@ -704,7 +740,7 @@ export class CanvasController {
       const hoveredChanged = (currentHovered?.pieceId !== newHovered?.pieceId) || (currentHovered?.connectorIndex !== newHovered?.connectorIndex);
       if (hoveredChanged && this.deps.setHoveredOpenConnector) {
         this.deps.setHoveredOpenConnector(newHovered);
-        this.deps.sync(false);
+        this.deps.sync(false, true);
       }
 
       if (openHit) {
@@ -947,7 +983,8 @@ export class CanvasController {
       if (sel) {
         e.preventDefault();
         e.stopPropagation();
-        const step = e.deltaY < 0 ? -7.5 : 7.5;
+        const rotStep = this.deps.getRotationStep ? this.deps.getRotationStep() : 7.5;
+        const step = e.deltaY < 0 ? -rotStep : rotStep;
         this.deps.getOperations().rotateSelected(step);
       }
     }

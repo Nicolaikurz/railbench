@@ -42,6 +42,10 @@ export interface ToolbarFactoryDeps {
   sync: (dirty?: boolean) => void;
   isSnappingEnabled: () => boolean;
   setSnappingEnabled: (val: boolean) => void;
+  getRotationStep?: () => number;
+  setRotationStep?: (val: number) => void;
+  isRotationSnapLocked?: () => boolean;
+  toggleRotationLock?: () => void;
   toggleSelectionLock?: () => void;
   cycleColorMode: (mode?: ColorMode) => void;
   isTrackLabelsEnabled: () => boolean;
@@ -87,7 +91,24 @@ export function buildToolbarEvents(deps: ToolbarFactoryDeps): ToolbarEvents {
       deps.sync();
     },
     onDeleteSelected: () => operations.deleteSelected(),
-    onRotateSelected: (step = 7.5) => operations.rotateSelected(step),
+    onRotateSelected: (stepOrDir?: number) => {
+      const currentStep = deps.getRotationStep ? deps.getRotationStep() : 7.5;
+      const finalStep =
+        stepOrDir === undefined
+          ? currentStep
+          : stepOrDir === 1
+            ? currentStep
+            : stepOrDir === -1
+              ? -currentStep
+              : stepOrDir;
+      operations.rotateSelected(finalStep);
+    },
+    onSetRotationStep: (step: number) => {
+      deps.setRotationStep?.(step);
+    },
+    onToggleRotationLock: () => {
+      deps.toggleRotationLock?.();
+    },
     onToggleSnapping: () => {
       deps.setSnappingEnabled(!deps.isSnappingEnabled());
       deps.sync();

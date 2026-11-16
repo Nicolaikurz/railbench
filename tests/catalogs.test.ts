@@ -4,6 +4,7 @@ import {
   maerklinMCatalog,
   maerklinKCatalog,
   genericStreetsCatalog,
+  pecoStreamlineNCode55Catalog,
   computeWorldConnectors,
   getLocalConnectors,
 } from "@/catalog/catalog";
@@ -690,6 +691,161 @@ describe("Scale 0, 1 & Scale G Tracks, Streets, and Buildings", () => {
         const conns = getLocalConnectors(entry);
         expect(conns.length, `Entry ${entry.id} (${entry.kind}) must have at least 1 connector`).toBeGreaterThanOrEqual(1);
       }
+    });
+  });
+
+  describe("Peco Streamline N (Code 55) Catalog", () => {
+    it("registers Peco Streamline N Code 55 in CatalogRegistry with 9 mm gauge", () => {
+      const pecoCat = catalogRegistry.get("peco-streamline-n-code55");
+      expect(pecoCat).toBeDefined();
+      expect(pecoCat?.name).toBe("Peco Streamline N (Code 55)");
+      expect(pecoCat?.manufacturer).toBe("Peco");
+      expect(pecoCat?.system).toBe("Streamline Code 55");
+      expect(pecoCat?.scale).toBe("N");
+      expect(pecoCat?.gauge).toBe(9.0);
+      expect(pecoCat?.hasRoadbed).toBe(false);
+      expect(pecoCat?.entries.length).toBeGreaterThanOrEqual(30);
+    });
+
+    it("verifies accurate geometry for key Peco Code 55 track components", () => {
+      // SL-300F flexible track (914 mm)
+      const sl300 = catalogRegistry.findEntry("SL-300F");
+      expect(sl300).toBeDefined();
+      expect(sl300?.kind).toBe("flex");
+      expect(sl300?.length).toBe(914);
+      expect(sl300?.gauge).toBe(9);
+
+      // SL-E395F medium turnout right (137 mm, R457, 10°)
+      const slE395 = catalogRegistry.findEntry("SL-E395F");
+      expect(slE395).toBeDefined();
+      expect(slE395?.kind).toBe("turnout-right");
+      expect(slE395?.length).toBe(137);
+      expect(slE395?.branchRadius).toBe(457);
+      expect(slE395?.branchAngle).toBe(10);
+
+      // SL-E388F large turnout right (164 mm, R914, 10°)
+      const slE388 = catalogRegistry.findEntry("SL-E388F");
+      expect(slE388).toBeDefined();
+      expect(slE388?.kind).toBe("turnout-right");
+      expect(slE388?.length).toBe(164);
+      expect(slE388?.branchRadius).toBe(914);
+      expect(slE388?.branchAngle).toBe(10);
+
+      // SL-E386F curved turnout (R457 / R914, 10°)
+      const slE386 = catalogRegistry.findEntry("SL-E386F");
+      expect(slE386).toBeDefined();
+      expect(slE386?.kind).toBe("curved-turnout-right");
+      expect(slE386?.radius).toBe(457);
+      expect(slE386?.branchRadius).toBe(914);
+      expect(slE386?.angle).toBe(10);
+      expect(slE386?.branchAngle).toBe(10);
+
+      // SL-E383F scissors crossover (271 mm, 10°, R511)
+      const slE383 = catalogRegistry.findEntry("SL-E383F");
+      expect(slE383).toBeDefined();
+      expect(slE383?.length).toBe(271);
+      expect(slE383?.angle).toBe(10);
+
+      // SL-340 buffer stop
+      const sl340 = catalogRegistry.findEntry("SL-340");
+      expect(sl340).toBeDefined();
+      expect(sl340?.kind).toBe("buffer-stop");
+    });
+
+    it("generates valid local connectors for all Peco Code 55 components", () => {
+      const pecoCat = catalogRegistry.get("peco-streamline-n-code55");
+      expect(pecoCat).toBeDefined();
+      for (const entry of pecoCat!.entries) {
+        const conns = getLocalConnectors(entry);
+        expect(conns.length, `Component ${entry.id} (${entry.kind}) should have connectors`).toBeGreaterThanOrEqual(1);
+      }
+    });
+  });
+
+  describe("Tillig TT Modellgleis & Kato Unitrack N & Kühn TT Catalog Completeness", () => {
+    it("verifies newly added Tillig TT track components and geometry", () => {
+      const tilligCat = catalogRegistry.get("tillig-tt");
+      expect(tilligCat).toBeDefined();
+      expect(tilligCat?.entries.length).toBeGreaterThanOrEqual(45);
+
+      // 83100 Prellbock mit Gleis
+      const t83100 = catalogRegistry.findEntry("83100");
+      expect(t83100).toBeDefined();
+      expect(t83100?.kind).toBe("buffer-stop");
+      expect(t83100?.length).toBe(41.5);
+
+      // 83115 Bogen R04 (267 mm / 7,5°)
+      const t83115 = catalogRegistry.findEntry("83115");
+      expect(t83115).toBeDefined();
+      expect(t83115?.radius).toBe(267);
+      expect(t83115?.angle).toBe(7.5);
+
+      // 83120 Kurzgerade G6 (21,3 mm)
+      const t83120 = catalogRegistry.findEntry("83120");
+      expect(t83120).toBeDefined();
+      expect(t83120?.length).toBe(21.3);
+
+      // 83363 IBW rechts (R631 / R310)
+      const t83363 = catalogRegistry.findEntry("83363");
+      expect(t83363).toBeDefined();
+      expect(t83363?.kind).toBe("curved-turnout-right");
+      expect(t83363?.radius).toBe(631);
+      expect(t83363?.angle).toBe(15);
+      expect(t83363?.branchRadius).toBe(310);
+      expect(t83363?.branchAngle).toBe(30);
+
+      // 83364 IBW links (R631 / R310)
+      const t83364 = catalogRegistry.findEntry("83364");
+      expect(t83364).toBeDefined();
+      expect(t83364?.kind).toBe("curved-turnout-left");
+
+      // 83381 Außenbogenweiche ABW 15°
+      const t83381 = catalogRegistry.findEntry("83381");
+      expect(t83381).toBeDefined();
+      expect(t83381?.branchRadius).toBe(353);
+      expect(t83381?.branchAngle).toBe(15);
+
+      // 83310 EKW 15°
+      const t83310 = catalogRegistry.findEntry("83310");
+      expect(t83310).toBeDefined();
+      expect(t83310?.kind).toBe("double-slip");
+      expect(t83310?.length).toBe(166);
+      expect(t83310?.angle).toBe(15);
+    });
+
+    it("verifies newly added Kato Unitrack N components including double crossover and bumpers", () => {
+      const katoCat = catalogRegistry.get("kato-unitrack-n");
+      expect(katoCat).toBeDefined();
+
+      // 20-240 Double crossover (Hosenträger)
+      const k20240 = catalogRegistry.findEntry("20-240");
+      expect(k20240).toBeDefined();
+      expect(k20240?.kind).toBe("double-slip");
+      expect(k20240?.length).toBe(310);
+      expect(k20240?.angle).toBe(15);
+
+      // 20-060 Bumper track
+      const k20060 = catalogRegistry.findEntry("20-060");
+      expect(k20060).toBeDefined();
+      expect(k20060?.kind).toBe("buffer-stop");
+      expect(k20060?.length).toBe(62);
+
+      // 20-310 Crossing 15° R
+      const k20310 = catalogRegistry.findEntry("20-310");
+      expect(k20310).toBeDefined();
+      expect(k20310?.kind).toBe("crossing");
+      expect(k20310?.length).toBe(124);
+      expect(k20310?.angle).toBe(15);
+    });
+
+    it("verifies Kühn TT buffer stops are correctly typed", () => {
+      const k72810 = catalogRegistry.findEntry("72810");
+      expect(k72810).toBeDefined();
+      expect(k72810?.kind).toBe("buffer-stop");
+
+      const k72750 = catalogRegistry.findEntry("72750");
+      expect(k72750).toBeDefined();
+      expect(k72750?.kind).toBe("buffer-stop");
     });
   });
 });

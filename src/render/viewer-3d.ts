@@ -15,7 +15,7 @@ import { buildTrainHall } from "./viewer-3d-trainhall";
 import { buildBaseboard3D, buildCustomLayerPlate3D, buildLayerDeckPlate3D } from "./viewer-3d-baseboard";
 import { buildWoodPlatePiece3D, buildAllWoodPlates3D, type WoodPlateBuildItem } from "./viewer-3d-roads";
 import { buildAllModels3D, buildBuildingWoodPlate3D, buildModel3D } from "./viewer-3d-models";
-import { buildTrackPiece3D } from "./viewer-3d-track";
+import { buildTrackPiece3D, buildAllTracks3D, freezeStaticTransforms, type TrackBuildItem } from "./viewer-3d-track";
 import { buildCatenary3D, buildTurntableCatenary3D, buildTransferTableCatenary3D } from "./viewer-3d-catenary";
 import { buildTrackSignal3D, isPillarColliding, buildTrackBridge3D } from "./viewer-3d-bridges";
 import {
@@ -827,10 +827,12 @@ export class Viewer3D {
       this.sceneCenter.set(hallRes.sceneCenter.cx, hallRes.sceneCenter.floorY, hallRes.sceneCenter.cz);
       this.nightLampMats = hallRes.nightLampMats;
       this.builtHallKey = envKey;
+      freezeStaticTransforms(this.trainHallGroup);
     } else if (this.envMode === "landscape" && this.builtLandscapeKey !== envKey) {
       this.clearGroup(this.landscapeGroup);
       buildRealisticLandscape(this.landscapeGroup, this.currentLayout, isDark);
       this.builtLandscapeKey = envKey;
+      freezeStaticTransforms(this.landscapeGroup);
     }
   }
 
@@ -895,6 +897,7 @@ export class Viewer3D {
     const colorMode: ColorMode = options?.colorMode ?? (options?.showColorCode === false ? "off" : "types");
 
     // 3. Gleise mit realer 3D-Höhe (Elevation) nach Ebene erzeugen
+    const trackItems: TrackBuildItem[] = [];
     const woodPlateItems: WoodPlateBuildItem[] = [];
 
     for (const piece of layout.pieces) {
@@ -924,7 +927,14 @@ export class Viewer3D {
 
       entry = getEffectiveFlexEntry(entry, piece);
 
-      buildTrackPiece3D(this.trackGroup, piece, entry, startElev, endElev, colorMode, layer?.color, layout);
+      trackItems.push({
+        piece,
+        entry,
+        startElev,
+        endElev,
+        colorMode,
+        layerColor: layer?.color,
+      });
 
       // Wood Plate (Trassenbrett)
       const plateMode = layer?.woodPlateMode ?? (baseElevation !== 0 || Math.abs(endElev - startElev) > 0.01 ? "tight" : "none");
@@ -938,6 +948,10 @@ export class Viewer3D {
           thickness: plateThickness,
         });
       }
+    }
+
+    if (trackItems.length > 0) {
+      buildAllTracks3D(this.trackGroup, trackItems, layout);
     }
 
     if (woodPlateItems.length > 0) {
@@ -1054,6 +1068,14 @@ export class Viewer3D {
         scBtn.style.display = "none";
       }
     }
+
+    // Statische Objekt-Transformationen einfrieren (spart 1000e Matrix-Multiplikationen pro Frame)
+    freezeStaticTransforms(this.tableGroup);
+    freezeStaticTransforms(this.pillarsGroup);
+    freezeStaticTransforms(this.woodPlateGroup);
+    freezeStaticTransforms(this.trackGroup);
+    freezeStaticTransforms(this.modelsGroup);
+
     this.requestShadowUpdate();
   }
 

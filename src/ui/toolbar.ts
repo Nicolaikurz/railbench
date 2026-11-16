@@ -24,6 +24,8 @@ export interface ToolbarEvents {
   onSelectAll?: () => void;
   onDeselectAll?: () => void;
   onRotateSelected: (step?: number) => void;
+  onSetRotationStep?: (step: number) => void;
+  onToggleRotationLock?: () => void;
   onDeleteSelected: () => void;
   onToggleFeeder: () => void;
   onToggleIsolator?: () => void;
@@ -68,6 +70,8 @@ export interface ToolbarState {
   canUndo?: boolean;
   canRedo?: boolean;
   hasSelection?: boolean;
+  rotationStep?: number;
+  rotationSnapLocked?: boolean;
   snappingEnabled?: boolean;
   selectionLockDisabled?: boolean;
   measureToolActive?: boolean;
@@ -270,6 +274,65 @@ export function createToolbar(host: HTMLElement, events: ToolbarEvents) {
   const btnMeasure = createToggleBtn(ICONS.ruler, t.toggles.measureLabel, "Dist", false, () => events.onToggleMeasureTool?.(), "tb-measure");
   btnMeasure.title = t.toggles.measureTitle;
 
+  // Rotation Quick Action & Step Settings (5.7°, 30°, 90°, etc.)
+  const rotateWrapper = document.createElement("div");
+  rotateWrapper.className = "toolbar-split-group";
+  rotateWrapper.id = "tb-rotate-group";
+
+  // Counter-clockwise turn button (↺)
+  const btnRotateCcw = document.createElement("button");
+  btnRotateCcw.type = "button";
+  btnRotateCcw.className = "toolbar-btn toolbar-toggle tb-rotate-ccw-btn";
+  btnRotateCcw.id = "tb-rotate-ccw";
+  btnRotateCcw.disabled = true;
+  btnRotateCcw.title = `${t.toggles.rotateCcwTitle} (-30°, Shift+R)`;
+  btnRotateCcw.innerHTML = `<span class="tb-btn-icon">${ICONS.rotateCcw}</span>`;
+  btnRotateCcw.addEventListener("click", () => {
+    events.onRotateSelected(-1);
+  });
+  rotateWrapper.appendChild(btnRotateCcw);
+
+  // Clockwise turn button (↻) with angle badge (e.g. 30°)
+  const btnRotate = document.createElement("button");
+  btnRotate.type = "button";
+  btnRotate.className = "toolbar-btn toolbar-toggle tb-rotate-cw-btn";
+  btnRotate.id = "tb-rotate";
+  btnRotate.disabled = true;
+  btnRotate.title = `${t.toggles.rotateTitle} (+30°, R)`;
+  setBtnLabel(btnRotate, ICONS.rotateCw, "30°", "30°");
+  btnRotate.addEventListener("click", () => {
+    events.onRotateSelected(1);
+  });
+  btnRotate.addEventListener("contextmenu", (e) => {
+    e.preventDefault();
+    events.onRotateSelected(-1);
+  });
+  rotateWrapper.appendChild(btnRotate);
+
+  const rotateMenu = createDropdownMenu("", [
+    { label: t.toggles.rotationStep5_7, onClick: () => events.onSetRotationStep?.(5.7), id: "rotate-step-5-7" },
+    { label: t.toggles.rotationStep30, onClick: () => events.onSetRotationStep?.(30), id: "rotate-step-30" },
+    { label: t.toggles.rotationStep90, onClick: () => events.onSetRotationStep?.(90), id: "rotate-step-90" },
+    { isDivider: true },
+    { label: t.toggles.rotationStep7_5, onClick: () => events.onSetRotationStep?.(7.5), id: "rotate-step-7-5" },
+    { label: t.toggles.rotationStep15, onClick: () => events.onSetRotationStep?.(15), id: "rotate-step-15" },
+    { label: t.toggles.rotationStep45, onClick: () => events.onSetRotationStep?.(45), id: "rotate-step-45" },
+    { isDivider: true },
+    { label: t.toggles.rotateLockMenu, onClick: () => events.onToggleRotationLock?.(), id: "rotate-step-lock" },
+  ]);
+  rotateMenu.classList.add("rotate-split-dropdown");
+  rotateWrapper.appendChild(rotateMenu);
+
+  const btnRotateLock = createToggleBtn(
+    ICONS.lock,
+    t.toggles.rotateLockLabel || "Sperre",
+    "Lock",
+    true,
+    () => events.onToggleRotationLock?.(),
+    "tb-rotate-lock",
+  );
+  btnRotateLock.title = t.toggles.rotateLockTitle;
+
   const colorsWrapper = document.createElement("div");
   colorsWrapper.className = "toolbar-split-group active";
 
@@ -339,6 +402,8 @@ export function createToolbar(host: HTMLElement, events: ToolbarEvents) {
 
   featureGroup.appendChild(btnSnap);
   featureGroup.appendChild(btnSelectionLock);
+  featureGroup.appendChild(rotateWrapper);
+  featureGroup.appendChild(btnRotateLock);
   featureGroup.appendChild(btnMeasure);
   featureGroup.appendChild(colorsWrapper);
   featureGroup.appendChild(btnLabels);
@@ -468,8 +533,8 @@ function createEditMenu(t: any, events: ToolbarEvents): HTMLElement {
       { label: t.editMenu.selectAll, shortcut: "Ctrl+A", onClick: () => events.onSelectAll?.(), id: "item-select-all" },
       { label: t.editMenu.deselectAll, shortcut: "Esc", onClick: () => events.onDeselectAll?.(), id: "item-deselect-all" },
       { isDivider: true },
-      { label: t.editMenu.rotateCw, shortcut: "R", onClick: () => events.onRotateSelected(7.5) },
-      { label: t.editMenu.rotateCcw, shortcut: "Shift+R", onClick: () => events.onRotateSelected(-7.5) },
+      { label: t.editMenu.rotateCw, shortcut: "R", onClick: () => events.onRotateSelected(1) },
+      { label: t.editMenu.rotateCcw, shortcut: "Shift+R", onClick: () => events.onRotateSelected(-1) },
       { label: t.editMenu.changeHeight, shortcut: "M", onClick: () => events.onMoveSelectedToLayerPrompt?.() },
       { label: t.powerMenu.toggleFeeder, shortcut: "F", onClick: events.onToggleFeeder },
       { isDivider: true },
@@ -639,8 +704,60 @@ export function updateToolbarState(state: ToolbarState) {
     itemRedo.style.pointerEvents = state.canRedo ? "auto" : "none";
   }
 
+  const btnRotateCcw = document.getElementById("tb-rotate-ccw") as HTMLButtonElement | null;
+  if (btnRotateCcw) {
+    if (state.hasSelection !== undefined) btnRotateCcw.disabled = !state.hasSelection;
+    if (state.rotationStep !== undefined) {
+      const angleStr = state.rotationStep === 5.7 ? "5.7°" : `${state.rotationStep}°`;
+      btnRotateCcw.title = `${t.toggles.rotateCcwTitle} (-${angleStr})`;
+    }
+  }
+
   const btnRotate = document.getElementById("tb-rotate") as HTMLButtonElement | null;
-  if (btnRotate && state.hasSelection !== undefined) btnRotate.disabled = !state.hasSelection;
+  if (btnRotate) {
+    if (state.hasSelection !== undefined) btnRotate.disabled = !state.hasSelection;
+    if (state.rotationStep !== undefined) {
+      const angleStr = state.rotationStep === 5.7 ? "5.7°" : `${state.rotationStep}°`;
+      setBtnLabel(btnRotate, ICONS.rotateCw, angleStr, angleStr);
+      btnRotate.title = `${t.toggles.rotateTitle} (+${angleStr})`;
+    }
+  }
+
+  const btnRotateLock = document.getElementById("tb-rotate-lock") as HTMLButtonElement | null;
+  if (btnRotateLock && state.rotationSnapLocked !== undefined) {
+    btnRotateLock.classList.toggle("active", state.rotationSnapLocked);
+    setBtnLabel(
+      btnRotateLock,
+      state.rotationSnapLocked ? ICONS.lock : ICONS.unlock,
+      t.toggles.rotateLockLabel || "Sperre",
+      "Lock",
+    );
+    btnRotateLock.title = t.toggles.rotateLockTitle;
+  }
+
+  if (state.rotationStep !== undefined) {
+    const stepIds = [
+      { id: "rotate-step-5-7", val: 5.7 },
+      { id: "rotate-step-30", val: 30 },
+      { id: "rotate-step-90", val: 90 },
+      { id: "rotate-step-7-5", val: 7.5 },
+      { id: "rotate-step-15", val: 15 },
+      { id: "rotate-step-45", val: 45 },
+    ];
+    for (const item of stepIds) {
+      const el = document.getElementById(item.id);
+      if (el) {
+        el.classList.toggle("active", Math.abs(state.rotationStep - item.val) < 0.01);
+      }
+    }
+  }
+
+  if (state.rotationSnapLocked !== undefined) {
+    const lockEl = document.getElementById("rotate-step-lock");
+    if (lockEl) {
+      lockEl.classList.toggle("active", state.rotationSnapLocked);
+    }
+  }
 
   const btnDelete = document.getElementById("tb-delete") as HTMLButtonElement | null;
   if (btnDelete && state.hasSelection !== undefined) btnDelete.disabled = !state.hasSelection;

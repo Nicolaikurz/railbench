@@ -17,6 +17,10 @@ export interface AppSettings {
   barsLocked?: boolean;
   /** Auswahlsperre aufgehoben (alle Ebenen & gelöschte Ebenen auswählbar) */
   selectionLockDisabled?: boolean;
+  /** Drehungswinkel-Schrittweite in Grad (z.B. 5.7, 30, 90) */
+  rotationStep?: number;
+  /** Drehungswinkelsperre / Einrasten aktiv */
+  rotationSnapLocked?: boolean;
   /** Startverhalten: "ask" (Willkommensdialog anzeigen), "recent", "new", "demo", "open" */
   startupAction?: StartupAction;
   /** Zuletzt ausgewähltes Gleissystem (z.B. maerklin-c, tillig-tt, fleischmann-n) */

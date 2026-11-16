@@ -117,6 +117,19 @@ export interface Translations {
       selectionLockLabel: string;
       selectionLockDisabledLabel: string;
       selectionLockTitle: string;
+      rotateLabel: string;
+      rotateTitle: string;
+      rotateCcwTitle: string;
+      rotateLockLabel: string;
+      rotateLockTitle: string;
+      rotationStepTitle: string;
+      rotationStep5_7: string;
+      rotationStep30: string;
+      rotationStep90: string;
+      rotationStep7_5: string;
+      rotationStep15: string;
+      rotationStep45: string;
+      rotateLockMenu: string;
     };
     colorsMenu: {
       types: string;

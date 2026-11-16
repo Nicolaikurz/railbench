@@ -77,6 +77,8 @@ async function main() {
   let powerSimEnabled = savedSettings.powerSimEnabled ?? false;
   let rightSidebarCollapsed = savedSettings.rightSidebarCollapsed ?? false;
   let selectionLockDisabled = savedSettings.selectionLockDisabled ?? false;
+  let rotationStep = savedSettings.rotationStep ?? 30;
+  let rotationSnapLocked = savedSettings.rotationSnapLocked ?? true;
   let sidebar: Sidebar | null = null, rightSidebar: RightSidebar | null = null;
   let ruler: Ruler | null = null, viewer3D: Viewer3D | null = null;
   let currentSimulation: SimulationSummary | undefined = undefined;
@@ -113,6 +115,8 @@ async function main() {
     saveAppSettings({
       snappingEnabled,
       selectionLockDisabled,
+      rotationStep,
+      rotationSnapLocked,
       colorMode,
       trackLabelsEnabled,
       powerSimEnabled,
@@ -129,6 +133,28 @@ async function main() {
     });
   }
 
+  function setRotationStep(val: number) {
+    rotationStep = val;
+    saveSettingsState();
+    const isDe = getLanguage() === "de";
+    const angleStr = val === 5.7 ? "5.7°" : `${val}°`;
+    showToast(isDe ? `Drehwinkel: ${angleStr}` : `Rotation angle: ${angleStr}`, "↻");
+    sync();
+  }
+
+  function toggleRotationLock(forcedState?: boolean) {
+    rotationSnapLocked = forcedState !== undefined ? forcedState : !rotationSnapLocked;
+    saveSettingsState();
+    const isDe = getLanguage() === "de";
+    showToast(
+      rotationSnapLocked
+        ? (isDe ? "Drehwinkelsperre aktiviert (Einrasten)" : "Rotation angle lock enabled (Snapping)")
+        : (isDe ? "Drehwinkelsperre aufgehoben (Freie Drehung)" : "Rotation angle lock disabled (Free rotation)"),
+      rotationSnapLocked ? "🔒" : "🔓"
+    );
+    sync();
+  }
+
   let saveSettingsTimeout: any = null;
   function debouncedSaveSettings() {
     if (saveSettingsTimeout) clearTimeout(saveSettingsTimeout);
@@ -136,7 +162,7 @@ async function main() {
   }
   const handleBeforeUnload = () => {
     saveSettingsState();
-    planManager.saveToLocalStorage(layout);
+    planManager.flush(layout);
   };
   window.addEventListener("beforeunload", handleBeforeUnload);
   window.addEventListener("pagehide", handleBeforeUnload);
@@ -199,6 +225,8 @@ async function main() {
       hasSelection: selection.all().length > 0,
       snappingEnabled,
       selectionLockDisabled,
+      rotationStep,
+      rotationSnapLocked,
       colorCodeEnabled: colorMode !== "off",
       colorMode,
       trackLabelsEnabled,
@@ -368,7 +396,7 @@ async function main() {
     isPieceInteractive,
     isModelInteractive,
     getCatalogEntry: getCatalogEntryForPiece,
-    sync: (dirty?: boolean) => sync(dirty),
+    sync: (dirty?: boolean, transient?: boolean) => sync(dirty, transient),
     showToast,
   });
 
@@ -437,7 +465,8 @@ async function main() {
     onToggleSignal: () => operations.toggleSelectedSignal(),
     onToggleBridge: () => operations.toggleSelectedBridge(),
     onToggleTunnel: () => operations.toggleSelectedTunnel(),
-    onRotate: (delta) => operations.rotateSelected(delta ?? 7.5),
+    onRotate: (delta) => operations.rotateSelected(delta ?? rotationStep),
+    getRotationStep: () => rotationStep,
     onDelete: () => operations.deleteSelected(),
     getSelectedPieceIds: () => selection.all(),
     getLayout: () => layout,
@@ -446,13 +475,15 @@ async function main() {
   });
 
   // Sync-Funktion für UI und Rendering
-  function sync(dirty = false) {
+  function sync(dirty = false, transient = false) {
     if (dirty) {
       updatePieceConnections(layout.pieces, layout.layers);
       planManager.markDirty(true);
-      planManager.saveToLocalStorage(layout);
-      if (!isApplyingRemote) {
-        collabClient.broadcastLayout(layout);
+      if (!transient) {
+        planManager.saveToLocalStorage(layout);
+        if (!isApplyingRemote) {
+          collabClient.broadcastLayout(layout);
+        }
       }
     }
 
@@ -503,6 +534,13 @@ async function main() {
       ruler?.update();
     }
     collabOverlay.update();
+
+    // Während flüchtiger Aktionen (aktives Mausziehen/Drehen) überspringen wir
+    // das teure Neuaufbauen des HTML-DOM von Seitenleisten und Toolbar
+    if (transient) {
+      return;
+    }
+
     collabClient.broadcastSelection(selection.all());
     selectionBar.update();
 
@@ -521,6 +559,8 @@ async function main() {
       hasSelection: selectedIds.size > 0,
       snappingEnabled,
       selectionLockDisabled,
+      rotationStep,
+      rotationSnapLocked,
       measureToolActive: measureController.isActive,
       colorCodeEnabled: colorMode !== "off",
       colorMode,
@@ -697,6 +737,10 @@ async function main() {
     },
     isSnappingEnabled: () => snappingEnabled,
     setSnappingEnabled: (val) => { snappingEnabled = val; },
+    getRotationStep: () => rotationStep,
+    setRotationStep: (val: number) => setRotationStep(val),
+    isRotationSnapLocked: () => rotationSnapLocked,
+    toggleRotationLock: () => toggleRotationLock(),
     toggleSelectionLock: () => toggleSelectionLock(),
     cycleColorMode,
     isTrackLabelsEnabled: () => trackLabelsEnabled,
@@ -795,6 +839,8 @@ async function main() {
     },
     isSnappingEnabled: () => snappingEnabled,
     setSnappingEnabled: (val) => { snappingEnabled = val; },
+    getRotationStep: () => rotationStep,
+    isRotationSnapLocked: () => rotationSnapLocked,
     toggleSelectionLock: () => toggleSelectionLock(),
     getColorMode: () => colorMode,
     cycleColorMode,

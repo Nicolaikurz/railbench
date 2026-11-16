@@ -27,6 +27,7 @@ export interface KeyboardControllerDeps {
   updateMeasureHud: () => void;
   isSnappingEnabled: () => boolean;
   setSnappingEnabled: (val: boolean) => void;
+  getRotationStep?: () => number;
   toggleSelectionLock?: () => void;
   getColorMode: () => ColorMode;
   cycleColorMode: (target?: ColorMode) => void;
@@ -152,7 +153,8 @@ export class KeyboardController {
       ops.deleteSelected();
     } else if (e.key.toLowerCase() === "r" || e.code === "KeyR") {
       e.preventDefault();
-      const step = e.shiftKey ? -7.5 : 7.5;
+      const rotStep = this.deps.getRotationStep ? this.deps.getRotationStep() : 7.5;
+      const step = e.shiftKey ? -rotStep : rotStep;
       ops.rotateSelected(step);
     } else if ((e.key.toLowerCase() === "w" || e.code === "KeyW") && !ctrlOrMeta) {
       e.preventDefault();
