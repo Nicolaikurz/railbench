@@ -2,48 +2,64 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR/.."
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+cd "$PROJECT_ROOT"
 
 ARCH="${1:-all}"
+PRODUCT_NAME=$(node -p "require('./package.json').build?.productName || require('./package.json').name || 'railbench'" 2>/dev/null || echo "railbench")
+APP_VERSION=$(node -p "require('./package.json').version || '0.6.0'" 2>/dev/null || echo "0.6.0")
 
-echo "=== Building Windows Portable Executable (Gleisplan 0.4.0) ==="
+echo "=== Building Windows Portable (Directory & ZIP) ==="
+echo "Application: $PRODUCT_NAME v$APP_VERSION"
 echo "Target Architecture: $ARCH"
 
 npm run build:all
 
+package_target() {
+    local TARGET_ARCH="$1"
+    local UNPACKED_DIR="release/win-unpacked"
+    if [ "$TARGET_ARCH" = "arm64" ]; then
+        UNPACKED_DIR="release/win-arm64-unpacked"
+    fi
+    local ZIP_OUTPUT="release/${PRODUCT_NAME}-${APP_VERSION}-portable-${TARGET_ARCH}.zip"
+
+    echo ""
+    echo "• Packaging Windows Portable Directory for ${TARGET_ARCH}..."
+    npx electron-builder --win dir --${TARGET_ARCH}
+
+    if [ -d "$UNPACKED_DIR" ]; then
+        echo "• Creating standalone portable ZIP from $UNPACKED_DIR..."
+        rm -f "$ZIP_OUTPUT"
+        if command -v zip &> /dev/null; then
+            (cd "$UNPACKED_DIR" && zip -qry "../../$ZIP_OUTPUT" .)
+            local SIZE
+            SIZE=$(du -h "$ZIP_OUTPUT" | awk '{print $1}')
+            echo "✓ Created Portable ZIP: $ZIP_OUTPUT ($SIZE)"
+        else
+            echo "⚠️  'zip' command not found. Unpacked directory is ready in $UNPACKED_DIR"
+        fi
+    else
+        echo "⚠️  Directory $UNPACKED_DIR was not generated."
+    fi
+}
+
 if [ "$ARCH" = "x64" ]; then
-    echo "• Packaging Windows Portable for x64..."
-    npx electron-builder --win dir --x64
+    package_target "x64"
 elif [ "$ARCH" = "arm64" ]; then
-    echo "• Packaging Windows Portable for arm64..."
-    npx electron-builder --win dir --arm64
+    package_target "arm64"
 elif [ "$ARCH" = "all" ]; then
-    echo "• Packaging Windows Portable for x64 and arm64..."
-    npx electron-builder --win dir --x64 --arm64
+    package_target "x64"
+    package_target "arm64"
 else
     echo "Unknown architecture: $ARCH (choose x64, arm64, or all)"
     exit 1
 fi
 
 echo ""
-echo "=== Zipping Windows Executables ==="
-if command -v zip &> /dev/null; then
-    cd release
-    # Find all newly generated portable .exe files and zip each one individually
-    for EXE_FILE in *-portable-*.exe; do
-        if [ -f "$EXE_FILE" ]; then
-            ZIP_NAME="${EXE_FILE%.exe}.zip"
-            zip -j "$ZIP_NAME" "$EXE_FILE"
-            echo "Created archive: release/$ZIP_NAME"
-        fi
-    done
-    cd ..
-else
-    echo "[WARNING] 'zip' command not found. Skipping compression."
-fi
-
-echo ""
 echo "==========================================="
-echo " Windows Portable build and zip complete!"
-echo "Archives located in: release/"
+echo " Windows Portable build complete!"
+echo "Directories:"
+echo "  • x64:   release/win-unpacked/railbench.exe"
+echo "  • arm64: release/win-arm64-unpacked/railbench.exe"
+echo "ZIP Archives: release/${PRODUCT_NAME}-${APP_VERSION}-portable-*.zip"
 echo "==========================================="

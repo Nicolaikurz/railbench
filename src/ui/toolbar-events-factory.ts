@@ -13,6 +13,7 @@ import type { PerfMonitor } from "@/ui/perf-monitor";
 import { themeManager } from "@/theme/theme-manager";
 import { openPowerSettingsDialog } from "@/ui/power-dialog";
 import { openHelpDialog, type HelpTab } from "@/ui/help-dialog";
+import { openKeymapDialog } from "@/ui/keymap-dialog";
 import { openPrintDialog } from "@/io/print";
 import { getTranslations, getLanguage, autoSelectLanguage } from "@/i18n";
 import { ensureDefaultLayers, getBaseboards } from "@/core/layout";
@@ -39,7 +40,7 @@ export interface ToolbarFactoryDeps {
   onResetUiSizes?: () => void;
   onToggleLockBars?: () => void;
   saveSettingsState: () => void;
-  sync: (dirty?: boolean) => void;
+  sync: (dirty?: boolean, transient?: boolean) => void;
   isSnappingEnabled: () => boolean;
   setSnappingEnabled: (val: boolean) => void;
   getRotationStep?: () => number;
@@ -155,10 +156,47 @@ export function buildToolbarEvents(deps: ToolbarFactoryDeps): ToolbarEvents {
       deps.sync(true);
     },
     onOpenPowerSettings: (initialFocus) => {
+      const origVoltage = layout.feedVoltage;
+      const origCatVolt = layout.catenaryFeedVoltage;
+      const origCatMode = layout.catenaryCircuitMode;
+      const origLocoMa = layout.locoCurrentMa;
+      const origLocoCount = layout.locoCount;
+      const origLantern = layout.turnoutLanternCurrentMa;
+      const origDecoder = layout.turnoutDecoderCurrentMa;
+
       openPowerSettingsDialog({
         layout,
         catalog: deps.getCatalog(),
         initialFocus,
+        onLiveChange: ({
+          feedVoltage,
+          catenaryFeedVoltage,
+          catenaryCircuitMode,
+          locoCurrentMa,
+          locoCount,
+          turnoutLanternCurrentMa,
+          turnoutDecoderCurrentMa,
+        }) => {
+          layout.feedVoltage = feedVoltage;
+          if (catenaryFeedVoltage !== undefined) layout.catenaryFeedVoltage = catenaryFeedVoltage;
+          if (catenaryCircuitMode !== undefined) layout.catenaryCircuitMode = catenaryCircuitMode;
+          layout.locoCurrentMa = locoCurrentMa;
+          layout.locoCount = locoCount;
+          if (turnoutLanternCurrentMa !== undefined) layout.turnoutLanternCurrentMa = turnoutLanternCurrentMa;
+          if (turnoutDecoderCurrentMa !== undefined) layout.turnoutDecoderCurrentMa = turnoutDecoderCurrentMa;
+          if (!deps.isPowerSimEnabled()) deps.setPowerSimEnabled(true);
+          deps.sync(true, true);
+        },
+        onCancel: () => {
+          layout.feedVoltage = origVoltage;
+          layout.catenaryFeedVoltage = origCatVolt;
+          layout.catenaryCircuitMode = origCatMode;
+          layout.locoCurrentMa = origLocoMa;
+          layout.locoCount = origLocoCount;
+          layout.turnoutLanternCurrentMa = origLantern;
+          layout.turnoutDecoderCurrentMa = origDecoder;
+          deps.sync(true);
+        },
         onApply: ({
           feedVoltage,
           catenaryFeedVoltage,
@@ -269,6 +307,9 @@ export function buildToolbarEvents(deps: ToolbarFactoryDeps): ToolbarEvents {
         "🌐"
       );
       deps.sync();
+    },
+    onOpenKeymapSettings: () => {
+      openKeymapDialog();
     },
     onResetPersonalConfig: () => {
       const t = getTranslations();

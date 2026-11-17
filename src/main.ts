@@ -14,6 +14,8 @@ import {
   isTurnoutEntry,
   detectShortCircuit,
   type ShortCircuitDetectionResult,
+  getDefaultFeedVoltage,
+  getDefaultLocoCurrentMa,
 } from "@/core/simulation";
 import { Selection } from "@/editor/selection";
 import { History, AddPiecesCommand } from "@/editor/commands";
@@ -231,6 +233,7 @@ async function main() {
       colorMode,
       trackLabelsEnabled,
       powerSimEnabled,
+      feedVoltage: layout.feedVoltage ?? getDefaultFeedVoltage(layout.scale),
       totalPieces: layout.pieces.length,
       activeFileName: state.fileName ?? layout.name,
       isDirty: state.isDirty,
@@ -355,6 +358,45 @@ async function main() {
   viewer3D = new Viewer3D(canvasHost);
   let is3DMode = false;
 
+  function zoomView(factor: number) {
+    if (is3DMode && viewer3D?.isSupported()) {
+      viewer3D.zoomBy(factor);
+      return;
+    }
+    const canvas = renderer.app.canvas;
+    const rect = canvas.getBoundingClientRect();
+    const mx = rect.width / 2;
+    const my = rect.height / 2;
+    const wx = (mx - renderer.world.x) / renderer.world.scale.x;
+    const wy = (my - renderer.world.y) / renderer.world.scale.y;
+    const newScale = Math.max(0.04, Math.min(25, renderer.world.scale.x * factor));
+    renderer.world.scale.set(newScale);
+    renderer.world.x = mx - wx * newScale;
+    renderer.world.y = my - wy * newScale;
+    ruler?.update();
+    collabOverlay.update();
+    debouncedSaveSettings();
+  }
+
+  function panView(dx: number, dy: number) {
+    if (is3DMode && viewer3D?.isSupported()) {
+      viewer3D.panBy(dx, dy);
+      return;
+    }
+    renderer.world.x += dx;
+    renderer.world.y += dy;
+    ruler?.update();
+    collabOverlay.update();
+    debouncedSaveSettings();
+  }
+
+  function resetView() {
+    renderer.resetView();
+    ruler?.update();
+    collabOverlay.update();
+    debouncedSaveSettings();
+  }
+
   function toggle3D(force?: boolean) {
     if (!viewer3D?.isSupported()) {
       const msg = getLanguage() === "de"
@@ -415,6 +457,7 @@ async function main() {
   let activePinDropHandler: ((pinId: string, wPos: { x: number; y: number }, hitPiece: TrackPiece | null) => void) | null = null;
   let activePointMarkers: Array<{ x: number; y: number; label: string; color: number; id?: string }> | null = null;
   let activeHoveredConnector: { pieceId: string; connectorIndex: number } | null = null;
+  let canvasController: CanvasController | null = null;
   let previewRampElevations: Map<string, { start: number; end: number }> | null = null;
   let previewGeneratedPieces: TrackPiece[] | null = null;
 
@@ -445,6 +488,7 @@ async function main() {
     onApplyHeight: (h) => operations.applyHeightInput(h),
     onApplyAngle: (deg) => operations.applyAngleInput(deg),
     onAdjustFlexTrack: (id, len, r, a) => operations.adjustFlexTrack(id, len, r, a),
+    onResetFlexTrack: (id) => operations.resetFlexTrack(id),
     onSelectLayer: (layerId) => operations.moveSelectedToLayer(layerId, { start: 0, end: 0 }),
     onOpenHeightDialog: () => openHeightDialogForSelection(heightPanelDeps),
     onApplyAutoRamp: () => operations.applyAutoRamp(() => openHeightDialogForSelection(heightPanelDeps)),
@@ -487,8 +531,21 @@ async function main() {
       }
     }
 
+    const expFeedV = layout.feedVoltage ?? getDefaultFeedVoltage(layout.scale);
+    const expLocoMa = layout.locoCurrentMa ?? getDefaultLocoCurrentMa(layout.scale);
+    const expLocoCount = layout.locoCount ?? 1;
+    const expCatV = layout.catenaryCircuitMode === "parallel"
+      ? expFeedV
+      : (layout.catenaryFeedVoltage ?? expFeedV);
+
+    const simStale = !currentSimulation ||
+      currentSimulation.feedVoltage !== expFeedV ||
+      currentSimulation.locoCurrentMa !== expLocoMa ||
+      currentSimulation.locoCount !== expLocoCount ||
+      (layout.catenaryCircuitMode !== undefined && currentSimulation.catenaryFeedVoltage !== expCatV);
+
     if (powerSimEnabled) {
-      if (dirty || !currentSimulation) {
+      if (dirty || simStale) {
         currentSimulation = simulatePowerDrop(layout, catalog);
       }
     } else {
@@ -501,6 +558,7 @@ async function main() {
 
     const selectedIds = new Set(selection.all());
     const selectedPiece = layout.pieces.find((p) => selectedIds.has(p.id));
+    const selectedModel = layout.models?.find((m) => selectedIds.has(m.id));
 
     if (!is3DMode) {
       renderer.render(layout, catalog, {
@@ -532,25 +590,24 @@ async function main() {
           : null,
       });
       ruler?.update();
-    }
-    collabOverlay.update();
-
-    // Während flüchtiger Aktionen (aktives Mausziehen/Drehen) überspringen wir
-    // das teure Neuaufbauen des HTML-DOM von Seitenleisten und Toolbar
-    if (transient) {
-      return;
-    }
-
-    collabClient.broadcastSelection(selection.all());
-    selectionBar.update();
-
-    if (is3DMode) {
+    } else {
       viewer3D?.updateLayout(layout, catalog, {
         colorMode,
         showColorCode: colorMode !== "off",
         shortCircuit: currentShortCircuit,
       });
     }
+    collabOverlay.update();
+
+    // Während flüchtiger Aktionen (aktives Mausziehen/Drehen) überspringen wir
+    // das teure Neuaufbauen des HTML-DOM von Seitenleisten und Toolbar
+    if (transient) {
+      selectionBar.updateLiveValues(selectedPiece, selectedModel);
+      return;
+    }
+
+    collabClient.broadcastSelection(selection.all());
+    selectionBar.update();
 
     const planState = planManager.getState();
     updateToolbarState({
@@ -566,6 +623,7 @@ async function main() {
       colorMode,
       trackLabelsEnabled,
       powerSimEnabled,
+      feedVoltage: layout.feedVoltage ?? getDefaultFeedVoltage(layout.scale),
       hasShortCircuit: currentShortCircuit.hasShortCircuit,
       shortCircuitCount: currentShortCircuit.shortCircuitPoints.length,
       rulersEnabled: ruler?.isVisible() ?? true,
@@ -803,7 +861,7 @@ async function main() {
   }
 
   // Canvas Interaktion & Shortcuts initialisieren
-  new CanvasController({
+  canvasController = new CanvasController({
     canvas: renderer.app.canvas,
     renderer,
     getLayout: () => layout,
@@ -818,6 +876,9 @@ async function main() {
     getPlanManager: () => planManager,
     is3DMode: () => is3DMode,
     toggle3D,
+    zoomView,
+    panView,
+    resetView,
     isMeasureToolActive: () => measureController.isActive,
     toggleMeasureTool: (force) => measureController.toggle(force),
     findMeasureSnapPoint: (pos, snapDist, forceNoSnap) => measureController.findSnapPoint(pos, snapDist, forceNoSnap),

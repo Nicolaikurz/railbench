@@ -15,7 +15,7 @@ import { MoveModelCommand, MoveBaseboardCommand } from "@/editor/commands";
 import type { Selection } from "@/editor/selection";
 import { handleCanvasDrop } from "./canvas-drop-handler";
 import { KeyboardController } from "./keyboard-controller";
-import { adjustFlexTrackOpenConnector } from "@/core/flextrack";
+import { adjustFlexTrackOpenConnector, bendFlexTrackBetweenFixedEnds } from "@/core/flextrack";
 import { closeTrackContextMenu } from "@/ui/track-context-menu";
 import type { CanvasControllerDeps } from "./canvas-controller-types";
 import { openTrackContextMenu } from "./canvas-context-menu";
@@ -50,7 +50,13 @@ export class CanvasController {
   private baseboardOriginalPos = { positionMode: "custom" as const, customX: 0, customY: 0 };
   private activeBaseboardSnapGuides: BaseboardSnapGuide[] = [];
   private baseboardInitialTrackTransforms = new Map<string, Transform>();
-  private isAdjustingFlex = false; private activeFlexPiece: TrackPiece | null = null; private activeFlexEntry: CatalogEntry | null = null;
+  private isAdjustingFlex = false;
+  private isAdjustingFlexMiddle = false;
+  private flexMiddleFixedC0: { x: number; y: number } | null = null;
+  private flexMiddleFixedC1: { x: number; y: number } | null = null;
+  private activeFlexPivotFraction = 0.5;
+  private activeFlexPiece: TrackPiece | null = null;
+  private activeFlexEntry: CatalogEntry | null = null;
   private handleDragOver = (e: DragEvent) => this.onDragOver(e);
   private handleDrop = (e: DragEvent) => this.onDrop(e);
   private handleContextMenu = (e: MouseEvent) => {
@@ -227,24 +233,7 @@ export class CanvasController {
     const selectedIds = selection.all();
     const handleHitRadius = Math.max(24, 20 / scale);
 
-    // Klick auf Plus-Button an offenem Gleisende
-    if (!isMultiSelect) {
-      const openHit = findOpenConnectorAt(
-        layout,
-        selection,
-        (p) => this.deps.isPieceInteractive(p),
-        wPos,
-        scale,
-      );
-      if (openHit) {
-        const added = this.deps.getOperations().appendTrackToConnector(openHit.piece, openHit.connectorIndex);
-        if (added) {
-          this.deps.sync(true);
-          return;
-        }
-      }
-    }
-
+    // Flexgleis-Griffe zum Kürzen und Biegen immer zuerst vor Plus-Buttons prüfen
     if (!isMultiSelect) {
       const flexHit = checkFlexHandleHit(
         layout,
@@ -255,12 +244,38 @@ export class CanvasController {
         handleHitRadius,
       );
       if (flexHit) {
-        this.isAdjustingFlex = true;
+        if (flexHit.handleType === "middle" && flexHit.fixedC0 && flexHit.fixedC1) {
+          this.isAdjustingFlexMiddle = true;
+          this.activeFlexPivotFraction = flexHit.pivotFraction ?? 0.5;
+          this.flexMiddleFixedC0 = { ...flexHit.fixedC0 };
+          this.flexMiddleFixedC1 = { ...flexHit.fixedC1 };
+        } else {
+          this.isAdjustingFlex = true;
+        }
         this.activeFlexPiece = flexHit.piece;
         this.activeFlexEntry = flexHit.entry;
         this.deps.canvas.style.cursor = "crosshair";
         this.deps.sync();
         return;
+      }
+    }
+
+    // Klick auf Plus-Button an offenem Gleisende
+    if (!isMultiSelect) {
+      const openHit = findOpenConnectorAt(
+        layout,
+        selection,
+        (p) => this.deps.isPieceInteractive(p),
+        wPos,
+        scale,
+        (p) => this.deps.getCatalogEntryForPiece(p),
+      );
+      if (openHit) {
+        const added = this.deps.getOperations().appendTrackToConnector(openHit.piece, openHit.connectorIndex);
+        if (added) {
+          this.deps.sync(true);
+          return;
+        }
       }
     }
 
@@ -556,6 +571,21 @@ export class CanvasController {
       return;
     }
 
+    if (this.isAdjustingFlexMiddle && this.activeFlexPiece && this.activeFlexEntry && this.flexMiddleFixedC0 && this.flexMiddleFixedC1) {
+      bendFlexTrackBetweenFixedEnds(
+        this.activeFlexPiece,
+        this.activeFlexEntry,
+        this.flexMiddleFixedC0,
+        this.flexMiddleFixedC1,
+        currentWPos,
+        layout.layers,
+        this.activeFlexPivotFraction,
+      );
+      canvas.style.cursor = "crosshair";
+      this.deps.sync(false, true);
+      return;
+    }
+
     if (this.isAdjustingFlex && this.activeFlexPiece && this.activeFlexEntry) {
       adjustFlexTrackOpenConnector(
         this.activeFlexPiece,
@@ -721,10 +751,23 @@ export class CanvasController {
       return;
     }
 
-    if (!this.isDraggingPiece && !this.isRotatingPiece && !this.isRotatingModel && !this.isBoxSelecting && !this.isDraggingBaseboard && !this.isAdjustingFlex) {
+    if (!this.isDraggingPiece && !this.isRotatingPiece && !this.isRotatingModel && !this.isBoxSelecting && !this.isDraggingBaseboard && !this.isAdjustingFlex && !this.isAdjustingFlexMiddle) {
       const selectedIds = selection.all();
       const scale = renderer.world.scale.x || 1;
       const handleHitRadius = Math.max(24, 20 / scale);
+
+      // Flexgleis-Griffe zum Kürzen und Biegen prüfen
+      if (isNearFlexHandle(
+        layout,
+        selection,
+        (p) => this.deps.isPieceInteractive(p),
+        (p) => this.deps.getCatalogEntryForPiece(p),
+        currentWPos,
+        handleHitRadius,
+      )) {
+        canvas.style.cursor = "crosshair";
+        return;
+      }
 
       // Hover über offenem Gleisende / Plus-Button
       const openHit = findOpenConnectorAt(
@@ -733,6 +776,7 @@ export class CanvasController {
         (p) => this.deps.isPieceInteractive(p),
         currentWPos,
         scale,
+        (p) => this.deps.getCatalogEntryForPiece(p),
       );
       const currentHovered = this.deps.getHoveredOpenConnector?.() ?? null;
       const newHovered = openHit ? { pieceId: openHit.piece.id, connectorIndex: openHit.connectorIndex } : null;
@@ -745,18 +789,6 @@ export class CanvasController {
 
       if (openHit) {
         canvas.style.cursor = "pointer";
-        return;
-      }
-
-      if (isNearFlexHandle(
-        layout,
-        selection,
-        (p) => this.deps.isPieceInteractive(p),
-        (p) => this.deps.getCatalogEntryForPiece(p),
-        currentWPos,
-        handleHitRadius,
-      )) {
-        canvas.style.cursor = "crosshair";
         return;
       }
 
@@ -880,6 +912,19 @@ export class CanvasController {
 
       this.activePin = null;
       this.activePinOriginalPos = null;
+      return;
+    }
+
+    if (this.isAdjustingFlexMiddle) {
+      if (this.activeFlexPiece) updatePieceConnections(layout.pieces, layout.layers);
+      this.isAdjustingFlexMiddle = false;
+      this.activeFlexPivotFraction = 0.5;
+      this.flexMiddleFixedC0 = null;
+      this.flexMiddleFixedC1 = null;
+      this.activeFlexPiece = null;
+      this.activeFlexEntry = null;
+      canvas.style.cursor = "default";
+      this.deps.sync(true);
       return;
     }
 

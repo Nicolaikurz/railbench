@@ -284,7 +284,9 @@ export function renderTrackList(sidebar: Sidebar, container: HTMLElement) {
         ? true
         : sidebar.selectedCategory === "Favorites"
         ? sidebar.isFavorite(e.id, (e as any)._originCatalogId || (sidebar.catalog.id !== "favorites" ? sidebar.catalog.id : undefined))
-        : allowedCats.includes(e.category) || e.category === sidebar.selectedCategory;
+        : allowedCats.includes(e.category) ||
+          e.category === sidebar.selectedCategory ||
+          (sidebar.selectedCategory === "Curves" && e.kind === "curve");
     const matchQuery =
       !query ||
       e.id.toLowerCase().includes(query) ||

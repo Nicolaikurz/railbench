@@ -26,7 +26,7 @@ fi
 
 echo "=== 3. Ensuring Freedesktop Flatpak runtime is present ==="
 flatpak --user remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.repo || true
-flatpak --user install -y flathub org.freedesktop.Platform//25.08 org.freedesktop.Sdk//25.08 org.electronjs.Electron2.BaseApp//25.08 || true
+flatpak --user install -y flathub org.freedesktop.Platform//24.08 org.freedesktop.Sdk//24.08 org.electronjs.Electron2.BaseApp//24.08 || true
 
 echo "=== 4. Building Flatpak package ==="
 mkdir -p "$BUILD_DIR"

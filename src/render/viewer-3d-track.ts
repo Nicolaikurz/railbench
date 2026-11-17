@@ -3,7 +3,7 @@ import * as BufferGeometryUtils from "three/examples/jsm/utils/BufferGeometryUti
 import type { CatalogEntry } from "@/catalog/catalog";
 import { isBufferStopPiece } from "@/catalog/catalog";
 import type { ColorMode, Layout, TrackPiece } from "@/core/types";
-import { deg2rad, isCurvedTrackEntry, isStraightTrackEntry } from "@/core/geometry";
+import { deg2rad, isCurvedTrackEntry, isStraightTrackEntry, evaluateFlexSpline, computeFlexSplineLength } from "@/core/geometry";
 import { getTrackBlueprintColor } from "@/render/blueprint-colors";
 import { buildBufferStop3D } from "@/render/builtin-models-3d";
 import { applyCurveElevation, buildRoadPiece3D } from "./viewer-3d-roads";
@@ -407,13 +407,81 @@ export function buildTrackPiece3D(
     targetGroup.add(tiesInstanced);
   };
 
+  const addSplineSection = (
+    targetGroup: THREE.Group,
+    offsets: number[],
+    customHDiff = heightDiff,
+  ) => {
+    const chordDist = entry.customChordDist ?? entry.length ?? 900;
+    const splineLen = computeFlexSplineLength(chordDist, offsets);
+
+    // 1. Schwellen entlang des Splines
+    const tieStep = Math.max(3.5, (gauge / 16.5) * 6.5);
+    const tieCount = Math.max(3, Math.floor(splineLen / tieStep));
+    const tiesInstanced = new THREE.InstancedMesh(tieGeo, tieMat, tieCount);
+    tiesInstanced.castShadow = true;
+    for (let i = 0; i < tieCount; i++) {
+      const u = (i + 0.5) / tieCount;
+      const { h, dh } = evaluateFlexSpline(offsets, u);
+      const tx = u * chordDist;
+      const tz = h;
+      const ty = ballastH + 1.1 + u * customHDiff;
+      const ang = Math.atan2(dh, chordDist);
+
+      _tieDummy.position.set(tx, ty, tz);
+      _tieDummy.rotation.set(0, -ang, 0);
+      _tieDummy.updateMatrix();
+      tiesInstanced.setMatrixAt(i, _tieDummy.matrix);
+    }
+    tiesInstanced.instanceMatrix.needsUpdate = true;
+    targetGroup.add(tiesInstanced);
+
+    // 2. Segmentiertes Schotterbett & Schienenstränge (24 Segmente)
+    const numSegments = 24;
+    for (let s = 0; s < numSegments; s++) {
+      const u1 = s / numSegments;
+      const u2 = (s + 1) / numSegments;
+      const pt1 = evaluateFlexSpline(offsets, u1);
+      const pt2 = evaluateFlexSpline(offsets, u2);
+      const x1 = u1 * chordDist;
+      const z1 = pt1.h;
+      const y1 = ballastH / 2 + u1 * customHDiff;
+      const x2 = u2 * chordDist;
+      const z2 = pt2.h;
+      const y2 = ballastH / 2 + u2 * customHDiff;
+
+      const segDx = x2 - x1;
+      const segDz = z2 - z1;
+      const segLen = Math.hypot(segDx, segDz);
+      const segAng = Math.atan2(segDz, segDx);
+
+      // Schotter-Segment
+      const bGeo = getSharedStraightBallastGeometry(segLen, ballastH, ballastW);
+      const bMesh = new THREE.Mesh(bGeo, ballastMat);
+      bMesh.position.set((x1 + x2) / 2, (y1 + y2) / 2, (z1 + z2) / 2);
+      bMesh.rotation.y = -segAng;
+      bMesh.receiveShadow = true;
+      bMesh.castShadow = true;
+      targetGroup.add(bMesh);
+
+      // Schienen-Segment
+      const rGeo = getSharedStraightDualRailGeometry(segLen, railH, railW, gaugeHalf);
+      const rMesh = new THREE.Mesh(rGeo, railMat);
+      rMesh.position.set((x1 + x2) / 2, (y1 + y2) / 2 + railY - ballastH / 2, (z1 + z2) / 2);
+      rMesh.rotation.y = -segAng;
+      targetGroup.add(rMesh);
+    }
+  };
+
   const isCurvedTurnout =
     kind === "curved-turnout-left" ||
     kind === "curved-turnout-right" ||
     ((kind === "turnout-left" || kind === "turnout-right") && !!entry.radius && !entry.length);
 
   const isBufferStop = isBufferStopPiece(entry);
-  if (isStraightTrackEntry(entry)) {
+  if (entry.customOffsets && entry.customOffsets.length >= 3) {
+    addSplineSection(group, entry.customOffsets, heightDiff);
+  } else if (isStraightTrackEntry(entry)) {
     const len = entry.length ?? (kind === "flex" ? 900 : 188.3);
     const straightGroup = new THREE.Group();
     if (Math.abs(heightDiff) > 0.01) {

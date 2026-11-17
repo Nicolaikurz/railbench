@@ -42,6 +42,21 @@ export const SCALE_CURRENT_PRESETS: Record<string, ScaleCurrentPreset> = {
   G: { scale: "G", label: "Spur G", minMa: 600, maxMa: 1000, defaultMa: 1000, description: "Max. 1000 mA (1A) pro Lok" },
 };
 
+export const SCALE_VOLTAGE_PRESETS: Record<string, number> = {
+  Z: 10.0,
+  N: 12.0,
+  TT: 14.0,
+  H0: 16.0,
+  "0": 16.0,
+  "1": 18.0,
+  G: 24.0,
+};
+
+export function getDefaultFeedVoltage(scale?: string): number {
+  if (!scale) return 16.0;
+  return SCALE_VOLTAGE_PRESETS[scale.toUpperCase()] ?? 16.0;
+}
+
 export function getDefaultLocoCurrentMa(scale?: string): number {
   if (!scale) return 450;
   return SCALE_CURRENT_PRESETS[scale]?.defaultMa ?? 450;
@@ -428,7 +443,7 @@ export function simulatePowerDrop(
   catalog: Catalog,
   options: SimulatePowerDropOptions = {},
 ): SimulationSummary {
-  const feedVoltage = options.feedVoltage ?? layout.feedVoltage ?? 16.0;
+  const feedVoltage = options.feedVoltage ?? layout.feedVoltage ?? getDefaultFeedVoltage(layout.scale);
 
   // Stromaufnahme pro Lok (mA):
   let locoCurrentMa = options.locoCurrentMa ?? layout.locoCurrentMa;

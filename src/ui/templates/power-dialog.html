@@ -9,6 +9,27 @@
   <div class="power-dialog-body">
     {{SHORT_CIRCUIT_BANNER}}
 
+    <!-- 0. SYSTEM SCHNELLWAHL -->
+    <div class="power-dialog-section" style="background: rgba(2, 132, 199, 0.08); border-color: rgba(2, 132, 199, 0.25);">
+      <div class="power-dialog-section-header">
+        <strong>{{SYSTEM_PRESET_HEADER}}</strong>
+        <span class="power-highlight-val" id="power-lbl-system-desc" style="font-size: 11px;">{{ACTIVE_SYSTEM_DESC}}</span>
+      </div>
+      <div style="font-size: 10px; color: var(--text-muted); line-height: 1.3;">
+        {{SYSTEM_PRESET_SUB}}
+      </div>
+      <div class="power-system-preset-chips" id="power-system-preset-chips" style="margin-top: 4px;">
+        <button type="button" class="power-chip-btn {{SYS_Z_ACTIVE}}" data-system="Z" data-volt="10" data-ma="100">Spur Z (10V)</button>
+        <button type="button" class="power-chip-btn {{SYS_N_ACTIVE}}" data-system="N" data-volt="12" data-ma="100">Spur N (12V)</button>
+        <button type="button" class="power-chip-btn {{SYS_TT_ACTIVE}}" data-system="TT" data-volt="14" data-ma="300">Spur TT (14V)</button>
+        <button type="button" class="power-chip-btn {{SYS_H0_DCC_ACTIVE}}" data-system="H0_DCC" data-volt="14" data-ma="450">H0 DCC (14V)</button>
+        <button type="button" class="power-chip-btn {{SYS_H0_AC_ACTIVE}}" data-system="H0_AC" data-volt="16" data-ma="450">H0 Märklin (16V)</button>
+        <button type="button" class="power-chip-btn {{SYS_0_ACTIVE}}" data-system="0" data-volt="16" data-ma="600">Spur 0 (16V)</button>
+        <button type="button" class="power-chip-btn {{SYS_1_ACTIVE}}" data-system="1" data-volt="18" data-ma="800">Spur 1 (18V)</button>
+        <button type="button" class="power-chip-btn {{SYS_G_ACTIVE}}" data-system="G" data-volt="24" data-ma="1000">G / LGB (24V)</button>
+      </div>
+    </div>
+
     <!-- 1. GLEIS- & OBERLEITUNGSSPANNUNG -->
     <div class="power-dialog-section">
       <div class="power-dialog-section-header">
@@ -17,13 +38,19 @@
       </div>
 
       <div class="power-dialog-slider-row">
-        <input type="range" id="power-slider-voltage" min="8" max="24" step="0.5" value="{{CURRENT_VOLTAGE}}" class="power-slider" />
-        <div class="power-dialog-unit-input">
-          <input type="number" id="power-input-voltage" min="4" max="28" step="0.5" value="{{CURRENT_VOLTAGE}}" class="rb-input power-num-field" />
+        <input type="range" id="power-slider-voltage" min="3" max="30" step="0.5" value="{{CURRENT_VOLTAGE}}" class="power-slider" />
+        <div class="power-dialog-unit-input" style="display: flex; align-items: center; gap: 3px;">
+          <button type="button" class="power-stepper-btn" id="power-btn-volt-dec" title="-0.5 V">−</button>
+          <input type="number" id="power-input-voltage" min="1" max="48" step="0.1" value="{{CURRENT_VOLTAGE}}" class="rb-input power-num-field" style="width: 58px; text-align: center;" />
+          <button type="button" class="power-stepper-btn" id="power-btn-volt-inc" title="+0.5 V">+</button>
           <span class="unit-addon">{{VOLTAGE_UNIT}}</span>
         </div>
       </div>
       <div class="power-slider-ticks" id="power-ticks-voltage">
+        <div class="power-tick-item {{TICK_10V_ACTIVE}}" data-voltage="10">
+          <span class="power-tick-val">10 V</span>
+          <span class="power-tick-desc">({{PRESET_10V_DESC}})</span>
+        </div>
         <div class="power-tick-item {{TICK_12V_ACTIVE}}" data-voltage="12">
           <span class="power-tick-val">12 V</span>
           <span class="power-tick-desc">({{PRESET_12V_DESC}})</span>
@@ -39,6 +66,10 @@
         <div class="power-tick-item {{TICK_18V_ACTIVE}}" data-voltage="18">
           <span class="power-tick-val">18 V</span>
           <span class="power-tick-desc">({{PRESET_18V_DESC}})</span>
+        </div>
+        <div class="power-tick-item {{TICK_24V_ACTIVE}}" data-voltage="24">
+          <span class="power-tick-val">24 V</span>
+          <span class="power-tick-desc">({{PRESET_24V_DESC}})</span>
         </div>
       </div>
 
@@ -68,13 +99,19 @@
             <span class="power-highlight-val" id="power-lbl-catenary-voltage" style="font-size: 10.5px;"><strong>{{CURRENT_CATENARY_VOLTAGE}}</strong> V</span>
           </div>
           <div class="power-dialog-slider-row">
-            <input type="range" id="power-slider-catenary-voltage" min="8" max="24" step="0.5" value="{{CURRENT_CATENARY_VOLTAGE}}" class="power-slider" {{CATENARY_DISABLED_ATTR}} />
-            <div class="power-dialog-unit-input">
-              <input type="number" id="power-input-catenary-voltage" min="4" max="28" step="0.5" value="{{CURRENT_CATENARY_VOLTAGE}}" class="rb-input power-num-field" {{CATENARY_DISABLED_ATTR}} />
+            <input type="range" id="power-slider-catenary-voltage" min="3" max="30" step="0.5" value="{{CURRENT_CATENARY_VOLTAGE}}" class="power-slider" {{CATENARY_DISABLED_ATTR}} />
+            <div class="power-dialog-unit-input" style="display: flex; align-items: center; gap: 3px;">
+              <button type="button" class="power-stepper-btn" id="power-btn-cat-volt-dec" title="-0.5 V" {{CATENARY_DISABLED_ATTR}}>−</button>
+              <input type="number" id="power-input-catenary-voltage" min="1" max="48" step="0.1" value="{{CURRENT_CATENARY_VOLTAGE}}" class="rb-input power-num-field" style="width: 58px; text-align: center;" {{CATENARY_DISABLED_ATTR}} />
+              <button type="button" class="power-stepper-btn" id="power-btn-cat-volt-inc" title="+0.5 V" {{CATENARY_DISABLED_ATTR}}>+</button>
               <span class="unit-addon">{{VOLTAGE_UNIT}}</span>
             </div>
           </div>
           <div class="power-slider-ticks" id="power-ticks-catenary-voltage">
+            <div class="power-tick-item {{CAT_TICK_10V_ACTIVE}}" data-catenary-voltage="10">
+              <span class="power-tick-val">10 V</span>
+              <span class="power-tick-desc">({{PRESET_10V_DESC}})</span>
+            </div>
             <div class="power-tick-item {{CAT_TICK_12V_ACTIVE}}" data-catenary-voltage="12">
               <span class="power-tick-val">12 V</span>
               <span class="power-tick-desc">({{PRESET_12V_DESC}})</span>
@@ -91,6 +128,10 @@
               <span class="power-tick-val">18 V</span>
               <span class="power-tick-desc">({{PRESET_18V_DESC}})</span>
             </div>
+            <div class="power-tick-item {{CAT_TICK_24V_ACTIVE}}" data-catenary-voltage="24">
+              <span class="power-tick-val">24 V</span>
+              <span class="power-tick-desc">({{PRESET_24V_DESC}})</span>
+            </div>
           </div>
         </div>
       </div>
@@ -105,9 +146,14 @@
         </span>
       </div>
       <div class="power-dialog-slider-row">
-        <input type="range" id="power-slider-loco" min="{{MIN_LOCO_CURRENT_MA}}" max="{{MAX_LOCO_CURRENT_MA}}" step="10" value="{{CURRENT_LOCO_MA}}" class="power-slider" />
-        <div class="power-dialog-unit-input">
-          <input type="number" id="power-input-loco-ma" min="{{MIN_LOCO_CURRENT_MA}}" max="{{MAX_LOCO_CURRENT_MA}}" step="10" value="{{CURRENT_LOCO_MA}}" class="rb-input power-num-field" />
+        <input type="range" id="power-slider-loco" min="50" max="1500" step="10" value="{{CURRENT_LOCO_MA}}" class="power-slider" />
+        <div class="power-dialog-unit-input" style="display: flex; align-items: center; gap: 3px;">
+          <button type="button" class="power-stepper-btn" id="power-btn-loco-dec" title="-50 mA">−</button>
+          <input type="number" id="power-input-loco-ma" min="10" max="3000" step="10" value="{{CURRENT_LOCO_MA}}" class="rb-input power-num-field" style="width: 58px; text-align: center;" />
+          <button type="button" class="power-stepper-btn" id="power-btn-loco-inc" title="+50 mA">+</button>
+          <span class="unit-addon">mA</span>
+        </div>
+      </div>
           <span class="unit-addon">mA</span>
         </div>
       </div>

@@ -12,7 +12,7 @@ import {
 import { findBestSnapForPiece, updatePieceConnections } from "@/core/snapping";
 import { snapModelToTurntable } from "@/core/turntable-snap";
 import { snapEngineShedToTrack, snapTrainhallToTrack } from "@/core/engine-shed-snap";
-import { cutFlexTrack, bendFlexTrack, flipFlexTrackPiece, isFlexTrack } from "@/core/flextrack";
+import { cutFlexTrack, bendFlexTrack, flipFlexTrackPiece, isFlexTrack, resetFlexTrackToOriginal } from "@/core/flextrack";
 import {
   AddPieceCommand,
   AddPiecesCommand,
@@ -757,10 +757,19 @@ export class TrackOperations {
     if (cutLength !== undefined && cutLength > 0) {
       cutFlexTrack(piece, entry, cutLength);
     }
-    if (radius !== undefined || angle !== undefined) {
-      bendFlexTrack(piece, entry, radius, angle);
-    }
+    bendFlexTrack(piece, entry, radius, angle);
     updatePieceConnections(layout.pieces, layout.layers);
+    this.ctx.sync(true);
+  }
+
+  public resetFlexTrack(pieceId: string): void {
+    const layout = this.ctx.getLayout();
+    const piece = layout.pieces.find((p) => p.id === pieceId);
+    if (!piece || !this.ctx.isPieceInteractive(piece)) return;
+    const entry = this.ctx.getCatalogEntry(piece);
+    if (!entry) return;
+
+    resetFlexTrackToOriginal(piece, entry, layout.pieces, layout.layers);
     this.ctx.sync(true);
   }
 }

@@ -4,7 +4,16 @@ import type { CatalogEntry } from "@/catalog/catalog";
 import type { Selection } from "@/editor/selection";
 import { getConnectorSnapStatus } from "@/core/snapping";
 import { isConnectorConnectedToBuilding } from "@/core/engine-shed-snap";
-import { isFlexTrack, flipFlexTrackPiece } from "@/core/flextrack";
+import { isFlexTrack, flipFlexTrackPiece, getFlexTrackMidpoint, getFlexTrackPointAt } from "@/core/flextrack";
+
+export interface FlexHandleHit {
+  piece: TrackPiece;
+  entry: CatalogEntry;
+  handleType: "connector" | "middle";
+  pivotFraction?: number;
+  fixedC0?: { x: number; y: number };
+  fixedC1?: { x: number; y: number };
+}
 
 export function findOpenConnectorAt(
   layout: Layout,
@@ -12,8 +21,10 @@ export function findOpenConnectorAt(
   isPieceInteractive: (piece: TrackPiece) => boolean,
   pos: { x: number; y: number },
   scale: number,
+  getCatalogEntryForPiece?: (piece: TrackPiece) => CatalogEntry | undefined,
 ): { piece: TrackPiece; connectorIndex: number } | null {
   const selectedIds = new Set(selection.all());
+  const plusDist = 28;
 
   // 1. Markierte Gleise zuerst prüfen
   for (const selId of selectedIds) {
@@ -28,14 +39,13 @@ export function findOpenConnectorAt(
       if (snapInfo.status !== "free") continue;
 
       const rad = deg2rad(conn.angle);
-      const plusX = conn.x + Math.cos(rad) * 15;
-      const plusY = conn.y + Math.sin(rad) * 15;
+      const plusX = conn.x + Math.cos(rad) * plusDist;
+      const plusY = conn.y + Math.sin(rad) * plusDist;
 
       const hitDistPlus = Math.hypot(pos.x - plusX, pos.y - plusY);
-      const hitDistConn = Math.hypot(pos.x - conn.x, pos.y - conn.y);
       const hitRadius = Math.max(14, 12 / scale);
 
-      if (hitDistPlus <= hitRadius || hitDistConn <= Math.max(10, 8 / scale)) {
+      if (hitDistPlus <= hitRadius) {
         return { piece, connectorIndex: cIdx };
       }
     }
@@ -53,14 +63,13 @@ export function findOpenConnectorAt(
       if (snapInfo.status !== "free") continue;
 
       const rad = deg2rad(conn.angle);
-      const plusX = conn.x + Math.cos(rad) * 15;
-      const plusY = conn.y + Math.sin(rad) * 15;
+      const plusX = conn.x + Math.cos(rad) * plusDist;
+      const plusY = conn.y + Math.sin(rad) * plusDist;
 
       const hitDistPlus = Math.hypot(pos.x - plusX, pos.y - plusY);
-      const hitDistConn = Math.hypot(pos.x - conn.x, pos.y - conn.y);
       const hitRadius = Math.max(14, 12 / scale);
 
-      if (hitDistPlus <= hitRadius || hitDistConn <= Math.max(10, 8 / scale)) {
+      if (hitDistPlus <= hitRadius) {
         return { piece, connectorIndex: cIdx };
       }
     }
@@ -106,6 +115,16 @@ export function isNearFlexHandle(
     if (!isPieceInteractive(p)) continue;
     const entry = getCatalogEntryForPiece(p);
     if (!entry || !isFlexTrack(entry, p)) continue;
+
+    // Drei Pivot-Punkte (25%, 50%, 75%) zum Biegen bei festen Enden
+    if (p.connectors.length >= 2) {
+      for (const frac of [0.25, 0.5, 0.75]) {
+        const pt = getFlexTrackPointAt(p, entry, frac);
+        if (dist(wPos, pt) <= hitRadius) return true;
+      }
+    }
+
+    // Offene Anschlüsse (Kürzen & Biegen des freien Endes)
     for (const c of p.connectors) {
       if (!c.connectedTo && dist(wPos, c) <= hitRadius) return true;
     }
@@ -120,7 +139,7 @@ export function checkFlexHandleHit(
   getCatalogEntryForPiece: (piece: TrackPiece) => CatalogEntry | undefined,
   wPos: { x: number; y: number },
   hitRadius: number,
-): { piece: TrackPiece; entry: CatalogEntry } | null {
+): FlexHandleHit | null {
   const selIds = selection.all();
   const candidates = selIds.length === 1
     ? [layout.pieces.find((p) => p.id === selIds[0])].filter(Boolean) as TrackPiece[]
@@ -131,14 +150,34 @@ export function checkFlexHandleHit(
     const entry = getCatalogEntryForPiece(p);
     if (!entry || !isFlexTrack(entry, p)) continue;
 
+    // 1. Drei Pivot-Punkte zuerst prüfen (25%, 50%, 75% bei fixierten Enden)
+    if (p.connectors.length >= 2) {
+      const fractions = [0.5, 0.25, 0.75];
+      for (const frac of fractions) {
+        const pt = getFlexTrackPointAt(p, entry, frac);
+        if (dist(wPos, pt) <= hitRadius) {
+          selection.set(p.id);
+          return {
+            piece: p,
+            entry,
+            handleType: "middle",
+            pivotFraction: frac,
+            fixedC0: { x: p.connectors[0]!.x, y: p.connectors[0]!.y },
+            fixedC1: { x: p.connectors[1]!.x, y: p.connectors[1]!.y },
+          };
+        }
+      }
+    }
+
+    // 2. Offene Anschlüsse (Kürzen & Biegen des freien Endes)
     if (p.connectors[1] && !p.connectors[1].connectedTo && dist(wPos, p.connectors[1]) <= hitRadius) {
       selection.set(p.id);
-      return { piece: p, entry };
+      return { piece: p, entry, handleType: "connector" };
     }
     if (p.connectors[0] && !p.connectors[0].connectedTo && dist(wPos, p.connectors[0]) <= hitRadius) {
-      flipFlexTrackPiece(p, entry);
+      flipFlexTrackPiece(p, entry, layout.pieces);
       selection.set(p.id);
-      return { piece: p, entry };
+      return { piece: p, entry, handleType: "connector" };
     }
   }
   return null;

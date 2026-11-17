@@ -43,6 +43,8 @@ export interface CatalogEntry {
   hasRoadbed?: boolean; // Bettungsgleis (true) oder Schwellengleis (false)
   isRoad?: boolean; // Kennzeichnung als Straße / Fahrbahn
   roadWidth?: number; // Fahrbahnbreite in mm (Standard: 60mm)
+  customOffsets?: number[];
+  customChordDist?: number;
   localConnectors?: LocalConnector[];
 }
 

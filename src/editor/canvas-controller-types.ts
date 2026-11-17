@@ -26,6 +26,9 @@ export interface CanvasControllerDeps {
   getPlanManager: () => PlanManager;
   is3DMode: () => boolean;
   toggle3D: (force?: boolean) => void;
+  zoomView?: (factor: number) => void;
+  panView?: (dx: number, dy: number) => void;
+  resetView?: () => void;
   isMeasureToolActive: () => boolean;
   toggleMeasureTool: (force?: boolean) => void;
   findMeasureSnapPoint: (pos: { x: number; y: number }, snapDist?: number, forceNoSnap?: boolean) => { x: number; y: number } | null;

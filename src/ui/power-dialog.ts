@@ -1,6 +1,7 @@
 import powerDialogHtml from "./templates/power-dialog.html?raw";
 import type { Layout } from "@/core/types";
 import {
+  getDefaultFeedVoltage,
   getDefaultLocoCurrentMa,
   MIN_LOCO_CURRENT_MA,
   MAX_LOCO_CURRENT_MA,
@@ -24,6 +25,16 @@ export interface PowerSettingsDialogOptions {
     turnoutDecoderCurrentMa?: number;
     bulkTurnoutAction?: "equipAll" | "clearAll";
   }) => void;
+  onLiveChange?: (params: {
+    feedVoltage: number;
+    locoCurrentMa: number;
+    locoCount: number;
+    catenaryFeedVoltage?: number;
+    catenaryCircuitMode?: "separate" | "parallel";
+    turnoutLanternCurrentMa?: number;
+    turnoutDecoderCurrentMa?: number;
+  }) => void;
+  onCancel?: () => void;
 }
 
 /**
@@ -40,7 +51,7 @@ export function openPowerSettingsDialog(options: PowerSettingsDialogOptions): vo
   const existing = document.getElementById("power-settings-modal");
   if (existing) existing.remove();
 
-  let currentVoltage = layout.feedVoltage ?? 16.0;
+  let currentVoltage = layout.feedVoltage ?? getDefaultFeedVoltage(layout.scale);
   let currentLocoMa = layout.locoCurrentMa ?? getDefaultLocoCurrentMa(layout.scale);
   currentLocoMa = Math.min(MAX_LOCO_CURRENT_MA, Math.max(MIN_LOCO_CURRENT_MA, currentLocoMa));
   let currentLocoCount = layout.locoCount ?? 1;
@@ -147,20 +158,61 @@ export function openPowerSettingsDialog(options: PowerSettingsDialogOptions): vo
       </div>`;
   }
 
+  function getSystemPresetName(volt: number, ma: number): string {
+    if (Math.abs(volt - 10) < 0.25 && Math.abs(ma - 100) < 25) return "Spur Z (10V · 100mA)";
+    if (Math.abs(volt - 12) < 0.25 && Math.abs(ma - 100) < 25) return "Spur N (12V · 100mA)";
+    if (Math.abs(volt - 14) < 0.25 && Math.abs(ma - 300) < 30) return "Spur TT (14V · 300mA)";
+    if (Math.abs(volt - 14) < 0.25 && Math.abs(ma - 450) < 30) return "H0 DCC (14V · 450mA)";
+    if (Math.abs(volt - 16) < 0.25 && Math.abs(ma - 450) < 30) return "H0 Märklin (16V · 450mA)";
+    if (Math.abs(volt - 16) < 0.25 && Math.abs(ma - 600) < 30) return "Spur 0 (16V · 600mA)";
+    if (Math.abs(volt - 18) < 0.25 && Math.abs(ma - 800) < 30) return "Spur 1 (18V · 800mA)";
+    if (Math.abs(volt - 24) < 0.25 && Math.abs(ma - 1000) < 50) return "G / LGB (24V · 1.0A)";
+    return `Individuell (${volt.toFixed(1)}V · ${ma}mA)`;
+  }
+
+  function getSystemPresetKey(volt: number, ma: number): string {
+    if (Math.abs(volt - 10) < 0.25 && Math.abs(ma - 100) < 25) return "Z";
+    if (Math.abs(volt - 12) < 0.25 && Math.abs(ma - 100) < 25) return "N";
+    if (Math.abs(volt - 14) < 0.25 && Math.abs(ma - 300) < 30) return "TT";
+    if (Math.abs(volt - 14) < 0.25 && Math.abs(ma - 450) < 30) return "H0_DCC";
+    if (Math.abs(volt - 16) < 0.25 && Math.abs(ma - 450) < 30) return "H0_AC";
+    if (Math.abs(volt - 16) < 0.25 && Math.abs(ma - 600) < 30) return "0";
+    if (Math.abs(volt - 18) < 0.25 && Math.abs(ma - 800) < 30) return "1";
+    if (Math.abs(volt - 24) < 0.25 && Math.abs(ma - 1000) < 50) return "G";
+    return "";
+  }
+
+  const activeSysKey = getSystemPresetKey(currentVoltage, currentLocoMa);
+
   modal.innerHTML = powerDialogHtml
     .replace("{{TITLE}}", t.title)
     .replace("{{SHORT_CIRCUIT_BANNER}}", scBannerHtml)
+    .replace("{{SYSTEM_PRESET_HEADER}}", t.systemPresetHeader || "System-Schnellwahl")
+    .replace("{{SYSTEM_PRESET_SUB}}", t.systemPresetSub || "Spannung & Stromstärke passend zum System einstellen")
+    .replace("{{ACTIVE_SYSTEM_DESC}}", getSystemPresetName(currentVoltage, currentLocoMa))
+    .replace("{{SYS_Z_ACTIVE}}", activeSysKey === "Z" ? "active" : "")
+    .replace("{{SYS_N_ACTIVE}}", activeSysKey === "N" ? "active" : "")
+    .replace("{{SYS_TT_ACTIVE}}", activeSysKey === "TT" ? "active" : "")
+    .replace("{{SYS_H0_DCC_ACTIVE}}", activeSysKey === "H0_DCC" ? "active" : "")
+    .replace("{{SYS_H0_AC_ACTIVE}}", activeSysKey === "H0_AC" ? "active" : "")
+    .replace("{{SYS_0_ACTIVE}}", activeSysKey === "0" ? "active" : "")
+    .replace("{{SYS_1_ACTIVE}}", activeSysKey === "1" ? "active" : "")
+    .replace("{{SYS_G_ACTIVE}}", activeSysKey === "G" ? "active" : "")
     .replace("{{FEEDER_HEADER}}", t.feederHeader)
     .replace(/\{\{CURRENT_VOLTAGE\}\}/g, currentVoltage.toFixed(1))
     .replace(/\{\{VOLTAGE_UNIT\}\}/g, t.voltageUnit)
+    .replace("{{TICK_10V_ACTIVE}}", Math.abs(currentVoltage - 10) < 0.25 ? "active" : "")
     .replace("{{TICK_12V_ACTIVE}}", Math.abs(currentVoltage - 12) < 0.25 ? "active" : "")
     .replace("{{TICK_14V_ACTIVE}}", Math.abs(currentVoltage - 14) < 0.25 ? "active" : "")
     .replace("{{TICK_16V_ACTIVE}}", Math.abs(currentVoltage - 16) < 0.25 ? "active" : "")
     .replace("{{TICK_18V_ACTIVE}}", Math.abs(currentVoltage - 18) < 0.25 ? "active" : "")
+    .replace("{{TICK_24V_ACTIVE}}", Math.abs(currentVoltage - 24) < 0.25 ? "active" : "")
+    .replace(/\{\{PRESET_10V_DESC\}\}/g, t.preset10VDesc || "Spur Z")
     .replace(/\{\{PRESET_12V_DESC\}\}/g, t.preset12VDesc)
     .replace(/\{\{PRESET_14V_DESC\}\}/g, t.preset14VDesc)
     .replace(/\{\{PRESET_16V_DESC\}\}/g, t.preset16VDesc)
     .replace(/\{\{PRESET_18V_DESC\}\}/g, t.preset18VDesc)
+    .replace(/\{\{PRESET_24V_DESC\}\}/g, t.preset24VDesc || "LGB/G")
     .replace("{{CATENARY_DISABLED_CLASS}}", !hasCatenary ? "power-catenary-disabled" : "")
     .replace("{{CATENARY_HEADER}}", t.catenaryHeader)
     .replace("{{CATENARY_TRACK_COUNT}}", hasCatenary ? `(${catenaryTracks.length})` : `(${t.catenaryNoTracks})`)
@@ -172,15 +224,17 @@ export function openPowerSettingsDialog(options: PowerSettingsDialogOptions): vo
     .replace("{{CATENARY_VOLTAGE_CONTAINER_STYLE}}", !hasCatenary || currentCatenaryMode === "parallel" ? "display: none;" : "")
     .replace("{{CATENARY_VOLTAGE_LABEL}}", t.catenaryVoltageLabel)
     .replace(/\{\{CURRENT_CATENARY_VOLTAGE\}\}/g, currentCatenaryVoltage.toFixed(1))
+    .replace("{{CAT_TICK_10V_ACTIVE}}", Math.abs(currentCatenaryVoltage - 10) < 0.25 ? "active" : "")
     .replace("{{CAT_TICK_12V_ACTIVE}}", Math.abs(currentCatenaryVoltage - 12) < 0.25 ? "active" : "")
     .replace("{{CAT_TICK_14V_ACTIVE}}", Math.abs(currentCatenaryVoltage - 14) < 0.25 ? "active" : "")
     .replace("{{CAT_TICK_16V_ACTIVE}}", Math.abs(currentCatenaryVoltage - 16) < 0.25 ? "active" : "")
     .replace("{{CAT_TICK_18V_ACTIVE}}", Math.abs(currentCatenaryVoltage - 18) < 0.25 ? "active" : "")
+    .replace("{{CAT_TICK_24V_ACTIVE}}", Math.abs(currentCatenaryVoltage - 24) < 0.25 ? "active" : "")
     .replace("{{LOCO_HEADER}}", t.locoHeader)
     .replace("{{CURRENT_LOCO_AMPS}}", (currentLocoMa / 1000).toFixed(2))
     .replace(/\{\{CURRENT_LOCO_MA\}\}/g, String(currentLocoMa))
-    .replace(/\{\{MIN_LOCO_CURRENT_MA\}\}/g, String(MIN_LOCO_CURRENT_MA))
-    .replace(/\{\{MAX_LOCO_CURRENT_MA\}\}/g, String(MAX_LOCO_CURRENT_MA))
+    .replace(/\{\{MIN_LOCO_CURRENT_MA\}\}/g, "10")
+    .replace(/\{\{MAX_LOCO_CURRENT_MA\}\}/g, "3000")
     .replace("{{LOCO_TICK_150_ACTIVE}}", Math.abs(currentLocoMa - 150) < 25 ? "active" : "")
     .replace("{{LOCO_TICK_300_ACTIVE}}", Math.abs(currentLocoMa - 300) < 25 ? "active" : "")
     .replace("{{LOCO_TICK_450_ACTIVE}}", Math.abs(currentLocoMa - 450) < 25 ? "active" : "")
@@ -211,17 +265,25 @@ export function openPowerSettingsDialog(options: PowerSettingsDialogOptions): vo
   const cancelBtn = modal.querySelector("#power-btn-cancel") as HTMLButtonElement;
   const applyBtn = modal.querySelector("#power-btn-apply") as HTMLButtonElement;
 
+  // System Preset elements
+  const systemChips = modal.querySelectorAll<HTMLButtonElement>("#power-system-preset-chips .power-chip-btn");
+  const lblSystemDesc = modal.querySelector("#power-lbl-system-desc") as HTMLElement | null;
+
   // Track Voltage elements
   const sliderVolt = modal.querySelector("#power-slider-voltage") as HTMLInputElement;
   const inputVolt = modal.querySelector("#power-input-voltage") as HTMLInputElement;
   const lblVolt = modal.querySelector("#power-lbl-voltage") as HTMLElement;
   const voltTicks = modal.querySelectorAll<HTMLElement>("#power-ticks-voltage .power-tick-item");
+  const btnVoltDec = modal.querySelector("#power-btn-volt-dec") as HTMLButtonElement | null;
+  const btnVoltInc = modal.querySelector("#power-btn-volt-inc") as HTMLButtonElement | null;
 
   // Loco Current elements
   const sliderLoco = modal.querySelector("#power-slider-loco") as HTMLInputElement;
   const inputLoco = modal.querySelector("#power-input-loco-ma") as HTMLInputElement;
   const lblLocoMa = modal.querySelector("#power-lbl-loco-ma") as HTMLElement;
   const locoTicks = modal.querySelectorAll<HTMLElement>("#power-ticks-loco .power-tick-item");
+  const btnLocoDec = modal.querySelector("#power-btn-loco-dec") as HTMLButtonElement | null;
+  const btnLocoInc = modal.querySelector("#power-btn-loco-inc") as HTMLButtonElement | null;
 
   // Catenary elements
   const catToggleBtns = modal.querySelectorAll<HTMLButtonElement>("#power-catenary-toggle-group .power-toggle-btn");
@@ -230,6 +292,8 @@ export function openPowerSettingsDialog(options: PowerSettingsDialogOptions): vo
   const inputCatVolt = modal.querySelector("#power-input-catenary-voltage") as HTMLInputElement | null;
   const lblCatVolt = modal.querySelector("#power-lbl-catenary-voltage") as HTMLElement | null;
   const catVoltTicks = modal.querySelectorAll<HTMLElement>("#power-ticks-catenary-voltage .power-tick-item");
+  const btnCatVoltDec = modal.querySelector("#power-btn-cat-volt-dec") as HTMLButtonElement | null;
+  const btnCatVoltInc = modal.querySelector("#power-btn-cat-volt-inc") as HTMLButtonElement | null;
 
   // Loco Count elements
   const countInput = modal.querySelector("#power-input-loco-count") as HTMLInputElement;
@@ -253,7 +317,28 @@ export function openPowerSettingsDialog(options: PowerSettingsDialogOptions): vo
   const summaryTotalMa = modal.querySelector("#power-summary-total-ma") as HTMLElement;
   const boosterWarning = modal.querySelector("#power-dialog-booster-warning") as HTMLElement;
 
+  function syncSliderBounds(slider: HTMLInputElement, val: number, defaultMin = 3, defaultMax = 30) {
+    const curMin = parseFloat(slider.min) || defaultMin;
+    const curMax = parseFloat(slider.max) || defaultMax;
+    if (val < curMin || val < defaultMin) {
+      slider.min = Math.max(1, Math.floor(val)).toString();
+    }
+    if (val > curMax || val > defaultMax) {
+      slider.max = Math.ceil(val + 2).toString();
+    }
+    slider.value = val.toString();
+  }
+
   function updateDisplay() {
+    // System Preset Chip highlights
+    const activeKey = getSystemPresetKey(currentVoltage, currentLocoMa);
+    systemChips.forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.system === activeKey);
+    });
+    if (lblSystemDesc) {
+      lblSystemDesc.textContent = getSystemPresetName(currentVoltage, currentLocoMa);
+    }
+
     // Voltage displays
     lblVolt.innerHTML = `<strong>${currentVoltage.toFixed(1)}</strong> V`;
     voltTicks.forEach((tick) => {
@@ -282,7 +367,7 @@ export function openPowerSettingsDialog(options: PowerSettingsDialogOptions): vo
       lblCatVolt.innerHTML = `<strong>${currentCatenaryVoltage.toFixed(1)}</strong> V`;
     }
     if (sliderCatVolt) {
-      sliderCatVolt.value = currentCatenaryVoltage.toFixed(1);
+      syncSliderBounds(sliderCatVolt, currentCatenaryVoltage);
     }
     if (inputCatVolt) {
       inputCatVolt.value = currentCatenaryVoltage.toFixed(1);
@@ -322,29 +407,131 @@ export function openPowerSettingsDialog(options: PowerSettingsDialogOptions): vo
     incBtn.disabled = currentLocoCount >= 10;
   }
 
+  function notifyLiveChange() {
+    options.onLiveChange?.({
+      feedVoltage: Math.round(currentVoltage * 10) / 10,
+      catenaryFeedVoltage: Math.round(currentCatenaryVoltage * 10) / 10,
+      catenaryCircuitMode: currentCatenaryMode,
+      locoCurrentMa: currentLocoMa,
+      locoCount: currentLocoCount,
+      turnoutLanternCurrentMa: currentLanternMa,
+      turnoutDecoderCurrentMa: currentDecoderMa,
+    });
+  }
+
+  // --- System Preset Chips Listeners ---
+  systemChips.forEach((chip) => {
+    chip.addEventListener("click", () => {
+      const v = parseFloat(chip.dataset.volt || "16");
+      const ma = parseInt(chip.dataset.ma || "450", 10);
+      currentVoltage = v;
+      currentLocoMa = ma;
+      syncSliderBounds(sliderVolt, v);
+      inputVolt.value = v.toFixed(1);
+      syncSliderBounds(sliderLoco, ma, 50, 1500);
+      inputLoco.value = ma.toString();
+      updateDisplay();
+      notifyLiveChange();
+    });
+  });
+
+  // --- Stepper Buttons (+ / - 0.5 V) ---
+  if (btnVoltDec) {
+    btnVoltDec.addEventListener("click", () => {
+      currentVoltage = Math.max(1, Math.round((currentVoltage - 0.5) * 10) / 10);
+      syncSliderBounds(sliderVolt, currentVoltage);
+      inputVolt.value = currentVoltage.toFixed(1);
+      updateDisplay();
+      notifyLiveChange();
+    });
+  }
+  if (btnVoltInc) {
+    btnVoltInc.addEventListener("click", () => {
+      currentVoltage = Math.min(48, Math.round((currentVoltage + 0.5) * 10) / 10);
+      syncSliderBounds(sliderVolt, currentVoltage);
+      inputVolt.value = currentVoltage.toFixed(1);
+      updateDisplay();
+      notifyLiveChange();
+    });
+  }
+
+  // --- Stepper Buttons Loco Current (+ / - 50 mA) ---
+  if (btnLocoDec) {
+    btnLocoDec.addEventListener("click", () => {
+      currentLocoMa = Math.max(10, currentLocoMa - 50);
+      syncSliderBounds(sliderLoco, currentLocoMa, 50, 1500);
+      inputLoco.value = currentLocoMa.toString();
+      updateDisplay();
+      notifyLiveChange();
+    });
+  }
+  if (btnLocoInc) {
+    btnLocoInc.addEventListener("click", () => {
+      currentLocoMa = Math.min(3000, currentLocoMa + 50);
+      syncSliderBounds(sliderLoco, currentLocoMa, 50, 1500);
+      inputLoco.value = currentLocoMa.toString();
+      updateDisplay();
+      notifyLiveChange();
+    });
+  }
+
+  // --- Stepper Buttons Catenary (+ / - 0.5 V) ---
+  if (btnCatVoltDec && sliderCatVolt && inputCatVolt) {
+    btnCatVoltDec.addEventListener("click", () => {
+      currentCatenaryVoltage = Math.max(1, Math.round((currentCatenaryVoltage - 0.5) * 10) / 10);
+      syncSliderBounds(sliderCatVolt, currentCatenaryVoltage);
+      inputCatVolt.value = currentCatenaryVoltage.toFixed(1);
+      updateDisplay();
+      notifyLiveChange();
+    });
+  }
+  if (btnCatVoltInc && sliderCatVolt && inputCatVolt) {
+    btnCatVoltInc.addEventListener("click", () => {
+      currentCatenaryVoltage = Math.min(48, Math.round((currentCatenaryVoltage + 0.5) * 10) / 10);
+      syncSliderBounds(sliderCatVolt, currentCatenaryVoltage);
+      inputCatVolt.value = currentCatenaryVoltage.toFixed(1);
+      updateDisplay();
+      notifyLiveChange();
+    });
+  }
+
   // --- Track Voltage Event Listeners ---
   sliderVolt.addEventListener("input", () => {
     currentVoltage = parseFloat(sliderVolt.value);
     inputVolt.value = currentVoltage.toFixed(1);
     updateDisplay();
+    notifyLiveChange();
   });
 
   inputVolt.addEventListener("input", () => {
     const val = parseFloat(inputVolt.value);
-    if (!isNaN(val) && val > 0) {
+    if (!isNaN(val) && val >= 1 && val <= 48) {
       currentVoltage = val;
-      sliderVolt.value = Math.min(24, Math.max(8, val)).toString();
+      syncSliderBounds(sliderVolt, val);
       updateDisplay();
+      notifyLiveChange();
     }
+  });
+
+  inputVolt.addEventListener("change", () => {
+    let val = parseFloat(inputVolt.value);
+    if (isNaN(val) || val < 1) val = 1;
+    if (val > 48) val = 48;
+    currentVoltage = Math.round(val * 10) / 10;
+    inputVolt.value = currentVoltage.toFixed(1);
+    syncSliderBounds(sliderVolt, currentVoltage);
+    updateDisplay();
+    notifyLiveChange();
   });
 
   voltTicks.forEach((tick) => {
     tick.addEventListener("click", () => {
       const v = parseFloat(tick.dataset.voltage || "16");
       currentVoltage = v;
-      sliderVolt.value = v.toFixed(1);
+      syncSliderBounds(sliderVolt, v);
       inputVolt.value = v.toFixed(1);
       updateDisplay();
+      notifyLiveChange();
     });
   });
 
@@ -353,25 +540,38 @@ export function openPowerSettingsDialog(options: PowerSettingsDialogOptions): vo
     currentLocoMa = parseInt(sliderLoco.value, 10);
     inputLoco.value = currentLocoMa.toString();
     updateDisplay();
+    notifyLiveChange();
+  });
+
+  inputLoco.addEventListener("input", () => {
+    const val = parseInt(inputLoco.value, 10);
+    if (!isNaN(val) && val >= 10 && val <= 3000) {
+      currentLocoMa = val;
+      syncSliderBounds(sliderLoco, val, 50, 1500);
+      updateDisplay();
+      notifyLiveChange();
+    }
   });
 
   inputLoco.addEventListener("change", () => {
     let val = parseInt(inputLoco.value, 10);
-    if (isNaN(val)) val = 450;
-    val = Math.min(MAX_LOCO_CURRENT_MA, Math.max(MIN_LOCO_CURRENT_MA, val));
+    if (isNaN(val) || val < 10) val = 10;
+    if (val > 3000) val = 3000;
     currentLocoMa = val;
-    sliderLoco.value = val.toString();
     inputLoco.value = val.toString();
+    syncSliderBounds(sliderLoco, val, 50, 1500);
     updateDisplay();
+    notifyLiveChange();
   });
 
   locoTicks.forEach((tick) => {
     tick.addEventListener("click", () => {
       const ma = parseInt(tick.dataset.locoMa || "450", 10);
       currentLocoMa = ma;
-      sliderLoco.value = ma.toString();
+      syncSliderBounds(sliderLoco, ma, 50, 1500);
       inputLoco.value = ma.toString();
       updateDisplay();
+      notifyLiveChange();
     });
   });
 
@@ -382,6 +582,7 @@ export function openPowerSettingsDialog(options: PowerSettingsDialogOptions): vo
       const mode = (btn.dataset.catMode as "separate" | "parallel") || "separate";
       currentCatenaryMode = mode;
       updateDisplay();
+      notifyLiveChange();
     });
   });
 
@@ -391,24 +592,38 @@ export function openPowerSettingsDialog(options: PowerSettingsDialogOptions): vo
       currentCatenaryVoltage = parseFloat(sliderCatVolt.value);
       inputCatVolt.value = currentCatenaryVoltage.toFixed(1);
       updateDisplay();
+      notifyLiveChange();
     });
 
     inputCatVolt.addEventListener("input", () => {
       const val = parseFloat(inputCatVolt.value);
-      if (!isNaN(val) && val > 0) {
+      if (!isNaN(val) && val >= 1 && val <= 48) {
         currentCatenaryVoltage = val;
-        sliderCatVolt.value = Math.min(24, Math.max(8, val)).toString();
+        syncSliderBounds(sliderCatVolt, val);
         updateDisplay();
+        notifyLiveChange();
       }
+    });
+
+    inputCatVolt.addEventListener("change", () => {
+      let val = parseFloat(inputCatVolt.value);
+      if (isNaN(val) || val < 1) val = 1;
+      if (val > 48) val = 48;
+      currentCatenaryVoltage = Math.round(val * 10) / 10;
+      inputCatVolt.value = currentCatenaryVoltage.toFixed(1);
+      syncSliderBounds(sliderCatVolt, currentCatenaryVoltage);
+      updateDisplay();
+      notifyLiveChange();
     });
 
     catVoltTicks.forEach((tick) => {
       tick.addEventListener("click", () => {
         const v = parseFloat(tick.dataset.catenaryVoltage || "16");
         currentCatenaryVoltage = v;
-        sliderCatVolt.value = v.toFixed(1);
+        syncSliderBounds(sliderCatVolt, v);
         inputCatVolt.value = v.toFixed(1);
         updateDisplay();
+        notifyLiveChange();
       });
     });
   }
@@ -420,6 +635,7 @@ export function openPowerSettingsDialog(options: PowerSettingsDialogOptions): vo
       activeDecoderCount = totalTurnoutCount;
       bulkTurnoutAction = "equipAll";
       updateDisplay();
+      notifyLiveChange();
     });
   }
 
@@ -429,6 +645,7 @@ export function openPowerSettingsDialog(options: PowerSettingsDialogOptions): vo
       activeDecoderCount = 0;
       bulkTurnoutAction = "clearAll";
       updateDisplay();
+      notifyLiveChange();
     });
   }
 
@@ -437,6 +654,7 @@ export function openPowerSettingsDialog(options: PowerSettingsDialogOptions): vo
       currentLanternMa = parseInt(sliderLantern.value, 10);
       numLantern.value = currentLanternMa.toString();
       updateDisplay();
+      notifyLiveChange();
     });
 
     numLantern.addEventListener("change", () => {
@@ -447,6 +665,7 @@ export function openPowerSettingsDialog(options: PowerSettingsDialogOptions): vo
       sliderLantern.value = val.toString();
       numLantern.value = val.toString();
       updateDisplay();
+      notifyLiveChange();
     });
   }
 
@@ -455,6 +674,7 @@ export function openPowerSettingsDialog(options: PowerSettingsDialogOptions): vo
       currentDecoderMa = parseInt(sliderDecoder.value, 10);
       numDecoder.value = currentDecoderMa.toString();
       updateDisplay();
+      notifyLiveChange();
     });
 
     numDecoder.addEventListener("change", () => {
@@ -465,6 +685,7 @@ export function openPowerSettingsDialog(options: PowerSettingsDialogOptions): vo
       sliderDecoder.value = val.toString();
       numDecoder.value = val.toString();
       updateDisplay();
+      notifyLiveChange();
     });
   }
 
@@ -473,12 +694,14 @@ export function openPowerSettingsDialog(options: PowerSettingsDialogOptions): vo
     currentLocoCount = Math.max(1, currentLocoCount - 1);
     countInput.value = currentLocoCount.toString();
     updateDisplay();
+    notifyLiveChange();
   });
 
   incBtn.addEventListener("click", () => {
     currentLocoCount = Math.min(10, currentLocoCount + 1);
     countInput.value = currentLocoCount.toString();
     updateDisplay();
+    notifyLiveChange();
   });
 
   countInput.addEventListener("change", () => {
@@ -488,22 +711,38 @@ export function openPowerSettingsDialog(options: PowerSettingsDialogOptions): vo
     currentLocoCount = val;
     countInput.value = val.toString();
     updateDisplay();
+    notifyLiveChange();
   });
 
   // --- Close & Apply actions ---
-  const closeDialog = () => {
+  const handleKeydown = (e: KeyboardEvent) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      closeDialog(true);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      applyBtn.click();
+    }
+  };
+  window.addEventListener("keydown", handleKeydown);
+
+  const closeDialog = (isCancelled = false) => {
+    window.removeEventListener("keydown", handleKeydown);
     modal.classList.add("closing");
     setTimeout(() => modal.remove(), 120);
+    if (isCancelled) {
+      options.onCancel?.();
+    }
   };
 
-  closeBtn.addEventListener("click", closeDialog);
-  cancelBtn.addEventListener("click", closeDialog);
+  closeBtn.addEventListener("click", () => closeDialog(true));
+  cancelBtn.addEventListener("click", () => closeDialog(true));
   modal.addEventListener("click", (e) => {
-    if (e.target === modal) closeDialog();
+    if (e.target === modal) closeDialog(true);
   });
 
   applyBtn.addEventListener("click", () => {
-    closeDialog();
+    closeDialog(false);
     onApply({
       feedVoltage: Math.round(currentVoltage * 10) / 10,
       catenaryFeedVoltage: Math.round(currentCatenaryVoltage * 10) / 10,

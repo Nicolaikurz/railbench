@@ -63,6 +63,7 @@ export interface ToolbarEvents {
   onOpenCollab?: () => void;
   onTogglePerfMonitor?: () => void;
   onAutoSelectLanguage?: () => void;
+  onOpenKeymapSettings?: () => void;
   onResetPersonalConfig?: () => void;
 }
 
@@ -79,6 +80,7 @@ export interface ToolbarState {
   colorMode?: ColorMode;
   trackLabelsEnabled?: boolean;
   powerSimEnabled?: boolean;
+  feedVoltage?: number;
   hasShortCircuit?: boolean;
   shortCircuitCount?: number;
   rulersEnabled?: boolean;
@@ -359,12 +361,14 @@ export function createToolbar(host: HTMLElement, events: ToolbarEvents) {
   powerWrapper.appendChild(btnPower);
 
   const powerMenu = createDropdownMenu("", [
-    { label: t.powerMenu.h0Standard, onClick: () => events.onSetFeedVoltage?.(16) },
-    { label: t.powerMenu.nScale, onClick: () => events.onSetFeedVoltage?.(12) },
-    { label: t.powerMenu.gauge1, onClick: () => events.onSetFeedVoltage?.(18) },
-    { isDivider: true },
-    { label: t.powerMenu.h0Current, onClick: () => events.onSetLocoCurrent?.(450) },
-    { label: t.powerMenu.nzCurrent, onClick: () => events.onSetLocoCurrent?.(100) },
+    { label: t.powerMenu.zScale || "10V Spur Z (100 mA)", onClick: () => { events.onSetFeedVoltage?.(10); events.onSetLocoCurrent?.(100); } },
+    { label: t.powerMenu.nScale, onClick: () => { events.onSetFeedVoltage?.(12); events.onSetLocoCurrent?.(100); } },
+    { label: t.powerMenu.ttScale || "14V Spur TT (300 mA)", onClick: () => { events.onSetFeedVoltage?.(14); events.onSetLocoCurrent?.(300); } },
+    { label: t.powerMenu.h0Dcc, onClick: () => { events.onSetFeedVoltage?.(14); events.onSetLocoCurrent?.(450); } },
+    { label: t.powerMenu.h0Standard, onClick: () => { events.onSetFeedVoltage?.(16); events.onSetLocoCurrent?.(450); } },
+    { label: t.powerMenu.gauge0 || "16V Spur 0 (600 mA)", onClick: () => { events.onSetFeedVoltage?.(16); events.onSetLocoCurrent?.(600); } },
+    { label: t.powerMenu.gauge1, onClick: () => { events.onSetFeedVoltage?.(18); events.onSetLocoCurrent?.(800); } },
+    { label: t.powerMenu.gaugeG || "24V Spur G / LGB (1000 mA)", onClick: () => { events.onSetFeedVoltage?.(24); events.onSetLocoCurrent?.(1000); } },
     { isDivider: true },
     { label: t.powerMenu.configPower, onClick: () => events.onOpenPowerSettings?.("voltage") },
     { isDivider: true },
@@ -585,6 +589,11 @@ function createSettingsMenu(t: any, events: ToolbarEvents): HTMLElement {
       {
         label: getLanguage() === "de" ? "Sprache automatisch wählen (System)" : "Auto-select language (System)",
         onClick: () => events.onAutoSelectLanguage?.(),
+      },
+      {
+        label: getLanguage() === "de" ? "Tastaturkürzel anpassen..." : "Customize Shortcuts...",
+        shortcut: "⌨️",
+        onClick: () => events.onOpenKeymapSettings?.(),
       },
       { isDivider: true },
       {
@@ -834,6 +843,9 @@ export function updateToolbarState(state: ToolbarState) {
   const btnPower = document.getElementById("tb-power");
   if (btnPower) {
     setBtnLabel(btnPower, ICONS.zap, t.toggles.voltageLabel, "Volt");
+    if (state.feedVoltage !== undefined) {
+      btnPower.title = `${t.toggles.voltageTitle} (${state.feedVoltage}V)`;
+    }
     if (state.powerSimEnabled !== undefined) {
       const isPowerActive = !!state.powerSimEnabled;
       btnPower.classList.toggle("active-warning", isPowerActive);

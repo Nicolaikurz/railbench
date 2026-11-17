@@ -1,5 +1,5 @@
 import type { Connector, Transform } from "@/core/types";
-import { deg2rad, normAngle, transformPoint } from "@/core/geometry";
+import { deg2rad, normAngle, transformPoint, evaluateFlexSpline } from "@/core/geometry";
 import type { LocalConnector, CatalogEntry, Catalog } from "./types";
 import { maerklinCCatalog, maerklinCEntries } from "./systems/maerklin-c-h0";
 
@@ -18,6 +18,10 @@ export * from "./systems/roco-line-h0";
 export * from "./systems/fleischmann-piccolo-n";
 export * from "./systems/peco-streamline-h0-code100";
 export * from "./systems/peco-streamline-n-code55";
+export * from "./systems/kato-unitrack-n";
+export * from "./systems/kato-unitrack-ho";
+export * from "./systems/bachmann-ez-track-h0";
+export * from "./systems/bachmann-ez-track-n";
 export * from "./systems/tillig-tt";
 
 export * from "./systems/generic-streets-h0";
@@ -283,9 +287,37 @@ export function getLocalConnectors(entry?: CatalogEntry | null): LocalConnector[
 export function computeWorldConnectors(
   entry: CatalogEntry | undefined | null,
   transform: Transform,
-  piece?: { customLength?: number; customRadius?: number; customAngle?: number },
+  piece?: {
+    customLength?: number;
+    customRadius?: number;
+    customAngle?: number;
+    customOffsets?: number[];
+    customChordDist?: number;
+  },
 ): Connector[] {
   if (!entry) return [];
+
+  if (piece?.customOffsets && piece.customOffsets.length >= 3) {
+    const chordLen = piece.customChordDist ?? piece.customLength ?? entry.length ?? 900;
+    const { dh: dh0 } = evaluateFlexSpline(piece.customOffsets, 0);
+    const { dh: dh1 } = evaluateFlexSpline(piece.customOffsets, 1);
+    const a0 = Math.atan2(dh0, chordLen) * (180 / Math.PI);
+    const a1 = Math.atan2(dh1, chordLen) * (180 / Math.PI);
+    const locals = [
+      { x: 0, y: 0, angle: normAngle(180 + a0) },
+      { x: chordLen, y: 0, angle: normAngle(a1) },
+    ];
+    if (!transform) return [];
+    return locals.map((lc) => {
+      const wp = transformPoint(lc, transform);
+      return {
+        x: wp.x,
+        y: wp.y,
+        angle: normAngle((transform.rotation ?? 0) + lc.angle),
+      };
+    });
+  }
+
   let effectiveEntry = entry;
   if (piece && (piece.customLength !== undefined || piece.customRadius !== undefined || piece.customAngle !== undefined)) {
     const isCurved = Boolean(piece.customRadius && piece.customAngle && Math.abs(piece.customAngle) > 0.1);

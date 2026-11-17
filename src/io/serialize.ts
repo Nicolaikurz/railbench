@@ -1,6 +1,7 @@
 import type { Layout, Layer, LayerPlate, TrackPiece, BaseboardConfig, Model3D, ModelCategory } from "@/core/types";
 import { maerklinCCatalog, catalogRegistry, computeWorldConnectors } from "@/catalog/catalog";
 import { ensureDefaultLayers } from "@/core/layout";
+import { getDefaultFeedVoltage } from "@/core/simulation";
 
 export const toJSON = (l: Layout) => JSON.stringify(ensureDefaultLayers(l), null, 2);
 
@@ -20,7 +21,8 @@ export function toXML(layout: Layout): string {
   const catModeAttr = readyLayout.catenaryCircuitMode !== undefined ? ` catenaryCircuitMode="${readyLayout.catenaryCircuitMode}"` : "";
   const lanternMaAttr = readyLayout.turnoutLanternCurrentMa !== undefined ? ` turnoutLanternCurrentMa="${readyLayout.turnoutLanternCurrentMa}"` : "";
   const decoderMaAttr = readyLayout.turnoutDecoderCurrentMa !== undefined ? ` turnoutDecoderCurrentMa="${readyLayout.turnoutDecoderCurrentMa}"` : "";
-  xml += `<layout name="${escapeXml(readyLayout.name)}" scale="${readyLayout.scale}" feedVoltage="${readyLayout.feedVoltage ?? 16}"${catVoltAttr}${catModeAttr}${locoMaAttr}${locoCountAttr}${lanternMaAttr}${decoderMaAttr}>\n`;
+  const defaultVolt = getDefaultFeedVoltage(readyLayout.scale);
+  xml += `<layout name="${escapeXml(readyLayout.name)}" scale="${readyLayout.scale}" feedVoltage="${readyLayout.feedVoltage ?? defaultVolt}"${catVoltAttr}${catModeAttr}${locoMaAttr}${locoCountAttr}${lanternMaAttr}${decoderMaAttr}>\n`;
   
   const boards = readyLayout.baseboards && readyLayout.baseboards.length > 0
     ? readyLayout.baseboards
@@ -88,7 +90,9 @@ export function toXML(layout: Layout): string {
     const cLen = p.customLength !== undefined ? ` customLength="${p.customLength.toFixed(1)}"` : "";
     const cRad = p.customRadius !== undefined ? ` customRadius="${p.customRadius.toFixed(1)}"` : "";
     const cAng = p.customAngle !== undefined ? ` customAngle="${p.customAngle.toFixed(2)}"` : "";
-    xml += `    <piece id="${p.id}" catalogId="${p.catalogId}" x="${p.transform.x.toFixed(2)}" y="${p.transform.y.toFixed(2)}" rotation="${p.transform.rotation.toFixed(2)}"${lay}${elev}${cLen}${cRad}${cAng}${pf}${iso}${isoIdx}${cat}${catPf}${catIso}${catIsoIdx}${lant}${dec}${tMa}${name}/>\n`;
+    const cOff = p.customOffsets && p.customOffsets.length > 0 ? ` customOffsets="${p.customOffsets.map((v) => v.toFixed(1)).join(",")}"` : "";
+    const cChord = p.customChordDist !== undefined ? ` customChordDist="${p.customChordDist.toFixed(1)}"` : "";
+    xml += `    <piece id="${p.id}" catalogId="${p.catalogId}" x="${p.transform.x.toFixed(2)}" y="${p.transform.y.toFixed(2)}" rotation="${p.transform.rotation.toFixed(2)}"${lay}${elev}${cLen}${cRad}${cAng}${cOff}${cChord}${pf}${iso}${isoIdx}${cat}${catPf}${catIso}${catIsoIdx}${lant}${dec}${tMa}${name}/>\n`;
   }
   xml += `  </pieces>\n`;
 
@@ -134,7 +138,8 @@ export function fromXML(xmlStr: string): Layout {
   const name = root.getAttribute("name") ?? "Geladene Anlage";
   const scale = (root.getAttribute("scale") as "H0" | "TT" | "N" | "Z" | "1" | "G" | "0") ?? "H0";
   const feedVoltageAttr = root.getAttribute("feedVoltage");
-  const feedVoltage = feedVoltageAttr ? parseFloat(feedVoltageAttr) : 16;
+  const defaultVolt = getDefaultFeedVoltage(scale);
+  const feedVoltage = feedVoltageAttr ? parseFloat(feedVoltageAttr) : defaultVolt;
   const catVoltAttr = root.getAttribute("catenaryFeedVoltage");
   const catenaryFeedVoltage = catVoltAttr ? parseFloat(catVoltAttr) : undefined;
   const catModeAttr = root.getAttribute("catenaryCircuitMode");
@@ -269,12 +274,22 @@ export function fromXML(xmlStr: string): Layout {
     const customLength = node.hasAttribute("customLength") ? parseFloat(node.getAttribute("customLength")!) : undefined;
     const customRadius = node.hasAttribute("customRadius") ? parseFloat(node.getAttribute("customRadius")!) : undefined;
     const customAngle = node.hasAttribute("customAngle") ? parseFloat(node.getAttribute("customAngle")!) : undefined;
+    const customOffsets = node.hasAttribute("customOffsets")
+      ? node.getAttribute("customOffsets")!.split(",").map(parseFloat)
+      : undefined;
+    const customChordDist = node.hasAttribute("customChordDist") ? parseFloat(node.getAttribute("customChordDist")!) : undefined;
 
     const transform = { x, y, rotation };
     const entry =
       entryMap.get(catalogId) ||
       catalogRegistry.findEntry(catalogId) || { id: catalogId, name: catalogId, kind: "straight", length: 188.3 };
-    const connectors = computeWorldConnectors(entry, transform, { customLength, customRadius, customAngle });
+    const connectors = computeWorldConnectors(entry, transform, {
+      customLength,
+      customRadius,
+      customAngle,
+      customOffsets,
+      customChordDist,
+    });
 
     pieces.push({
       id,
@@ -285,6 +300,8 @@ export function fromXML(xmlStr: string): Layout {
       customLength,
       customRadius,
       customAngle,
+      customOffsets,
+      customChordDist,
       powerFeed,
       isIsolator,
       isolatedConnectorIndex,

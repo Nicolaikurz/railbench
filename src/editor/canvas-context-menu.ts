@@ -90,6 +90,9 @@ export function openTrackContextMenu(
     onToggleTunnel: () => {
       ops.toggleSelectedTunnel();
     },
+    onResetFlex: () => {
+      ops.resetFlexTrack(piece.id);
+    },
     onToggleFeeder: () => {
       ops.toggleSelectedFeeder();
     },

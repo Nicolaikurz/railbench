@@ -230,7 +230,13 @@ export function updatePieceConnections(
         if (p2 && targetIdx < p2.connectors.length) {
           const conn2 = p2.connectors[targetIdx]!;
           const h2 = getPieceConnectorHeight(p2, targetIdx, layers);
-          if (areConnectorsConnected(conn1, conn2, h1, h2, distTolerance, angleTolerance, heightTolerance)) {
+          const isFlex = Boolean(
+            p1.customLength !== undefined || p1.customRadius !== undefined || p1.customAngle !== undefined ||
+            p2.customLength !== undefined || p2.customRadius !== undefined || p2.customAngle !== undefined ||
+            p1.catalogId.includes("flex") || p2.catalogId.includes("flex") || p1.catalogId === "2205" || p2.catalogId === "2205"
+          );
+          const effectiveAngleTol = isFlex ? 65.0 : angleTolerance;
+          if (areConnectorsConnected(conn1, conn2, h1, h2, distTolerance, effectiveAngleTol, heightTolerance)) {
             matched = true;
           }
         }
@@ -248,7 +254,13 @@ export function updatePieceConnections(
                 const item = bucket[k]!;
                 if (item.piece.id === p1.id) continue;
                 const h2 = getPieceConnectorHeight(item.piece, item.cIdx, layers);
-                if (areConnectorsConnected(conn1, item.conn, h1, h2, distTolerance, angleTolerance, heightTolerance)) {
+                const isFlex = Boolean(
+                  p1.customLength !== undefined || p1.customRadius !== undefined || p1.customAngle !== undefined ||
+                  item.piece.customLength !== undefined || item.piece.customRadius !== undefined || item.piece.customAngle !== undefined ||
+                  p1.catalogId.includes("flex") || item.piece.catalogId.includes("flex") || p1.catalogId === "2205" || item.piece.catalogId === "2205"
+                );
+                const effectiveAngleTol = isFlex ? 65.0 : angleTolerance;
+                if (areConnectorsConnected(conn1, item.conn, h1, h2, distTolerance, effectiveAngleTol, heightTolerance)) {
                   conn1.connectedTo = { pieceId: item.piece.id, connectorIndex: item.cIdx };
                   matched = true;
                   break outerGrid;
@@ -266,7 +278,13 @@ export function updatePieceConnections(
             for (let c2 = 0; c2 < p2.connectors.length; c2++) {
               const conn2 = p2.connectors[c2]!;
               const h2 = getPieceConnectorHeight(p2, c2, layers);
-              if (areConnectorsConnected(conn1, conn2, h1, h2, distTolerance, angleTolerance, heightTolerance)) {
+              const isFlex = Boolean(
+                p1.customLength !== undefined || p1.customRadius !== undefined || p1.customAngle !== undefined ||
+                p2.customLength !== undefined || p2.customRadius !== undefined || p2.customAngle !== undefined ||
+                p1.catalogId.includes("flex") || p2.catalogId.includes("flex") || p1.catalogId === "2205" || p2.catalogId === "2205"
+              );
+              const effectiveAngleTol = isFlex ? 65.0 : angleTolerance;
+              if (areConnectorsConnected(conn1, conn2, h1, h2, distTolerance, effectiveAngleTol, heightTolerance)) {
                 conn1.connectedTo = { pieceId: p2.id, connectorIndex: c2 };
                 matched = true;
                 break;

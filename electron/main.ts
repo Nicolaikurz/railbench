@@ -5,8 +5,19 @@ import * as os from "node:os";
 import { EmbeddedCollabServer } from "./collab-server";
 import { MENU_EN } from "./menu-labels";
 
+// Multi-Threading & GPU Hardware-Beschleunigung
 try {
   app.commandLine.appendSwitch("enable-precise-memory-info");
+  const cpuCount = Math.max(2, Math.min(8, os.cpus()?.length || 4));
+  // Parallele Rasterung über mehrere CPU-Threads
+  app.commandLine.appendSwitch("num-raster-threads", String(cpuCount));
+  // Hardware-beschleunigte GPU-Rasterung & Zero-Copy VRAM-Buffer
+  app.commandLine.appendSwitch("enable-gpu-rasterization");
+  app.commandLine.appendSwitch("enable-zero-copy");
+  // Out-of-Process Canvas Rasterization (lagert 2D- & WebGL-Canvas auf GPU-Worker-Threads aus)
+  app.commandLine.appendSwitch("enable-features", "CanvasOopRasterization,ParallelDownloading");
+  // Parallele V8-Kompilierung im JavaScript-Engine
+  app.commandLine.appendSwitch("js-flags", "--parallel-compile-tasks --concurrent-recompilation");
 } catch {}
 
 let mainWindow: BrowserWindow | null = null;
@@ -67,6 +78,7 @@ async function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
+      backgroundThrottling: false,
     },
   });
 

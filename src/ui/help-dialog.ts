@@ -1,6 +1,7 @@
 import helpDialogHtml from "./templates/help-dialog.html?raw";
 import {
   getTranslations,
+  getLanguage,
   onLanguageChange,
   type HelpDialogTranslations,
   type HelpStandardSection,
@@ -9,6 +10,7 @@ import {
 import { getAppVersionTag } from "@/version";
 import { downloadFile } from "@/io/export";
 import { EXAMPLE_H0_CATALOG_JSON } from "@/catalog/example-catalog";
+import { openKeymapDialog } from "./keymap-dialog";
 
 export type { HelpTab } from "@/i18n";
 
@@ -126,10 +128,18 @@ export function renderHelpTab(
 
     case "shortcuts": {
       const sc = t.shortcuts;
+      const isDe = getLanguage() === "de";
       contentArea.innerHTML = `
         <div class="help-topic-section">
-          <h2>${sc.title}</h2>
-          <p>${sc.intro}</p>
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+            <div>
+              <h2 style="margin: 0;">${sc.title}</h2>
+              <p style="margin: 4px 0 0 0;">${sc.intro}</p>
+            </div>
+            <button class="rb-btn rb-btn-primary" data-action="customize-keymap" style="padding: 6px 14px; font-size: 12.5px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+              ⌨️ ${isDe ? "Tastaturkürzel anpassen..." : "Customize Shortcuts..."}
+            </button>
+          </div>
           ${renderTable(sc.headers, sc.rows, ["25%", "40%", "35%"])}
         </div>
       `;
@@ -234,6 +244,12 @@ export function openHelpDialog(initialTab: HelpTab = "overview"): void {
         const target = (e.target as HTMLElement).closest<HTMLButtonElement>("button[data-action]");
         if (!target) return;
         const action = target.getAttribute("data-action");
+
+        if (action === "customize-keymap") {
+          closeModal();
+          openKeymapDialog();
+          return;
+        }
 
         if (action === "copy-catalog-json") {
           const codeEl = contentArea.querySelector("#example-catalog-json");

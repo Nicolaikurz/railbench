@@ -2,9 +2,10 @@ import { describe, it, expect } from "vitest";
 import { TrackOperations, type EditorContext } from "@/editor/track-operations";
 import { History } from "@/editor/commands";
 import { Selection } from "@/editor/selection";
-import { maerklinCCatalog, computeWorldConnectors } from "@/catalog/catalog";
+import { maerklinCCatalog, computeWorldConnectors, type CatalogEntry } from "@/catalog/catalog";
 import { updatePieceConnections } from "@/core/snapping";
 import type { Layout, TrackPiece } from "@/core/types";
+import { findOpenConnectorAt, checkFlexHandleHit } from "@/editor/canvas-hit-test";
 
 describe("Open track plus - appendTrackToConnector", () => {
   function createMockEditor(initialPieces: TrackPiece[] = []) {
@@ -173,5 +174,75 @@ describe("Open track plus - appendTrackToConnector", () => {
 
     // Angle of p1 connector 1 is 30°. p2 should be rotated by 30° to smoothly continue the arc
     expect(p2!.transform.rotation).toBeCloseTo(30, 1);
+  });
+
+  it("places add (+) button further away (28mm) and allows dragging flex track connector handle", () => {
+    const flexEntry: CatalogEntry = {
+      id: "24900",
+      name: "Flexgleis",
+      kind: "flex",
+      category: "Flexgleise",
+      description: "Flexibles Gleis 900 mm",
+      length: 900,
+      gauge: 16.5,
+    };
+    const pFlex: TrackPiece = {
+      id: "flex-1",
+      catalogId: "24900",
+      layerId: "layer-1",
+      customLength: 900,
+      transform: { x: 0, y: 0, rotation: 0 },
+      connectors: [
+        { x: 0, y: 0, angle: 180 },
+        { x: 900, y: 0, angle: 0 },
+      ],
+    };
+
+    const layout: Layout = {
+      name: "Flex Layout",
+      scale: "H0",
+      pieces: [pFlex],
+      layers: [{ id: "layer-1", name: "Ebene 1", color: "#3b82f6", visible: true, locked: false, heightMm: 0 }],
+      baseboards: [],
+      models: [],
+    };
+    const selection = new Selection();
+    selection.set("flex-1");
+
+    // 1. Klick direkt auf den Connector-Endpunkt (900, 0): darf KEIN Plus-Treffer sein
+    const connHit = findOpenConnectorAt(
+      layout,
+      selection,
+      () => true,
+      { x: 900, y: 0 },
+      1.0,
+      () => flexEntry,
+    );
+    expect(connHit).toBeNull();
+
+    // 2. Klick auf den abgesetzten Plus-Button bei (900 + 28, 0): wird als Plus-Button erkannt
+    const plusHit = findOpenConnectorAt(
+      layout,
+      selection,
+      () => true,
+      { x: 928, y: 0 },
+      1.0,
+      () => flexEntry,
+    );
+    expect(plusHit).not.toBeNull();
+    expect(plusHit?.piece.id).toBe("flex-1");
+    expect(plusHit?.connectorIndex).toBe(1);
+
+    // 3. Klick auf das offene Ende triggert den Ziehgriff zum Biegen/Kürzen/Strecken
+    const flexHandleHit = checkFlexHandleHit(
+      layout,
+      selection,
+      () => true,
+      () => flexEntry,
+      { x: 900, y: 0 },
+      15,
+    );
+    expect(flexHandleHit).not.toBeNull();
+    expect(flexHandleHit?.piece.id).toBe("flex-1");
   });
 });

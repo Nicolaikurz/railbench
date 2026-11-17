@@ -10,7 +10,7 @@ import { getBaseboards, getBaseboardBounds, getBaseboardPolygon, getLayerPlatePo
 import { computeTableTrackCutouts } from "@/core/table-cutout";
 import type { BaseboardSnapGuide } from "@/core/baseboard-snapping";
 import { getConnectorSnapStatus } from "@/core/snapping";
-import { isFlexTrack } from "@/core/flextrack";
+import { isFlexTrack, getFlexTrackMidpoint, getFlexTrackPointAt } from "@/core/flextrack";
 import {
   getBuildingDoorConnectors,
   isConnectorConnectedToBuilding,
@@ -192,7 +192,7 @@ export class Renderer {
     let selectedModels = "";
     for (let i = 0; i < models.length; i++) {
       const m = models[i]!;
-      hash = (hash * 31 + (m.transform.x | 0) + ((m.transform.y | 0) << 5) + ((m.transform.rotation | 0) << 10) + ((m.elevation ?? 0) | 0)) | 0;
+      hash = (hash * 31 + (m.transform.x | 0) + ((m.transform.y | 0) << 5) + (((m.transform.rotation * 10) | 0) << 10) + (((m.elevation ?? 0) * 10) | 0)) | 0;
       if (options.selectedIds && options.selectedIds.has(m.id)) {
         selectedModels += m.id + ",";
       }
@@ -208,7 +208,32 @@ export class Renderer {
       const p = pieces[i]!;
       const eStart = p.elevation?.start ?? 0;
       const eEnd = p.elevation?.end ?? eStart;
-      piecesHash = (piecesHash * 31 + (p.transform.x | 0) + ((p.transform.y | 0) << 5) + ((p.transform.rotation | 0) << 10) + ((eStart | 0) << 15) + ((eEnd | 0) << 20)) | 0;
+      const cLen = p.customLength ?? 0;
+      const cRad = p.customRadius ?? 0;
+      const cAng = p.customAngle ?? 0;
+      const flags = (p.powerFeed ? 1 : 0) |
+                    (p.isIsolator ? 2 : 0) |
+                    (p.hasCatenary ? 4 : 0) |
+                    (p.catenaryPowerFeed ? 8 : 0) |
+                    (p.catenaryIsolator ? 16 : 0) |
+                    (p.hasLantern ? 32 : 0) |
+                    (p.hasDecoder ? 64 : 0) |
+                    (p.hasSignal ? 128 : 0) |
+                    (p.hasBridge ? 256 : 0) |
+                    (p.hasTunnel ? 512 : 0);
+      const isoIdx = (p.isolatedConnectorIndex ?? 0) + 1;
+      const flexChord = p.customChordDist ? (p.customChordDist * 10) | 0 : 0;
+      let flexOffHash = 0;
+      if (p.customOffsets) {
+        for (let oi = 0; oi < p.customOffsets.length; oi++) {
+          flexOffHash = (flexOffHash * 31 + (((p.customOffsets[oi] ?? 0) * 10) | 0)) | 0;
+        }
+      }
+      piecesHash = (piecesHash * 31 + (p.transform.x | 0) + ((p.transform.y | 0) << 5) + (((p.transform.rotation * 10) | 0) << 10) + (((eStart * 10) | 0) << 15) + (((eEnd * 10) | 0) << 20) + ((cLen * 10) | 0) + ((cRad * 10) | 0) + ((cAng * 10) | 0) + flags + (isoIdx << 10) + flexChord + flexOffHash) | 0;
+      for (let ci = 0; ci < p.connectors.length; ci++) {
+        const c = p.connectors[ci]!;
+        piecesHash = (piecesHash * 31 + (c.x | 0) + ((c.y | 0) << 4) + (c.connectedTo ? 1 : 0)) | 0;
+      }
       if (options.selectedIds && options.selectedIds.has(p.id)) {
         selectedTracks += p.id + ",";
       }
@@ -228,10 +253,17 @@ export class Renderer {
       layerHash = (layerHash * 31 + (h | 0) + ((l.visible === false ? 0 : 1) << 8)) | 0;
     }
     const catId = catalog?.id ?? "";
-    const powerHash = options.powerSimulation ? options.powerSimulation.results.size : 0;
-    const scHash = options.shortCircuit ? options.shortCircuit.shortCircuitPieces.size : 0;
+    let powerHash = "0";
+    if (options.powerSimulation) {
+      const ps = options.powerSimulation;
+      powerHash = `${ps.feedVoltage}_${ps.catenaryFeedVoltage ?? ""}_${ps.locoCurrentMa}_${ps.locoCount}_${ps.totalCurrentAmps}_${ps.minVoltage}_${ps.maxDropPercent}_${ps.optimalCount}_${ps.warningCount}_${ps.criticalCount}_${ps.disconnectedCount}_${ps.catenaryMinVoltage ?? ""}_${ps.results.size}`;
+    }
+    let scHash = "0";
+    if (options.shortCircuit) {
+      scHash = `${options.shortCircuit.hasShortCircuit ? 1 : 0}_${options.shortCircuit.shortCircuitPieces.size}_${options.shortCircuit.shortCircuitPoints.length}`;
+    }
 
-    return `${piecesHash}_${selectedTracks}_${prevPieces}_${prevElevHash}_${layerHash}_${layout.activeLayerId || ""}_${catId}_${options.colorMode || ""}_${Boolean(options.showColorCode)}_${Boolean(options.showTrackLabels)}_${Boolean(options.showConnectors)}_${Boolean(options.showPowerDrop)}_${powerHash}_${scHash}`;
+    return `${piecesHash}_${selectedTracks}_${prevPieces}_${prevElevHash}_${layerHash}_${layout.activeLayerId || ""}_${catId}_${layout.feedVoltage ?? ""}_${layout.catenaryFeedVoltage ?? ""}_${options.colorMode || ""}_${Boolean(options.showColorCode)}_${Boolean(options.showTrackLabels)}_${Boolean(options.showConnectors)}_${Boolean(options.showPowerDrop)}_${powerHash}_${scHash}`;
   }
 
   drawGrid(size = 50, extent = 6000) {
@@ -680,7 +712,7 @@ export class Renderer {
 
             if ((isSelected || isHovered) && !isInactiveLayer) {
               const rad = deg2rad(conn.angle);
-              const plusDist = 15;
+              const plusDist = 28;
               const px = conn.x + Math.cos(rad) * plusDist;
               const py = conn.y + Math.sin(rad) * plusDist;
 
@@ -767,6 +799,27 @@ export class Renderer {
             ov.fill({ color: 0xffffff });
             ov.circle(flexConn.x, flexConn.y, 12);
             ov.stroke({ width: 1, color: 0x38bdf8, alpha: 0.5 });
+          }
+
+          if (rawEntry && piece.connectors.length >= 2) {
+            const fractions = [0.25, 0.5, 0.75];
+            for (const frac of fractions) {
+              const pt = getFlexTrackPointAt(piece, rawEntry, frac);
+              const isCenter = frac === 0.5;
+              const outerR = isCenter ? 11 : 9;
+              const midR = isCenter ? 7.5 : 6;
+              const innerR = isCenter ? 5 : 4;
+              const dotR = isCenter ? 2 : 1.5;
+
+              ov.circle(pt.x, pt.y, outerR);
+              ov.stroke({ width: 1.5, color: 0x38bdf8, alpha: isCenter ? 0.7 : 0.45 });
+              ov.circle(pt.x, pt.y, midR);
+              ov.stroke({ width: 2.2, color: 0x0284c7, alpha: 0.95 });
+              ov.circle(pt.x, pt.y, innerR);
+              ov.fill({ color: 0x06b6d4, alpha: 0.95 });
+              ov.circle(pt.x, pt.y, dotR);
+              ov.fill({ color: 0xffffff });
+            }
           }
         }
       }

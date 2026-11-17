@@ -39,6 +39,7 @@ export interface TrackContextMenuOptions {
   onCycleSignalDirection?: () => void;
   onToggleBridge?: () => void;
   onToggleTunnel?: () => void;
+  onResetFlex?: () => void;
   // Backward compatibility
   onRotate?: () => void;
   onToggleFeeder?: () => void;
@@ -254,6 +255,20 @@ export function showTrackContextMenu(options: TrackContextMenuOptions): void {
     </div>
 
     ${
+      isFlexTrack(catalogEntry, piece) &&
+      (piece.customLength !== undefined || piece.customRadius !== undefined || piece.customAngle !== undefined)
+        ? `
+    <div class="ctx-item" data-action="reset-flex">
+      <div class="ctx-item-left">
+        <span class="ctx-icon">↺</span>
+        <span>${isDe ? "Flexgleis auf Originalform zurücksetzen" : "Reset flex track to original shape"}</span>
+      </div>
+    </div>
+    `
+        : ""
+    }
+
+    ${
       isTurnout
         ? `
       <div class="ctx-item" data-action="toggle-decoder">
@@ -411,6 +426,9 @@ export function showTrackContextMenu(options: TrackContextMenuOptions): void {
         break;
       case "toggle-catenary":
         onToggleCatenary?.();
+        break;
+      case "reset-flex":
+        options.onResetFlex?.();
         break;
     }
   });

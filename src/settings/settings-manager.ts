@@ -91,6 +91,7 @@ export const KNOWN_PERSONAL_CONFIG_KEYS = [
   "railbench_toolbar_height",
   "railbench_right_sidebar_width",
   "railbench_right_sidebar_height",
+  "railbench_custom_keymap",
 ];
 
 /**

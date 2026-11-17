@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { simulatePowerDrop, isTurnoutEntry, detectShortCircuit, isTwoWireCatalog } from "@/core/simulation";
+import {
+  simulatePowerDrop,
+  isTurnoutEntry,
+  detectShortCircuit,
+  isTwoWireCatalog,
+  getDefaultFeedVoltage,
+} from "@/core/simulation";
 import { maerklinCCatalog, trixCCatalog, pikoACatalog } from "@/catalog/catalog";
 import type { Layout, TrackPiece } from "@/core/types";
 
@@ -755,6 +761,54 @@ describe("Power Drop Simulation", () => {
       expect(sim.shortCircuitPieces?.length).toBe(3);
       expect(sim.recommendation).toContain("Kurzschluss");
       expect(sim.results.get("t1")?.isShortCircuit).toBe(true);
+    });
+  });
+
+  describe("Voltage Updates and Defaults", () => {
+    it("liefert korrekte Standardspannungen je nach Baugröße", () => {
+      expect(getDefaultFeedVoltage("Z")).toBe(10.0);
+      expect(getDefaultFeedVoltage("N")).toBe(12.0);
+      expect(getDefaultFeedVoltage("TT")).toBe(14.0);
+      expect(getDefaultFeedVoltage("H0")).toBe(16.0);
+      expect(getDefaultFeedVoltage("0")).toBe(16.0);
+      expect(getDefaultFeedVoltage("1")).toBe(18.0);
+      expect(getDefaultFeedVoltage("G")).toBe(24.0);
+      expect(getDefaultFeedVoltage(undefined)).toBe(16.0);
+    });
+
+    it("übernimmt geänderte Gleisspannung sofort in die Simulation", () => {
+      const basePiece: TrackPiece = {
+        id: "p1",
+        catalogId: "24188",
+        transform: { x: 0, y: 0, rotation: 0 },
+        connectors: [{ x: 0, y: 0, angle: 180 }, { x: 188.3, y: 0, angle: 0 }],
+        powerFeed: true,
+      };
+
+      const layout: Layout = {
+        name: "Voltage Change Test",
+        scale: "H0",
+        feedVoltage: 16.0,
+        pieces: [basePiece],
+      };
+
+      const sim16 = simulatePowerDrop(layout, maerklinCCatalog);
+      expect(sim16.feedVoltage).toBe(16.0);
+      expect(sim16.minVoltage).toBe(16.0);
+      expect(sim16.results.get("p1")?.voltage).toBe(16.0);
+
+      // Ändern auf N-Spur 12V
+      layout.feedVoltage = 12.0;
+      const sim12 = simulatePowerDrop(layout, maerklinCCatalog);
+      expect(sim12.feedVoltage).toBe(12.0);
+      expect(sim12.minVoltage).toBe(12.0);
+      expect(sim12.results.get("p1")?.voltage).toBe(12.0);
+
+      // Ändern auf Spur 1 / G 18V via Options
+      const sim18 = simulatePowerDrop(layout, maerklinCCatalog, { feedVoltage: 18.0 });
+      expect(sim18.feedVoltage).toBe(18.0);
+      expect(sim18.minVoltage).toBe(18.0);
+      expect(sim18.results.get("p1")?.voltage).toBe(18.0);
     });
   });
 });

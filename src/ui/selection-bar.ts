@@ -14,6 +14,7 @@ export interface SelectionBarCallbacks {
   onApplyAutoRamp?: () => void;
   onOpenRampGenerator?: () => void;
   onAdjustFlexTrack?: (pieceId: string, cutLength?: number, radius?: number, angle?: number) => void;
+  onResetFlexTrack?: (pieceId: string) => void;
   onToggleFeeder: () => void;
   onToggleIsolator: () => void;
   onToggleCatenary: () => void;
@@ -267,6 +268,7 @@ export class SelectionBar {
   private selBarFlexLenInput: HTMLInputElement | null = null;
   private selBarFlexRadiusInput: HTMLInputElement | null = null;
   private selBarFlexAngleInput: HTMLInputElement | null = null;
+  private selBarBtnFlexReset?: HTMLButtonElement | null = null;
   private selBarBtnHeight?: HTMLButtonElement | null = null;
   private selBarBtnAutoRamp?: HTMLButtonElement | null = null;
   private selBarDivPower: HTMLElement | null = null;
@@ -330,6 +332,7 @@ export class SelectionBar {
         <span class="sel-bar-angle-label" title="${isDe ? "Bogenwinkel in Grad (+ links, - rechts)" : "Arc angle (+ left, - right)"}">W:</span>
         <input type="number" id="sel-bar-flex-angle" class="sel-bar-angle-input" step="any" placeholder="0" style="width:48px !important" title="${isDe ? "Bogenwinkel in Grad" : "Angle in degrees"}" />
         <span class="sel-bar-unit">°</span>
+        <button id="sel-bar-btn-flex-reset" class="sel-bar-btn" title="${isDe ? "Flexgleis auf Originalform zurücksetzen" : "Reset flex track to original shape"}">↺</button>
       </div>
 
       <span class="sel-bar-divider" id="sel-bar-div-power"></span>
@@ -368,6 +371,7 @@ export class SelectionBar {
     this.selBarFlexLenInput = this.container.querySelector("#sel-bar-flex-len") as HTMLInputElement | null;
     this.selBarFlexRadiusInput = this.container.querySelector("#sel-bar-flex-radius") as HTMLInputElement | null;
     this.selBarFlexAngleInput = this.container.querySelector("#sel-bar-flex-angle") as HTMLInputElement | null;
+    this.selBarBtnFlexReset = this.container.querySelector("#sel-bar-btn-flex-reset") as HTMLButtonElement | null;
     this.selBarDivPower = this.container.querySelector("#sel-bar-div-power") as HTMLElement | null;
     this.selBarBtnFeeder = this.container.querySelector("#sel-bar-btn-feeder") as HTMLButtonElement;
     this.selBarBtnIsolator = this.container.querySelector("#sel-bar-btn-isolator") as HTMLButtonElement;
@@ -397,6 +401,7 @@ export class SelectionBar {
       }
     };
 
+    this.selBarElevInput.addEventListener("input", handleApplyHeight);
     this.selBarElevInput.addEventListener("change", handleApplyHeight);
     this.selBarElevInput.addEventListener("keydown", (e: KeyboardEvent) => {
       if (e.key === "Enter") {
@@ -421,6 +426,7 @@ export class SelectionBar {
       }
     };
 
+    this.selBarAngleInput.addEventListener("input", handleApplyAngle);
     this.selBarAngleInput.addEventListener("change", handleApplyAngle);
     this.selBarAngleInput.addEventListener("keydown", (e: KeyboardEvent) => {
       if (e.key === "Enter") {
@@ -444,7 +450,7 @@ export class SelectionBar {
       }
     });
 
-    const handleApplyFlex = () => {
+    const handleApplyFlex = (isLive = false) => {
       const selectedIds = this.callbacks.getSelectedPieceIds();
       if (selectedIds.length !== 1) return;
       const pieceId = selectedIds[0]!;
@@ -452,32 +458,60 @@ export class SelectionBar {
       const entry = piece ? this.callbacks.getCatalogEntry(piece) : undefined;
       const maxLen = entry?.length ?? 900;
 
-      let len = this.selBarFlexLenInput ? parseFloat(this.selBarFlexLenInput.value) : undefined;
+      let len = this.selBarFlexLenInput && this.selBarFlexLenInput.value.trim() !== ""
+        ? parseFloat(this.selBarFlexLenInput.value)
+        : undefined;
       if (len !== undefined && !isNaN(len)) {
         if (len > maxLen) {
           len = maxLen;
-          if (this.selBarFlexLenInput) this.selBarFlexLenInput.value = String(maxLen);
+          if (!isLive && this.selBarFlexLenInput) this.selBarFlexLenInput.value = String(maxLen);
         } else if (len < 15) {
-          len = 15;
-          if (this.selBarFlexLenInput) this.selBarFlexLenInput.value = "15";
+          if (!isLive) {
+            len = 15;
+            if (this.selBarFlexLenInput) this.selBarFlexLenInput.value = "15";
+          } else {
+            len = undefined;
+          }
         }
       }
-      const r = this.selBarFlexRadiusInput && this.selBarFlexRadiusInput.value ? parseFloat(this.selBarFlexRadiusInput.value) : undefined;
-      const a = this.selBarFlexAngleInput && this.selBarFlexAngleInput.value ? parseFloat(this.selBarFlexAngleInput.value) : undefined;
-      this.callbacks.onAdjustFlexTrack?.(pieceId, isNaN(len as any) ? undefined : len, isNaN(r as any) ? undefined : r, isNaN(a as any) ? undefined : a);
+
+      const rawR = this.selBarFlexRadiusInput ? this.selBarFlexRadiusInput.value.trim() : "";
+      const r = rawR !== "" ? parseFloat(rawR) : undefined;
+
+      const rawA = this.selBarFlexAngleInput ? this.selBarFlexAngleInput.value.trim() : "";
+      const a = rawA !== "" ? parseFloat(rawA) : undefined;
+
+      const validR = r !== undefined && !isNaN(r) ? r : (rawR === "" ? undefined : piece?.customRadius);
+      const validA = a !== undefined && !isNaN(a) ? a : (rawA === "" ? undefined : piece?.customAngle);
+
+      this.callbacks.onAdjustFlexTrack?.(
+        pieceId,
+        len !== undefined && !isNaN(len) ? len : (this.selBarFlexLenInput?.value === "" ? maxLen : undefined),
+        validR,
+        validA,
+      );
     };
 
     [this.selBarFlexLenInput, this.selBarFlexRadiusInput, this.selBarFlexAngleInput].forEach((inp) => {
-      inp?.addEventListener("change", handleApplyFlex);
+      inp?.addEventListener("input", () => handleApplyFlex(true));
+      inp?.addEventListener("change", () => handleApplyFlex(false));
       inp?.addEventListener("keydown", (e: KeyboardEvent) => {
         if (e.key === "Enter") {
-          handleApplyFlex();
+          handleApplyFlex(false);
           inp.blur();
         } else if (e.key === "Escape") {
           this.update();
           inp.blur();
         }
       });
+    });
+
+    this.selBarBtnFlexReset?.addEventListener("click", () => {
+      const selectedIds = this.callbacks.getSelectedPieceIds();
+      if (selectedIds.length === 1 && this.callbacks.onResetFlexTrack) {
+        this.callbacks.onResetFlexTrack(selectedIds[0]!);
+        this.update();
+      }
     });
 
     this.selBarLayerSelect.addEventListener("change", () => {
@@ -881,6 +915,31 @@ export class SelectionBar {
     } else {
       if (this.selBarDivFlex) this.selBarDivFlex.style.display = "none";
       if (this.selBarFlexGroup) this.selBarFlexGroup.style.display = "none";
+    }
+  }
+
+  public updateLiveValues(piece?: TrackPiece, model?: Model3D): void {
+    if (piece) {
+      const entry = this.callbacks.getCatalogEntry(piece);
+      if (isFlexTrack(entry, piece)) {
+        const maxLen = entry?.length ?? 900;
+        if (this.selBarFlexLenInput && document.activeElement !== this.selBarFlexLenInput) {
+          this.selBarFlexLenInput.value = String(Math.round(piece.customLength ?? maxLen));
+        }
+        if (this.selBarFlexRadiusInput && document.activeElement !== this.selBarFlexRadiusInput) {
+          this.selBarFlexRadiusInput.value = piece.customRadius !== undefined ? String(Math.round(piece.customRadius)) : "";
+        }
+        if (this.selBarFlexAngleInput && document.activeElement !== this.selBarFlexAngleInput) {
+          this.selBarFlexAngleInput.value = piece.customAngle !== undefined ? String(Math.round(piece.customAngle * 10) / 10) : "";
+        }
+      }
+      if (document.activeElement !== this.selBarAngleInput) {
+        this.selBarAngleInput.value = (Math.round(piece.transform.rotation * 100) / 100).toString();
+      }
+    } else if (model) {
+      if (document.activeElement !== this.selBarAngleInput) {
+        this.selBarAngleInput.value = (Math.round(model.transform.rotation * 100) / 100).toString();
+      }
     }
   }
 

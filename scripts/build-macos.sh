@@ -7,16 +7,17 @@ cd "$SCRIPT_DIR/.."
 # Argument handling:
 # ./scripts/build-macos.sh [arch] [format]
 # e.g.:
-#   ./scripts/build-macos.sh              -> all architectures, dmg format (default)
-#   ./scripts/build-macos.sh arm64        -> arm64 (Apple Silicon), dmg format
-#   ./scripts/build-macos.sh x64          -> x64 (Intel), dmg format
-#   ./scripts/build-macos.sh dmg          -> all architectures, dmg format
+#   ./scripts/build-macos.sh              -> all architectures, dmg + zip format (default)
+#   ./scripts/build-macos.sh arm64        -> arm64 (Apple Silicon), dmg + zip format
+#   ./scripts/build-macos.sh x64          -> x64 (Intel), dmg + zip format
+#   ./scripts/build-macos.sh dmg          -> all architectures, dmg format only
+#   ./scripts/build-macos.sh zip          -> all architectures, zip format only
+#   ./scripts/build-macos.sh both         -> all architectures, dmg + zip format
 #   ./scripts/build-macos.sh arm64 dmg    -> arm64, dmg format
-#   ./scripts/build-macos.sh all dmg      -> all architectures, dmg format
-#   ./scripts/build-macos.sh all zip      -> all architectures, zip format
+#   ./scripts/build-macos.sh arm64 zip    -> arm64, zip format
 #   ./scripts/build-macos.sh all both     -> all architectures, dmg + zip
 ARG1="${1:-all}"
-ARG2="${2:-dmg}"
+ARG2="${2:-both}"
 
 if [ "$ARG1" = "dmg" ] || [ "$ARG1" = "zip" ] || [ "$ARG1" = "both" ]; then
     FORMAT="$ARG1"
@@ -36,10 +37,10 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
 fi
 
 WANT_DMG=true
-WANT_ZIP=false
+WANT_ZIP=true
 
 case "$FORMAT" in
-    dmg|"")
+    dmg)
         WANT_DMG=true
         WANT_ZIP=false
         ;;
@@ -47,13 +48,13 @@ case "$FORMAT" in
         WANT_DMG=false
         WANT_ZIP=true
         ;;
-    both|all)
+    both|all|"")
         WANT_DMG=true
         WANT_ZIP=true
         ;;
     *)
         WANT_DMG=true
-        WANT_ZIP=false
+        WANT_ZIP=true
         ;;
 esac
 

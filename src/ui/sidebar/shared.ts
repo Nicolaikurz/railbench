@@ -5,10 +5,10 @@ export const CATEGORY_MAP: Record<string, string[]> = {
   Favorites: ["Favorites", "Favoriten"],
   All: ["All", "Alle"],
   Straights: ["Straights", "Geraden"],
-  Curves: ["Curves", "Bögen"],
+  Curves: ["Curves", "Bögen", "Kurven"],
   Turnouts: ["Turnouts", "Weichen"],
   Crossings: ["Crossings", "Kreuzungen"],
-  Accessories: ["Accessories", "Zubehör"],
+  Accessories: ["Accessories", "Zubehör", "Anschluss", "Funktionsgleise"],
 };
 
 export const AVAILABLE_SCALES: ModelScale[] = ["H0", "TT", "N", "Z", "0", "1", "G"];

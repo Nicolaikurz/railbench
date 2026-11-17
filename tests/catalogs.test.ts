@@ -847,6 +847,121 @@ describe("Scale 0, 1 & Scale G Tracks, Streets, and Buildings", () => {
       expect(k72750).toBeDefined();
       expect(k72750?.kind).toBe("buffer-stop");
     });
+
+    it("registers and verifies Kato Unitrack H0 catalog", () => {
+      const katoH0 = catalogRegistry.get("kato-unitrack-h0");
+      expect(katoH0).toBeDefined();
+      expect(katoH0?.scale).toBe("H0");
+      expect(katoH0?.gauge).toBe(16.5);
+      expect(katoH0?.hasRoadbed).toBe(true);
+      expect(katoH0?.entries.length).toBeGreaterThan(25);
+
+      // 2-150 standard straight 246 mm
+      const s246 = catalogRegistry.findEntry("2-150");
+      expect(s246).toBeDefined();
+      expect(s246?.length).toBe(246);
+      expect(s246?.kind).toBe("straight");
+
+      // 2-860 #6 turnout left
+      const to6L = catalogRegistry.findEntry("2-860");
+      expect(to6L).toBeDefined();
+      expect(to6L?.kind).toBe("turnout-left");
+      expect(to6L?.length).toBe(246);
+      expect(to6L?.branchAngle).toBe(10.5);
+
+      // 2-190 buffer stop track
+      const b190 = catalogRegistry.findEntry("2-190");
+      expect(b190).toBeDefined();
+      expect(b190?.kind).toBe("buffer-stop");
+    });
+
+    it("registers and verifies Bachmann E-Z Track H0 catalog", () => {
+      const bachmannH0 = catalogRegistry.get("bachmann-ez-track-h0");
+      expect(bachmannH0).toBeDefined();
+      expect(bachmannH0?.scale).toBe("H0");
+      expect(bachmannH0?.gauge).toBe(16.5);
+      expect(bachmannH0?.hasRoadbed).toBe(true);
+      expect(bachmannH0?.entries.length).toBeGreaterThan(20);
+
+      // 44511 9" Straight
+      const s9 = catalogRegistry.findEntry("44511");
+      expect(s9).toBeDefined();
+      expect(s9?.length).toBe(228.6);
+      expect(s9?.kind).toBe("straight");
+
+      // 44501 18" R 30° curve
+      const c18 = catalogRegistry.findEntry("44501");
+      expect(c18).toBeDefined();
+      expect(c18?.radius).toBe(457.2);
+      expect(c18?.angle).toBe(30);
+
+      // 44565 #6 Turnout left
+      const to6 = catalogRegistry.findEntry("44565");
+      expect(to6).toBeDefined();
+      expect(to6?.kind).toBe("turnout-left");
+      expect(to6?.length).toBe(304.8);
+      expect(to6?.branchAngle).toBe(9.5);
+    });
+
+    it("registers and verifies Bachmann E-Z Track N catalog", () => {
+      const bachmannN = catalogRegistry.get("bachmann-ez-track-n");
+      expect(bachmannN).toBeDefined();
+      expect(bachmannN?.scale).toBe("N");
+      expect(bachmannN?.gauge).toBe(9);
+      expect(bachmannN?.hasRoadbed).toBe(true);
+      expect(bachmannN?.entries.length).toBeGreaterThan(20);
+
+      // 44811 5" Straight
+      const s5 = catalogRegistry.findEntry("44811");
+      expect(s5).toBeDefined();
+      expect(s5?.length).toBe(127);
+      expect(s5?.kind).toBe("straight");
+
+      // 44801 11.25" R 30° curve
+      const c11 = catalogRegistry.findEntry("44801");
+      expect(c11).toBeDefined();
+      expect(c11?.radius).toBe(285.75);
+      expect(c11?.angle).toBe(30);
+
+      // 44851 #6 Turnout left
+      const to6N = catalogRegistry.findEntry("44851");
+      expect(to6N).toBeDefined();
+      expect(to6N?.kind).toBe("turnout-left");
+      expect(to6N?.length).toBe(165);
+      expect(to6N?.branchAngle).toBe(10);
+    });
+
+    it("verifies curved tracks in Kato and Bachmann are included in the Curves category filter", () => {
+      const allowedCats = ["Curves", "Bögen", "Kurven"];
+
+      const katoH0 = catalogRegistry.get("kato-unitrack-h0");
+      const katoH0Curves = katoH0?.entries.filter(
+        (e) => allowedCats.includes(e.category) || e.kind === "curve"
+      );
+      expect(katoH0Curves?.length).toBe(14);
+      expect(katoH0Curves?.every((e) => e.kind === "curve")).toBe(true);
+
+      const katoN = catalogRegistry.get("kato-unitrack-n");
+      const katoNCurves = katoN?.entries.filter(
+        (e) => allowedCats.includes(e.category) || e.kind === "curve"
+      );
+      expect(katoNCurves?.length).toBe(11);
+      expect(katoNCurves?.every((e) => e.kind === "curve")).toBe(true);
+
+      const bachmannH0 = catalogRegistry.get("bachmann-ez-track-h0");
+      const bachmannH0Curves = bachmannH0?.entries.filter(
+        (e) => allowedCats.includes(e.category) || e.kind === "curve"
+      );
+      expect(bachmannH0Curves?.length).toBe(9);
+      expect(bachmannH0Curves?.every((e) => e.kind === "curve")).toBe(true);
+
+      const bachmannN = catalogRegistry.get("bachmann-ez-track-n");
+      const bachmannNCurves = bachmannN?.entries.filter(
+        (e) => allowedCats.includes(e.category) || e.kind === "curve"
+      );
+      expect(bachmannNCurves?.length).toBe(8);
+      expect(bachmannNCurves?.every((e) => e.kind === "curve")).toBe(true);
+    });
   });
 });
 

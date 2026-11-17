@@ -9,6 +9,7 @@ import {
   isCurvedTrackEntry,
   deg2rad,
 } from "@/core/geometry";
+import { sampleFlexSplinePoints } from "@/core/flextrack";
 import { drawArcStroke } from "./track-render-utils";
 
 export function getPieceRunningLength(entry: CatalogEntry): number {
@@ -20,14 +21,25 @@ export function getPieceRunningLength(entry: CatalogEntry): number {
 }
 
 // Statische Shared TextStyles, um GC-Allokationen bei jedem Render-Durchlauf zu vermeiden
-const TRACK_NUMBER_STYLE = new TextStyle({
-  fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
-  fontSize: 10,
-  fontWeight: "bold",
-  fill: 0xffffff,
-  align: "center",
-  letterSpacing: 0.4,
-});
+const _trackNumberStyleCache = new Map<number, TextStyle>();
+function getTrackNumberStyle(fontSize: number): TextStyle {
+  const rounded = Math.round(fontSize * 10) / 10;
+  let style = _trackNumberStyleCache.get(rounded);
+  if (!style) {
+    style = new TextStyle({
+      fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+      fontSize: rounded,
+      fontWeight: "bold",
+      fill: 0xffffff,
+      align: "center",
+      letterSpacing: Math.max(0.1, Math.round(rounded * 0.04 * 10) / 10),
+    });
+    _trackNumberStyleCache.set(rounded, style);
+  }
+  return style;
+}
+
+const TRACK_NUMBER_STYLE = getTrackNumberStyle(10);
 
 const VOLT_STYLE_GOOD = new TextStyle({
   fontFamily: "Inter, system-ui, -apple-system, sans-serif",
@@ -95,42 +107,69 @@ export function drawTrackNumberLabel(
   labelCont.position.set(center.x, center.y);
   labelCont.rotation = getUprightTextRotation(pieceRotation);
 
-  const yOffset = entry.kind === "turntable" ? -55 : entry.kind === "transfer-table" ? -70 : hasVoltageLabel ? -9 : 0;
+  // Spurweite & Schienenabstand berücksichtigen (z.B. Z: 6.5mm, N: 9mm, TT: 12mm, H0: 16.5mm)
+  const gauge = entry.gauge ?? 16.5;
+  const gaugeHalf = gauge / 2;
+  const railWidth = Math.max(1.1, gaugeHalf * 0.22);
+
+  // Maximale Badge-Höhe so begrenzen, dass sie bei geraden Gleisen exakt zwischen die Schienen passt
+  // und keinesfalls über die Gleisbegrenzungen (Schieneninnenkanten) hinausragt
+  const maxBadgeH = Math.min(13.0, Math.max(4.2, (gauge - railWidth) * 0.88));
+
+  const padY = Math.max(0.6, Math.round(maxBadgeH * 0.16 * 10) / 10);
+  const padX = Math.max(1.8, Math.round(maxBadgeH * 0.36 * 10) / 10);
+  const cornerR = Math.max(1.2, Math.round(maxBadgeH * 0.22 * 10) / 10);
+  const strokeW = Math.max(0.6, Math.min(1.2, Math.round(maxBadgeH * 0.09 * 10) / 10));
+
+  const targetTextH = maxBadgeH - 2 * padY;
+  const fontSize = Math.max(3.0, Math.round(targetTextH * 0.82 * 10) / 10);
+
+  const voltOffset = (maxBadgeH / 2) + Math.max(0.8, 1.6 * (gauge / 16.5));
+  const yOffset = entry.kind === "turntable" ? -55 : entry.kind === "transfer-table" ? -70 : hasVoltageLabel ? -voltOffset : 0;
 
   const text = new Text({
     text: entry.id,
-    style: TRACK_NUMBER_STYLE,
+    style: getTrackNumberStyle(fontSize),
   });
   text.anchor.set(0.5);
   text.position.set(0, yOffset);
 
-  const padX = 5;
-  const padY = 2.5;
-  let textW = 32;
-  let textH = 11;
+  let textW = Math.max(10, entry.id.length * fontSize * 0.65);
+  let textH = targetTextH;
   try {
-    if (typeof document !== "undefined") {
-      textW = text.width || 32;
-      textH = text.height || 11;
+    if (typeof document !== "undefined" && text.width > 0 && text.height > 0) {
+      textW = text.width;
+      textH = text.height;
     }
   } catch {
-    textW = 32;
-    textH = 11;
+    // fallback
   }
+
+  // Falls gerenderte Texthöhe größer ist als die erlaubte targetTextH: Text herunterskalieren
+  if (textH > targetTextH) {
+    const scaleRatio = targetTextH / textH;
+    text.scale.set(scaleRatio);
+    textW *= scaleRatio;
+    textH = targetTextH;
+  }
+
   const bgW = textW + padX * 2;
-  const bgH = textH + padY * 2;
+  const bgH = Math.min(maxBadgeH, textH + padY * 2);
 
   const bg = new Graphics();
   // Schatten
-  bg.roundRect(-bgW / 2 + 0.5, -bgH / 2 + 1 + yOffset, bgW, bgH, 3);
+  bg.roundRect(-bgW / 2 + 0.5, -bgH / 2 + 1 + yOffset, bgW, bgH, cornerR);
   bg.fill({ color: 0x000000, alpha: 0.55 });
   // Hintergrund-Badge mit Farbkontur passend zum Bauplan-Farbcode
-  bg.roundRect(-bgW / 2, -bgH / 2 + yOffset, bgW, bgH, 3);
+  bg.roundRect(-bgW / 2, -bgH / 2 + yOffset, bgW, bgH, cornerR);
   bg.fill({ color: 0x0f172a, alpha: 0.95 });
-  bg.stroke({ width: 1.2, color: bpColor ? bpColor.hex : 0x38bdf8, alpha: 1.0 });
+  bg.stroke({ width: strokeW, color: bpColor ? bpColor.hex : 0x38bdf8, alpha: 1.0 });
 
   labelCont.addChild(bg);
   labelCont.addChild(text);
+  labelCont.label = "track-number-label";
+  (labelCont as any).badgeWidth = bgW;
+  (labelCont as any).badgeHeight = bgH;
   container.addChild(labelCont);
 }
 
@@ -231,6 +270,19 @@ export function drawElevationShadow(
   const shadowColor = 0x000000;
   const ox = shadowDist * 0.5;
   const oy = shadowDist;
+
+  if (entry.customOffsets && entry.customOffsets.length >= 3) {
+    const chordLen = entry.customChordDist ?? entry.length ?? 900;
+    const pts = sampleFlexSplinePoints(chordLen, entry.customOffsets);
+    if (pts.length > 1) {
+      g.moveTo(pts[0]!.x + ox, pts[0]!.y + oy);
+      for (let i = 1; i < pts.length; i++) {
+        g.lineTo(pts[i]!.x + ox, pts[i]!.y + oy);
+      }
+      g.stroke({ width: ballastWidth, color: shadowColor, alpha: shadowAlpha, cap: "butt", join: "round" });
+    }
+    return;
+  }
 
   if (isStraightTrackEntry(entry)) {
     const l = entry.length ?? 188.3;

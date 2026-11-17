@@ -97,4 +97,74 @@ describe("Upright Labels & Text Rotation (CAD-style horizontal orientation)", ()
       expect(worldRotation).toBeCloseTo(0);
     }
   });
+
+  it("scales track number label height to fit within track gauge boundaries for N and Z scales", () => {
+    // 1. Z-Spurweite (6.5 mm): Schieneninnenabstand ca. 5.4 mm
+    const entryZ: CatalogEntry = {
+      id: "8500",
+      name: "Gerades Gleis 110 mm",
+      kind: "straight",
+      category: "Geraden",
+      description: "Märklin Spur Z",
+      length: 110,
+      gauge: 6.5,
+    };
+    const pieceZ: TrackPiece = {
+      id: "piece-z",
+      catalogId: "8500",
+      transform: { x: 100, y: 100, rotation: 0 },
+      connectors: [],
+    };
+    const containerZ = createTrackGraphics(pieceZ, entryZ, undefined, { showTrackLabels: true });
+    const labelZ = containerZ.children.find((c: any) => c.label === "track-number-label") as any;
+    expect(labelZ).toBeDefined();
+    // Badge-Höhe muss streng kleiner als die Spurweite (6.5 mm) und kleiner als der Schienenabstand sein
+    expect(labelZ.badgeHeight).toBeLessThanOrEqual(5.0);
+    expect(labelZ.badgeHeight).toBeGreaterThanOrEqual(4.0);
+
+    // 2. N-Spurweite (9.0 mm): Schieneninnenabstand ca. 7.9 mm
+    const entryN: CatalogEntry = {
+      id: "9100",
+      name: "Gerades Gleis 222 mm",
+      kind: "straight",
+      category: "Geraden",
+      description: "Fleischmann Piccolo Spur N",
+      length: 222,
+      gauge: 9.0,
+    };
+    const pieceN: TrackPiece = {
+      id: "piece-n",
+      catalogId: "9100",
+      transform: { x: 100, y: 100, rotation: 0 },
+      connectors: [],
+    };
+    const containerN = createTrackGraphics(pieceN, entryN, undefined, { showTrackLabels: true });
+    const labelN = containerN.children.find((c: any) => c.label === "track-number-label") as any;
+    expect(labelN).toBeDefined();
+    // Badge-Höhe muss streng kleiner als die Spurweite (9.0 mm) und innerhalb der Schienenbegrenzung liegen
+    expect(labelN.badgeHeight).toBeLessThanOrEqual(7.1);
+    expect(labelN.badgeHeight).toBeGreaterThanOrEqual(6.0);
+
+    // 3. H0-Spurweite (16.5 mm): Schieneninnenabstand ca. 14.7 mm
+    const entryH0: CatalogEntry = {
+      id: "24188",
+      name: "Gerades Gleis 188,3 mm",
+      kind: "straight",
+      category: "Geraden",
+      description: "Märklin C-Gleis H0",
+      length: 188.3,
+      gauge: 16.5,
+    };
+    const pieceH0: TrackPiece = {
+      id: "piece-h0",
+      catalogId: "24188",
+      transform: { x: 100, y: 100, rotation: 0 },
+      connectors: [],
+    };
+    const containerH0 = createTrackGraphics(pieceH0, entryH0, undefined, { showTrackLabels: true });
+    const labelH0 = containerH0.children.find((c: any) => c.label === "track-number-label") as any;
+    expect(labelH0).toBeDefined();
+    expect(labelH0.badgeHeight).toBeLessThanOrEqual(13.0);
+    expect(labelH0.badgeHeight).toBeGreaterThanOrEqual(11.0);
+  });
 });

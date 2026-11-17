@@ -7,22 +7,31 @@ Diese Anleitung beschreibt, wie die vorkompilierten Binaries unter **Windows**, 
 > [!IMPORTANT]
 > **Release 0.6.0 Multi-Plattform-Binaries**:
 > In Release **0.6.0** werden Pakete für folgende Plattformen bereitgestellt:
-> * ✅ **Windows `x64` / `arm64`**: Portable EXE (`railbench-0.6.0-portable-*.exe`) & entpacktes Portable-Verzeichnis (`win-unpacked`).
-> * ✅ **macOS `arm64` (Apple Silicon M1/M2/M3/M4) & `x64` (Intel)**: `.zip`-App-Bundle (`railbench-0.6.0-mac-*.zip`) & `.dmg`-Installer.
+> * ✅ **Windows `x64` / `arm64`**: Portables Verzeichnis (`win-unpacked` / `win-arm64-unpacked`) & Portable ZIP-Archive (`railbench-0.6.0-portable-*.zip`) mit `railbench.exe`.
+> * ✅ **macOS `arm64` (Apple Silicon M1/M2/M3/M4) & `x64` (Intel)**: `.zip`-App-Bundle (`railbench-0.6.0-mac-*.zip`) & `.dmg`-Installer sowie Homebrew Cask.
 > * ✅ **Linux `x86_64` / `arm64`**: AppImage (`railbench-0.6.0-*.AppImage`) & Flatpak (`Railbench.flatpak`).
 
 ---
 
 ## Schnellstart: Vorkompilierte Binaries ausführen
 
-### 1. Windows (`x64` & `arm64`)
-1. Lade `railbench-0.6.0-portable-x64.exe` (Intel/AMD) bzw. `railbench-0.6.0-portable-arm64.exe` (ARM) herunter oder entpacke das portable Verzeichnis (`win-unpacked`).
-2. Starte `railbench-0.6.0-portable-x64.exe` bzw. `railbench.exe` per Doppelklick (keine Installation oder Administratorrechte nötig).
-3. **Hinweis zu Windows SmartScreen**: Falls Windows Defender SmartScreen beim ersten Start *„Der PC wurde durch Windows geschützt“* anzeigt, klicke auf **Weitere Informationen** (*More info*) $\rightarrow$ **Trotzdem ausführen** (*Run anyway*).
+### 1. Windows (`x64` & `arm64`) – Portables Verzeichnis (dir)
+1. Lade `railbench-0.6.0-portable-x64.zip` (Intel/AMD) bzw. `railbench-0.6.0-portable-arm64.zip` (ARM) herunter und entpacke das Verzeichnis an einen beliebigen Ort (z. B. auf einen USB-Stick oder `C:\Tools\`).
+2. Alternativ kann direkt der beim Build generierte Ordner `release/win-unpacked/` (x64) bzw. `release/win-arm64-unpacked/` (arm64) verwendet werden.
+3. Starte **`railbench.exe`** per Doppelklick:
+   * **Keine Installation** und **keine Administratorrechte** erforderlich.
+   * **Schneller Sofortstart**, da nichts bei jedem Start temporär entpackt werden muss.
+4. **Hinweis zu Windows SmartScreen**: Falls Windows Defender SmartScreen beim ersten Start *„Der PC wurde durch Windows geschützt“* anzeigt, klicke auf **Weitere Informationen** (*More info*) $\rightarrow$ **Trotzdem ausführen** (*Run anyway*).
 
 ### 2. macOS (Apple Silicon `arm64` & Intel `x64`)
-1. Entpacke `railbench-0.6.0-mac-arm64.zip` (Apple Silicon M1–M4) bzw. `railbench-0.6.0-mac-x64.zip` (Intel) per Doppelklick oder öffne die `.dmg`-Datei und verschiebe **`railbench.app`** in den Ordner `/Applications`.
-2. **Hinweis zu macOS Gatekeeper (Unsigniertes Open-Source-Binary)**:
+* **Per Homebrew Cask (empfohlen)**:
+  ```bash
+  brew tap Nicolaikurz/tap
+  brew install --cask railbench
+  ```
+* **Manuelle Installation (DMG / ZIP)**:
+  1. Entpacke `railbench-0.6.0-mac-arm64.zip` (Apple Silicon M1–M4) bzw. `railbench-0.6.0-mac-x64.zip` (Intel) per Doppelklick oder öffne die `.dmg`-Datei und verschiebe **`railbench.app`** in den Ordner `/Applications`.
+  2. **Hinweis zu macOS Gatekeeper (Unsigniertes Open-Source-Binary)**:
    Da das kostenlose Open-Source-Release ohne kostenpflichtiges Apple-Developer-Zertifikat gebaut wird, blockiert macOS Gatekeeper ggf. den ersten Start (*„Entwickler kann nicht verifiziert werden“* oder *„ist beschädigt“*).
    * **Option A – Per Terminal (empfohlen)**:
      ```bash
@@ -50,19 +59,20 @@ Diese Anleitung beschreibt, wie die vorkompilierten Binaries unter **Windows**, 
 
 | Plattform / Format | Architektur | npm Script | Shell / Batch Script | Ausgabe-Datei | Beschreibung |
 |---|---|---|---|---|---|
-| **Windows Portable** | x86_64 | `npm run dist:win:portable:x64` | `scripts/build-windows-portable.sh x64` | `release/railbench-0.6.0-portable-x64.exe` | Standalone-EXE für Intel/AMD PCs |
-| **Windows Portable** | ARM64 | `npm run dist:win:portable:arm64` | `scripts/build-windows-portable.sh arm64` | `release/railbench-0.6.0-portable-arm64.exe` | Für Snapdragon X & ARM-Windows |
-| **Windows Portable (Alle)** | x64 + arm64 | `npm run dist:win:portable:all` | `scripts/build-windows-portable.sh all` | `release/railbench-0.6.0-portable-*.exe` | Baut beide Windows-Architekturen |
+| **Windows Portable (dir & ZIP)** | x86_64 | `npm run dist:win:portable:x64` | `scripts/build-windows-portable.sh x64` | `release/win-unpacked/` & `*.zip` | Portables Verzeichnis & ZIP für Intel/AMD PCs |
+| **Windows Portable (dir & ZIP)** | ARM64 | `npm run dist:win:portable:arm64` | `scripts/build-windows-portable.sh arm64` | `release/win-arm64-unpacked/` & `*.zip` | Portables Verzeichnis & ZIP für ARM-Windows |
+| **Windows Portable (Alle)** | x64 + arm64 | `npm run dist:win:portable:all` | `scripts/build-windows-portable.sh all` | `release/win-*-unpacked/` & `*.zip` | Baut beide portablen Windows-Architekturen |
 | **Linux AppImage** | x86_64 | `npm run dist:linux:appimage:x64` | `scripts/build-linux-appimage.sh x64` | `release/railbench-0.6.0-x64.AppImage` | Universal-Binärdatei für Linux x64 |
 | **Linux AppImage** | ARM64 | `npm run dist:linux:appimage:arm64` | `scripts/build-linux-appimage.sh arm64` | `release/railbench-0.6.0-arm64.AppImage` | Für Raspberry Pi 4/5, Asahi Linux |
 | **Linux AppImage (Alle)** | x64 + arm64 | `npm run dist:linux:appimage:all` | `scripts/build-linux-appimage.sh all` | `release/railbench-0.6.0-*.AppImage` | Baut beide Linux-Architekturen |
 | **Linux Flatpak** | x86_64 | `npm run dist:linux:flatpak` | `scripts/build-flatpak.sh` | `release/Railbench.flatpak` | Sandbox-Paket (Wayland/X11) |
 | **macOS DMG (Apple Silicon)** | ARM64 | `npm run dist:mac:dmg:arm64` | `scripts/build-macos.sh arm64` | `release/railbench-0.6.0-mac-arm64.dmg` | DMG-Installer für Apple Silicon (M1/M2/M3/M4) |
 | **macOS DMG (Intel)** | x86_64 | `npm run dist:mac:dmg:x64` | `scripts/build-macos.sh x64` | `release/railbench-0.6.0-mac-x64.dmg` | DMG-Installer für Intel Macs |
-| **macOS DMG (Alle, Standard)** | x64 + arm64 | `npm run dist:mac` | `scripts/build-macos.sh` | `release/railbench-0.6.0-mac-*.dmg` | Baut beide macOS DMG-Installer (Standard) |
+| **macOS Pakete (DMG + ZIP, Standard)** | x64 + arm64 | `npm run dist:mac` | `scripts/build-macos.sh` | `release/railbench-0.6.0-mac-*` | Baut signierte DMG-Installer und ZIP-Pakete für Intel & Apple Silicon |
 | **macOS Package (ZIP)** | ARM64 | `npm run dist:mac:zip:arm64` | `scripts/build-macos.sh arm64 zip` | `release/railbench-0.6.0-mac-arm64.zip` | Optionales ZIP für Apple Silicon |
 | **macOS Package (ZIP)** | x86_64 | `npm run dist:mac:zip:x64` | `scripts/build-macos.sh x64 zip` | `release/railbench-0.6.0-mac-x64.zip` | Optionales ZIP für Intel Macs |
 | **macOS Packages (ZIP Alle)** | x64 + arm64 | `npm run dist:mac:zip:all` | `scripts/build-macos.sh all zip` | `release/railbench-0.6.0-mac-*.zip` | Baut beide optionalen ZIP-Pakete |
+| **Homebrew Cask** | macOS universal | `npm run dist:homebrew` | `scripts/update-homebrew-cask.sh` | `packaging/homebrew/Casks/railbench.rb` | Aktualisiert Homebrew Cask Manifest mit SHA-256 |
 
 ---
 
@@ -78,18 +88,33 @@ npm install
 
 ---
 
-## 2. Windows Portable Build (`.exe`)
+## 2. Windows Portable Build (dir & ZIP)
+
+Die Windows-Builds werden als **unpacked directory (`dir`)** erzeugt und als sofort startbare, portable ZIP-Archive verpackt. Dies vermeidet die Startverzögerungen von Single-File-Packern (die bei jedem Start das gesamte App-Paket in `AppData\Local\Temp` entpacken) und verhindert Fehlalarme gängiger Antivirenprogramme.
 
 ```bash
-# Beide Architekturen (x64 und ARM64) bauen:
+# Beide Architekturen (x64 und ARM64) als portable Ordner & ZIPs bauen:
 npm run dist:win:portable:all
+# oder kurz:
+npm run dist:win
 
-# Nur x86_64 (Standard Intel/AMD):
+# Nur x86_64 (Standard Intel/AMD PCs):
 npm run dist:win:portable:x64
 
-# Nur ARM64:
+# Nur ARM64 (Snapdragon X, Surface Pro ARM, etc.):
 npm run dist:win:portable:arm64
+
+# Nur das Verzeichnis ohne ZIP erzeugen:
+npm run dist:win:dir:x64
 ```
+
+### Ausgabe-Dateien:
+* **x64**:
+  * Portables Verzeichnis: `release/win-unpacked/railbench.exe`
+  * Standalone ZIP: `release/railbench-0.6.0-portable-x64.zip`
+* **ARM64**:
+  * Portables Verzeichnis: `release/win-arm64-unpacked/railbench.exe`
+  * Standalone ZIP: `release/railbench-0.6.0-portable-arm64.zip`
 
 ---
 
@@ -117,16 +142,16 @@ npm run dist:linux:flatpak
 Der Build-Prozess unterstützt Cross-Compiling von Linux aus und signiert die macOS `.app`-Bundles automatisch via **`rcodesign`** (apple-codesign):
 
 ```bash
-# Beide Architekturen (Apple Silicon arm64 & Intel x64) als signierte DMG bauen (Standard):
+# Beide Architekturen (Apple Silicon arm64 & Intel x64) als signierte DMG und ZIP bauen (Standard):
 npm run dist:mac
 
-# Nur Apple Silicon (M1/M2/M3/M4):
-npm run dist:mac:dmg:arm64
+# Nur Apple Silicon (M1/M2/M3/M4) als DMG + ZIP:
+npm run dist:mac:dmg:arm64 # bzw. scripts/build-macos.sh arm64
 
-# Nur Intel (x86_64):
-npm run dist:mac:dmg:x64
+# Nur Intel (x86_64) als DMG + ZIP:
+npm run dist:mac:dmg:x64   # bzw. scripts/build-macos.sh x64
 
-# Optional: Zusätzliche ZIPs mit erhaltenen Symlinks packen:
+# Nur ZIP-Pakete bauen:
 npm run dist:mac:zip:all
 ```
 

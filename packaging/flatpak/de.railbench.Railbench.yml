@@ -9,6 +9,7 @@ separate-locales: false
 
 finish-args:
   - --share=ipc
+  - --share=network
   - --socket=x11
   - --socket=wayland
   - --device=dri
@@ -22,7 +23,7 @@ modules:
     build-commands:
       - mkdir -p /app/main
       - cp -r * /app/main/
-      - chmod +x /app/main/railbench || chmod +x /app/main/Gleisplan
+      - chmod +x /app/main/railbench || true
       - mkdir -p /app/bin
       - install -Dm755 railbench.sh /app/bin/railbench
       - install -Dm644 de.railbench.Railbench.desktop /app/share/applications/de.railbench.Railbench.desktop
@@ -38,5 +39,4 @@ modules:
       - type: file
         path: de.railbench.Railbench.metainfo.xml
       - type: file
-        path: ../../build/icon.png
-
+        path: icon.png

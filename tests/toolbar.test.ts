@@ -318,4 +318,18 @@ describe("Two-line Toolbar & macOS System Menus", () => {
     updateToolbarState({ rotationSnapLocked: false });
     expect(btnRotateLock.classList.contains("active")).toBe(false);
   });
+
+  it("updates power button title with active feed voltage", () => {
+    const host = createMockElement("div");
+    createToolbar(host, dummyEvents);
+
+    const btnPower = elementsById["tb-power"];
+    expect(btnPower).toBeDefined();
+
+    updateToolbarState({ feedVoltage: 12 });
+    expect(btnPower.title).toContain("(12V)");
+
+    updateToolbarState({ feedVoltage: 18 });
+    expect(btnPower.title).toContain("(18V)");
+  });
 });

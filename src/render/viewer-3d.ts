@@ -305,11 +305,27 @@ export class Viewer3D {
     } else if (mode === "landscape") {
       this.clearGroup(this.trainHallGroup);
       this.builtHallKey = "";
+      this.nightLampMats = [];
     } else if (mode === "minimal") {
+      // Im Minimalmodus Tag/Nacht-Zyklus stoppen und Lokhalle komplett entladen
+      this.setDayNightActive(false);
       this.clearGroup(this.trainHallGroup);
       this.clearGroup(this.landscapeGroup);
+      this.nightLampMats = [];
       this.builtHallKey = "";
       this.builtLandscapeKey = "";
+      if (this.currentLayout) {
+        const { cx, cz } = this.computeTableCenter(this.currentLayout);
+        this.sceneCenter.set(cx, 0, cz);
+        if (this.controls) {
+          this.controls.target.set(cx, 0, cz);
+        }
+      } else {
+        this.sceneCenter.set(0, 0, 0);
+        if (this.controls) {
+          this.controls.target.set(0, 0, 0);
+        }
+      }
     }
     this.ensureActiveEnvironmentBuilt();
     this.landscapeGroup.visible = mode === "landscape";
@@ -383,6 +399,28 @@ export class Viewer3D {
 
   orbitCameraBy(deltaAzimuthDeg: number, deltaPolarDeg: number) {
     orbitCameraByDegrees(this.camera, this.controls, deltaAzimuthDeg, deltaPolarDeg);
+    updateViewCubeOrientation(this.viewCubeEl, this.camera, this.controls);
+  }
+
+  zoomBy(factor: number) {
+    if (!this.controls || !this.camera) return;
+    const offset = this.camera.position.clone().sub(this.controls.target);
+    offset.multiplyScalar(1 / factor);
+    this.camera.position.copy(this.controls.target).add(offset);
+    this.controls.update();
+    updateViewCubeOrientation(this.viewCubeEl, this.camera, this.controls);
+  }
+
+  panBy(dx: number, dy: number) {
+    if (!this.controls || !this.camera) return;
+    const vRight = new THREE.Vector3(1, 0, 0).applyQuaternion(this.camera.quaternion);
+    const vUp = new THREE.Vector3(0, 1, 0).applyQuaternion(this.camera.quaternion);
+    const dist = this.camera.position.distanceTo(this.controls.target);
+    const scale = Math.max(1, dist * 0.002);
+    const panOffset = vRight.multiplyScalar(-dx * scale).add(vUp.multiplyScalar(dy * scale));
+    this.camera.position.add(panOffset);
+    this.controls.target.add(panOffset);
+    this.controls.update();
     updateViewCubeOrientation(this.viewCubeEl, this.camera, this.controls);
   }
 
@@ -700,7 +738,7 @@ export class Viewer3D {
   }
 
   private updateDayNight(dt: number) {
-    if (!this.dayNightActive) return;
+    if (!this.dayNightActive || this.envMode === "minimal") return;
     const deltaHours = (dt * (24 / this.cycleDayDurationSec)) * this.cycleSpeed;
     this.timeOfDay = (this.timeOfDay + deltaHours) % 24;
     this.applyTimeOfDay();
@@ -744,7 +782,7 @@ export class Viewer3D {
       const dt = Math.min((now - this.lastFrameTime) / 1000, 0.1);
       this.lastFrameTime = now;
 
-      if (this.dayNightActive) {
+      if (this.dayNightActive && this.envMode !== "minimal") {
         this.updateDayNight(dt);
       }
 
@@ -755,8 +793,10 @@ export class Viewer3D {
       }
 
       if (this.needsRender) {
-        if (this.sunCorona) this.sunCorona.quaternion.copy(this.camera.quaternion);
-        if (this.moonGlow) this.moonGlow.quaternion.copy(this.camera.quaternion);
+        if (this.envMode !== "minimal") {
+          if (this.sunCorona) this.sunCorona.quaternion.copy(this.camera.quaternion);
+          if (this.moonGlow) this.moonGlow.quaternion.copy(this.camera.quaternion);
+        }
 
         updateViewCubeOrientation(this.viewCubeEl, this.camera, this.controls);
         if (this.camera) {
@@ -817,6 +857,29 @@ export class Viewer3D {
     return `${isDark ? 1 : 0}:${Math.round(minX)}:${Math.round(maxX)}:${Math.round(minZ)}:${Math.round(maxZ)}`;
   }
 
+  private computeTableCenter(layout: Layout): { cx: number; cz: number } {
+    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    for (const bb of getBaseboards(layout)) {
+      if (!bb.enabled) continue;
+      const b = getBaseboardBounds(bb);
+      minX = Math.min(minX, b.x);
+      maxX = Math.max(maxX, b.x + b.width);
+      minZ = Math.min(minZ, b.y);
+      maxZ = Math.max(maxZ, b.y + b.depth);
+    }
+    if (!Number.isFinite(minX)) {
+      for (const p of layout.pieces) {
+        minX = Math.min(minX, p.transform.x);
+        maxX = Math.max(maxX, p.transform.x);
+        minZ = Math.min(minZ, p.transform.y);
+        maxZ = Math.max(maxZ, p.transform.y);
+      }
+    }
+    const cx = Number.isFinite(minX) ? (minX + maxX) / 2 : 0;
+    const cz = Number.isFinite(minZ) ? (minZ + maxZ) / 2 : 0;
+    return { cx, cz };
+  }
+
   private ensureActiveEnvironmentBuilt() {
     if (!this.currentLayout) return;
     const isDark = this.currentTheme === "dark";
@@ -833,6 +896,14 @@ export class Viewer3D {
       buildRealisticLandscape(this.landscapeGroup, this.currentLayout, isDark);
       this.builtLandscapeKey = envKey;
       freezeStaticTransforms(this.landscapeGroup);
+    } else if (this.envMode === "minimal") {
+      this.clearGroup(this.trainHallGroup);
+      this.clearGroup(this.landscapeGroup);
+      this.nightLampMats = [];
+      this.builtHallKey = "";
+      this.builtLandscapeKey = "";
+      const { cx, cz } = this.computeTableCenter(this.currentLayout);
+      this.sceneCenter.set(cx, 0, cz);
     }
   }
 
