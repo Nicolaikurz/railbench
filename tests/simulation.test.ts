@@ -811,6 +811,41 @@ describe("Power Drop Simulation", () => {
       expect(sim18.results.get("p1")?.voltage).toBe(18.0);
     });
 
+    it("erhöhter Fahrstrom (Ampere) und Versorgungsspannung ändern Spannungen entlang verbundener Gleise", () => {
+      const pieces: TrackPiece[] = [];
+      for (let i = 0; i < 10; i++) {
+        pieces.push({
+          id: `t${i}`,
+          catalogId: "24188",
+          transform: { x: i * 188.3, y: 0, rotation: 0 },
+          connectors: [
+            { x: i * 188.3, y: 0, angle: 180, connectedTo: i > 0 ? { pieceId: `t${i - 1}`, connectorIndex: 1 } : undefined },
+            { x: (i + 1) * 188.3, y: 0, angle: 0, connectedTo: i < 9 ? { pieceId: `t${i + 1}`, connectorIndex: 0 } : undefined },
+          ],
+          powerFeed: i === 0,
+        });
+      }
+      const layout: Layout = {
+        name: "Ampere and Voltage Test",
+        scale: "H0",
+        feedVoltage: 16.0,
+        locoCurrentMa: 200,
+        pieces,
+      };
+
+      const sim200mA = simulatePowerDrop(layout, maerklinCCatalog);
+      const sim1000mA = simulatePowerDrop({ ...layout, locoCurrentMa: 1000 }, maerklinCCatalog);
+      const sim18V_1000mA = simulatePowerDrop({ ...layout, feedVoltage: 18.0, locoCurrentMa: 1000 }, maerklinCCatalog);
+
+      // Ampere-Änderung: 1000 mA (1.0 A) führt zu signifikant höherem Spannungsabfall als 200 mA (0.2 A)
+      expect(sim1000mA.results.get("t9")!.voltageDrop).toBeGreaterThan(sim200mA.results.get("t9")!.voltageDrop);
+      expect(sim1000mA.results.get("t9")!.voltage).toBeLessThan(sim200mA.results.get("t9")!.voltage);
+
+      // Spannungs-Änderung: 18V erhöht die Spannung an allen Gleisen
+      expect(sim18V_1000mA.results.get("t9")!.voltage).toBeGreaterThan(sim1000mA.results.get("t9")!.voltage);
+      expect(sim18V_1000mA.feedVoltage).toBe(18.0);
+    });
+
     it("erkennt Layout ohne Feeder und meldet 0 Feeder sowie stromlose Gleise", () => {
       const layout: Layout = {
         name: "No Feeder Layout",

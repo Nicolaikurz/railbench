@@ -151,7 +151,7 @@ export function buildToolbarEvents(deps: ToolbarFactoryDeps): ToolbarEvents {
       deps.sync(true);
     },
     onSetLocoCurrent: (ma: number) => {
-      layout.locoCurrentMa = Math.min(1000, Math.max(50, ma));
+      layout.locoCurrentMa = Math.min(3000, Math.max(10, ma));
       if (!deps.isPowerSimEnabled()) deps.setPowerSimEnabled(true);
       deps.sync(true);
     },

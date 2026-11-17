@@ -188,17 +188,31 @@ export function drawVoltageBadge(
 
   const isShort = Boolean(powerResult.isShortCircuit);
   const isDisc = powerResult.status === "disconnected";
-  let voltText = isShort
-    ? "⚠️⚡ KURZSCHLUSS"
-    : isDisc
-      ? "⛔ 0.0 V"
-      : `${powerResult.isFeeder ? "⚡ " : ""}${powerResult.voltage.toFixed(1)} V`;
+  let voltText: string;
+  if (isShort) {
+    voltText = "⚠️⚡ KURZSCHLUSS";
+  } else if (isDisc) {
+    voltText = "⛔ 0.0 V";
+  } else if (powerResult.isFeeder) {
+    voltText = `⚡ ${powerResult.voltage.toFixed(1)} V`;
+  } else if (powerResult.voltageDrop >= 0.01) {
+    voltText = `${powerResult.voltage.toFixed(2)} V (-${powerResult.voltageDrop.toFixed(2)}V)`;
+  } else {
+    voltText = `${powerResult.voltage.toFixed(2)} V`;
+  }
 
   if (powerResult.hasCatenary && powerResult.catenaryVoltage !== undefined) {
     const isCatDisc = powerResult.catenaryStatus === "disconnected";
-    const catText = isCatDisc
-      ? "OL: ⛔ 0V"
-      : `OL: ${powerResult.isCatenaryFeeder ? "⚡" : ""}${powerResult.catenaryVoltage.toFixed(1)}V`;
+    let catText: string;
+    if (isCatDisc) {
+      catText = "OL: ⛔ 0V";
+    } else if (powerResult.isCatenaryFeeder) {
+      catText = `OL: ⚡${powerResult.catenaryVoltage.toFixed(1)}V`;
+    } else if ((powerResult.catenaryDrop ?? 0) >= 0.01) {
+      catText = `OL: ${powerResult.catenaryVoltage.toFixed(2)}V (-${powerResult.catenaryDrop!.toFixed(2)}V)`;
+    } else {
+      catText = `OL: ${powerResult.catenaryVoltage.toFixed(2)}V`;
+    }
     voltText = `${voltText} • ${catText}`;
   }
 
