@@ -137,10 +137,14 @@ export interface Translations {
       off: string;
     };
     powerMenu: {
+      zScale: string;
       h0Standard: string;
       h0Dcc: string;
       nScale: string;
+      ttScale: string;
+      gauge0: string;
       gauge1: string;
+      gaugeG: string;
       h0Current: string;
       ttCurrent: string;
       nzCurrent: string;
@@ -174,14 +178,18 @@ export interface Translations {
   };
   powerDialog: {
     title: string;
+    systemPresetHeader: string;
+    systemPresetSub: string;
     shortCircuitHeader: string;
     shortCircuitSub: string;
     feederHeader: string;
     feederSub: string;
-    preset16VDesc: string;
-    preset14VDesc: string;
+    preset10VDesc: string;
     preset12VDesc: string;
+    preset14VDesc: string;
+    preset16VDesc: string;
     preset18VDesc: string;
+    preset24VDesc: string;
     customVoltageLabel: string;
     voltageUnit: string;
     locoHeader: string;
