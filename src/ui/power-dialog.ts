@@ -7,6 +7,7 @@ import {
   MAX_LOCO_CURRENT_MA,
   isTurnoutEntry,
   detectShortCircuit,
+  simulatePowerDrop,
 } from "@/core/simulation";
 import type { Catalog } from "@/catalog/catalog";
 import { getTranslations } from "@/i18n";
@@ -100,6 +101,19 @@ export function openPowerSettingsDialog(options: PowerSettingsDialogOptions): vo
     ? detectShortCircuit(layout, catalog)
     : { hasShortCircuit: false, shortCircuitPieces: new Set<string>(), shortCircuitPoints: [] };
 
+  const initialSim = catalog
+    ? simulatePowerDrop(layout, catalog, {
+        feedVoltage: currentVoltage,
+        locoCurrentMa: currentLocoMa,
+        locoCount: currentLocoCount,
+        catenaryFeedVoltage: currentCatenaryVoltage,
+        catenaryCircuitMode: currentCatenaryMode,
+      })
+    : undefined;
+
+  const trackFeeders = pieces.filter((p) => !!p.powerFeed);
+  const catFeeders = catenaryTracks.filter((p) => !!p.catenaryPowerFeed);
+
   const modal = document.createElement("div");
   modal.id = "power-settings-modal";
   modal.className = "rb-modal-overlay";
@@ -113,6 +127,44 @@ export function openPowerSettingsDialog(options: PowerSettingsDialogOptions): vo
           <strong>${t.shortCircuitHeader}</strong>
           <p style="font-size: 11px; margin: 2px 0 0 0;">${t.shortCircuitSub}</p>
         </div>
+      </div>`;
+  }
+
+  let feederBannerHtml = "";
+  if (pieces.length > 0 && trackFeeders.length === 0) {
+    feederBannerHtml = `
+      <div class="power-dialog-feeder-banner power-feeder-banner-warning" id="power-feeder-warning-banner" style="margin-bottom: 4px;">
+        <div style="font-size: 18px; line-height: 1;">⚠️</div>
+        <div class="feeder-banner-body">
+          <strong>${t.feederCheckHeader}</strong>
+          <p>${t.feederCheckMissing}</p>
+        </div>
+        <button type="button" class="rb-btn rb-btn-secondary" id="power-btn-set-feeder" style="font-size: 11px; padding: 3px 8px; white-space: nowrap; margin-left: 8px;">
+          ⚡ ${t.setFeederBtn}
+        </button>
+      </div>`;
+  } else if (trackFeeders.length > 0 && (initialSim?.disconnectedCount ?? 0) > 0) {
+    feederBannerHtml = `
+      <div class="power-dialog-feeder-banner power-feeder-banner-disconnected" id="power-feeder-warning-banner" style="margin-bottom: 4px;">
+        <div style="font-size: 18px; line-height: 1;">⚠️</div>
+        <div class="feeder-banner-body">
+          <strong>${t.feederCheckHeader.replace("!", "")}</strong>
+          <p>${t.feederCheckDisconnected.replace("{count}", String(initialSim?.disconnectedCount ?? 0))}</p>
+        </div>
+      </div>`;
+  }
+
+  let catFeederBannerHtml = "";
+  if (hasCatenary && currentCatenaryMode === "separate" && catFeeders.length === 0) {
+    catFeederBannerHtml = `
+      <div class="power-dialog-feeder-banner power-feeder-banner-warning" id="power-catenary-warning-banner" style="margin-top: 6px; padding: 6px 10px;">
+        <div style="font-size: 16px; line-height: 1;">⚠️</div>
+        <div class="feeder-banner-body">
+          <strong>${t.catenaryCheckMissing}</strong>
+        </div>
+        <button type="button" class="rb-btn rb-btn-secondary" id="power-btn-set-cat-feeder" style="font-size: 10.5px; padding: 2px 7px; white-space: nowrap; margin-left: 6px;">
+          ⚡ ${t.setCatenaryFeederBtn}
+        </button>
       </div>`;
   }
 
@@ -187,6 +239,12 @@ export function openPowerSettingsDialog(options: PowerSettingsDialogOptions): vo
   modal.innerHTML = powerDialogHtml
     .replace("{{TITLE}}", t.title)
     .replace("{{SHORT_CIRCUIT_BANNER}}", scBannerHtml)
+    .replace("{{FEEDER_BANNER}}", feederBannerHtml)
+    .replace("{{FEEDER_STATUS_CLASS}}", trackFeeders.length === 0 ? "power-status-danger" : "power-status-ok")
+    .replace("{{FEEDER_STATUS_TEXT}}", trackFeeders.length === 0 ? `⚠️ 0 ${t.voltageUnit === "V" ? "Einspeisungen" : "Feeders"}` : `⚡ ${t.feederCheckOk.replace("{feeders}", String(trackFeeders.length))}`)
+    .replace("{{CATENARY_STATUS_CLASS}}", !hasCatenary ? "power-status-warn" : (currentCatenaryMode === "parallel" ? "power-status-ok" : (catFeeders.length === 0 ? "power-status-danger" : "power-status-ok")))
+    .replace("{{CATENARY_STATUS_TEXT}}", !hasCatenary ? "-" : (currentCatenaryMode === "parallel" ? `⚡ ${t.catenaryCheckParallel}` : (catFeeders.length === 0 ? `⚠️ 0 ${t.voltageUnit === "V" ? "Einspeisungen" : "Feeders"}` : `⚡ ${t.catenaryCheckOk.replace("{feeders}", String(catFeeders.length))}`)))
+    .replace("{{CATENARY_FEEDER_BANNER}}", catFeederBannerHtml)
     .replace("{{SYSTEM_PRESET_HEADER}}", t.systemPresetHeader || "System-Schnellwahl")
     .replace("{{SYSTEM_PRESET_SUB}}", t.systemPresetSub || "Spannung & Stromstärke passend zum System einstellen")
     .replace("{{ACTIVE_SYSTEM_DESC}}", getSystemPresetName(currentVoltage, currentLocoMa))
@@ -300,6 +358,12 @@ export function openPowerSettingsDialog(options: PowerSettingsDialogOptions): vo
   const decBtn = modal.querySelector("#power-btn-dec-count") as HTMLButtonElement;
   const incBtn = modal.querySelector("#power-btn-inc-count") as HTMLButtonElement;
 
+  // Feeder & Catenary check elements
+  const lblFeederStatus = modal.querySelector("#power-lbl-feeder-status") as HTMLElement | null;
+  const lblCatenaryStatus = modal.querySelector("#power-lbl-catenary-status") as HTMLElement | null;
+  const feederBanner = modal.querySelector("#power-feeder-warning-banner") as HTMLElement | null;
+  const catFeederBanner = modal.querySelector("#power-catenary-warning-banner") as HTMLElement | null;
+
   // Turnout elements
   const turnoutStatsText = modal.querySelector("#power-turnout-stats-text") as HTMLElement;
   const btnEquipAll = modal.querySelector("#power-btn-equip-all-turnouts") as HTMLButtonElement;
@@ -405,6 +469,67 @@ export function openPowerSettingsDialog(options: PowerSettingsDialogOptions): vo
 
     decBtn.disabled = currentLocoCount <= 1;
     incBtn.disabled = currentLocoCount >= 10;
+
+    // Feeder & Catenary live status
+    const currentTrackFeeders = pieces.filter((p) => !!p.powerFeed);
+    const currentCatFeeders = catenaryTracks.filter((p) => !!p.catenaryPowerFeed);
+
+    if (lblFeederStatus) {
+      if (currentTrackFeeders.length === 0) {
+        lblFeederStatus.className = "power-status-pill power-status-danger";
+        lblFeederStatus.textContent = `⚠️ 0 ${t.voltageUnit === "V" ? "Einspeisungen" : "Feeders"}`;
+      } else {
+        lblFeederStatus.className = "power-status-pill power-status-ok";
+        lblFeederStatus.textContent = `⚡ ${t.feederCheckOk.replace("{feeders}", String(currentTrackFeeders.length))}`;
+      }
+    }
+
+    if (lblCatenaryStatus) {
+      if (!hasCatenary) {
+        lblCatenaryStatus.className = "power-status-pill power-status-warn";
+        lblCatenaryStatus.textContent = "-";
+      } else if (currentCatenaryMode === "parallel") {
+        lblCatenaryStatus.className = "power-status-pill power-status-ok";
+        lblCatenaryStatus.textContent = `⚡ ${t.catenaryCheckParallel}`;
+      } else if (currentCatFeeders.length === 0) {
+        lblCatenaryStatus.className = "power-status-pill power-status-danger";
+        lblCatenaryStatus.textContent = `⚠️ 0 ${t.voltageUnit === "V" ? "Einspeisungen" : "Feeders"}`;
+      } else {
+        lblCatenaryStatus.className = "power-status-pill power-status-ok";
+        lblCatenaryStatus.textContent = `⚡ ${t.catenaryCheckOk.replace("{feeders}", String(currentCatFeeders.length))}`;
+      }
+    }
+
+    if (feederBanner && currentTrackFeeders.length > 0) {
+      feederBanner.style.display = "none";
+    }
+
+    if (catFeederBanner) {
+      catFeederBanner.style.display = (!hasCatenary || currentCatenaryMode === "parallel" || currentCatFeeders.length > 0) ? "none" : "";
+    }
+  }
+
+  // --- Feeder & Catenary Button Bindings ---
+  const btnSetFeeder = modal.querySelector("#power-btn-set-feeder") as HTMLButtonElement | null;
+  if (btnSetFeeder) {
+    btnSetFeeder.addEventListener("click", () => {
+      if (pieces.length > 0) {
+        pieces[0]!.powerFeed = true;
+        updateDisplay();
+        notifyLiveChange();
+      }
+    });
+  }
+
+  const btnSetCatFeeder = modal.querySelector("#power-btn-set-cat-feeder") as HTMLButtonElement | null;
+  if (btnSetCatFeeder) {
+    btnSetCatFeeder.addEventListener("click", () => {
+      if (catenaryTracks.length > 0) {
+        catenaryTracks[0]!.catenaryPowerFeed = true;
+        updateDisplay();
+        notifyLiveChange();
+      }
+    });
   }
 
   function notifyLiveChange() {

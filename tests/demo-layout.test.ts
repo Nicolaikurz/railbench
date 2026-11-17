@@ -206,10 +206,10 @@ describe("Demo Layout", () => {
     };
     const ops = new TrackOperations(ctx);
 
-    // 1. Zuerst ein normales Gleis platzieren, damit das nächste nicht als erstes Gleis automatisch powerFeed erhält
+    // 1. Normales Gleis im leeren Layout platzieren -> erhält keinen automatischen Feeder
     ops.addPieceToLayout(normalEntry, { x: 50, y: 50 });
     expect(layout.pieces.length).toBe(1);
-    expect(layout.pieces[0]?.powerFeed).toBe(true); // Erstes Gleis im leeren Layout
+    expect(layout.pieces[0]?.powerFeed).toBe(false); // Normales Gleis bleibt false
 
     // 2. Feeder mit aktiviertem Toggle hinzugefügt
     const feederActive = { ...feederEntry, _initialPowerFeed: true } as any;

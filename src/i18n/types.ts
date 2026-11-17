@@ -182,6 +182,15 @@ export interface Translations {
     systemPresetSub: string;
     shortCircuitHeader: string;
     shortCircuitSub: string;
+    feederCheckHeader: string;
+    feederCheckMissing: string;
+    feederCheckDisconnected: string;
+    feederCheckOk: string;
+    setFeederBtn: string;
+    catenaryCheckMissing: string;
+    catenaryCheckOk: string;
+    catenaryCheckParallel: string;
+    setCatenaryFeederBtn: string;
     feederHeader: string;
     feederSub: string;
     preset10VDesc: string;

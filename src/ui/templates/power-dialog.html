@@ -8,6 +8,7 @@
 
   <div class="power-dialog-body">
     {{SHORT_CIRCUIT_BANNER}}
+    {{FEEDER_BANNER}}
 
     <!-- 0. SYSTEM SCHNELLWAHL -->
     <div class="power-dialog-section" style="background: rgba(2, 132, 199, 0.08); border-color: rgba(2, 132, 199, 0.25);">
@@ -33,7 +34,10 @@
     <!-- 1. GLEIS- & OBERLEITUNGSSPANNUNG -->
     <div class="power-dialog-section">
       <div class="power-dialog-section-header">
-        <strong>{{FEEDER_HEADER}}</strong>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <strong>{{FEEDER_HEADER}}</strong>
+          <span id="power-lbl-feeder-status" class="power-status-pill {{FEEDER_STATUS_CLASS}}">{{FEEDER_STATUS_TEXT}}</span>
+        </div>
         <span class="power-highlight-val" id="power-lbl-voltage"><strong>{{CURRENT_VOLTAGE}}</strong> V</span>
       </div>
 
@@ -76,11 +80,12 @@
       <!-- Integrierter Oberleitungs-Block -->
       <div class="power-catenary-subblock {{CATENARY_DISABLED_CLASS}}" style="border-top: 1px solid var(--border-main); margin-top: 6px; padding-top: 6px;">
         <div style="display: flex; justify-content: space-between; align-items: center;">
-          <div style="display: flex; align-items: center; gap: 4px;">
+          <div style="display: flex; align-items: center; gap: 6px;">
             <span style="font-size: 11px; font-weight: 600; color: var(--text-sub);">{{CATENARY_HEADER}}</span>
             <span style="font-size: 9.5px; color: var(--text-muted);">
               {{CATENARY_TRACK_COUNT}}
             </span>
+            <span id="power-lbl-catenary-status" class="power-status-pill {{CATENARY_STATUS_CLASS}}" style="font-size: 9.5px; padding: 1px 6px;">{{CATENARY_STATUS_TEXT}}</span>
           </div>
           <div class="power-toggle-group" id="power-catenary-toggle-group">
             <button type="button" class="power-toggle-btn {{CAT_MODE_SEPARATE_ACTIVE}}" data-cat-mode="separate" {{CATENARY_DISABLED_ATTR}} style="padding: 2.5px 7px; font-size: 10.5px;">
@@ -91,6 +96,8 @@
             </button>
           </div>
         </div>
+
+        {{CATENARY_FEEDER_BANNER}}
 
         <!-- Getrennter Oberleitungs-Spannungsregler -->
         <div id="power-catenary-voltage-container" style="margin-top: 4px; {{CATENARY_VOLTAGE_CONTAINER_STYLE}}">
@@ -151,9 +158,6 @@
           <button type="button" class="power-stepper-btn" id="power-btn-loco-dec" title="-50 mA">−</button>
           <input type="number" id="power-input-loco-ma" min="10" max="3000" step="10" value="{{CURRENT_LOCO_MA}}" class="rb-input power-num-field" style="width: 58px; text-align: center;" />
           <button type="button" class="power-stepper-btn" id="power-btn-loco-inc" title="+50 mA">+</button>
-          <span class="unit-addon">mA</span>
-        </div>
-      </div>
           <span class="unit-addon">mA</span>
         </div>
       </div>

@@ -276,12 +276,10 @@ export class TrackOperations {
 
     const id = `track-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
     const connectors = computeWorldConnectors(entry, targetTransform);
-    const isFirst = layout.pieces.length === 0;
-
     const isFeeder = isFeederEntry(entry);
     const isIso = isIsolatingEntry(entry);
 
-    let powerFeed = isFirst;
+    let powerFeed = false;
     if ((entry as any)._initialPowerFeed !== undefined) {
       powerFeed = Boolean((entry as any)._initialPowerFeed);
     } else if (isFeeder) {

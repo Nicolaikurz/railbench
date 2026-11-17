@@ -1478,6 +1478,70 @@
   line-height: 1.4;
 }
 
+.power-dialog-feeder-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+}
+.power-dialog-feeder-banner.power-feeder-banner-warning {
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.5);
+}
+.power-dialog-feeder-banner.power-feeder-banner-warning strong {
+  color: #f59e0b;
+  font-size: 12px;
+  font-weight: 700;
+}
+.power-dialog-feeder-banner.power-feeder-banner-disconnected {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+}
+.power-dialog-feeder-banner.power-feeder-banner-disconnected strong {
+  color: #ef4444;
+  font-size: 12px;
+  font-weight: 700;
+}
+.power-dialog-feeder-banner .feeder-banner-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+.power-dialog-feeder-banner .feeder-banner-body p {
+  margin: 0;
+  font-size: 11px;
+  color: var(--text-main);
+  line-height: 1.35;
+}
+.power-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+.power-status-pill.power-status-ok {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+.power-status-pill.power-status-warn {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+.power-status-pill.power-status-danger {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+}
+
 .power-dialog-catenary-info {
   font-size: 11px;
   padding: 6px 10px;

@@ -543,10 +543,9 @@ export function simulatePowerDrop(
     };
   }
 
-  // 1. Einspeisepunkte ermitteln (falls keine manuell gesetzt, erstes reguläres Gleis als Standard-Einspeisung)
+  // 1. Einspeisepunkte ermitteln (nur explizit als Feeder konfigurierte Gleise / Anschlussgleise)
   const explicitFeeders = pieces.filter((p) => p.powerFeed);
-  const fallbackFeeder = pieces.find((p) => !p.isIsolator) ?? pieces[0];
-  const feeders: TrackPiece[] = explicitFeeders.length > 0 ? explicitFeeders : (fallbackFeeder ? [fallbackFeeder] : []);
+  const feeders: TrackPiece[] = explicitFeeders;
 
   // Welt-Connectors für alle Gleise aktualisieren/sicherstellen
   for (const p of pieces) {
@@ -712,9 +711,7 @@ export function simulatePowerDrop(
 
   if (catenaryPieceCount > 0) {
     const explicitCatFeeders = catenaryPieces.filter((p) => !!p.catenaryPowerFeed);
-    const fallbackCatFeeder = catenaryPieces.find((p) => !p.catenaryIsolator) ?? catenaryPieces[0];
-    const resolvedCatFeeders = explicitCatFeeders.length > 0 ? explicitCatFeeders : (fallbackCatFeeder ? [fallbackCatFeeder] : []);
-    catenaryFeeders.push(...resolvedCatFeeders);
+    catenaryFeeders.push(...explicitCatFeeders);
 
     // Catenary Adjazenzgraph aufbauen
     const catAdj = new Map<string, Set<string>>();
@@ -838,6 +835,10 @@ export function simulatePowerDrop(
 
     if (hasCatenary && catRes !== undefined) {
       if (catRes === Infinity) {
+        if (catenaryFeeders.length === 0) {
+          catMinV = 0;
+          catMaxDropPct = 100;
+        }
         catVoltage = 0;
         catDrop = catenaryFeedVoltage;
         catDropPercent = 100;
@@ -865,6 +866,10 @@ export function simulatePowerDrop(
     }
 
     if (res === Infinity) {
+      if (feeders.length === 0) {
+        minV = 0;
+        maxDropPct = 100;
+      }
       results.set(p.id, {
         pieceId: p.id,
         voltage: 0,
@@ -941,6 +946,8 @@ export function simulatePowerDrop(
   let recommendation = `Spannungsversorgung bei ${totalCurrentAmps.toFixed(2)} A Gesamtlast (${current.toFixed(2)} A Traktion [${locoCount}x ${locoCurrentMa} mA]${turnoutInfoStr}) ist im gesamten Gleisbild optimal.`;
   if (shortCircuitRes.hasShortCircuit) {
     recommendation = `⚠️ ACHTUNG: Kurzschluss im 2-Leiter-System erkannt! Linke und rechte Schiene sind kurzgeschlossen (${shortCircuitRes.shortCircuitPieces.size} Gleise betroffen). Bitte Trennstellen (I) und Kehrschleifenmodul einbauen. ${recommendation}`;
+  } else if (feeders.length === 0 && pieces.length > 0) {
+    recommendation = `⚠️ Keine Gleiseinspeisung vorhanden! Alle ${pieces.length} Gleise sind stromlos (0 V). Bitte mindestens ein Gleis als Einspeisepunkt setzen (Taste F oder Anschlussgleis).`;
   } else if (disconnectedCount > 0) {
     recommendation = `Achtung: ${disconnectedCount} Gleise haben keine elektrische Verbindung zu einer Einspeisung!`;
   } else if (criticalCount > 0) {
@@ -953,7 +960,9 @@ export function simulatePowerDrop(
     ? `Oberleitungs-Versorgung (${catenaryPieceCount} Gleise): ${catenaryFeeders.length} Einspeisepunkt(e) aktiv.`
     : undefined;
   if (catenaryPieceCount > 0) {
-    if (catDisconnectedCount > 0) {
+    if (catenaryCircuitMode === "separate" && catenaryFeeders.length === 0) {
+      catRecommendation = `⚠️ Keine Oberleitungs-Einspeisung vorhanden! Alle ${catenaryPieceCount} Oberleitungs-Abschnitte sind stromlos (0 V). Bitte Oberleitungs-Einspeisepunkt setzen (Taste Shift+F) oder auf Parallelbetrieb umschalten.`;
+    } else if (catDisconnectedCount > 0) {
       catRecommendation = `Achtung: ${catDisconnectedCount} Oberleitungsabschnitte sind von der Fahrleitungs-Einspeisung getrennt (Trennstelle prüfen)!`;
     } else if (catCriticalCount > 0) {
       catRecommendation = `Kritischer Spannungsabfall in der Oberleitung bei ${catCriticalCount} Abschnitten (>15%). Zusätzliche Oberleitungs-Einspeisung erforderlich!`;

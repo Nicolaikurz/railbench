@@ -810,5 +810,58 @@ describe("Power Drop Simulation", () => {
       expect(sim18.minVoltage).toBe(18.0);
       expect(sim18.results.get("p1")?.voltage).toBe(18.0);
     });
+
+    it("erkennt Layout ohne Feeder und meldet 0 Feeder sowie stromlose Gleise", () => {
+      const layout: Layout = {
+        name: "No Feeder Layout",
+        scale: "H0",
+        feedVoltage: 16.0,
+        pieces: [
+          {
+            id: "p1",
+            catalogId: "24188",
+            transform: { x: 0, y: 0, rotation: 0 },
+            connectors: [{ x: 0, y: 0, angle: 180 }, { x: 188.3, y: 0, angle: 0 }],
+          },
+        ],
+      };
+
+      const sim = simulatePowerDrop(layout, maerklinCCatalog);
+      expect(sim.feederCount).toBe(0);
+      expect(sim.disconnectedCount).toBe(1);
+      expect(sim.minVoltage).toBe(0);
+      expect(sim.results.get("p1")?.voltage).toBe(0);
+      expect(sim.results.get("p1")?.status).toBe("disconnected");
+      expect(sim.recommendation).toContain("Keine Gleiseinspeisung vorhanden");
+    });
+
+    it("erkennt Oberleitung im getrennten Modus ohne Feeder und meldet stromlose Oberleitung", () => {
+      const layout: Layout = {
+        name: "No Catenary Feeder Layout",
+        scale: "H0",
+        feedVoltage: 16.0,
+        catenaryCircuitMode: "separate",
+        catenaryFeedVoltage: 14.0,
+        pieces: [
+          {
+            id: "p1",
+            catalogId: "24188",
+            transform: { x: 0, y: 0, rotation: 0 },
+            connectors: [{ x: 0, y: 0, angle: 180 }, { x: 188.3, y: 0, angle: 0 }],
+            powerFeed: true,
+            hasCatenary: true,
+            // Kein catenaryPowerFeed!
+          },
+        ],
+      };
+
+      const sim = simulatePowerDrop(layout, maerklinCCatalog);
+      expect(sim.feederCount).toBe(1);
+      expect(sim.catenaryFeederCount).toBe(0);
+      expect(sim.catenaryDisconnectedCount).toBe(1);
+      expect(sim.catenaryMinVoltage).toBe(0);
+      expect(sim.results.get("p1")?.catenaryStatus).toBe("disconnected");
+      expect(sim.catenaryRecommendation).toContain("Keine Oberleitungs-Einspeisung vorhanden");
+    });
   });
 });
