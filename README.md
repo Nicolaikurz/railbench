@@ -38,7 +38,7 @@ Because what works well for my personal layout planning might not always fit eve
 ### 🍎 macOS (Apple Silicon `arm64` & Intel `x64`)
 * **Via Homebrew Cask (Recommended, easiest installation)**:
   ```bash
-  brew tap Nicolaikurz/tap
+  brew tap Nicolaikurz/railbench
   brew install --cask railbench
   ```
 * **Manual DMG / ZIP Installation**:

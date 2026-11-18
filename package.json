@@ -49,7 +49,6 @@
     "dist:mac:script": "bash scripts/build-macos.sh all dmg",
     "dist:mac:script:dmg": "bash scripts/build-macos.sh all dmg",
     "dist:mac:script:zip": "bash scripts/build-macos.sh all zip",
-    "dist:homebrew": "bash scripts/update-homebrew-cask.sh",
     "dist:all": "npm run dist:win:portable:all && npm run dist:linux:appimage:all && npm run dist:mac"
   },
   "dependencies": {

@@ -26,7 +26,7 @@ Diese Anleitung beschreibt, wie die vorkompilierten Binaries unter **Windows**, 
 ### 2. macOS (Apple Silicon `arm64` & Intel `x64`)
 * **Per Homebrew Cask (empfohlen)**:
   ```bash
-  brew tap Nicolaikurz/tap
+  brew tap Nicolaikurz/railbench
   brew install --cask railbench
   ```
 * **Manuelle Installation (DMG / ZIP)**:
@@ -72,7 +72,6 @@ Diese Anleitung beschreibt, wie die vorkompilierten Binaries unter **Windows**, 
 | **macOS Package (ZIP)** | ARM64 | `npm run dist:mac:zip:arm64` | `scripts/build-macos.sh arm64 zip` | `release/railbench-0.6.0-mac-arm64.zip` | Optionales ZIP für Apple Silicon |
 | **macOS Package (ZIP)** | x86_64 | `npm run dist:mac:zip:x64` | `scripts/build-macos.sh x64 zip` | `release/railbench-0.6.0-mac-x64.zip` | Optionales ZIP für Intel Macs |
 | **macOS Packages (ZIP Alle)** | x64 + arm64 | `npm run dist:mac:zip:all` | `scripts/build-macos.sh all zip` | `release/railbench-0.6.0-mac-*.zip` | Baut beide optionalen ZIP-Pakete |
-| **Homebrew Cask** | macOS universal | `npm run dist:homebrew` | `scripts/update-homebrew-cask.sh` | `packaging/homebrew/Casks/railbench.rb` | Aktualisiert Homebrew Cask Manifest mit SHA-256 |
 
 ---
 
