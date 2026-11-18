@@ -48,8 +48,13 @@ export interface TrackContextMenuOptions {
 }
 
 const MENU_ID = "track-context-menu";
+let activeContextCleanup: (() => void) | null = null;
 
 export function closeTrackContextMenu(): void {
+  if (activeContextCleanup) {
+    activeContextCleanup();
+    activeContextCleanup = null;
+  }
   const existing = document.getElementById(MENU_ID);
   if (existing) existing.remove();
 }
@@ -437,24 +442,26 @@ export function showTrackContextMenu(options: TrackContextMenuOptions): void {
   const handleOutsideClick = (e: MouseEvent) => {
     if (!menu.contains(e.target as Node)) {
       closeTrackContextMenu();
-      document.removeEventListener("pointerdown", handleOutsideClick);
-      window.removeEventListener("keydown", handleKeyEsc);
     }
   };
 
   const handleKeyEsc = (e: KeyboardEvent) => {
     if (e.key === "Escape") {
       closeTrackContextMenu();
-      document.removeEventListener("pointerdown", handleOutsideClick);
-      window.removeEventListener("keydown", handleKeyEsc);
     }
   };
 
   // Delay listener to avoid triggering on the click that opened the menu
-  setTimeout(() => {
+  const timerId = setTimeout(() => {
     document.addEventListener("pointerdown", handleOutsideClick);
     window.addEventListener("keydown", handleKeyEsc);
   }, 30);
+
+  activeContextCleanup = () => {
+    clearTimeout(timerId);
+    document.removeEventListener("pointerdown", handleOutsideClick);
+    window.removeEventListener("keydown", handleKeyEsc);
+  };
 }
 
 /**
@@ -527,18 +534,20 @@ export function openPropertiesDialog(piece: TrackPiece, catalogEntry?: CatalogEn
 
   document.body.appendChild(modal);
 
-  const closeModal = () => modal.remove();
+  const handleKey = (e: KeyboardEvent) => {
+    if (e.key === "Escape") {
+      closeModal();
+    }
+  };
+  const closeModal = () => {
+    window.removeEventListener("keydown", handleKey);
+    modal.remove();
+  };
   modal.querySelector("#track-modal-close")?.addEventListener("click", closeModal);
   modal.querySelector("#track-modal-ok")?.addEventListener("click", closeModal);
   modal.addEventListener("click", (e) => {
     if (e.target === modal) closeModal();
   });
-  const handleKey = (e: KeyboardEvent) => {
-    if (e.key === "Escape") {
-      closeModal();
-      window.removeEventListener("keydown", handleKey);
-    }
-  };
   window.addEventListener("keydown", handleKey);
 }
 
@@ -603,7 +612,15 @@ export function openReplaceOrSplitDialog(
 
   document.body.appendChild(modal);
 
-  const closeModal = () => modal.remove();
+  const handleKey = (e: KeyboardEvent) => {
+    if (e.key === "Escape") {
+      closeModal();
+    }
+  };
+  const closeModal = () => {
+    window.removeEventListener("keydown", handleKey);
+    modal.remove();
+  };
   modal.querySelector("#track-modal-close")?.addEventListener("click", closeModal);
   modal.querySelector("#track-modal-cancel")?.addEventListener("click", closeModal);
 
@@ -625,11 +642,5 @@ export function openReplaceOrSplitDialog(
   modal.addEventListener("click", (e) => {
     if (e.target === modal) closeModal();
   });
-  const handleKey = (e: KeyboardEvent) => {
-    if (e.key === "Escape") {
-      closeModal();
-      window.removeEventListener("keydown", handleKey);
-    }
-  };
   window.addEventListener("keydown", handleKey);
 }

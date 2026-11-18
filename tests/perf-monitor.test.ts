@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { PerfMonitor } from "@/ui/perf-monitor";
+import { setLanguage } from "@/i18n";
 import type { Renderer } from "@/render/renderer";
 import type { Layout } from "@/core/types";
 
@@ -445,5 +446,35 @@ describe("PerfMonitor - Draggable Hardware Monitor", () => {
     } finally {
       perfAny.memory = origMemory;
     }
+  });
+
+  it("dynamically updates labels and values when switching language between German and English", () => {
+    setLanguage("de");
+    const monitor = new PerfMonitor({
+      host: host as unknown as HTMLElement,
+      renderer: mockRenderer,
+      getLayout: () => layout,
+      onGenerateStressTracks: () => {},
+    });
+    monitor.show();
+
+    const ramLabel = host.querySelector("#perf-ram-label")!;
+    const tracksLabel = host.querySelector("#perf-tracks-label")!;
+    const tracksVal = host.querySelector("#perf-tracks-val")!;
+    const stressLabel = host.querySelector("#perf-stress-label")!;
+
+    setLanguage("en");
+    expect(ramLabel.textContent).toBe("RAM Usage:");
+    expect(tracksLabel.textContent).toBe("Tracks & Objects:");
+    expect(tracksVal.textContent).toBe("0 Tracks, 0 3D");
+    expect(stressLabel.textContent).toBe("Stress Test (Check Load):");
+
+    setLanguage("de");
+    expect(ramLabel.textContent).toBe("RAM Auslastung:");
+    expect(tracksLabel.textContent).toBe("Gleise & Objekte:");
+    expect(tracksVal.textContent).toBe("0 Gleise, 0 3D");
+    expect(stressLabel.textContent).toBe("Stresstest (Auslastung prüfen):");
+
+    monitor.destroy();
   });
 });

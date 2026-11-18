@@ -3,7 +3,6 @@ import { Model3D } from "@/core/types";
 import {
   TunnelProfile,
   MountainTrackCollision,
-  LocalPt,
   TunnelPortalInfo,
   TunnelRun,
   R_PORTAL,

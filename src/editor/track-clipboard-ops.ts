@@ -67,7 +67,6 @@ export function pasteClipboard(
   customOffset?: { x: number; y: number },
   onSetLastPlacedCatalogId?: (id: string | null) => void,
 ): boolean {
-  const layout = ctx.getLayout();
   const history = ctx.getHistory();
   const selection = ctx.getSelection();
 

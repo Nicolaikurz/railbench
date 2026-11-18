@@ -1,16 +1,14 @@
-import { Application, Container, Graphics, Text, TextStyle, TexturePool } from "pixi.js";
+import { Application, Container, Graphics, TexturePool } from "pixi.js";
 import type { Layout, ColorMode, TrackPiece, BaseboardConfig } from "@/core/types";
 import { catalogRegistry, type Catalog, type CatalogEntry } from "@/catalog/catalog";
 import type { SimulationSummary, ShortCircuitDetectionResult } from "@/core/simulation";
-import { getTranslations } from "@/i18n";
 import { createTrackGraphics } from "./track-sprite";
-import { createBaseboardGraphics, getStyleColors } from "./baseboard-sprite";
+import { createBaseboardGraphics } from "./baseboard-sprite";
 import { createModel2DGraphics } from "./model-sprite";
-import { getBaseboards, getBaseboardBounds, getBaseboardPolygon, getLayerPlatePolygon } from "@/core/layout";
-import { computeTableTrackCutouts } from "@/core/table-cutout";
+import { getBaseboards, getBaseboardBounds } from "@/core/layout";
 import type { BaseboardSnapGuide } from "@/core/baseboard-snapping";
 import { getConnectorSnapStatus } from "@/core/snapping";
-import { isFlexTrack, getFlexTrackMidpoint, getFlexTrackPointAt } from "@/core/flextrack";
+import { isFlexTrack, getFlexTrackPointAt } from "@/core/flextrack";
 import {
   getBuildingDoorConnectors,
   isConnectorConnectedToBuilding,
@@ -26,22 +24,6 @@ export interface MeasureState {
   scaleRatio?: number;
   scaleName?: string;
   showDeltas?: boolean;
-}
-
-function drawDashedLine(g: Graphics, x1: number, y1: number, x2: number, y2: number, dash = 4, gap = 4) {
-  const dx = x2 - x1;
-  const dy = y2 - y1;
-  const len = Math.hypot(dx, dy);
-  if (len === 0) return;
-  const cos = dx / len;
-  const sin = dy / len;
-  let dist = 0;
-  while (dist < len) {
-    const curDash = Math.min(dash, len - dist);
-    g.moveTo(x1 + cos * dist, y1 + sin * dist);
-    g.lineTo(x1 + cos * (dist + curDash), y1 + sin * (dist + curDash));
-    dist += dash + gap;
-  }
 }
 
 export interface RenderStateOptions {
@@ -73,6 +55,7 @@ export class Renderer {
   private modelsLayer = new Container();
   private tracksLayer = new Container();
   private overlayLayer = new Container();
+  private overlayGraphics = new Graphics();
   private currentTheme: "light" | "dark" = "light";
 
   getBaseboardContainer(): Container {
@@ -83,7 +66,11 @@ export class Renderer {
     while (layer.children.length > 0) {
       const child = layer.children[0]!;
       layer.removeChild(child);
-      child.destroy({ children: true });
+      if (child === this.overlayGraphics) {
+        this.overlayGraphics.clear();
+      } else {
+        child.destroy({ children: true, context: true, texture: true, textureSource: true });
+      }
     }
   }
 
@@ -644,7 +631,8 @@ export class Renderer {
 
     // 2. Overlays rendern (Connectors, Snap-Ziele)
     this.clearLayer(this.overlayLayer);
-    const ov = new Graphics();
+    const ov = this.overlayGraphics;
+    ov.clear();
     this.overlayLayer.addChild(ov);
 
     if (options.showConnectors) {

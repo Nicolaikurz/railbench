@@ -123,7 +123,6 @@ export function drawRoadSelectionContour(
 ): void {
   const kind = entry.kind;
   const glowColor = 0x0284c7;
-  const glowAlpha = 0.5;
   const contourHalf = contourWidth / 2;
 
   if (kind === "straight" || kind === "accessory" || kind === "flex") {

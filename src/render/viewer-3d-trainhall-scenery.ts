@@ -358,10 +358,6 @@ export function buildTrainHallLake(
     color: isDark ? 0x064e3b : 0x15803d,
     roughness: 0.9,
   });
-  const reedTopMat = new THREE.MeshStandardMaterial({
-    color: 0x3f2e21,
-    roughness: 0.95,
-  });
 
   const reedBeds = [
     { baseAngle: Math.PI * 0.25, count: 20 },

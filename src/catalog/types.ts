@@ -1,5 +1,3 @@
-import type { Connector, Transform } from "@/core/types";
-
 export type TrackKind =
   | "straight"
   | "curve"
@@ -71,13 +69,6 @@ export function compareCatalogEntriesByNumber(a: CatalogEntry, b: CatalogEntry):
   const cmp = a.id.localeCompare(b.id, undefined, { numeric: true, sensitivity: "base" });
   if (cmp !== 0) return cmp;
   return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" });
-}
-
-/**
- * Sortiert ein Array von Katalogeinträgen nach Artikelnummer / ID.
- */
-export function sortCatalogEntries(entries: CatalogEntry[]): CatalogEntry[] {
-  return [...entries].sort(compareCatalogEntriesByNumber);
 }
 
 /**

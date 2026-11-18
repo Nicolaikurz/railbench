@@ -1,5 +1,5 @@
 import type { Layout, TrackPiece, Model3D, Transform, SignalSide, SignalDirection } from "@/core/types";
-import { ensureDefaultLayers, createLayout } from "@/core/layout";
+import { createLayout } from "@/core/layout";
 import {
   computeWorldConnectors,
   getLocalConnectors,
@@ -15,29 +15,15 @@ import { snapEngineShedToTrack, snapTrainhallToTrack } from "@/core/engine-shed-
 import { cutFlexTrack, bendFlexTrack, flipFlexTrackPiece, isFlexTrack, resetFlexTrackToOriginal } from "@/core/flextrack";
 import {
   AddPieceCommand,
-  AddPiecesCommand,
   RemovePieceCommand,
   MovePieceCommand,
-  ToggleFeederCommand,
-  ToggleIsolatorCommand,
-  ToggleCatenaryCommand,
-  ToggleCatenaryFeederCommand,
-  ToggleCatenaryIsolatorCommand,
-  ToggleTurnoutLanternCommand,
-  ToggleTurnoutDecoderCommand,
-  ToggleSignalCommand,
-  SetSignalConfigCommand,
-  ToggleBridgeCommand,
-  MovePiecesToLayerCommand,
-  ApplyRampElevationsCommand,
   AddModelCommand,
   RemoveModelCommand,
   MoveModelCommand,
+  History,
 } from "@/editor/commands";
-import { History } from "@/editor/commands";
 import type { Selection } from "@/editor/selection";
 import {
-  deg2rad,
   normAngle,
   rotate,
   rotateGroupAroundCentroid,
@@ -45,7 +31,6 @@ import {
 } from "@/core/geometry";
 import { getLanguage, getTranslations } from "@/i18n";
 import { exportPieceListCSV, downloadFile } from "@/io/export";
-import { calculateAutoRamp } from "@/core/ramp";
 import type { PlanManager, PlanFormat } from "@/io/plan-manager";
 import type { Renderer } from "@/render/renderer";
 

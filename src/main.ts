@@ -1,24 +1,23 @@
 import "./styles/main.css";
 import { Renderer } from "@/render/renderer";
 import { attachCamera } from "@/render/camera";
-import { createLayout, ensureDefaultLayers, getBaseboards, getBaseboardPolygon } from "@/core/layout";
+import { createLayout, ensureDefaultLayers, getBaseboards } from "@/core/layout";
 import { updatePieceConnections } from "@/core/snapping";
 import type { BaseboardSnapGuide } from "@/core/baseboard-snapping";
-import type { BaseboardConfig, Layout, TrackPiece, Transform, Model3D, ColorMode } from "@/core/types";
+import type { BaseboardConfig, Layout, TrackPiece, Model3D, ColorMode } from "@/core/types";
 import { Ruler } from "@/ui/ruler";
 import { Viewer3D } from "@/render/viewer-3d";
-import { catalogRegistry, computeWorldConnectors, type Catalog, type CatalogEntry } from "@/catalog/catalog";
+import { catalogRegistry, type Catalog, type CatalogEntry } from "@/catalog/catalog";
 import {
   simulatePowerDrop,
   type SimulationSummary,
-  isTurnoutEntry,
   detectShortCircuit,
   type ShortCircuitDetectionResult,
   getDefaultFeedVoltage,
   getDefaultLocoCurrentMa,
 } from "@/core/simulation";
 import { Selection } from "@/editor/selection";
-import { History, AddPiecesCommand } from "@/editor/commands";
+import { History } from "@/editor/commands";
 import { createToolbar, updateToolbarState, type ToolbarEvents } from "@/ui/toolbar";
 import { buildToolbarEvents } from "@/ui/toolbar-events-factory";
 import { getTranslations, onLanguageChange, getLanguage, setLanguage } from "@/i18n";
@@ -26,10 +25,7 @@ import { Sidebar } from "@/ui/sidebar";
 import { RightSidebar } from "@/ui/right-sidebar";
 import { PlanManager } from "@/io/plan-manager";
 import { openPrintDialog } from "@/io/print";
-import { openChangeHeightDialog } from "@/ui/height-dialog";
-import { openRampGeneratorDialog } from "@/ui/ramp-generator-dialog";
-import { openHeightPanel } from "@/ui/height-panel";
-import { openHelpDialog, type HelpTab } from "@/ui/help-dialog";
+import { openHelpDialog } from "@/ui/help-dialog";
 import { openCatalogImportDialog } from "@/catalog/catalog-importer";
 import { openCollabDialog } from "@/ui/collab-dialog";
 import { CollabClient } from "@/collab/collab-client";
@@ -38,11 +34,10 @@ import { PerfMonitor } from "@/ui/perf-monitor";
 import { themeManager } from "@/theme/theme-manager";
 import { loadAppSettings, saveAppSettings } from "@/settings/settings-manager";
 import { SelectionBar } from "@/ui/selection-bar";
-import { MeasureHud, getScaleRatio } from "@/ui/measure-hud";
+import { getScaleRatio } from "@/ui/measure-hud";
 import { MeasureController } from "@/editor/measure-controller";
 import { showToast, showCollabToast } from "@/ui/toast";
 import {
-  openHeightPanelUnified,
   openHeightDialogForSelection,
   openRampGeneratorForPiece,
   type HeightPanelDeps,
@@ -55,9 +50,8 @@ import {
 } from "@/editor/app-startup";
 import { TrackOperations } from "@/editor/track-operations";
 import { CanvasController } from "@/editor/canvas-controller";
-import { initDemoTracks, generateStressTracks, type DemoLayoutDef } from "@/editor/demo-tracks";
+import { initDemoTracks, generateStressTracks } from "@/editor/demo-tracks";
 import { showWelcomeDialog, type StartupAction } from "@/ui/welcome-dialog";
-import { showDemoTracksDialog } from "@/ui/demo-tracks-dialog";
 import { getFullAppTitle } from "@/version";
 import { getEffectiveFlexEntry } from "@/core/flextrack";
 import { initLayoutResizers } from "@/ui/layout-resizer";
@@ -457,7 +451,6 @@ async function main() {
   let activePinDropHandler: ((pinId: string, wPos: { x: number; y: number }, hitPiece: TrackPiece | null) => void) | null = null;
   let activePointMarkers: Array<{ x: number; y: number; label: string; color: number; id?: string }> | null = null;
   let activeHoveredConnector: { pieceId: string; connectorIndex: number } | null = null;
-  let canvasController: CanvasController | null = null;
   let previewRampElevations: Map<string, { start: number; end: number }> | null = null;
   let previewGeneratedPieces: TrackPiece[] | null = null;
 
@@ -852,7 +845,7 @@ async function main() {
   }
 
   // Canvas Interaktion & Shortcuts initialisieren
-  canvasController = new CanvasController({
+  new CanvasController({
     canvas: renderer.app.canvas,
     renderer,
     getLayout: () => layout,

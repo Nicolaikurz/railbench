@@ -1,4 +1,4 @@
-import type { Layout, Layer, TrackPiece, BaseboardConfig, LayerPlate } from "./types";
+import type { Layout, Layer, BaseboardConfig, LayerPlate } from "./types";
 import { distToSegment } from "./geometry";
 
 export function createDefaultBaseboard(partial?: Partial<BaseboardConfig>): BaseboardConfig {
@@ -478,17 +478,6 @@ export function createLayout(name = "New Layout"): Layout {
     baseboards: [defBoard],
   };
   return l;
-}
-
-export function addPiece(layout: Layout, piece: TrackPiece): void {
-  if (!piece.layerId) {
-    piece.layerId = layout.activeLayerId ?? "layer-1";
-  }
-  layout.pieces.push(piece);
-}
-
-export function removePiece(layout: Layout, id: string): void {
-  layout.pieces = layout.pieces.filter((p) => p.id !== id);
 }
 
 /** Prüft, ob ein Weltpunkt innerhalb der Tischplatte liegt. */

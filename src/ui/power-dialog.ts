@@ -58,8 +58,6 @@ export function openPowerSettingsDialog(options: PowerSettingsDialogOptions): vo
 
   const pieces = layout.pieces || [];
   const catenaryTracks = pieces.filter((p) => !!p.hasCatenary);
-  const catenaryFeeders = catenaryTracks.filter((p) => !!p.catenaryPowerFeed);
-  const catenaryIsolators = catenaryTracks.filter((p) => !!p.catenaryIsolator);
   const hasCatenary = catenaryTracks.length > 0;
 
   // Weichen ermitteln

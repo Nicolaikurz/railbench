@@ -129,15 +129,6 @@ export function buildTrainHall(
     roughness: 0.7,
     metalness: 0.4,
   });
-  const sleeperMat = new THREE.MeshStandardMaterial({
-    color: 0x27272a,
-    roughness: 0.8,
-  });
-  const railMat = new THREE.MeshStandardMaterial({
-    color: 0x94a3b8,
-    roughness: 0.25,
-    metalness: 0.85,
-  });
 
   // 1. Hallenboden, Sicherheitsmarkierungen & Bodengleise
   buildTrainHallFloor(trainHallGroup, cx, cz, wHall, lHall, floorY, minX, maxX, minZ, maxZ, floorMat, yellowLineMat);
@@ -728,10 +719,6 @@ function buildTrainHallLamps(
       const bulb = new THREE.Mesh(new THREE.SphereGeometry(18, 12, 12), bulbMat);
       bulb.position.set(lx, lampY, z);
       trainHallGroup.add(bulb);
-
-      const pointLight = new THREE.PointLight(0xffedd5, 0.45, 4500, 1.4);
-      pointLight.position.set(lx, lampY - 10, z);
-      trainHallGroup.add(pointLight);
     }
   }
 }

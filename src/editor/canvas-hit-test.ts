@@ -1,10 +1,10 @@
 import { deg2rad, dist, distanceToTrackPiece } from "@/core/geometry";
-import type { Layout, TrackPiece, Model3D } from "@/core/types";
+import type { Layout, TrackPiece } from "@/core/types";
 import type { CatalogEntry } from "@/catalog/catalog";
 import type { Selection } from "@/editor/selection";
 import { getConnectorSnapStatus } from "@/core/snapping";
 import { isConnectorConnectedToBuilding } from "@/core/engine-shed-snap";
-import { isFlexTrack, flipFlexTrackPiece, getFlexTrackMidpoint, getFlexTrackPointAt } from "@/core/flextrack";
+import { isFlexTrack, flipFlexTrackPiece, getFlexTrackPointAt } from "@/core/flextrack";
 
 export interface FlexHandleHit {
   piece: TrackPiece;
@@ -21,7 +21,7 @@ export function findOpenConnectorAt(
   isPieceInteractive: (piece: TrackPiece) => boolean,
   pos: { x: number; y: number },
   scale: number,
-  getCatalogEntryForPiece?: (piece: TrackPiece) => CatalogEntry | undefined,
+  _getCatalogEntryForPiece?: (piece: TrackPiece) => CatalogEntry | undefined,
 ): { piece: TrackPiece; connectorIndex: number } | null {
   const selectedIds = new Set(selection.all());
   const plusDist = 28;

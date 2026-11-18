@@ -31,6 +31,12 @@ import { drawTunnel2D } from "./track-tunnel";
 
 export { desaturateColor };
 
+const ROTATION_GIZMO_TEXT_STYLE = new TextStyle({
+  fontSize: 16,
+  fill: 0xffffff,
+  fontWeight: "bold",
+});
+
 export interface RenderOptions {
   isSelected?: boolean;
   showConnectors?: boolean;
@@ -386,11 +392,7 @@ function drawSelectionGizmo(container: Container, entry: CatalogEntry) {
   // Symbol ↻
   const rotText = new Text({
     text: "↻",
-    style: new TextStyle({
-      fontSize: 16,
-      fill: 0xffffff,
-      fontWeight: "bold",
-    }),
+    style: ROTATION_GIZMO_TEXT_STYLE,
   });
   rotText.anchor.set(0.5);
   rotText.position.set(handlePos.x, handlePos.y);

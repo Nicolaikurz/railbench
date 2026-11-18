@@ -1,4 +1,4 @@
-import type { Layout, TrackPiece, Model3D, Transform, BaseboardConfig } from "@/core/types";
+import type { TrackPiece, Model3D, Transform, BaseboardConfig } from "@/core/types";
 import type { CatalogEntry } from "@/catalog/catalog";
 import { computeWorldConnectors } from "@/catalog/catalog";
 import { updatePieceConnections } from "@/core/snapping";
@@ -12,7 +12,6 @@ import {
   getPieceRotationHandleWorld, isPieceInSelectionBox, computeGroupCentroid, type RotatableItem,
 } from "@/core/geometry";
 import { MoveModelCommand, MoveBaseboardCommand } from "@/editor/commands";
-import type { Selection } from "@/editor/selection";
 import { handleCanvasDrop } from "./canvas-drop-handler";
 import { KeyboardController } from "./keyboard-controller";
 import { adjustFlexTrackOpenConnector, bendFlexTrackBetweenFixedEnds } from "@/core/flextrack";
@@ -974,9 +973,6 @@ export class CanvasController {
       canvas.style.cursor = "default";
       this.deps.sync();
     } else if (this.isDraggingPiece) {
-      const clickedPiece = this.activePiece;
-      const wasDrag = this.hasDragMoved;
-
       if (!this.hasDragMoved && this.pendingSingleSelect) {
         selection.set(this.pendingSingleSelect);
         const m = layout.models?.find((x) => x.id === this.pendingSingleSelect);

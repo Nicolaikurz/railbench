@@ -29,13 +29,6 @@ export interface TunnelProfile {
   totalH: number; // wallH + archRise
 }
 
-export const RAIL_PROFILE: TunnelProfile = {
-  isRoad: false, hasCatenary: false, numTracks: 1, innerWidth: 60, wallH: 56, archRise: 28, pier: 16, totalH: 84,
-};
-export const ROAD_PROFILE: TunnelProfile = {
-  isRoad: true, hasCatenary: false, numTracks: 1, innerWidth: 80, wallH: 52, archRise: 20, pier: 14, totalH: 72,
-};
-
 export function createTunnelProfile(
   isRoad: boolean,
   hasCatenary = false,
@@ -97,9 +90,6 @@ export function createTunnelProfile(
     totalH: Math.round(multiWallH + multiArchRise),
   };
 }
-
-export const profileFor = (isRoad: boolean, hasCatenary = false, gauge = 16.5): TunnelProfile =>
-  createTunnelProfile(isRoad, hasCatenary, gauge, 1, 0);
 
 /** Relative Berggrenze (0..1, elliptisch oder entlang Pinselpfad), an der die Portale sitzen. */
 export const R_PORTAL = 0.82;

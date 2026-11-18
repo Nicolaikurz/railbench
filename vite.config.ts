@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig, type Plugin } from "vite";
 import { fileURLToPath } from "node:url";
 import { WebSocketServer, WebSocket } from "ws";
@@ -222,11 +223,24 @@ export default defineConfig({
       ignored: [
         "**/packaging/**",
         "**/.flatpak-builder/**",
+        "**/build-flatpak/**",
         "**/release/**",
         "**/dist/**",
         "**/dist-electron/**",
       ],
     },
+  },
+  test: {
+    include: ["tests/**/*.test.ts"],
+    exclude: [
+      "**/node_modules/**",
+      "**/dist/**",
+      "**/dist-electron/**",
+      "**/release/**",
+      "**/build-flatpak/**",
+      "**/packaging/**",
+      "**/.flatpak-builder/**",
+    ],
   },
   build: {
     chunkSizeWarningLimit: 1200,

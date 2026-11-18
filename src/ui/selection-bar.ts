@@ -1,10 +1,7 @@
 import type { Layout, TrackPiece, Model3D } from "@/core/types";
 import type { Catalog, CatalogEntry } from "@/catalog/catalog";
-import { catalogRegistry, maerklinCCatalog } from "@/catalog/catalog";
-import { isTurnoutEntry } from "@/core/simulation";
 import { getTranslations, onLanguageChange, getLanguage } from "@/i18n";
-import { isFlexTrack, getFlexTrackRampInfo } from "@/core/flextrack";
-import { calculateAutoRamp } from "@/core/ramp";
+import { isFlexTrack } from "@/core/flextrack";
 
 export interface SelectionBarCallbacks {
   onApplyHeight: (targetHeightMm: number) => void;
@@ -274,7 +271,6 @@ export class SelectionBar {
   private selBarDivPower: HTMLElement | null = null;
   private selBarBtnFeeder: HTMLButtonElement;
   private selBarBtnIsolator: HTMLButtonElement;
-  private selBarDivCatenary: HTMLElement | null = null;
   private selBarBtnCatenary: HTMLButtonElement;
   private selBarBtnCatenaryFeed: HTMLButtonElement;
   private selBarBtnCatenaryIso: HTMLButtonElement;
@@ -375,7 +371,6 @@ export class SelectionBar {
     this.selBarDivPower = this.container.querySelector("#sel-bar-div-power") as HTMLElement | null;
     this.selBarBtnFeeder = this.container.querySelector("#sel-bar-btn-feeder") as HTMLButtonElement;
     this.selBarBtnIsolator = this.container.querySelector("#sel-bar-btn-isolator") as HTMLButtonElement;
-    this.selBarDivCatenary = this.container.querySelector("#sel-bar-div-catenary") as HTMLElement | null;
     this.selBarBtnCatenary = this.container.querySelector("#sel-bar-btn-catenary") as HTMLButtonElement;
     this.selBarBtnCatenaryFeed = this.container.querySelector("#sel-bar-btn-catenary-feed") as HTMLButtonElement;
     this.selBarBtnCatenaryIso = this.container.querySelector("#sel-bar-btn-catenary-iso") as HTMLButtonElement;

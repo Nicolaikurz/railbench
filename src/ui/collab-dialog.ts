@@ -42,7 +42,7 @@ export interface CollabDialogOptions {
 }
 
 export function openCollabDialog(options: CollabDialogOptions): void {
-  const { client, layout, onConnect, onDisconnect, onStartServer, onStopServer } = options;
+  const { client, onConnect, onDisconnect, onStartServer, onStopServer } = options;
   const t = getTranslations().collabDialog;
 
   const existing = document.getElementById("collab-modal");

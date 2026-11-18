@@ -1,16 +1,14 @@
-import type { Connector, TrackPiece, Transform, Layer, Vec2 } from "./types";
+import type { Connector, TrackPiece, Layer, Vec2 } from "./types";
 import type { CatalogEntry } from "@/catalog/catalog";
 import { computeWorldConnectors } from "@/catalog/catalog";
 import {
   dist,
   deg2rad,
-  rad2deg,
   transformPoint,
   untransformPoint,
   normAngle,
   evaluateFlexSpline,
   computeFlexSplineLength,
-  isSplineTrackEntry,
 } from "./geometry";
 import { getPieceConnectorHeight, updatePieceConnections } from "./snapping";
 
@@ -555,7 +553,7 @@ export function bendFlexTrackBetweenFixedEnds(
   fixedC0: Vec2,
   fixedC1: Vec2,
   targetWorldPos: Vec2,
-  layers?: Layer[],
+  _layers?: Layer[],
   pivotFraction = 0.5,
 ): void {
   const maxLen = entry.length ?? 900;

@@ -6,7 +6,6 @@ import {
   eventToShortcutString,
   type KeyActionId,
   type KeyActionDef,
-  type KeyActionCategory,
 } from "@/settings/keymap-manager";
 import { getLanguage } from "@/i18n";
 import { showToast } from "./toast";

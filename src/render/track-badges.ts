@@ -39,8 +39,6 @@ function getTrackNumberStyle(fontSize: number): TextStyle {
   return style;
 }
 
-const TRACK_NUMBER_STYLE = getTrackNumberStyle(10);
-
 const VOLT_STYLE_GOOD = new TextStyle({
   fontFamily: "Inter, system-ui, -apple-system, sans-serif",
   fontSize: 9.5,
@@ -212,24 +210,19 @@ export function drawVoltageBadge(
 
   let bgColor = 0x064e3b;
   let strokeColor = 0x10b981;
-  let textColor = 0xecfdf5;
 
   if (isShort) {
     bgColor = 0x7f1d1d;
     strokeColor = 0xef4444;
-    textColor = 0xfff1f2;
   } else if (isDisc) {
     bgColor = 0x450a0a;
     strokeColor = 0xdc2626;
-    textColor = 0xfecaca;
   } else if (powerResult.status === "critical") {
     bgColor = 0x7f1d1d;
     strokeColor = 0xef4444;
-    textColor = 0xfef2f2;
   } else if (powerResult.status === "warning") {
     bgColor = 0x78350f;
     strokeColor = 0xf59e0b;
-    textColor = 0xfffbeb;
   }
 
   let textStyle = VOLT_STYLE_GOOD;

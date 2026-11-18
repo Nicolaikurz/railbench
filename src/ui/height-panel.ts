@@ -44,6 +44,8 @@ interface StartConnectorOption {
   label: string;
 }
 
+let activeHeightPanelCleanup: (() => void) | null = null;
+
 export function openHeightPanel(options: HeightPanelOptions): HTMLElement {
   const {
     layout,
@@ -61,7 +63,11 @@ export function openHeightPanel(options: HeightPanelOptions): HTMLElement {
 
   const isDe = getLanguage() === "de";
 
-  // Remove any existing height panel
+  // Remove any existing height panel and its global listeners
+  if (activeHeightPanelCleanup) {
+    activeHeightPanelCleanup();
+    activeHeightPanelCleanup = null;
+  }
   const existing = document.getElementById("height-panel-root");
   if (existing) {
     existing.remove();
@@ -90,52 +96,177 @@ export function openHeightPanel(options: HeightPanelOptions): HTMLElement {
   panel.className = "height-panel-card";
   panel.innerHTML = heightPanelHtml;
 
-  // Position below or next to #right-sidebar
-  const rsb = document.getElementById("right-sidebar");
-  if (rsb) {
-    const rsbRect = rsb.getBoundingClientRect();
-    const appEl = document.getElementById("app");
-    const isCollapsed = appEl?.classList.contains("right-collapsed");
-    if (!isCollapsed && rsbRect.height > 0) {
-      if (rsbRect.bottom + 420 <= window.innerHeight) {
-        panel.style.top = `${Math.max(76, rsbRect.bottom + 8)}px`;
-        panel.style.right = "14px";
-      } else {
-        panel.style.top = `${Math.max(76, rsbRect.top)}px`;
-        panel.style.right = `${Math.round(rsbRect.width + 24)}px`;
-      }
-    }
-  }
-
+  // Position below or next to #right-sidebar (or restore saved position)
   const parentEl = document.getElementById("app") || document.body;
   parentEl.appendChild(panel);
 
+  const applyDefaultDockedPosition = () => {
+    panel.style.left = "auto";
+    panel.style.bottom = "auto";
+    panel.style.right = "14px";
+    panel.style.top = "76px";
+    const rsb = document.getElementById("right-sidebar");
+    if (rsb) {
+      const rsbRect = rsb.getBoundingClientRect();
+      const appEl = document.getElementById("app");
+      const isCollapsed = appEl?.classList.contains("right-collapsed");
+      if (!isCollapsed && rsbRect.height > 0) {
+        if (rsbRect.bottom + 420 <= window.innerHeight) {
+          panel.style.top = `${Math.max(76, rsbRect.bottom + 8)}px`;
+          panel.style.right = "14px";
+        } else {
+          panel.style.top = `${Math.max(76, rsbRect.top)}px`;
+          panel.style.right = `${Math.round(rsbRect.width + 24)}px`;
+        }
+      }
+    }
+  };
+
+  applyDefaultDockedPosition();
+
+  if (typeof localStorage !== "undefined") {
+    try {
+      const savedPosStr = localStorage.getItem("railbench_height_panel_pos");
+      if (savedPosStr) {
+        const savedPos = JSON.parse(savedPosStr);
+        if (typeof savedPos?.left === "number" && typeof savedPos?.top === "number") {
+          const maxLeft = Math.max(10, (window.innerWidth || 1000) - (panel.offsetWidth || 334) - 10);
+          const maxTop = Math.max(50, (window.innerHeight || 800) - 80);
+          panel.style.right = "auto";
+          panel.style.bottom = "auto";
+          panel.style.left = `${Math.round(Math.max(10, Math.min(savedPos.left, maxLeft)))}px`;
+          panel.style.top = `${Math.round(Math.max(50, Math.min(savedPos.top, maxTop)))}px`;
+        }
+      }
+    } catch {}
+  }
+
   const qs = <T extends HTMLElement = HTMLElement>(sel: string): T => panel.querySelector(sel) as T;
 
-  // Dragging support for header
+  // Dragging support for header (matching PerfMonitor behavior)
   const header = qs(".hp-header");
+  header.style.userSelect = "none";
+  header.style.touchAction = "none";
+  header.title = isDe
+    ? "Ziehen zum Verschieben (Doppelklick zum Zurücksetzen)"
+    : "Drag to move (Double-click to reset)";
+
   let isDraggingPanel = false;
-  let dragOffset = { x: 0, y: 0 };
+  let dragStartX = 0;
+  let dragStartY = 0;
+  let initialLeft = 0;
+  let initialTop = 0;
+
+  const onPanelDragMove = (e: PointerEvent) => {
+    if (!isDraggingPanel) return;
+    const dx = e.clientX - dragStartX;
+    const dy = e.clientY - dragStartY;
+    const panelW = panel.offsetWidth || 334;
+    const maxLeft = Math.max(10, (window.innerWidth || 1000) - panelW - 10);
+    const maxTop = Math.max(50, (window.innerHeight || 800) - 80);
+    const newLeft = Math.max(10, Math.min(initialLeft + dx, maxLeft));
+    const newTop = Math.max(50, Math.min(initialTop + dy, maxTop));
+    panel.style.left = `${Math.round(newLeft)}px`;
+    panel.style.top = `${Math.round(newTop)}px`;
+  };
+
+  const onPanelDragEnd = (e?: PointerEvent) => {
+    if (!isDraggingPanel) return;
+    isDraggingPanel = false;
+    header.style.cursor = "grab";
+    if (typeof document !== "undefined" && document.body) {
+      document.body.style.userSelect = "";
+    }
+    if (e && typeof header.hasPointerCapture === "function") {
+      try {
+        if (header.hasPointerCapture(e.pointerId)) {
+          header.releasePointerCapture(e.pointerId);
+        }
+      } catch {}
+    }
+    window.removeEventListener("pointermove", onPanelDragMove);
+    window.removeEventListener("pointerup", onPanelDragEnd);
+    window.removeEventListener("pointercancel", onPanelDragEnd);
+
+    const curLeft = parseFloat(panel.style.left);
+    const curTop = parseFloat(panel.style.top);
+    if (!isNaN(curLeft) && !isNaN(curTop) && typeof localStorage !== "undefined") {
+      try {
+        localStorage.setItem("railbench_height_panel_pos", JSON.stringify({ left: curLeft, top: curTop }));
+      } catch {}
+    }
+  };
 
   header.addEventListener("pointerdown", (e) => {
-    if ((e.target as HTMLElement).tagName === "BUTTON") return;
+    if ((e.target as HTMLElement)?.closest?.("#hp-close-btn, button")) return;
+    if (e.button !== 0) return;
+    e.preventDefault();
     isDraggingPanel = true;
-    const rect = panel.getBoundingClientRect();
-    dragOffset = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    dragStartX = e.clientX;
+    dragStartY = e.clientY;
+
+    const parentRect = typeof parentEl.getBoundingClientRect === "function"
+      ? parentEl.getBoundingClientRect()
+      : { left: 0, top: 0, width: 0, height: 0 };
+    const rect = typeof panel.getBoundingClientRect === "function"
+      ? panel.getBoundingClientRect()
+      : { left: 0, top: 0, width: 0, height: 0 };
+
+    if (rect.width && parentRect.width) {
+      initialLeft = rect.left - parentRect.left;
+      initialTop = rect.top - parentRect.top;
+    } else {
+      const hostW = parentEl.clientWidth || window.innerWidth || 1000;
+      const panelW = panel.offsetWidth || 334;
+      initialLeft =
+        parseFloat(panel.style.left) ||
+        panel.offsetLeft ||
+        (panel.style.right ? hostW - panelW - (parseFloat(panel.style.right) || 14) : 100);
+      initialTop = parseFloat(panel.style.top) || panel.offsetTop || 76;
+    }
+
     panel.style.right = "auto";
-    panel.setPointerCapture(e.pointerId);
+    panel.style.bottom = "auto";
+    panel.style.left = `${Math.round(initialLeft)}px`;
+    panel.style.top = `${Math.round(initialTop)}px`;
+    header.style.cursor = "grabbing";
+    if (typeof document !== "undefined" && document.body) {
+      document.body.style.userSelect = "none";
+    }
+    if (typeof header.setPointerCapture === "function") {
+      try {
+        header.setPointerCapture(e.pointerId);
+      } catch {}
+    }
+    window.addEventListener("pointermove", onPanelDragMove);
+    window.addEventListener("pointerup", onPanelDragEnd);
+    window.addEventListener("pointercancel", onPanelDragEnd);
   });
-  header.addEventListener("pointermove", (e) => {
-    if (!isDraggingPanel) return;
-    panel.style.left = `${Math.max(10, Math.min(window.innerWidth - panel.offsetWidth - 10, e.clientX - dragOffset.x))}px`;
-    panel.style.top = `${Math.max(50, Math.min(window.innerHeight - 80, e.clientY - dragOffset.y))}px`;
-  });
-  header.addEventListener("pointerup", (e) => {
-    if (isDraggingPanel) { isDraggingPanel = false; try { panel.releasePointerCapture(e.pointerId); } catch (_) {} }
+
+  header.addEventListener("dblclick", () => {
+    applyDefaultDockedPosition();
+    if (typeof localStorage !== "undefined") {
+      try {
+        localStorage.removeItem("railbench_height_panel_pos");
+      } catch {}
+    }
   });
 
   // Cleanup helper
+  const onKeyDown = (e: KeyboardEvent) => {
+    if (e.key === "Escape") {
+      closePanel();
+    }
+  };
+
   const closePanel = () => {
+    if (isDraggingPanel) {
+      onPanelDragEnd();
+    }
+    window.removeEventListener("keydown", onKeyDown);
+    if (activeHeightPanelCleanup === closePanel) {
+      activeHeightPanelCleanup = null;
+    }
     setPickHandler?.(null);
     setPinDropHandler?.(null);
     setPointMarkers?.(null);
@@ -144,16 +275,13 @@ export function openHeightPanel(options: HeightPanelOptions): HTMLElement {
     panel.remove();
     onClose?.();
   };
+  activeHeightPanelCleanup = closePanel;
 
   const closeBtn = qs<HTMLButtonElement>("#hp-close-btn");
   const cancelBtn = qs<HTMLButtonElement>("#hp-btn-cancel");
   const applyBtn = qs<HTMLButtonElement>("#hp-btn-apply");
   closeBtn.addEventListener("click", closePanel);
   cancelBtn.addEventListener("click", closePanel);
-
-  const onKeyDown = (e: KeyboardEvent) => {
-    if (e.key === "Escape") { closePanel(); window.removeEventListener("keydown", onKeyDown); }
-  };
   window.addEventListener("keydown", onKeyDown);
 
   // Tab switcher
@@ -439,7 +567,6 @@ export function openHeightPanel(options: HeightPanelOptions): HTMLElement {
     targetLayerId = targetLayer.id;
     const targetH = targetLayer.heightMm ?? 0;
     const sH = parseFloat(rampHeightInputA.value) || 0;
-    const dir: 1 | -1 = targetH < sH ? -1 : 1;
     const pieces = selectedPieces.length > 0 ? selectedPieces : (rampPieceA ? [rampPieceA] : []);
     const testRes = calculateRamp({
       pieces,

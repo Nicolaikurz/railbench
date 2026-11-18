@@ -52,6 +52,7 @@ export function createPieceDragCanvas(
 }
 
 const thumbnailCache = new Map<string, HTMLCanvasElement>();
+const MAX_THUMBNAIL_CACHE_SIZE = 240;
 
 /**
  * Creates a crisp, proportional 2D thumbnail preview of a catalog entry for sidebar cards.
@@ -105,8 +106,21 @@ export function createCatalogThumbnail(
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
     ctx.drawImage(rawCanvas, 0, 0, rawCanvas.width, rawCanvas.height, drawX, drawY, drawW, drawH);
+    rawCanvas.width = 0;
+    rawCanvas.height = 0;
   }
 
+  if (thumbnailCache.size >= MAX_THUMBNAIL_CACHE_SIZE) {
+    const oldestKey = thumbnailCache.keys().next().value;
+    if (oldestKey !== undefined) {
+      const evicted = thumbnailCache.get(oldestKey);
+      if (evicted) {
+        evicted.width = 0;
+        evicted.height = 0;
+      }
+      thumbnailCache.delete(oldestKey);
+    }
+  }
   thumbnailCache.set(cacheKey, thumbCanvas);
 
   const result = document.createElement("canvas");
@@ -840,6 +854,8 @@ export function attachDragImage(dataTransfer: DataTransfer, canvas: HTMLCanvasEl
   // Schedule removal on next event loop tick
   setTimeout(() => {
     canvas.remove?.();
+    canvas.width = 0;
+    canvas.height = 0;
   }, 0);
 }
 
@@ -899,7 +915,7 @@ function drawTurnoutBranch(
   ballastWidth: number,
   gauge: number,
   ballastColor: string,
-  sleeperColor: string,
+  _sleeperColor: string,
   railColor: string,
   shadowColor: string,
 ): void {

@@ -7,7 +7,7 @@ import { PlanManager } from "@/io/plan-manager";
 import { getLanguage } from "@/i18n";
 import { showToast } from "@/ui/toast";
 import { showDemoTracksDialog } from "@/ui/demo-tracks-dialog";
-import { showWelcomeDialog, type StartupAction } from "@/ui/welcome-dialog";
+import { showWelcomeDialog } from "@/ui/welcome-dialog";
 import { initDemoTracks, type DemoLayoutDef } from "@/editor/demo-tracks";
 import { saveAppSettings } from "@/settings/settings-manager";
 

@@ -12,6 +12,16 @@ import {
 import { getEffectiveFlexEntry } from "@/core/flextrack";
 import { drawTrackCenterline } from "./track-rails-draw";
 
+const FEEDER_MARKER_TEXT_ACTIVE = new TextStyle({ fontSize: 13, fill: 0x1e293b, fontWeight: "bold" });
+const FEEDER_MARKER_TEXT_GREY = new TextStyle({ fontSize: 13, fill: 0xe2e8f0, fontWeight: "bold" });
+const BRIDGE_ICON_TEXT_STYLE = new TextStyle({ fontSize: 7, fill: 0xffffff });
+const SIGNAL_TEXT_STYLE = new TextStyle({
+  fontSize: 4,
+  fontWeight: "bold",
+  fill: 0xf8fafc,
+  fontFamily: "monospace",
+});
+
 export function drawPowerFeederMarker(parent: Container, entry: CatalogEntry, isGrey = false): void {
   const center = getPieceLocalCenter(entry);
   const gauge = entry.gauge ?? 16.5;
@@ -52,7 +62,7 @@ export function drawPowerFeederMarker(parent: Container, entry: CatalogEntry, is
 
   const txt = new Text({
     text: "⚡",
-    style: new TextStyle({ fontSize: 13, fill: isGrey ? 0xe2e8f0 : 0x1e293b, fontWeight: "bold" }),
+    style: isGrey ? FEEDER_MARKER_TEXT_GREY : FEEDER_MARKER_TEXT_ACTIVE,
   });
   txt.anchor.set(0.5);
   marker.addChild(txt);
@@ -657,7 +667,7 @@ export function drawBridge2D(container: Container, rawEntry: CatalogEntry, piece
 
   const bridgeIcon = new Text({
     text: "🌉",
-    style: new TextStyle({ fontSize: 7, fill: 0xffffff }),
+    style: BRIDGE_ICON_TEXT_STYLE,
   });
   bridgeIcon.anchor.set(0.5);
   bridgeIcon.position.set(center.x, center.y - bridgeHalfW - 7);
@@ -761,12 +771,7 @@ function drawSingleSignal2D(
   const labelText = isForward ? "SIG▶" : "◀SIG";
   const sigTxt = new Text({
     text: labelText,
-    style: new TextStyle({
-      fontSize: 4,
-      fontWeight: "bold",
-      fill: 0xf8fafc,
-      fontFamily: "monospace",
-    }),
+    style: SIGNAL_TEXT_STYLE,
   });
   sigTxt.anchor.set(0.5);
   sigTxt.position.set(0, 12);

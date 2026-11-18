@@ -60,18 +60,6 @@ function getSharedStraightBallastGeometry(len: number, h: number, w: number): TH
   return geo;
 }
 
-const _straightRailGeoCache = new Map<string, THREE.BoxGeometry>();
-function getSharedStraightRailGeometry(len: number, h: number, w: number): THREE.BoxGeometry {
-  const key = `${Math.round(len * 10)}:${Math.round(h * 10)}:${Math.round(w * 10)}`;
-  let geo = _straightRailGeoCache.get(key);
-  if (!geo) {
-    geo = new THREE.BoxGeometry(len, h, w);
-    geo.userData.shared = true;
-    _straightRailGeoCache.set(key, geo);
-  }
-  return geo;
-}
-
 const _straightDualRailGeoCache = new Map<string, THREE.BufferGeometry>();
 function getSharedStraightDualRailGeometry(len: number, h: number, w: number, gaugeHalf: number): THREE.BufferGeometry {
   const key = `${Math.round(len * 10)}:${Math.round(h * 10)}:${Math.round(w * 10)}:${Math.round(gaugeHalf * 100)}`;
@@ -91,7 +79,6 @@ function getSharedStraightDualRailGeometry(len: number, h: number, w: number, ga
 }
 
 const _curvedBallastGeoCache = new Map<string, THREE.BufferGeometry>();
-const _curvedRailGeoCache = new Map<string, THREE.BufferGeometry>();
 const _curvedDualRailGeoCache = new Map<string, THREE.BufferGeometry>();
 
 export function getSharedCurvedBallastGeometry(
@@ -267,7 +254,7 @@ export function buildTrackPiece3D(
     const tieCount = Math.floor(len / tieStep);
     if (tieCount > 0) {
       const tiesInstanced = new THREE.InstancedMesh(tieGeo, tieMat, tieCount);
-      tiesInstanced.castShadow = true;
+      tiesInstanced.castShadow = false;
       _tieDummy.rotation.set(0, 0, 0);
       for (let i = 0; i < tieCount; i++) {
         _tieDummy.position.set(startX + i * tieStep + tieStep / 2, ballastH + 1.1, 0);
@@ -390,7 +377,7 @@ export function buildTrackPiece3D(
     const tieStep = Math.max(3.5, (gauge / 16.5) * 6.5);
     const tieCount = Math.max(3, Math.floor(arcLen / tieStep));
     const tiesInstanced = new THREE.InstancedMesh(tieGeo, tieMat, tieCount);
-    tiesInstanced.castShadow = true;
+    tiesInstanced.castShadow = false;
     for (let i = 0; i < tieCount; i++) {
       const u = (i + 0.5) / tieCount;
       const phi = u * rad;
@@ -419,7 +406,7 @@ export function buildTrackPiece3D(
     const tieStep = Math.max(3.5, (gauge / 16.5) * 6.5);
     const tieCount = Math.max(3, Math.floor(splineLen / tieStep));
     const tiesInstanced = new THREE.InstancedMesh(tieGeo, tieMat, tieCount);
-    tiesInstanced.castShadow = true;
+    tiesInstanced.castShadow = false;
     for (let i = 0; i < tieCount; i++) {
       const u = (i + 0.5) / tieCount;
       const { h, dh } = evaluateFlexSpline(offsets, u);
@@ -743,7 +730,7 @@ export function buildAllTracks3D(
 
     const tiesInst = tieCount > 0 ? new THREE.InstancedMesh(getSharedTieGeometry(gauge), SHARED_TIE_MAT, list.length * tieCount) : null;
     if (tiesInst) {
-      tiesInst.castShadow = true;
+      tiesInst.castShadow = false;
     }
 
     let tieGlobalIdx = 0;
@@ -840,7 +827,7 @@ export function buildAllTracks3D(
     railsInst.castShadow = true;
 
     const tiesInst = new THREE.InstancedMesh(getSharedTieGeometry(gauge), SHARED_TIE_MAT, list.length * tieCount);
-    tiesInst.castShadow = true;
+    tiesInst.castShadow = false;
 
     let tieGlobalIdx = 0;
 

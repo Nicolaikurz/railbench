@@ -1,5 +1,5 @@
 import type { Renderer } from "@/render/renderer";
-import type { Layout, TrackPiece, Model3D, BaseboardConfig, Transform, ColorMode } from "@/core/types";
+import type { Layout, TrackPiece, Model3D, BaseboardConfig, ColorMode } from "@/core/types";
 import type { Catalog, CatalogEntry } from "@/catalog/catalog";
 import type { BaseboardSnapGuide } from "@/core/baseboard-snapping";
 import type { CollabClient } from "@/collab/collab-client";

@@ -1,5 +1,6 @@
 import type { Renderer } from "@/render/renderer";
 import type { Layout } from "@/core/types";
+import { getLanguage, onLanguageChange } from "@/i18n";
 
 export interface PerfMonitorOptions {
   host: HTMLElement;
@@ -16,9 +17,14 @@ export class PerfMonitor {
   private bodyEl!: HTMLElement;
   private fpsValEl!: HTMLElement;
   private cpuValEl!: HTMLElement;
+  private ramLabelEl!: HTMLElement | null;
   private ramValEl!: HTMLElement;
+  private tracksLabelEl!: HTMLElement | null;
   private tracksValEl!: HTMLElement;
+  private gpuLabelEl!: HTMLElement | null;
   private gpuValEl!: HTMLElement;
+  private stressLabelEl!: HTMLElement | null;
+  private unsubLang?: () => void;
 
   private isVisible = false;
   private animFrameId: number | null = null;
@@ -80,6 +86,9 @@ export class PerfMonitor {
     this.host.appendChild(this.container);
 
     this.detectGpu();
+    this.unsubLang = onLanguageChange(() => {
+      this.updateLanguageLabels();
+    });
 
     if (typeof window !== "undefined") {
       window.addEventListener("resize", () => {
@@ -96,6 +105,7 @@ export class PerfMonitor {
   }
 
   private buildDom(): void {
+    const isDe = getLanguage() === "de";
     this.headerEl = document.createElement("div");
     this.headerEl.className = "perf-monitor-header";
     this.headerEl.style.display = "flex";
@@ -107,7 +117,9 @@ export class PerfMonitor {
     this.headerEl.style.cursor = "grab";
     this.headerEl.style.userSelect = "none";
     this.headerEl.style.touchAction = "none";
-    this.headerEl.title = "Ziehen zum Verschieben (Doppelklick zum Zurücksetzen) / Drag to move (Double-click to reset)";
+    this.headerEl.title = isDe
+      ? "Ziehen zum Verschieben (Doppelklick zum Zurücksetzen)"
+      : "Drag to move (Double-click to reset)";
 
     this.headerEl.innerHTML = `
       <span style="font-weight: 700; color: #38bdf8; display: flex; align-items: center; gap: 6px; pointer-events: none;">
@@ -115,7 +127,7 @@ export class PerfMonitor {
         <span>⚡</span>
         <span>HARDWARE MONITOR</span>
       </span>
-      <button id="perf-close-btn" style="background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 13px; padding: 2px 5px; border-radius: 4px; line-height: 1; transition: all 0.15s;" title="Schließen (F3)">✕</button>
+      <button id="perf-close-btn" style="background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 13px; padding: 2px 5px; border-radius: 4px; line-height: 1; transition: all 0.15s;" title="${isDe ? "Schließen (F3)" : "Close (F3)"}">✕</button>
     `;
 
     this.closeBtnEl = this.headerEl.querySelector("#perf-close-btn") as HTMLButtonElement;
@@ -150,17 +162,17 @@ export class PerfMonitor {
       </div>
 
       <div style="display: flex; justify-content: space-between;">
-        <span style="color: #94a3b8;">RAM Auslastung:</span>
+        <span id="perf-ram-label" style="color: #94a3b8;">${isDe ? "RAM Auslastung:" : "RAM Usage:"}</span>
         <span id="perf-ram-val" style="color: #f8fafc; font-weight: 600;">--</span>
       </div>
 
       <div style="display: flex; justify-content: space-between;">
-        <span style="color: #94a3b8;">Gleise & Objekte:</span>
-        <span id="perf-tracks-val" style="color: #f8fafc; font-weight: 600;">0 Gleise, 0 3D</span>
+        <span id="perf-tracks-label" style="color: #94a3b8;">${isDe ? "Gleise & Objekte:" : "Tracks & Objects:"}</span>
+        <span id="perf-tracks-val" style="color: #f8fafc; font-weight: 600;">${isDe ? "0 Gleise, 0 3D" : "0 Tracks, 0 3D"}</span>
       </div>
 
       <div style="border-top: 1px solid rgba(51, 65, 85, 0.6); margin-top: 4px; padding-top: 4px;">
-        <div style="color: #94a3b8; font-size: 10px; margin-bottom: 2px;">GPU VENDOR & ACCELERATION:</div>
+        <div id="perf-gpu-label" style="color: #94a3b8; font-size: 10px; margin-bottom: 2px;">${isDe ? "GPU & BESCHLEUNIGUNG:" : "GPU VENDOR & ACCELERATION:"}</div>
         <div id="perf-gpu-val" style="color: #38bdf8; font-size: 10.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
           WebGL Hardware Accelerated
         </div>
@@ -170,7 +182,7 @@ export class PerfMonitor {
         this.onGenerateStressTracks
           ? `
         <div style="border-top: 1px solid rgba(51, 65, 85, 0.6); margin-top: 6px; padding-top: 6px;">
-          <div style="color: #94a3b8; font-size: 10.5px; margin-bottom: 4px;">Stresstest (Auslastung prüfen):</div>
+          <div id="perf-stress-label" style="color: #94a3b8; font-size: 10.5px; margin-bottom: 4px;">${isDe ? "Stresstest (Auslastung prüfen):" : "Stress Test (Check Load):"}</div>
           <div style="display: flex; gap: 4px;">
             <button class="perf-stress-btn" data-count="500" style="flex: 1; background: #0284c7; color: white; border: none; border-radius: 4px; padding: 4px 6px; font-size: 10px; cursor: pointer; font-weight: 600;">+500</button>
             <button class="perf-stress-btn" data-count="1000" style="flex: 1; background: #0369a1; color: white; border: none; border-radius: 4px; padding: 4px 6px; font-size: 10px; cursor: pointer; font-weight: 600;">+1000</button>
@@ -183,9 +195,13 @@ export class PerfMonitor {
 
     this.fpsValEl = this.bodyEl.querySelector("#perf-fps-val") as HTMLElement;
     this.cpuValEl = this.bodyEl.querySelector("#perf-cpu-val") as HTMLElement;
+    this.ramLabelEl = this.bodyEl.querySelector("#perf-ram-label");
     this.ramValEl = this.bodyEl.querySelector("#perf-ram-val") as HTMLElement;
+    this.tracksLabelEl = this.bodyEl.querySelector("#perf-tracks-label");
     this.tracksValEl = this.bodyEl.querySelector("#perf-tracks-val") as HTMLElement;
+    this.gpuLabelEl = this.bodyEl.querySelector("#perf-gpu-label");
     this.gpuValEl = this.bodyEl.querySelector("#perf-gpu-val") as HTMLElement;
+    this.stressLabelEl = this.bodyEl.querySelector("#perf-stress-label");
 
     if (this.onGenerateStressTracks) {
       const stressBtns = this.bodyEl.querySelectorAll<HTMLButtonElement>(".perf-stress-btn");
@@ -534,7 +550,35 @@ export class PerfMonitor {
     }
   };
 
+  private updateLanguageLabels(): void {
+    const isDe = getLanguage() === "de";
+    if (this.headerEl) {
+      this.headerEl.title = isDe
+        ? "Ziehen zum Verschieben (Doppelklick zum Zurücksetzen)"
+        : "Drag to move (Double-click to reset)";
+    }
+    if (this.closeBtnEl) {
+      this.closeBtnEl.title = isDe ? "Schließen (F3)" : "Close (F3)";
+    }
+    if (this.ramLabelEl) {
+      this.ramLabelEl.textContent = isDe ? "RAM Auslastung:" : "RAM Usage:";
+    }
+    if (this.tracksLabelEl) {
+      this.tracksLabelEl.textContent = isDe ? "Gleise & Objekte:" : "Tracks & Objects:";
+    }
+    if (this.gpuLabelEl) {
+      this.gpuLabelEl.textContent = isDe ? "GPU & BESCHLEUNIGUNG:" : "GPU VENDOR & ACCELERATION:";
+    }
+    if (this.stressLabelEl) {
+      this.stressLabelEl.textContent = isDe
+        ? "Stresstest (Auslastung prüfen):"
+        : "Stress Test (Check Load):";
+    }
+    this.renderOverlay();
+  }
+
   private renderOverlay() {
+    const isDe = getLanguage() === "de";
     const layout = this.getLayout();
     const pieceCount = layout?.pieces?.length || 0;
     const modelCount = layout?.models?.length || 0;
@@ -587,7 +631,9 @@ export class PerfMonitor {
       const totalHeapMb = perfMem.totalJSHeapSize / (1024 * 1024);
       const totalAppMb = Math.max(totalHeapMb, usedHeapMb + gpuSceneBufferMb);
       ramStr = `${totalAppMb.toFixed(1)} MB (Heap: ${usedHeapMb.toFixed(1)} MB)`;
-      ramTooltip = `Gesamt (inkl. WebGL/Canvas): ${totalAppMb.toFixed(1)} MB | JS Heap belegt: ${usedHeapMb.toFixed(1)} MB | JS Heap reserviert: ${totalHeapMb.toFixed(1)} MB`;
+      ramTooltip = isDe
+        ? `Gesamt (inkl. WebGL/Canvas): ${totalAppMb.toFixed(1)} MB | JS Heap belegt: ${usedHeapMb.toFixed(1)} MB | JS Heap reserviert: ${totalHeapMb.toFixed(1)} MB`
+        : `Total (incl. WebGL/Canvas): ${totalAppMb.toFixed(1)} MB | JS Heap used: ${usedHeapMb.toFixed(1)} MB | JS Heap reserved: ${totalHeapMb.toFixed(1)} MB`;
     } else {
       // Browser without performance.memory (Firefox / Safari / WebKit)
       const baseRuntimeMb = 42.0;
@@ -614,7 +660,9 @@ export class PerfMonitor {
     }
 
     if (this.tracksValEl) {
-      this.tracksValEl.textContent = `${pieceCount} Gleise, ${modelCount} 3D`;
+      this.tracksValEl.textContent = isDe
+        ? `${pieceCount} Gleise, ${modelCount} 3D`
+        : `${pieceCount} Tracks, ${modelCount} 3D`;
     }
 
     if (this.gpuValEl && this.gpuInfo.renderer) {
@@ -625,6 +673,7 @@ export class PerfMonitor {
 
   destroy(): void {
     this.hide();
+    this.unsubLang?.();
     if (typeof window !== "undefined") {
       window.removeEventListener("pointermove", this.onDragMove);
       window.removeEventListener("pointerup", this.onDragEnd);

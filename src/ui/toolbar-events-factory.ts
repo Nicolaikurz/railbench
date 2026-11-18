@@ -16,7 +16,7 @@ import { openHelpDialog, type HelpTab } from "@/ui/help-dialog";
 import { openKeymapDialog } from "@/ui/keymap-dialog";
 import { openPrintDialog } from "@/io/print";
 import { getTranslations, getLanguage, autoSelectLanguage } from "@/i18n";
-import { ensureDefaultLayers, getBaseboards } from "@/core/layout";
+import { getBaseboards } from "@/core/layout";
 import { isTurnoutEntry, type ShortCircuitDetectionResult } from "@/core/simulation";
 import { resetPersonalConfig } from "@/settings/settings-manager";
 

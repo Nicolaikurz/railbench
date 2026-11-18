@@ -1,7 +1,6 @@
 import type { Connector, Transform } from "@/core/types";
 import { deg2rad, normAngle, transformPoint, evaluateFlexSpline } from "@/core/geometry";
-import type { LocalConnector, CatalogEntry, Catalog } from "./types";
-import { maerklinCCatalog, maerklinCEntries } from "./systems/maerklin-c-h0";
+import type { LocalConnector, CatalogEntry } from "./types";
 
 // Re-export aller Typen und Gleissysteme
 export * from "./types";
@@ -34,22 +33,6 @@ export * from "./systems/generic-streets-g";
 export * from "./systems/lenz-0";
 export * from "./systems/maerklin-1";
 export * from "./systems/lgb-g";
-
-
-// Abwärtskompatibilität
-export const cGleisCatalogEntries = maerklinCEntries;
-
-export interface C_Gleise {
-  id: string;
-  name: string;
-  description: string;
-}
-
-export const cGleisCatalog: C_Gleise[] = maerklinCEntries.map((e) => ({
-  id: e.id,
-  name: e.name,
-  description: e.description,
-}));
 
 /** Prüft, ob ein Gleisstück ein Prellbock / Buffer Stop ist. */
 export function isBufferStopPiece(entry?: CatalogEntry | null): boolean {
@@ -340,11 +323,4 @@ export function computeWorldConnectors(
       angle: normAngle((transform.rotation ?? 0) + lc.angle),
     };
   });
-}
-
-/** Lädt einen Katalog über eine URL */
-export async function loadCatalog(url: string): Promise<Catalog> {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Katalog nicht ladbar: ${url}`);
-  return res.json();
 }
