@@ -29,7 +29,7 @@ fi
 
 # Dynamically fetch Product Name and Version from package.json
 PRODUCT_NAME=$(node -p "require('./package.json').build?.productName || require('./package.json').name || 'railbench'" 2>/dev/null || echo "railbench")
-APP_VERSION=$(node -p "require('./package.json').version || '0.6.0'" 2>/dev/null || echo "0.6.0")
+APP_VERSION=$(node -p "require('./package.json').version || '0.6.1'" 2>/dev/null || echo "0.6.1")
 
 IS_MACOS=false
 if [[ "$OSTYPE" == "darwin"* ]]; then

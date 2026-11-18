@@ -1,4 +1,4 @@
-# RAILbench – Model Railway Track Planner (v0.6.0)
+# RAILbench – Model Railway Track Planner (v0.6.1)
 
 An intuitive, fast, and precise model railway CAD track planning, 3D visualization, terrain sculpting, and electrical simulation application built with **TypeScript + PixiJS v8 + Three.js + Vite + Electron**.
 <img width="2346" height="1428" alt="Screenshot From 2026-11-14 21-49-15" src="https://github.com/user-attachments/assets/33434aab-9b8e-4923-9fc9-fb291fcc4329" />
@@ -6,8 +6,8 @@ An intuitive, fast, and precise model railway CAD track planning, 3D visualizati
 ---
 
 > [!IMPORTANT]
-> **Release 0.6.0 Multi-Platform Binaries**:
-> Release **0.6.0** provides standalone executables for **Windows (`x64`, `arm64`)**, **macOS (`arm64` Apple Silicon M1–M4, `x64` Intel)**, and **Linux (`x86_64`, `arm64` AppImage & Flatpak)**.
+> **Release 0.6.1 Multi-Platform Binaries**:
+> Release **0.6.1** provides standalone executables for **Windows (`x64`, `arm64`)**, **macOS (`arm64` Apple Silicon M1–M4, `x64` Intel)**, and **Linux (`x86_64`, `arm64` AppImage & Flatpak)**.
 
 ---
 
@@ -27,7 +27,7 @@ Because what works well for my personal layout planning might not always fit eve
 
 ### 🪟 Windows (`x64` & `arm64`) – Portable Directory & ZIP
 1. **Download**:
-   * **Portable ZIP Archive**: `railbench-0.6.0-portable-x64.zip` (Intel/AMD) or `railbench-0.6.0-portable-arm64.zip` (ARM / Snapdragon).
+   * **Portable ZIP Archive**: `railbench-0.6.1-portable-x64.zip` (Intel/AMD) or `railbench-0.6.1-portable-arm64.zip` (ARM / Snapdragon).
    * Or use the unpacked folder: `win-unpacked` (`x64`) or `win-arm64-unpacked` (`arm64`).
 2. **Run**:
    * Extract the ZIP and double-click **`railbench.exe`**.
@@ -42,7 +42,7 @@ Because what works well for my personal layout planning might not always fit eve
   brew install --cask railbench
   ```
 * **Manual DMG / ZIP Installation**:
-  1. Download `railbench-0.6.0-mac-arm64.dmg` (Apple Silicon M1–M4) or `railbench-0.6.0-mac-x64.dmg` (Intel), open the disk image, and drag **`railbench.app`** into your `/Applications` folder (or extract the `.zip` archive).
+  1. Download `railbench-0.6.1-mac-arm64.dmg` (Apple Silicon M1–M4) or `railbench-0.6.1-mac-x64.dmg` (Intel), open the disk image, and drag **`railbench.app`** into your `/Applications` folder (or extract the `.zip` archive).
   2. **Bypass macOS Gatekeeper on First Launch (Unsigned Open-Source Build)**:
      * Because the binary is built without a paid Apple Developer ID certificate, macOS Gatekeeper may block the first launch with *"railbench.app cannot be opened because the developer cannot be verified"*.
      * **Option A — Terminal (Recommended, fastest)**:
@@ -61,14 +61,14 @@ Because what works well for my personal layout planning might not always fit eve
   ```
 * **AppImage**:
   ```bash
-  chmod +x railbench-0.6.0-x64.AppImage
-  ./railbench-0.6.0-x64.AppImage
+  chmod +x railbench-0.6.1-x64.AppImage
+  ./railbench-0.6.1-x64.AppImage
   ```
-  *(If `libfuse.so.2` is not installed on Ubuntu 24.04+, either run `sudo apt install libfuse2` or run `./railbench-0.6.0-x64.AppImage --appimage-extract-and-run`.)*
+  *(If `libfuse.so.2` is not installed on Ubuntu 24.04+, either run `sudo apt install libfuse2` or run `./railbench-0.6.1-x64.AppImage --appimage-extract-and-run`.)*
 
 ---
 
-## Key Features & Capabilities (v0.6.0)
+## Key Features & Capabilities (v0.6.1)
 
 ### 1. Precision Track CAD & Multi-Scale Catalogs
 * **21 Ready-to-Use Track Systems across H0, TT, N, Z, 0, 1 & G**:

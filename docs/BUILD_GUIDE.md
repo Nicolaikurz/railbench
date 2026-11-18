@@ -1,22 +1,22 @@
-# Build- & Ausführungs-Anleitung: Windows, macOS & Linux (Release 0.6.0)
+# Build- & Ausführungs-Anleitung: Windows, macOS & Linux (Release 0.6.1)
 
 Diese Anleitung beschreibt, wie die vorkompilierten Binaries unter **Windows**, **macOS** und **Linux** ausgeführt werden und wie eigenständige Pakete für **x86_64 (`x64`)** und **ARM64 (`arm64`)** aus dem Quellcode gebaut werden.
 
 ---
 
 > [!IMPORTANT]
-> **Release 0.6.0 Multi-Plattform-Binaries**:
-> In Release **0.6.0** werden Pakete für folgende Plattformen bereitgestellt:
-> * ✅ **Windows `x64` / `arm64`**: Portables Verzeichnis (`win-unpacked` / `win-arm64-unpacked`) & Portable ZIP-Archive (`railbench-0.6.0-portable-*.zip`) mit `railbench.exe`.
-> * ✅ **macOS `arm64` (Apple Silicon M1/M2/M3/M4) & `x64` (Intel)**: `.zip`-App-Bundle (`railbench-0.6.0-mac-*.zip`) & `.dmg`-Installer sowie Homebrew Cask.
-> * ✅ **Linux `x86_64` / `arm64`**: AppImage (`railbench-0.6.0-*.AppImage`) & Flatpak (`Railbench.flatpak`).
+> **Release 0.6.1 Multi-Plattform-Binaries**:
+> In Release **0.6.1** werden Pakete für folgende Plattformen bereitgestellt:
+> * ✅ **Windows `x64` / `arm64`**: Portables Verzeichnis (`win-unpacked` / `win-arm64-unpacked`) & Portable ZIP-Archive (`railbench-0.6.1-portable-*.zip`) mit `railbench.exe`.
+> * ✅ **macOS `arm64` (Apple Silicon M1/M2/M3/M4) & `x64` (Intel)**: `.zip`-App-Bundle (`railbench-0.6.1-mac-*.zip`) & `.dmg`-Installer sowie Homebrew Cask.
+> * ✅ **Linux `x86_64` / `arm64`**: AppImage (`railbench-0.6.1-*.AppImage`) & Flatpak (`Railbench.flatpak`).
 
 ---
 
 ## Schnellstart: Vorkompilierte Binaries ausführen
 
 ### 1. Windows (`x64` & `arm64`) – Portables Verzeichnis (dir)
-1. Lade `railbench-0.6.0-portable-x64.zip` (Intel/AMD) bzw. `railbench-0.6.0-portable-arm64.zip` (ARM) herunter und entpacke das Verzeichnis an einen beliebigen Ort (z. B. auf einen USB-Stick oder `C:\Tools\`).
+1. Lade `railbench-0.6.1-portable-x64.zip` (Intel/AMD) bzw. `railbench-0.6.1-portable-arm64.zip` (ARM) herunter und entpacke das Verzeichnis an einen beliebigen Ort (z. B. auf einen USB-Stick oder `C:\Tools\`).
 2. Alternativ kann direkt der beim Build generierte Ordner `release/win-unpacked/` (x64) bzw. `release/win-arm64-unpacked/` (arm64) verwendet werden.
 3. Starte **`railbench.exe`** per Doppelklick:
    * **Keine Installation** und **keine Administratorrechte** erforderlich.
@@ -30,7 +30,7 @@ Diese Anleitung beschreibt, wie die vorkompilierten Binaries unter **Windows**, 
   brew install --cask railbench
   ```
 * **Manuelle Installation (DMG / ZIP)**:
-  1. Entpacke `railbench-0.6.0-mac-arm64.zip` (Apple Silicon M1–M4) bzw. `railbench-0.6.0-mac-x64.zip` (Intel) per Doppelklick oder öffne die `.dmg`-Datei und verschiebe **`railbench.app`** in den Ordner `/Applications`.
+  1. Entpacke `railbench-0.6.1-mac-arm64.zip` (Apple Silicon M1–M4) bzw. `railbench-0.6.1-mac-x64.zip` (Intel) per Doppelklick oder öffne die `.dmg`-Datei und verschiebe **`railbench.app`** in den Ordner `/Applications`.
   2. **Hinweis zu macOS Gatekeeper (Unsigniertes Open-Source-Binary)**:
    Da das kostenlose Open-Source-Release ohne kostenpflichtiges Apple-Developer-Zertifikat gebaut wird, blockiert macOS Gatekeeper ggf. den ersten Start (*„Entwickler kann nicht verifiziert werden“* oder *„ist beschädigt“*).
    * **Option A – Per Terminal (empfohlen)**:
@@ -44,8 +44,8 @@ Diese Anleitung beschreibt, wie die vorkompilierten Binaries unter **Windows**, 
 ### 3. Linux (`x86_64` & `arm64`)
 * **AppImage**:
   ```bash
-  chmod +x release/railbench-0.6.0-x64.AppImage
-  ./release/railbench-0.6.0-x64.AppImage
+  chmod +x release/railbench-0.6.1-x64.AppImage
+  ./release/railbench-0.6.1-x64.AppImage
   ```
 * **Flatpak**:
   ```bash
@@ -62,16 +62,16 @@ Diese Anleitung beschreibt, wie die vorkompilierten Binaries unter **Windows**, 
 | **Windows Portable (dir & ZIP)** | x86_64 | `npm run dist:win:portable:x64` | `scripts/build-windows-portable.sh x64` | `release/win-unpacked/` & `*.zip` | Portables Verzeichnis & ZIP für Intel/AMD PCs |
 | **Windows Portable (dir & ZIP)** | ARM64 | `npm run dist:win:portable:arm64` | `scripts/build-windows-portable.sh arm64` | `release/win-arm64-unpacked/` & `*.zip` | Portables Verzeichnis & ZIP für ARM-Windows |
 | **Windows Portable (Alle)** | x64 + arm64 | `npm run dist:win:portable:all` | `scripts/build-windows-portable.sh all` | `release/win-*-unpacked/` & `*.zip` | Baut beide portablen Windows-Architekturen |
-| **Linux AppImage** | x86_64 | `npm run dist:linux:appimage:x64` | `scripts/build-linux-appimage.sh x64` | `release/railbench-0.6.0-x64.AppImage` | Universal-Binärdatei für Linux x64 |
-| **Linux AppImage** | ARM64 | `npm run dist:linux:appimage:arm64` | `scripts/build-linux-appimage.sh arm64` | `release/railbench-0.6.0-arm64.AppImage` | Für Raspberry Pi 4/5, Asahi Linux |
-| **Linux AppImage (Alle)** | x64 + arm64 | `npm run dist:linux:appimage:all` | `scripts/build-linux-appimage.sh all` | `release/railbench-0.6.0-*.AppImage` | Baut beide Linux-Architekturen |
+| **Linux AppImage** | x86_64 | `npm run dist:linux:appimage:x64` | `scripts/build-linux-appimage.sh x64` | `release/railbench-0.6.1-x64.AppImage` | Universal-Binärdatei für Linux x64 |
+| **Linux AppImage** | ARM64 | `npm run dist:linux:appimage:arm64` | `scripts/build-linux-appimage.sh arm64` | `release/railbench-0.6.1-arm64.AppImage` | Für Raspberry Pi 4/5, Asahi Linux |
+| **Linux AppImage (Alle)** | x64 + arm64 | `npm run dist:linux:appimage:all` | `scripts/build-linux-appimage.sh all` | `release/railbench-0.6.1-*.AppImage` | Baut beide Linux-Architekturen |
 | **Linux Flatpak** | x86_64 | `npm run dist:linux:flatpak` | `scripts/build-flatpak.sh` | `release/Railbench.flatpak` | Sandbox-Paket (Wayland/X11) |
-| **macOS DMG (Apple Silicon)** | ARM64 | `npm run dist:mac:dmg:arm64` | `scripts/build-macos.sh arm64` | `release/railbench-0.6.0-mac-arm64.dmg` | DMG-Installer für Apple Silicon (M1/M2/M3/M4) |
-| **macOS DMG (Intel)** | x86_64 | `npm run dist:mac:dmg:x64` | `scripts/build-macos.sh x64` | `release/railbench-0.6.0-mac-x64.dmg` | DMG-Installer für Intel Macs |
-| **macOS Pakete (DMG + ZIP, Standard)** | x64 + arm64 | `npm run dist:mac` | `scripts/build-macos.sh` | `release/railbench-0.6.0-mac-*` | Baut signierte DMG-Installer und ZIP-Pakete für Intel & Apple Silicon |
-| **macOS Package (ZIP)** | ARM64 | `npm run dist:mac:zip:arm64` | `scripts/build-macos.sh arm64 zip` | `release/railbench-0.6.0-mac-arm64.zip` | Optionales ZIP für Apple Silicon |
-| **macOS Package (ZIP)** | x86_64 | `npm run dist:mac:zip:x64` | `scripts/build-macos.sh x64 zip` | `release/railbench-0.6.0-mac-x64.zip` | Optionales ZIP für Intel Macs |
-| **macOS Packages (ZIP Alle)** | x64 + arm64 | `npm run dist:mac:zip:all` | `scripts/build-macos.sh all zip` | `release/railbench-0.6.0-mac-*.zip` | Baut beide optionalen ZIP-Pakete |
+| **macOS DMG (Apple Silicon)** | ARM64 | `npm run dist:mac:dmg:arm64` | `scripts/build-macos.sh arm64` | `release/railbench-0.6.1-mac-arm64.dmg` | DMG-Installer für Apple Silicon (M1/M2/M3/M4) |
+| **macOS DMG (Intel)** | x86_64 | `npm run dist:mac:dmg:x64` | `scripts/build-macos.sh x64` | `release/railbench-0.6.1-mac-x64.dmg` | DMG-Installer für Intel Macs |
+| **macOS Pakete (DMG + ZIP, Standard)** | x64 + arm64 | `npm run dist:mac` | `scripts/build-macos.sh` | `release/railbench-0.6.1-mac-*` | Baut signierte DMG-Installer und ZIP-Pakete für Intel & Apple Silicon |
+| **macOS Package (ZIP)** | ARM64 | `npm run dist:mac:zip:arm64` | `scripts/build-macos.sh arm64 zip` | `release/railbench-0.6.1-mac-arm64.zip` | Optionales ZIP für Apple Silicon |
+| **macOS Package (ZIP)** | x86_64 | `npm run dist:mac:zip:x64` | `scripts/build-macos.sh x64 zip` | `release/railbench-0.6.1-mac-x64.zip` | Optionales ZIP für Intel Macs |
+| **macOS Packages (ZIP Alle)** | x64 + arm64 | `npm run dist:mac:zip:all` | `scripts/build-macos.sh all zip` | `release/railbench-0.6.1-mac-*.zip` | Baut beide optionalen ZIP-Pakete |
 
 ---
 
@@ -110,10 +110,10 @@ npm run dist:win:dir:x64
 ### Ausgabe-Dateien:
 * **x64**:
   * Portables Verzeichnis: `release/win-unpacked/railbench.exe`
-  * Standalone ZIP: `release/railbench-0.6.0-portable-x64.zip`
+  * Standalone ZIP: `release/railbench-0.6.1-portable-x64.zip`
 * **ARM64**:
   * Portables Verzeichnis: `release/win-arm64-unpacked/railbench.exe`
-  * Standalone ZIP: `release/railbench-0.6.0-portable-arm64.zip`
+  * Standalone ZIP: `release/railbench-0.6.1-portable-arm64.zip`
 
 ---
 

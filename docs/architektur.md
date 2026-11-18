@@ -1,6 +1,6 @@
-# RAILbench – Systemarchitektur & Technische Dokumentation (v0.6.0)
+# RAILbench – Systemarchitektur & Technische Dokumentation (v0.6.1)
 
-Diese Dokumentation beschreibt die interne Architektur, Komponentenaufteilung, Datenflüsse und Design-Prinzipien der Modellbahn-Planungssoftware **RAILbench** (**v0.6.0**).
+Diese Dokumentation beschreibt die interne Architektur, Komponentenaufteilung, Datenflüsse und Design-Prinzipien der Modellbahn-Planungssoftware **RAILbench** (**v0.6.1**).
 
 ---
 

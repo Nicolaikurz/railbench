@@ -7,7 +7,7 @@ cd "$PROJECT_ROOT"
 
 ARCH="${1:-all}"
 PRODUCT_NAME=$(node -p "require('./package.json').build?.productName || require('./package.json').name || 'railbench'" 2>/dev/null || echo "railbench")
-APP_VERSION=$(node -p "require('./package.json').version || '0.6.0'" 2>/dev/null || echo "0.6.0")
+APP_VERSION=$(node -p "require('./package.json').version || '0.6.1'" 2>/dev/null || echo "0.6.1")
 
 echo "=== Building Windows Portable (Directory & ZIP) ==="
 echo "Application: $PRODUCT_NAME v$APP_VERSION"

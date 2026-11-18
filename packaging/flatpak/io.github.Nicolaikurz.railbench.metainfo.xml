@@ -49,6 +49,11 @@
     <color type="primary" scheme_preference="dark">#1f3a5f</color>
   </branding>
   <releases>
+    <release version="0.6.1" date="2026-11-18">
+      <description>
+        <p>Release 0.6.1: Real-time automatic ramp generation updates, instant live preview calculation on start point or shape changes, multi-language visual guide in Help dialog, and track context menu refinements.</p>
+      </description>
+    </release>
     <release version="0.6.0" date="2026-11-17">
       <description>
         <p>Release 0.6.0: Full 360/180 3D camera freedom with interactive CAD ViewCube, 2D CAD Sketcher for freeform tables and layer plates, dedicated Terrain &amp; Mountain Editor with sculpting brushes and automatic 3D mountain tunnels, steam locomotive coaling station and diesel fueling station 3D models, Kato Unitrack &amp; Bachmann E-Z Track systems, +/- zoom and arrow key panning, and custom keyboard shortcut mapping.</p>
