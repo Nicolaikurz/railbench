@@ -1,5 +1,5 @@
 import type { Layout, TrackPiece, Connector } from "./types";
-import { computeWorldConnectors, type Catalog, type CatalogEntry } from "@/catalog/catalog";
+import { computeWorldConnectors, isFeederEntry, type Catalog, type CatalogEntry } from "@/catalog/catalog";
 import { dist, deg2rad, normAngle } from "./geometry";
 
 export type PowerStatus = "optimal" | "warning" | "critical" | "disconnected";
@@ -432,6 +432,7 @@ export interface SimulatePowerDropOptions {
   locoCount?: number;
   turnoutLanternCurrentMa?: number;
   turnoutDecoderCurrentMa?: number;
+  fallbackFeeder?: boolean;
 }
 
 /**
@@ -544,7 +545,7 @@ export function simulatePowerDrop(
   }
 
   // 1. Einspeisepunkte ermitteln (nur explizit als Feeder konfigurierte Gleise / Anschlussgleise)
-  const explicitFeeders = pieces.filter((p) => p.powerFeed);
+  const explicitFeeders = pieces.filter((p) => p.powerFeed || isFeederEntry(entryMap.get(p.catalogId)));
   const feeders: TrackPiece[] = explicitFeeders;
 
   // Welt-Connectors für alle Gleise aktualisieren/sicherstellen
@@ -698,8 +699,10 @@ export function simulatePowerDrop(
   }
 
   // --- 4. OBERLEITUNGS-STROMKREIS SIMULATION (CATENARY CIRCUIT) ---
-  const catenaryFeedVoltage = options.catenaryFeedVoltage ?? layout.catenaryFeedVoltage ?? feedVoltage;
   const catenaryCircuitMode = options.catenaryCircuitMode ?? layout.catenaryCircuitMode ?? "separate";
+  const catenaryFeedVoltage = catenaryCircuitMode === "parallel"
+    ? feedVoltage
+    : (options.catenaryFeedVoltage ?? layout.catenaryFeedVoltage ?? feedVoltage);
 
   const catenaryPieces = pieces.filter((p) => !!p.hasCatenary);
   const catenaryPieceCount = catenaryPieces.length;
@@ -844,6 +847,14 @@ export function simulatePowerDrop(
         catDropPercent = 100;
         catStatus = "disconnected";
         catDisconnectedCount++;
+      } else if (isCatFeeder) {
+        // Am Einspeisepunkt der Oberleitung liegt stets die volle Nennspannung an (kein Abfall)
+        catDrop = 0;
+        catVoltage = catenaryFeedVoltage;
+        catDropPercent = 0;
+        catStatus = "optimal";
+        catOptimalCount++;
+        if (catVoltage < catMinV) catMinV = catVoltage;
       } else {
         catDrop = current * catRes;
         catVoltage = Math.max(0, catenaryFeedVoltage - catDrop);
@@ -894,6 +905,38 @@ export function simulatePowerDrop(
         isCatenaryFeeder: isCatFeeder,
       });
       disconnectedCount++;
+    } else if (isFeeder) {
+      // Am Einspeisepunkt liegt stets die volle Nennspannung an (kein Abfall am Feeder)
+      const v = isShortCircuit ? 0 : feedVoltage;
+      const dropV = isShortCircuit ? feedVoltage : 0;
+      const dropPct = isShortCircuit ? 100 : 0;
+      const status: PowerStatus = isShortCircuit ? "critical" : "optimal";
+      if (isShortCircuit) criticalCount++; else optimalCount++;
+      if (v < minV) minV = v;
+
+      results.set(p.id, {
+        pieceId: p.id,
+        voltage: Math.round(v * 100) / 100,
+        voltageDrop: Math.round(dropV * 100) / 100,
+        voltageDropPercent: Math.round(dropPct * 10) / 10,
+        status,
+        resistanceOhm: 0,
+        distanceFromFeederMeters: 0,
+        isFeeder,
+        isShortCircuit,
+        isTurnout,
+        hasLantern: p.hasLantern,
+        hasDecoder: p.hasDecoder,
+        accessoryCurrentMa: accMa > 0 ? accMa : undefined,
+        accessoryDrop: undefined,
+        hasCatenary,
+        catenaryVoltage: catVoltage !== undefined ? Math.round(catVoltage * 100) / 100 : undefined,
+        catenaryDrop: catDrop !== undefined ? Math.round(catDrop * 100) / 100 : undefined,
+        catenaryDropPercent: catDropPercent !== undefined ? Math.round(catDropPercent * 10) / 10 : undefined,
+        catenaryStatus: catStatus,
+        catenaryResistanceOhm: catRes !== undefined && catRes < Infinity ? Math.round(catRes * 1000) / 1000 : Infinity,
+        isCatenaryFeeder: isCatFeeder,
+      });
     } else {
       const tractionDrop = current * res;
       const dropV = accDrop + tractionDrop;

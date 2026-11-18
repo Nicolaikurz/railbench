@@ -147,6 +147,9 @@ export function buildToolbarEvents(deps: ToolbarFactoryDeps): ToolbarEvents {
     onToggleBridge: () => operations.toggleSelectedBridge(),
     onSetFeedVoltage: (v: number) => {
       layout.feedVoltage = v;
+      if (layout.catenaryCircuitMode === "parallel" || layout.catenaryFeedVoltage === undefined) {
+        layout.catenaryFeedVoltage = v;
+      }
       if (!deps.isPowerSimEnabled()) deps.setPowerSimEnabled(true);
       deps.sync(true);
     },
@@ -156,47 +159,10 @@ export function buildToolbarEvents(deps: ToolbarFactoryDeps): ToolbarEvents {
       deps.sync(true);
     },
     onOpenPowerSettings: (initialFocus) => {
-      const origVoltage = layout.feedVoltage;
-      const origCatVolt = layout.catenaryFeedVoltage;
-      const origCatMode = layout.catenaryCircuitMode;
-      const origLocoMa = layout.locoCurrentMa;
-      const origLocoCount = layout.locoCount;
-      const origLantern = layout.turnoutLanternCurrentMa;
-      const origDecoder = layout.turnoutDecoderCurrentMa;
-
       openPowerSettingsDialog({
         layout,
         catalog: deps.getCatalog(),
         initialFocus,
-        onLiveChange: ({
-          feedVoltage,
-          catenaryFeedVoltage,
-          catenaryCircuitMode,
-          locoCurrentMa,
-          locoCount,
-          turnoutLanternCurrentMa,
-          turnoutDecoderCurrentMa,
-        }) => {
-          layout.feedVoltage = feedVoltage;
-          if (catenaryFeedVoltage !== undefined) layout.catenaryFeedVoltage = catenaryFeedVoltage;
-          if (catenaryCircuitMode !== undefined) layout.catenaryCircuitMode = catenaryCircuitMode;
-          layout.locoCurrentMa = locoCurrentMa;
-          layout.locoCount = locoCount;
-          if (turnoutLanternCurrentMa !== undefined) layout.turnoutLanternCurrentMa = turnoutLanternCurrentMa;
-          if (turnoutDecoderCurrentMa !== undefined) layout.turnoutDecoderCurrentMa = turnoutDecoderCurrentMa;
-          if (!deps.isPowerSimEnabled()) deps.setPowerSimEnabled(true);
-          deps.sync(true, true);
-        },
-        onCancel: () => {
-          layout.feedVoltage = origVoltage;
-          layout.catenaryFeedVoltage = origCatVolt;
-          layout.catenaryCircuitMode = origCatMode;
-          layout.locoCurrentMa = origLocoMa;
-          layout.locoCount = origLocoCount;
-          layout.turnoutLanternCurrentMa = origLantern;
-          layout.turnoutDecoderCurrentMa = origDecoder;
-          deps.sync(true);
-        },
         onApply: ({
           feedVoltage,
           catenaryFeedVoltage,

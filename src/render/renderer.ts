@@ -263,7 +263,7 @@ export class Renderer {
       scHash = `${options.shortCircuit.hasShortCircuit ? 1 : 0}_${options.shortCircuit.shortCircuitPieces.size}_${options.shortCircuit.shortCircuitPoints.length}`;
     }
 
-    return `${piecesHash}_${selectedTracks}_${prevPieces}_${prevElevHash}_${layerHash}_${layout.activeLayerId || ""}_${catId}_${layout.feedVoltage ?? ""}_${layout.catenaryFeedVoltage ?? ""}_${options.colorMode || ""}_${Boolean(options.showColorCode)}_${Boolean(options.showTrackLabels)}_${Boolean(options.showConnectors)}_${Boolean(options.showPowerDrop)}_${powerHash}_${scHash}`;
+    return `${piecesHash}_${selectedTracks}_${prevPieces}_${prevElevHash}_${layerHash}_${layout.activeLayerId || ""}_${catId}_${layout.feedVoltage ?? ""}_${layout.catenaryFeedVoltage ?? ""}_${layout.catenaryCircuitMode || ""}_${layout.locoCurrentMa ?? ""}_${layout.trainCurrentAmps ?? ""}_${options.colorMode || ""}_${Boolean(options.showColorCode)}_${Boolean(options.showTrackLabels)}_${Boolean(options.showConnectors)}_${Boolean(options.showPowerDrop)}_${powerHash}_${scHash}`;
   }
 
   drawGrid(size = 50, extent = 6000) {

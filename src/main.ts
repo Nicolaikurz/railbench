@@ -531,23 +531,8 @@ async function main() {
       }
     }
 
-    const expFeedV = layout.feedVoltage ?? getDefaultFeedVoltage(layout.scale);
-    const expLocoMa = layout.locoCurrentMa ?? getDefaultLocoCurrentMa(layout.scale);
-    const expLocoCount = layout.locoCount ?? 1;
-    const expCatV = layout.catenaryCircuitMode === "parallel"
-      ? expFeedV
-      : (layout.catenaryFeedVoltage ?? expFeedV);
-
-    const simStale = !currentSimulation ||
-      currentSimulation.feedVoltage !== expFeedV ||
-      currentSimulation.locoCurrentMa !== expLocoMa ||
-      currentSimulation.locoCount !== expLocoCount ||
-      (layout.catenaryCircuitMode !== undefined && currentSimulation.catenaryFeedVoltage !== expCatV);
-
     if (powerSimEnabled) {
-      if (dirty || simStale) {
-        currentSimulation = simulatePowerDrop(layout, catalog);
-      }
+      currentSimulation = simulatePowerDrop(layout, catalog);
     } else {
       currentSimulation = undefined;
     }

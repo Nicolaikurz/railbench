@@ -898,5 +898,128 @@ describe("Power Drop Simulation", () => {
       expect(sim.results.get("p1")?.catenaryStatus).toBe("disconnected");
       expect(sim.catenaryRecommendation).toContain("Keine Oberleitungs-Einspeisung vorhanden");
     });
+
+    it("setzt ohne expliziten Feeder keinen automatischen Feeder und ist stromlos", () => {
+      const pieces: TrackPiece[] = [
+        {
+          id: "t0",
+          catalogId: "24188",
+          transform: { x: 0, y: 0, rotation: 0 },
+          connectors: [
+            { x: 0, y: 0, angle: 180 },
+            { x: 188.3, y: 0, angle: 0, connectedTo: { pieceId: "t1", connectorIndex: 0 } },
+          ],
+        },
+        {
+          id: "t1",
+          catalogId: "24188",
+          transform: { x: 188.3, y: 0, rotation: 0 },
+          connectors: [
+            { x: 188.3, y: 0, angle: 180, connectedTo: { pieceId: "t0", connectorIndex: 1 } },
+            { x: 376.6, y: 0, angle: 0 },
+          ],
+        },
+      ];
+
+      const layout: Layout = {
+        name: "Test Layout",
+        scale: "H0",
+        feedVoltage: 14.0,
+        locoCurrentMa: 600,
+        pieces,
+      };
+
+      // Ohne Feeder: kein automatischer Feeder, alle Gleise stromlos
+      const simNoFeeder = simulatePowerDrop(layout, maerklinCCatalog);
+      expect(simNoFeeder.feederCount).toBe(0);
+      expect(simNoFeeder.results.get("t0")?.voltage).toBe(0);
+      expect(simNoFeeder.results.get("t0")?.status).toBe("disconnected");
+      expect(simNoFeeder.results.get("t1")?.voltage).toBe(0);
+
+      // Mit explizitem Feeder auf t0:
+      pieces[0]!.powerFeed = true;
+      const simWithFeeder = simulatePowerDrop(layout, maerklinCCatalog);
+      expect(simWithFeeder.feederCount).toBe(1);
+      expect(simWithFeeder.feedVoltage).toBe(14.0);
+      expect(simWithFeeder.results.get("t0")?.voltage).toBe(14.0);
+      expect(simWithFeeder.results.get("t1")?.voltage).toBeLessThanOrEqual(14.0);
+      expect(simWithFeeder.results.get("t1")?.voltage).toBeGreaterThan(13.9);
+
+      // Ändern der Spannung auf 20V ändert die Spannung auf den Gleisen
+      const sim20V = simulatePowerDrop({ ...layout, feedVoltage: 20.0 }, maerklinCCatalog);
+      expect(sim20V.feedVoltage).toBe(20.0);
+      expect(sim20V.results.get("t0")?.voltage).toBe(20.0);
+      expect(sim20V.results.get("t1")?.voltage).toBeGreaterThan(19.9);
+
+      // Ändern der Ampere (z.B. 1000 mA) führt zu höherem Spannungsabfall
+      const simHighAmp = simulatePowerDrop({ ...layout, locoCurrentMa: 1000 }, maerklinCCatalog);
+      expect(simHighAmp.results.get("t1")!.voltageDrop).toBeGreaterThan(simWithFeeder.results.get("t1")!.voltageDrop);
+    });
+
+    it("setzt ohne expliziten Feeder keinen automatischen Feeder für die Oberleitung", () => {
+      const layoutWithCatenary: Layout = {
+        name: "Catenary Without Feeder Layout",
+        scale: "H0",
+        feedVoltage: 16.0,
+        catenaryFeedVoltage: 14.0,
+        catenaryCircuitMode: "separate",
+        pieces: [
+          {
+            id: "cp1",
+            catalogId: "24188",
+            transform: { x: 0, y: 0, rotation: 0 },
+            connectors: [{ x: 0, y: 0, angle: 180 }, { x: 188.3, y: 0, angle: 0 }],
+            hasCatenary: true,
+            // kein catenaryPowerFeed!
+          },
+        ],
+      };
+
+      const sim = simulatePowerDrop(layoutWithCatenary, maerklinCCatalog);
+      expect(sim.catenaryFeederCount).toBe(0);
+      expect(sim.catenaryDisconnectedCount).toBe(1);
+      expect(sim.results.get("cp1")?.catenaryVoltage).toBe(0);
+      expect(sim.results.get("cp1")?.catenaryStatus).toBe("disconnected");
+    });
+
+    it("Einspeisepunkt für Gleis und Oberleitung liefert stets die volle Nennspannung ohne Abfall und folgt geänderter Spannung", () => {
+      const layoutWithFeeders: Layout = {
+        name: "Feeder Test Layout",
+        scale: "H0",
+        feedVoltage: 16.0,
+        catenaryFeedVoltage: 15.0,
+        catenaryCircuitMode: "separate",
+        pieces: [
+          {
+            id: "f1",
+            catalogId: "24188",
+            transform: { x: 0, y: 0, rotation: 0 },
+            connectors: [{ x: 0, y: 0, angle: 180 }, { x: 188.3, y: 0, angle: 0 }],
+            powerFeed: true,
+            hasCatenary: true,
+            catenaryPowerFeed: true,
+          },
+        ],
+      };
+
+      // 1. Standard-Spannung 16V Gleis und 15V Oberleitung: Einspeisung liefert exakt diese Werte ohne Abfall
+      const sim1 = simulatePowerDrop(layoutWithFeeders, maerklinCCatalog);
+      const res1 = sim1.results.get("f1")!;
+      expect(res1.voltage).toBe(16.0);
+      expect(res1.voltageDrop).toBe(0);
+      expect(res1.catenaryVoltage).toBe(15.0);
+      expect(res1.catenaryDrop).toBe(0);
+
+      // 2. Ändern der Versorgungsspannung auf 12V Gleis und 18V Oberleitung
+      const sim2 = simulatePowerDrop(
+        { ...layoutWithFeeders, feedVoltage: 12.0, catenaryFeedVoltage: 18.0 },
+        maerklinCCatalog,
+      );
+      const res2 = sim2.results.get("f1")!;
+      expect(res2.voltage).toBe(12.0);
+      expect(res2.voltageDrop).toBe(0);
+      expect(res2.catenaryVoltage).toBe(18.0);
+      expect(res2.catenaryDrop).toBe(0);
+    });
   });
 });

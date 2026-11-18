@@ -358,6 +358,13 @@ export function createToolbar(host: HTMLElement, events: ToolbarEvents) {
 
   const btnPower = createToggleBtn(ICONS.zap, t.toggles.voltageLabel, "Volt", false, events.onTogglePowerSim, "tb-power");
   btnPower.title = t.toggles.voltageTitle;
+  btnPower.addEventListener("dblclick", () => {
+    events.onOpenPowerSettings?.("voltage");
+  });
+  btnPower.addEventListener("contextmenu", (e) => {
+    e.preventDefault();
+    events.onOpenPowerSettings?.("voltage");
+  });
   powerWrapper.appendChild(btnPower);
 
   const powerMenu = createDropdownMenu("", [

@@ -194,9 +194,7 @@ export function drawVoltageBadge(
   } else if (isDisc) {
     voltText = "⛔ 0.0 V";
   } else if (powerResult.isFeeder) {
-    voltText = `⚡ ${powerResult.voltage.toFixed(1)} V`;
-  } else if (powerResult.voltageDrop >= 0.01) {
-    voltText = `${powerResult.voltage.toFixed(2)} V (-${powerResult.voltageDrop.toFixed(2)}V)`;
+    voltText = `⚡ ${powerResult.voltage.toFixed(2)} V`;
   } else {
     voltText = `${powerResult.voltage.toFixed(2)} V`;
   }
@@ -205,13 +203,11 @@ export function drawVoltageBadge(
     const isCatDisc = powerResult.catenaryStatus === "disconnected";
     let catText: string;
     if (isCatDisc) {
-      catText = "OL: ⛔ 0V";
+      catText = "OL: ⛔ 0.0 V";
     } else if (powerResult.isCatenaryFeeder) {
-      catText = `OL: ⚡${powerResult.catenaryVoltage.toFixed(1)}V`;
-    } else if ((powerResult.catenaryDrop ?? 0) >= 0.01) {
-      catText = `OL: ${powerResult.catenaryVoltage.toFixed(2)}V (-${powerResult.catenaryDrop!.toFixed(2)}V)`;
+      catText = `OL: ⚡ ${powerResult.catenaryVoltage.toFixed(2)} V`;
     } else {
-      catText = `OL: ${powerResult.catenaryVoltage.toFixed(2)}V`;
+      catText = `OL: ${powerResult.catenaryVoltage.toFixed(2)} V`;
     }
     voltText = `${voltText} • ${catText}`;
   }
@@ -254,8 +250,18 @@ export function drawVoltageBadge(
 
   const padX = 5;
   const padY = 2;
-  const bgW = text.width + padX * 2;
-  const bgH = text.height + padY * 2;
+  let textW = Math.max(20, voltText.length * 6);
+  let textH = 12;
+  try {
+    if (typeof document !== "undefined" && text.width > 0 && text.height > 0) {
+      textW = text.width;
+      textH = text.height;
+    }
+  } catch {
+    // fallback
+  }
+  const bgW = textW + padX * 2;
+  const bgH = textH + padY * 2;
 
   const bg = new Graphics();
   // Schatten
