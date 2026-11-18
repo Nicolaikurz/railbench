@@ -640,6 +640,8 @@ async function main() {
         sidebar?.setCatalog(catalog);
         if (layout.pieces.length === 0 && (newCat.scale === "H0" || newCat.scale === "N" || newCat.scale === "TT" || newCat.scale === "Z" || newCat.scale === "1" || newCat.scale === "G" || newCat.scale === "0")) {
           layout.scale = newCat.scale;
+          layout.feedVoltage = getDefaultFeedVoltage(newCat.scale);
+          layout.locoCurrentMa = getDefaultLocoCurrentMa(newCat.scale);
         }
         sync(false);
         saveSettingsState();
@@ -662,6 +664,8 @@ async function main() {
         sidebar?.setCatalog(catalog);
         if (layout.pieces.length === 0 && (newCat.scale === "H0" || newCat.scale === "N" || newCat.scale === "TT" || newCat.scale === "Z" || newCat.scale === "1" || newCat.scale === "G" || newCat.scale === "0")) {
           layout.scale = newCat.scale;
+          layout.feedVoltage = getDefaultFeedVoltage(newCat.scale);
+          layout.locoCurrentMa = getDefaultLocoCurrentMa(newCat.scale);
         }
         sync(false);
         saveSettingsState();

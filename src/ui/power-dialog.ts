@@ -1,5 +1,6 @@
 import type { Layout } from "@/core/types";
 import {
+  getDefaultFeedVoltage,
   getDefaultLocoCurrentMa,
   MIN_LOCO_CURRENT_MA,
   MAX_LOCO_CURRENT_MA,
@@ -39,7 +40,7 @@ export function openPowerSettingsDialog(options: PowerSettingsDialogOptions): vo
   const existing = document.getElementById("power-settings-modal");
   if (existing) existing.remove();
 
-  let currentVoltage = layout.feedVoltage ?? 16.0;
+  let currentVoltage = layout.feedVoltage ?? getDefaultFeedVoltage(layout.scale);
   let currentLocoMa = layout.locoCurrentMa ?? getDefaultLocoCurrentMa(layout.scale);
   currentLocoMa = Math.min(MAX_LOCO_CURRENT_MA, Math.max(MIN_LOCO_CURRENT_MA, currentLocoMa));
   let currentLocoCount = layout.locoCount ?? 1;
@@ -474,6 +475,15 @@ export function openPowerSettingsDialog(options: PowerSettingsDialogOptions): vo
     updateDisplay();
   });
 
+  inputLoco.addEventListener("input", () => {
+    const val = parseInt(inputLoco.value, 10);
+    if (!isNaN(val) && val > 0) {
+      currentLocoMa = Math.min(MAX_LOCO_CURRENT_MA, Math.max(MIN_LOCO_CURRENT_MA, val));
+      sliderLoco.value = currentLocoMa.toString();
+      updateDisplay();
+    }
+  });
+
   inputLoco.addEventListener("change", () => {
     let val = parseInt(inputLoco.value, 10);
     if (isNaN(val)) val = 450;
@@ -604,6 +614,14 @@ export function openPowerSettingsDialog(options: PowerSettingsDialogOptions): vo
     currentLocoCount = Math.min(10, currentLocoCount + 1);
     countInput.value = currentLocoCount.toString();
     updateDisplay();
+  });
+
+  countInput.addEventListener("input", () => {
+    const val = parseInt(countInput.value, 10);
+    if (!isNaN(val) && val >= 1 && val <= 10) {
+      currentLocoCount = val;
+      updateDisplay();
+    }
   });
 
   countInput.addEventListener("change", () => {

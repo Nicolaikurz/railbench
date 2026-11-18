@@ -62,11 +62,8 @@ export interface ToolbarFactoryDeps {
 }
 
 export function buildToolbarEvents(deps: ToolbarFactoryDeps): ToolbarEvents {
-  const layout = deps.getLayout();
   const operations = deps.getOperations();
   const selection = deps.getSelection();
-  const planManager = deps.getPlanManager();
-  const history = deps.getHistory();
   const renderer = deps.getRenderer();
   const ruler = deps.getRuler();
   const viewer3D = deps.getViewer3D();
@@ -76,11 +73,11 @@ export function buildToolbarEvents(deps: ToolbarFactoryDeps): ToolbarEvents {
     onNewPlan: () => operations.triggerNewPlan(),
     onOpenDemoTracks: () => deps.triggerDemoTracksDialog?.(),
     onUndo: () => {
-      history.undo();
+      deps.getHistory().undo();
       deps.sync(true);
     },
     onRedo: () => {
-      history.redo();
+      deps.getHistory().redo();
       deps.sync(true);
     },
     onCopy: () => operations.copySelected(),
@@ -146,21 +143,25 @@ export function buildToolbarEvents(deps: ToolbarFactoryDeps): ToolbarEvents {
     onToggleSignal: () => operations.toggleSelectedSignal(),
     onToggleBridge: () => operations.toggleSelectedBridge(),
     onSetFeedVoltage: (v: number) => {
+      const layout = deps.getLayout();
       layout.feedVoltage = v;
       if (layout.catenaryCircuitMode === "parallel" || layout.catenaryFeedVoltage === undefined) {
         layout.catenaryFeedVoltage = v;
       }
       if (!deps.isPowerSimEnabled()) deps.setPowerSimEnabled(true);
+      renderer.invalidateCaches();
       deps.sync(true);
     },
     onSetLocoCurrent: (ma: number) => {
+      const layout = deps.getLayout();
       layout.locoCurrentMa = Math.min(3000, Math.max(10, ma));
       if (!deps.isPowerSimEnabled()) deps.setPowerSimEnabled(true);
+      renderer.invalidateCaches();
       deps.sync(true);
     },
     onOpenPowerSettings: (initialFocus) => {
       openPowerSettingsDialog({
-        layout,
+        layout: deps.getLayout(),
         catalog: deps.getCatalog(),
         initialFocus,
         onApply: ({
@@ -173,6 +174,7 @@ export function buildToolbarEvents(deps: ToolbarFactoryDeps): ToolbarEvents {
           turnoutDecoderCurrentMa,
           bulkTurnoutAction,
         }) => {
+          const layout = deps.getLayout();
           layout.feedVoltage = feedVoltage;
           if (catenaryFeedVoltage !== undefined) layout.catenaryFeedVoltage = catenaryFeedVoltage;
           if (catenaryCircuitMode !== undefined) layout.catenaryCircuitMode = catenaryCircuitMode;
@@ -199,6 +201,7 @@ export function buildToolbarEvents(deps: ToolbarFactoryDeps): ToolbarEvents {
             }
           }
           if (!deps.isPowerSimEnabled()) deps.setPowerSimEnabled(true);
+          renderer.invalidateCaches();
           deps.sync(true);
         },
       });
@@ -222,6 +225,7 @@ export function buildToolbarEvents(deps: ToolbarFactoryDeps): ToolbarEvents {
       deps.sync();
     },
     onToggleBaseboard: () => {
+      const layout = deps.getLayout();
       const baseboards = getBaseboards(layout);
       const anyEnabled = baseboards.some((b) => b.enabled);
       for (const b of baseboards) {
@@ -253,7 +257,7 @@ export function buildToolbarEvents(deps: ToolbarFactoryDeps): ToolbarEvents {
     onSavePlanAs: (format?: PlanFormat) => operations.triggerSavePlanAs(format ?? "railbench"),
     onSaveXML: () => operations.triggerSavePlanAs("xml"),
     onExportCSV: () => operations.triggerExportCSV(),
-    onPrintPlan: () => openPrintDialog(layout, deps.getCatalog(), renderer),
+    onPrintPlan: () => openPrintDialog(deps.getLayout(), deps.getCatalog(), renderer),
     onMoveSelectedToLayerPrompt: () => deps.openHeightDialogForSelection(),
     onOpenHelp: (tab?: string) => openHelpDialog((tab as HelpTab) || "overview"),
     onOpenWelcome: () => deps.triggerWelcomeDialog?.(),
