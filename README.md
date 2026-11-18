@@ -57,7 +57,7 @@ Because what works well for my personal layout planning might not always fit eve
 * **Flatpak**:
   ```bash
   flatpak install --user release/Railbench.flatpak
-  flatpak run de.railbench.Railbench
+  flatpak run io.github.Nicolaikurz.railbench
   ```
 * **AppImage**:
   ```bash

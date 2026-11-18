@@ -3,10 +3,9 @@ Name=Railbench
 GenericName=Model Railway Track Planner
 Comment=Design and simulate model railway layouts with authentic track geometries
 Exec=railbench %U
-Icon=de.railbench.Railbench
+Icon=io.github.Nicolaikurz.railbench
 Type=Application
 Terminal=false
 Categories=Graphics;2DGraphics;Engineering;
-MimeType=application/json;application/xml;application/x-gleisplan;
 StartupWMClass=Railbench
 

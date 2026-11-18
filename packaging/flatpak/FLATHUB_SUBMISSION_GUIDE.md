@@ -1,6 +1,6 @@
 # Flathub Submission & Flatpak Packaging Guide for RAILbench
 
-This guide explains how **RAILbench** (`de.railbench.Railbench`) is packaged as a Flatpak and submitted to [Flathub](https://flathub.org).
+This guide explains how **RAILbench** (`io.github.Nicolaikurz.railbench`) is packaged as a Flatpak and submitted to [Flathub](https://flathub.org).
 
 ---
 
@@ -8,13 +8,13 @@ This guide explains how **RAILbench** (`de.railbench.Railbench`) is packaged as 
 
 | Component | Value | Notes |
 | :--- | :--- | :--- |
-| **App ID** | `de.railbench.Railbench` | Reverse-DNS notation matching Flathub naming standards |
+| **App ID** | `io.github.Nicolaikurz.railbench` | Reverse-DNS notation matching Flathub naming standards |
 | **Base App** | `org.electronjs.Electron2.BaseApp//24.08` | Includes `zypak` sandbox wrapper for Electron |
 | **Runtime / SDK** | `org.freedesktop.Platform//24.08` / `Sdk//24.08` | Long-Term Support Freedesktop runtime |
 | **Launcher** | `railbench.sh` | Launches via `zypak-wrapper` with `--ozone-platform-hint=auto` (Wayland + X11) |
 | **Icon** | `512x512` PNG | `packaging/flatpak/icon.png` installed to `/app/share/icons/hicolor/512x512/apps/` |
-| **Desktop Entry** | `de.railbench.Railbench.desktop` | Passes `desktop-file-validate` |
-| **Metainfo** | `de.railbench.Railbench.metainfo.xml` | Conforms to AppStream 1.0; passes `appstreamcli validate` |
+| **Desktop Entry** | `io.github.Nicolaikurz.railbench.desktop` | Passes `desktop-file-validate` |
+| **Metainfo** | `io.github.Nicolaikurz.railbench.metainfo.xml` | Conforms to AppStream 1.0; passes `appstreamcli validate` |
 
 ### Permissions (`finish-args`)
 - `--socket=wayland` & `--socket=x11`: Native Wayland display support with transparent X11 fallback.
@@ -30,10 +30,10 @@ This guide explains how **RAILbench** (`de.railbench.Railbench`) is packaged as 
 
 ```
 packaging/flatpak/
-├── de.railbench.Railbench.desktop      # Validated XDG desktop launcher entry
-├── de.railbench.Railbench.metainfo.xml # Validated AppStream metadata with screenshots & releases
-├── de.railbench.Railbench.yml          # Manifest for local offline development builds
-├── de.railbench.Railbench.flathub.yml  # Production manifest for the Flathub build bots
+├── io.github.Nicolaikurz.railbench.desktop      # Validated XDG desktop launcher entry
+├── io.github.Nicolaikurz.railbench.metainfo.xml # Validated AppStream metadata with screenshots & releases
+├── io.github.Nicolaikurz.railbench.yml          # Manifest for local offline development builds
+├── io.github.Nicolaikurz.railbench.flathub.yml  # Production manifest for the Flathub build bots
 ├── flathub.json                        # Configures target architectures (x86_64, aarch64)
 ├── icon.png                            # 512x512 application icon
 └── railbench.sh                        # Electron startup wrapper script with Wayland ozone flags
@@ -66,7 +66,7 @@ This script:
 ### Installing and Running the Local Build:
 ```bash
 flatpak install --user release/Railbench.flatpak
-flatpak run de.railbench.Railbench
+flatpak run io.github.Nicolaikurz.railbench
 ```
 
 ---
@@ -115,13 +115,13 @@ Visit [https://github.com/flathub/flathub](https://github.com/flathub/flathub) a
 ```bash
 git clone https://github.com/<YOUR-GITHUB-USERNAME>/flathub.git
 cd flathub
-git checkout -b new-pr-de.railbench.Railbench
+git checkout -b new-pr-io.github.Nicolaikurz.railbench
 ```
 
 ### Step 3: Add RAILbench files
 Copy the prepared files from `packaging/flatpak/` to the branch root:
-- Copy `packaging/flatpak/de.railbench.Railbench.flathub.yml` and rename it to `de.railbench.Railbench.yml`.
-- Edit `de.railbench.Railbench.yml` and insert the exact `sha256` checksums from Step 4.2:
+- Copy `packaging/flatpak/io.github.Nicolaikurz.railbench.flathub.yml` and rename it to `io.github.Nicolaikurz.railbench.yml`.
+- Edit `io.github.Nicolaikurz.railbench.yml` and insert the exact `sha256` checksums from Step 4.2:
   ```yaml
   sources:
     - type: archive
@@ -137,26 +137,26 @@ Copy the prepared files from `packaging/flatpak/` to the branch root:
   ```
 - Copy `flathub.json`
 - Copy `railbench.sh`
-- Copy `de.railbench.Railbench.desktop`
-- Copy `de.railbench.Railbench.metainfo.xml`
+- Copy `io.github.Nicolaikurz.railbench.desktop`
+- Copy `io.github.Nicolaikurz.railbench.metainfo.xml`
 - Copy `icon.png`
 
 ### Step 4: Verify AppStream and Desktop Validation
 ```bash
-appstreamcli validate packaging/flatpak/de.railbench.Railbench.metainfo.xml
-desktop-file-validate packaging/flatpak/de.railbench.Railbench.desktop
+appstreamcli validate packaging/flatpak/io.github.Nicolaikurz.railbench.metainfo.xml
+desktop-file-validate packaging/flatpak/io.github.Nicolaikurz.railbench.desktop
 ```
 
 ### Step 5: Commit and Open Pull Request
 ```bash
 git add .
-git commit -m "Add de.railbench.Railbench"
-git push origin new-pr-de.railbench.Railbench
+git commit -m "Add io.github.Nicolaikurz.railbench"
+git push origin new-pr-io.github.Nicolaikurz.railbench
 ```
 Open a Pull Request on [https://github.com/flathub/flathub/pulls](https://github.com/flathub/flathub/pulls).
 
 ### Step 6: Review & Flathub Bot Testing
 1. Flathub's automated bot (`@flathubbot`) will comment on the PR and initiate test builds for `x86_64` and `aarch64`.
 2. Reviewers from Flathub will inspect the manifest, permissions, and AppStream metadata.
-3. Once approved, the PR is merged, and Flathub creates a new dedicated repository `https://github.com/flathub/de.railbench.Railbench`.
-4. Your application will then appear on [Flathub](https://flathub.org/apps/de.railbench.Railbench)!
+3. Once approved, the PR is merged, and Flathub creates a new dedicated repository `https://github.com/flathub/io.github.Nicolaikurz.railbench`.
+4. Your application will then appear on [Flathub](https://flathub.org/apps/io.github.Nicolaikurz.railbench)!

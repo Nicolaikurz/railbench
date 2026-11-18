@@ -50,7 +50,7 @@ Diese Anleitung beschreibt, wie die vorkompilierten Binaries unter **Windows**, 
 * **Flatpak**:
   ```bash
   flatpak install --user release/Railbench.flatpak
-  flatpak run de.railbench.Railbench
+  flatpak run io.github.Nicolaikurz.railbench
   ```
 
 ---

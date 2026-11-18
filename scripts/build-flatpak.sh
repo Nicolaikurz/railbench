@@ -40,17 +40,17 @@ cd "$PROJECT_ROOT/packaging/flatpak"
 flatpak-builder --force-clean \
     --repo="$REPO_DIR" \
     "$BUILD_DIR" \
-    de.railbench.Railbench.yml
+    io.github.Nicolaikurz.railbench.yml
 
 echo ""
 echo "=== 5. Creating Standalone Flatpak Bundle (.flatpak) ==="
-flatpak build-bundle "$REPO_DIR" "$OUTPUT_BUNDLE" de.railbench.Railbench
+flatpak build-bundle "$REPO_DIR" "$OUTPUT_BUNDLE" io.github.Nicolaikurz.railbench
 
 echo ""
 echo "==========================================="
 echo " Flatpak build complete!"
 echo "Bundle file: $OUTPUT_BUNDLE"
 echo "To install: flatpak install --user $OUTPUT_BUNDLE"
-echo "To run:     flatpak run de.railbench.Railbench"
+echo "To run:     flatpak run io.github.Nicolaikurz.railbench"
 echo "==========================================="
 

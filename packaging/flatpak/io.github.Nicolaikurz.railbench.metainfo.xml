@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
-  <id>de.railbench.Railbench</id>
+  <id>io.github.Nicolaikurz.railbench</id>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>MIT</project_license>
   <name>Railbench</name>
@@ -20,10 +20,10 @@
       <li>Layer management, slope gradient calculator, continuous easement ramps, and bill of materials export</li>
     </ul>
   </description>
-  <developer id="de.railbench">
+  <developer id="io.github.nicolaikurz">
     <name>Nicolai Kurz</name>
   </developer>
-  <launchable type="desktop-id">de.railbench.Railbench.desktop</launchable>
+  <launchable type="desktop-id">io.github.Nicolaikurz.railbench.desktop</launchable>
   <url type="homepage">https://github.com/Nicolaikurz/railbench/</url>
   <url type="bugtracker">https://github.com/Nicolaikurz/railbench/issues</url>
   <url type="vcs-browser">https://github.com/Nicolaikurz/railbench</url>
@@ -43,10 +43,11 @@
     <category>2DGraphics</category>
     <category>Engineering</category>
   </categories>
-  <provides>
-    <id>de.railbench.Railbench.desktop</id>
-  </provides>
   <content_rating type="oars-1.1"/>
+  <branding>
+    <color type="primary" scheme_preference="light">#a8c7fa</color>
+    <color type="primary" scheme_preference="dark">#1f3a5f</color>
+  </branding>
   <releases>
     <release version="0.6.0" date="2026-11-17">
       <description>
