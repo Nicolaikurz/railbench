@@ -42,6 +42,14 @@ export function buildBuildingWoodPlate3D(
 
   let geo = _buildingPlateGeoCache.get(key);
   if (!geo) {
+    if (_buildingPlateGeoCache.size >= 128) {
+      const oldestKey = _buildingPlateGeoCache.keys().next().value;
+      if (oldestKey !== undefined) {
+        const oldGeo = _buildingPlateGeoCache.get(oldestKey);
+        if (oldGeo) oldGeo.userData.shared = false;
+        _buildingPlateGeoCache.delete(oldestKey);
+      }
+    }
     geo = new THREE.BoxGeometry(width, thickness, depth);
     geo.userData.shared = true;
     _buildingPlateGeoCache.set(key, geo);

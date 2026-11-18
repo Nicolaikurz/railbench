@@ -232,6 +232,8 @@ export default defineConfig({
   },
   test: {
     include: ["tests/**/*.test.ts"],
+    maxConcurrency: 5,
+    maxWorkers: 2,
     exclude: [
       "**/node_modules/**",
       "**/dist/**",

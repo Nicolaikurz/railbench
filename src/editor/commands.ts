@@ -6,6 +6,8 @@ export interface Command {
   undo(layout: Layout): void;
 }
 
+const MAX_HISTORY_SIZE = 100;
+
 export class History {
   private undoStack: Command[] = [];
   private redoStack: Command[] = [];
@@ -15,6 +17,9 @@ export class History {
   run(cmd: Command) {
     cmd.do(this.layout);
     this.undoStack.push(cmd);
+    if (this.undoStack.length > MAX_HISTORY_SIZE) {
+      this.undoStack.shift();
+    }
     this.redoStack = [];
   }
 

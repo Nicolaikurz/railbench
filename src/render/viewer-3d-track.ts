@@ -18,10 +18,33 @@ SHARED_TIE_MAT.userData.shared = true;
 const SHARED_RAIL_MAT = new THREE.MeshStandardMaterial({ color: 0xd1d5db, metalness: 0.85, roughness: 0.25 });
 SHARED_RAIL_MAT.userData.shared = true;
 
+const MAX_GEO_CACHE_SIZE = 256;
+
+function setBoundedGeoCache<K, V extends THREE.BufferGeometry>(cache: Map<K, V>, key: K, geo: V): void {
+  if (cache.size >= MAX_GEO_CACHE_SIZE) {
+    const oldestKey = cache.keys().next().value;
+    if (oldestKey !== undefined) {
+      const oldGeo = cache.get(oldestKey);
+      if (oldGeo) oldGeo.userData.shared = false;
+      cache.delete(oldestKey);
+    }
+  }
+  geo.userData.shared = true;
+  cache.set(key, geo);
+}
+
 const _ballastMatCache = new Map<number, THREE.MeshStandardMaterial>();
 function getSharedBallastMaterial(color: number): THREE.MeshStandardMaterial {
   let mat = _ballastMatCache.get(color);
   if (!mat) {
+    if (_ballastMatCache.size >= 64) {
+      const oldestKey = _ballastMatCache.keys().next().value;
+      if (oldestKey !== undefined) {
+        const oldMat = _ballastMatCache.get(oldestKey);
+        if (oldMat) oldMat.userData.shared = false;
+        _ballastMatCache.delete(oldestKey);
+      }
+    }
     mat = new THREE.MeshStandardMaterial({
       color,
       roughness: 0.9,
@@ -42,8 +65,7 @@ function getSharedTieGeometry(gauge: number): THREE.BoxGeometry {
   if (!geo) {
     const tieW = Math.max(1.5, (gauge / 16.5) * 2.6);
     geo = new THREE.BoxGeometry(tieW, 2.2, gauge * 1.55);
-    geo.userData.shared = true;
-    _tieGeoCache.set(key, geo);
+    setBoundedGeoCache(_tieGeoCache, key, geo);
   }
   return geo;
 }
@@ -54,8 +76,7 @@ function getSharedStraightBallastGeometry(len: number, h: number, w: number): TH
   let geo = _straightBallastGeoCache.get(key);
   if (!geo) {
     geo = new THREE.BoxGeometry(len, h, w);
-    geo.userData.shared = true;
-    _straightBallastGeoCache.set(key, geo);
+    setBoundedGeoCache(_straightBallastGeoCache, key, geo);
   }
   return geo;
 }
@@ -70,10 +91,9 @@ function getSharedStraightDualRailGeometry(len: number, h: number, w: number, ga
     const rR = new THREE.BoxGeometry(len, h, w);
     rR.translate(0, 0, gaugeHalf);
     geo = BufferGeometryUtils.mergeGeometries([rL, rR]);
-    geo.userData.shared = true;
     rL.dispose();
     rR.dispose();
-    _straightDualRailGeoCache.set(key, geo);
+    setBoundedGeoCache(_straightDualRailGeoCache, key, geo);
   }
   return geo;
 }
@@ -108,8 +128,7 @@ export function getSharedCurvedBallastGeometry(
     curveGeo = new THREE.ExtrudeGeometry(curveShape, { depth: ballastH, bevelEnabled: false });
     curveGeo.rotateX(Math.PI / 2);
     curveGeo.translate(leadX, ballastH, dir * r);
-    curveGeo.userData.shared = true;
-    _curvedBallastGeoCache.set(curveCacheKey, curveGeo);
+    setBoundedGeoCache(_curvedBallastGeoCache, curveCacheKey, curveGeo);
   }
   return curveGeo;
 }
@@ -147,8 +166,7 @@ export function getSharedCurvedDualRailGeometry(
     }
     dualCurvedGeo = BufferGeometryUtils.mergeGeometries(railGeos);
     railGeos.forEach((g) => g.dispose());
-    dualCurvedGeo.userData.shared = true;
-    _curvedDualRailGeoCache.set(railCacheKey, dualCurvedGeo);
+    setBoundedGeoCache(_curvedDualRailGeoCache, railCacheKey, dualCurvedGeo);
   }
   return dualCurvedGeo;
 }

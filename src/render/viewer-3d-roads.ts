@@ -41,14 +41,27 @@ export const SHARED_WOOD_PLATE_MAT = new THREE.MeshStandardMaterial({
 });
 SHARED_WOOD_PLATE_MAT.userData.shared = true;
 
+const MAX_ROAD_GEO_CACHE = 256;
+function setBoundedRoadGeo<K, V extends THREE.BufferGeometry>(cache: Map<K, V>, key: K, geo: V): void {
+  if (cache.size >= MAX_ROAD_GEO_CACHE) {
+    const oldestKey = cache.keys().next().value;
+    if (oldestKey !== undefined) {
+      const oldGeo = cache.get(oldestKey);
+      if (oldGeo) oldGeo.userData.shared = false;
+      cache.delete(oldestKey);
+    }
+  }
+  geo.userData.shared = true;
+  cache.set(key, geo);
+}
+
 const _straightWoodPlateGeoCache = new Map<string, THREE.BoxGeometry>();
 function getSharedStraightWoodPlateGeo(len: number, thickness: number, width: number): THREE.BoxGeometry {
   const key = `${Math.round(len * 10)}:${Math.round(thickness * 10)}:${Math.round(width * 10)}`;
   let geo = _straightWoodPlateGeoCache.get(key);
   if (!geo) {
     geo = new THREE.BoxGeometry(len, thickness, width);
-    geo.userData.shared = true;
-    _straightWoodPlateGeoCache.set(key, geo);
+    setBoundedRoadGeo(_straightWoodPlateGeoCache, key, geo);
   }
   return geo;
 }
@@ -457,8 +470,7 @@ export function buildWoodPlatePiece3D(
       if (!isFlat) {
         applyCurveElevation(geo, r, rad, heightDiff, dir, 0);
       } else {
-        geo.userData.shared = true;
-        _curvedWoodPlateGeoCache.set(cacheKey!, geo);
+        setBoundedRoadGeo(_curvedWoodPlateGeoCache, cacheKey!, geo);
       }
     }
 
@@ -564,8 +576,7 @@ export function buildAllWoodPlates3D(woodPlateGroup: THREE.Group, items: WoodPla
           geo = new THREE.ExtrudeGeometry(curveShape, { depth: thickness, bevelEnabled: false, curveSegments: segments });
           geo.rotateX(Math.PI / 2);
           geo.translate(0, 0, dir * r);
-          geo.userData.shared = true;
-          _curvedWoodPlateGeoCache.set(cacheKey, geo);
+          setBoundedRoadGeo(_curvedWoodPlateGeoCache, cacheKey, geo);
         }
 
         const instMesh = new THREE.InstancedMesh(geo, SHARED_WOOD_PLATE_MAT, list.length);
