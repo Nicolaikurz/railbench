@@ -181,24 +181,10 @@ export function showTrackContextMenu(options: TrackContextMenuOptions): void {
       </div>
     </div>
 
-    <div class="ctx-item" data-action="toggle-group">
-      <div class="ctx-item-left">
-        <span class="ctx-icon">🗂</span>
-        <span>${piece.groupId ? (isDe ? "Gruppierung aufheben" : "Ungroup") : (isDe ? "Gruppieren / Gruppe" : "Group / Ungroup")}</span>
-      </div>
-    </div>
-
     <div class="ctx-divider"></div>
 
     <!-- 4. Track-specific -->
     <div class="ctx-section-title">${isDe ? "Gleisspezifisch" : "Track-specific"}</div>
-
-    <div class="ctx-item" data-action="split-or-replace">
-      <div class="ctx-item-left">
-        <span class="ctx-icon">✂</span>
-        <span>${isDe ? "Gleis teilen / Typ ersetzen..." : "Split track / Replace with another type..."}</span>
-      </div>
-    </div>
 
     <div class="ctx-item" data-action="properties-info">
       <div class="ctx-item-left">

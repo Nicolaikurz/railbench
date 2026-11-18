@@ -17,6 +17,7 @@ import {
 } from "@/core/ramp-generator";
 import { getPieceConnectorHeight } from "@/core/snapping";
 import { openLayerDialog } from "./layer-dialog";
+import { translateHeightPanelToEn } from "./height-panel-i18n";
 
 export interface HeightPanelOptions {
   layout: Layout;
@@ -45,6 +46,15 @@ interface StartConnectorOption {
 }
 
 let activeHeightPanelCleanup: (() => void) | null = null;
+let activeHeightPanelUpdateFn: ((clickedPiece?: TrackPiece, wPos?: { x: number; y: number }) => void) | null = null;
+
+/**
+ * Notifies the open Height & Ramp panel that the layout or selected track changed,
+ * so the Automatic ramp generator (and Ramp tab) directly updates for the new start position.
+ */
+export function notifyHeightPanelUpdate(clickedPiece?: TrackPiece, wPos?: { x: number; y: number }): void {
+  activeHeightPanelUpdateFn?.(clickedPiece, wPos);
+}
 
 export function openHeightPanel(options: HeightPanelOptions): HTMLElement {
   const {
@@ -95,6 +105,7 @@ export function openHeightPanel(options: HeightPanelOptions): HTMLElement {
   panel.id = "height-panel-root";
   panel.className = "height-panel-card";
   panel.innerHTML = heightPanelHtml;
+  if (!isDe) translateHeightPanelToEn(panel);
 
   // Position below or next to #right-sidebar (or restore saved position)
   const parentEl = document.getElementById("app") || document.body;
@@ -267,6 +278,9 @@ export function openHeightPanel(options: HeightPanelOptions): HTMLElement {
     if (activeHeightPanelCleanup === closePanel) {
       activeHeightPanelCleanup = null;
     }
+    if (activeHeightPanelUpdateFn === handleExternalPanelUpdate) {
+      activeHeightPanelUpdateFn = null;
+    }
     setPickHandler?.(null);
     setPinDropHandler?.(null);
     setPointMarkers?.(null);
@@ -318,6 +332,7 @@ export function openHeightPanel(options: HeightPanelOptions): HTMLElement {
     } else if (tab === "generate") {
       onPreviewRamp?.(null);
       applyBtn.textContent = isDe ? "Rampe erstellen" : "Create Ramp";
+      rebuildStartConnectorOptions();
       updateGenerateCalculation();
     }
   };
@@ -753,44 +768,80 @@ export function openHeightPanel(options: HeightPanelOptions): HTMLElement {
 
   // Collect start points (open connectors)
   const startConnectorOptions: StartConnectorOption[] = [];
+  let genStartIdx = 0;
   const initialAnchor = options.anchorPiece || selectedPieces[0] || layout.pieces[0];
+  const endWord = isDe ? "Ende" : "End";
+
+  const formatStartOptionLabel = (piece: TrackPiece, ci: number, h: number, conn: { x: number; y: number }): string => {
+    const letter = String.fromCharCode(65 + (ci % 26));
+    return `#${piece.catalogId} · ${endWord} ${letter} · ${Math.round(h)} mm · (${Math.round(conn.x)}, ${Math.round(conn.y)})`;
+  };
 
   const pushConnectorOptions = (piece: TrackPiece) => {
     const openIdxs = getOpenConnectors(piece, layout.pieces, 8.0, layers);
     for (const ci of openIdxs) {
       const conn = piece.connectors[ci]!;
       const h = getPieceConnectorHeight(piece, ci, layers);
-      const letter = String.fromCharCode(65 + (ci % 26));
-      const label = `#${piece.catalogId} · Ende ${letter} · ${Math.round(h)} mm · (${Math.round(conn.x)}, ${Math.round(conn.y)})`;
+      const label = formatStartOptionLabel(piece, ci, h, conn);
       startConnectorOptions.push({ piece, connIdx: ci, heightMm: h, label });
     }
   };
 
-  if (initialAnchor) {
-    pushConnectorOptions(initialAnchor);
-  }
-  for (const p of layout.pieces) {
-    if (initialAnchor && p.id === initialAnchor.id) continue;
-    if (startConnectorOptions.length >= 60) break;
-    pushConnectorOptions(p);
-  }
+  const rebuildStartConnectorOptions = (preferredPiece?: TrackPiece, preferredConnIdx?: number, wPos?: { x: number; y: number }) => {
+    const prevOpt = startConnectorOptions[genStartIdx];
+    const anchor = preferredPiece || prevOpt?.piece || initialAnchor;
 
-  // Populate start options
-  if (startConnectorOptions.length > 0) {
+    startConnectorOptions.length = 0;
+    if (anchor && layout.pieces.some((p) => p.id === anchor.id)) {
+      pushConnectorOptions(anchor);
+    }
+    for (const p of layout.pieces) {
+      if (anchor && p.id === anchor.id) continue;
+      if (startConnectorOptions.length >= 60) break;
+      pushConnectorOptions(p);
+    }
+
+    if (startConnectorOptions.length === 0) {
+      genStartSelect.innerHTML = `<option value="-1">${isDe ? "Keine offenen Enden gefunden" : "No open ends found"}</option>`;
+      genStartIdx = 0;
+      return;
+    }
+
+    let nextIdx = -1;
+    if (preferredPiece && preferredConnIdx !== undefined) {
+      nextIdx = startConnectorOptions.findIndex((o) => o.piece.id === preferredPiece.id && o.connIdx === preferredConnIdx);
+    }
+    if (nextIdx < 0 && preferredPiece && wPos) {
+      let bestDist = Infinity;
+      startConnectorOptions.forEach((o, idx) => {
+        if (o.piece.id !== preferredPiece.id) return;
+        const conn = o.piece.connectors[o.connIdx];
+        if (!conn) return;
+        const d = Math.hypot(wPos.x - conn.x, wPos.y - conn.y);
+        if (d < bestDist) {
+          bestDist = d;
+          nextIdx = idx;
+        }
+      });
+    }
+    if (nextIdx < 0 && preferredPiece) {
+      nextIdx = startConnectorOptions.findIndex((o) => o.piece.id === preferredPiece.id);
+    }
+    if (nextIdx < 0 && prevOpt) {
+      nextIdx = startConnectorOptions.findIndex((o) => o.piece.id === prevOpt.piece.id && o.connIdx === prevOpt.connIdx);
+      if (nextIdx < 0) {
+        nextIdx = startConnectorOptions.findIndex((o) => o.piece.id === prevOpt.piece.id);
+      }
+    }
+
+    genStartIdx = nextIdx >= 0 ? nextIdx : 0;
     genStartSelect.innerHTML = startConnectorOptions
-      .map((o, idx) => `<option value="${idx}">${o.label}</option>`)
+      .map((o, idx) => `<option value="${idx}" ${idx === genStartIdx ? "selected" : ""}>${o.label}</option>`)
       .join("");
-  } else {
-    genStartSelect.innerHTML = `<option value="-1">${isDe ? "Keine offenen Enden gefunden" : "No open ends found"}</option>`;
-  }
+    genStartSelect.value = String(genStartIdx);
+  };
 
-  let genStartIdx = 0;
-  if (options.anchorConnectorIndex !== undefined && initialAnchor) {
-    const foundIdx = startConnectorOptions.findIndex(
-      (o) => o.piece.id === initialAnchor.id && o.connIdx === options.anchorConnectorIndex,
-    );
-    if (foundIdx >= 0) genStartIdx = foundIdx;
-  }
+  rebuildStartConnectorOptions(initialAnchor, options.anchorConnectorIndex);
 
   // Available curve radii
   const availableRadii = getAvailableCurveRadii(catalog);
@@ -824,31 +875,100 @@ export function openHeightPanel(options: HeightPanelOptions): HTMLElement {
     return startConnectorOptions[genStartIdx];
   };
 
+  // Sync target height when switching to a start point at a different elevation
+  const syncTargetHeightForNewStart = (prevStartH: number, newStartH: number) => {
+    const layerVal = genTargetLayerSelect.value;
+    if (layerVal === "__create_above__") {
+      genTargetHeightInput.value = String(Math.round(newStartH + minClearance));
+    } else if (layerVal === "__create_below__") {
+      genTargetHeightInput.value = String(Math.round(newStartH - minClearance));
+    } else {
+      const lay = layers.find((l) => l.id === layerVal);
+      const curTH = parseFloat(genTargetHeightInput.value);
+      if (lay && Math.round(lay.heightMm ?? 0) !== Math.round(newStartH)) {
+        genTargetHeightInput.value = String(lay.heightMm ?? 0);
+      } else if (!isNaN(curTH)) {
+        const prevDelta = curTH - prevStartH;
+        const delta = Math.abs(prevDelta) >= 1 ? prevDelta : minClearance;
+        genTargetHeightInput.value = String(Math.round(newStartH + delta));
+      } else {
+        genTargetHeightInput.value = String(Math.round(newStartH + minClearance));
+      }
+    }
+  };
+
+  // Helper: Findet in einer zusammenhängenden Gleiskette den am nächsten zu targetPos liegenden offenen Anschluss
+  const findNearestOpenConnectorInChain = (
+    startPiece: TrackPiece,
+    targetPos: { x: number; y: number },
+  ): { piece: TrackPiece; conn: { x: number; y: number }; connIdx: number } | null => {
+    const visited = new Set<string>();
+    const queue: TrackPiece[] = [startPiece];
+    visited.add(startPiece.id);
+
+    let bestPiece: TrackPiece | null = null;
+    let bestConn: { x: number; y: number } | null = null;
+    let bestCi = -1;
+    let bestDist = Infinity;
+
+    while (queue.length > 0) {
+      const cur = queue.shift()!;
+      const openIdxs = getOpenConnectors(cur, layout.pieces, 8.0, layers);
+      for (const ci of openIdxs) {
+        const c = cur.connectors[ci]!;
+        const d = Math.hypot(targetPos.x - c.x, targetPos.y - c.y);
+        if (d < bestDist) {
+          bestDist = d;
+          bestPiece = cur;
+          bestConn = { x: c.x, y: c.y };
+          bestCi = ci;
+        }
+      }
+      for (const c of cur.connectors) {
+        if (c.connectedTo) {
+          const neighborId = c.connectedTo.pieceId;
+          if (!visited.has(neighborId)) {
+            visited.add(neighborId);
+            const neighbor = layout.pieces.find((p) => p.id === neighborId);
+            if (neighbor) queue.push(neighbor);
+          }
+        }
+      }
+    }
+
+    return bestPiece && bestConn && bestCi >= 0 ? { piece: bestPiece, conn: bestConn, connIdx: bestCi } : null;
+  };
+
   // Canvas picking & Drag-and-Drop Handler für Startpunkt
   const setGenStartPiece = (hitPiece: TrackPiece, wPos: { x: number; y: number }) => {
-    const openIdxs = getOpenConnectors(hitPiece, layout.pieces, 8.0, layers);
-    if (openIdxs.length === 0) return;
+    const prevStartH = getActiveStartOption()?.heightMm ?? 0;
+    let openIdxs = getOpenConnectors(hitPiece, layout.pieces, 8.0, layers);
+    if (openIdxs.length === 0) {
+      const nearest = findNearestOpenConnectorInChain(hitPiece, wPos);
+      if (nearest) {
+        hitPiece = nearest.piece;
+        openIdxs = [nearest.connIdx];
+        wPos = nearest.conn;
+      } else {
+        return;
+      }
+    }
     let bestCi = openIdxs[0]!, bestDist = Infinity;
     for (const ci of openIdxs) {
       const conn = hitPiece.connectors[ci]!;
       const d = Math.hypot(wPos.x - conn.x, wPos.y - conn.y);
       if (d < bestDist) { bestDist = d; bestCi = ci; }
     }
-    let optIdx = startConnectorOptions.findIndex((o) => o.piece.id === hitPiece.id && o.connIdx === bestCi);
-    if (optIdx < 0) {
-      const conn = hitPiece.connectors[bestCi]!;
-      const h = getPieceConnectorHeight(hitPiece, bestCi, layers);
-      const letter = String.fromCharCode(65 + (bestCi % 26));
-      const label = `#${hitPiece.catalogId} · Ende ${letter} · ${Math.round(h)} mm · (${Math.round(conn.x)}, ${Math.round(conn.y)})`;
-      startConnectorOptions.unshift({ piece: hitPiece, connIdx: bestCi, heightMm: h, label });
-      genStartSelect.innerHTML = startConnectorOptions.map((o, idx) => `<option value="${idx}">${o.label}</option>`).join("");
-      optIdx = 0;
+    rebuildStartConnectorOptions(hitPiece, bestCi, wPos);
+    const newStartH = getActiveStartOption()?.heightMm ?? 0;
+    if (Math.round(prevStartH) !== Math.round(newStartH)) {
+      syncTargetHeightForNewStart(prevStartH, newStartH);
     }
-    genStartIdx = optIdx;
-    genStartSelect.value = String(optIdx);
     stopPicking();
     updateGenerateCalculation();
   };
+
+  let prevGenStartH = getActiveStartOption()?.heightMm ?? 0;
 
   genPickCanvasBtn.addEventListener("click", () => {
     if (pickingMode === "gen-start") { stopPicking(); return; }
@@ -870,7 +990,16 @@ export function openHeightPanel(options: HeightPanelOptions): HTMLElement {
   });
 
   genStartSelect.addEventListener("change", () => {
+    const oldH = prevGenStartH;
     genStartIdx = parseInt(genStartSelect.value, 10) || 0;
+    const curOpt = getActiveStartOption();
+    if (curOpt) {
+      curOpt.heightMm = getPieceConnectorHeight(curOpt.piece, curOpt.connIdx, layers);
+      if (Math.round(oldH) !== Math.round(curOpt.heightMm)) {
+        syncTargetHeightForNewStart(oldH, curOpt.heightMm);
+      }
+      prevGenStartH = curOpt.heightMm;
+    }
     updateGenerateCalculation();
   });
 
@@ -963,29 +1092,47 @@ export function openHeightPanel(options: HeightPanelOptions): HTMLElement {
 
   let latestGenerateResult: ReturnType<typeof generateRampPieces> | null = null;
 
-  const updateGenerateCalculation = () => {
-    const startOpt = getActiveStartOption();
-    if (!startOpt) {
-      genStatusBox.className = "hp-status-box danger";
-      genStatusTitle.textContent = isDe ? "Kein Startpunkt vorhanden" : "No start point available";
-      return;
-    }
+  let isUpdatingGenerate = false;
 
-    const curH = startOpt.heightMm;
+  const updateGenerateCalculation = () => {
+    if (isUpdatingGenerate) return;
+    isUpdatingGenerate = true;
+    try {
+      const startOpt = getActiveStartOption();
+      if (!startOpt) {
+        genStatusBox.className = "hp-status-box danger";
+        genStatusTitle.textContent = isDe ? "Kein Startpunkt vorhanden" : "No start point available";
+        return;
+      }
+
+      // Refresh start connector height & label in case the track moved or changed elevation
+      startOpt.heightMm = getPieceConnectorHeight(startOpt.piece, startOpt.connIdx, layers);
+      const curConn = startOpt.piece.connectors[startOpt.connIdx];
+      if (curConn) {
+        startOpt.label = formatStartOptionLabel(startOpt.piece, startOpt.connIdx, startOpt.heightMm, curConn);
+        const optEl = genStartSelect.options[genStartIdx];
+        if (optEl && optEl.textContent !== startOpt.label) {
+          optEl.textContent = startOpt.label;
+        }
+      }
+      prevGenStartH = startOpt.heightMm;
+
+      const curH = startOpt.heightMm;
     const parsedTH = parseFloat(genTargetHeightInput.value);
     const tH = isNaN(parsedTH) ? curH + minClearance : parsedTH;
     syncGenSlopeButtons(tH, curH);
 
     // Marker on start connector
-    const conn = startOpt.piece.connectors[startOpt.connIdx]!;
+    const conn = startOpt.piece.connectors[startOpt.connIdx] || startOpt.piece.connectors[0] || startOpt.piece.transform;
+    const connAngle = ("angle" in conn && typeof conn.angle === "number") ? conn.angle : startOpt.piece.transform.rotation;
     const genMarkers: Array<{ x: number; y: number; label: string; color: number; id?: string }> = [
       { x: conn.x, y: conn.y, label: "Start", color: 0x10b981, id: "A" },
     ];
     setPointMarkers?.(genMarkers);
 
     genStartSubtext.textContent = isDe
-      ? `Starthöhe: ${Math.round(curH)} mm · Richtung: ${Math.round(conn.angle)}°`
-      : `Start height: ${Math.round(curH)} mm · Heading: ${Math.round(conn.angle)}°`;
+      ? `Starthöhe: ${Math.round(curH)} mm · Richtung: ${Math.round(connAngle)}°`
+      : `Start height: ${Math.round(curH)} mm · Heading: ${Math.round(connAngle)}°`;
 
     // Circumference hint for helix
     const selRadius = availableRadii.find((r) => r.catalogId === genCurveId);
@@ -1051,7 +1198,34 @@ export function openHeightPanel(options: HeightPanelOptions): HTMLElement {
     genStatusBox.className = `hp-status-box ${gradLevel}`;
     genStatusTitle.textContent = `${gradPrefix}: ${grad.toFixed(1)}% (${count} ${isDe ? "Gleise" : "tracks"}${turnsText}, ${lenCm} cm)`;
     genStatusDesc.textContent = `${Math.round(curH)} mm ➔ ${Math.round(tH)} mm (Δ ${deltaH > 0 ? "+" : ""}${deltaH} mm)`;
+    } finally {
+      isUpdatingGenerate = false;
+    }
   };
+
+  const handleExternalPanelUpdate = (clickedPiece?: TrackPiece, wPos?: { x: number; y: number }) => {
+    if (activeTab === "generate") {
+      if (clickedPiece) {
+        const openIdxs = getOpenConnectors(clickedPiece, layout.pieces, 8.0, layers);
+        if (openIdxs.length > 0) {
+          setGenStartPiece(clickedPiece, wPos || clickedPiece.transform);
+          return;
+        } else {
+          const connectedOpen = findNearestOpenConnectorInChain(clickedPiece, wPos || clickedPiece.transform);
+          if (connectedOpen) {
+            setGenStartPiece(connectedOpen.piece, connectedOpen.conn);
+            return;
+          }
+        }
+      }
+      rebuildStartConnectorOptions();
+      updateGenerateCalculation();
+    } else if (activeTab === "ramp") {
+      updateRampEndpointsUI();
+      updateRampCalculation();
+    }
+  };
+  activeHeightPanelUpdateFn = handleExternalPanelUpdate;
 
   switchTab(activeTab);
 

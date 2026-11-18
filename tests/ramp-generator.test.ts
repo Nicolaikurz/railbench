@@ -471,5 +471,55 @@ describe("Ramp Generator & Clearance Heights", () => {
       expect(result.pieces[0]!.elevation!.end).toBeCloseTo(100, 0.5);
       expect(result.pieces[12]!.elevation!.start).toBeCloseTo(20, 0.5);
     });
+
+    it("immediately recomputes pieces when switching start position and shape", () => {
+      const anchorA: TrackPiece = {
+        id: "anchorA",
+        catalogId: "24188",
+        transform: { x: 0, y: 0, rotation: 0 },
+        elevation: { start: 0, end: 0 },
+        connectors: [
+          { x: 0, y: 0, angle: 180 },
+          { x: 188.3, y: 0, angle: 0 },
+        ],
+      };
+
+      const anchorB: TrackPiece = {
+        id: "anchorB",
+        catalogId: "24229",
+        transform: { x: -970, y: 442, rotation: 180 },
+        elevation: { start: 0, end: 0 },
+        connectors: [
+          { x: -970, y: 442, angle: 180 },
+          { x: -741, y: 442, angle: 0 },
+        ],
+      };
+
+      const resA = generateRampPieces({
+        catalog: maerklinCCatalog,
+        anchorPiece: anchorA,
+        connectorIndex: 1,
+        targetHeightMm: 80,
+        shape: "straight",
+        targetGradientPercent: 2.8,
+      });
+
+      const resB = generateRampPieces({
+        catalog: maerklinCCatalog,
+        anchorPiece: anchorB,
+        connectorIndex: 0,
+        targetHeightMm: 80,
+        shape: "curved",
+        direction: "left",
+        curveAngleDeg: 180,
+        targetGradientPercent: 2.8,
+      });
+
+      expect(resA.success).toBe(true);
+      expect(resB.success).toBe(true);
+      // Different start positions produce distinct world coordinates
+      expect(resA.pieces[0]!.transform.x).not.toBe(resB.pieces[0]!.transform.x);
+      expect(resB.pieces[0]!.transform.x).toBeCloseTo(-970, -1);
+    });
   });
 });

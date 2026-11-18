@@ -9,6 +9,7 @@ export const helpDe: HelpDialogTranslations = {
   copiedText: "✓ In Zwischenablage kopiert!",
   tabs: {
     overview: "Erste Schritte",
+    guide: "Bildanleitung",
     layers: "Ebenen & Höhen",
     print: "Ebenen-Druck",
     power: "Spannungs-Simulation",
@@ -43,6 +44,43 @@ export const helpDe: HelpDialogTranslations = {
     ],
     callout:
       "<strong>Navigationstipp:</strong> Halten Sie die <strong>rechte Maustaste</strong> oder das <strong>Mausrad (Mittelklick)</strong> gedrückt, um die Arbeitsfläche frei zu verschieben (Pan). Drehen Sie das <strong>Mausrad</strong> zum stufenlosen Zoomen. Drücken Sie jederzeit <code>Strg+0</code>, um den Plan zu zentrieren.",
+  },
+  guide: {
+    title: "Bildanleitung: Menüs & Oberfläche",
+    intro:
+      "Ein kurzer Rundgang durch das Railbench-Fenster. Jedes Bild ist ein echter Screenshot und erklärt die Funktion jeder dargestellten Schaltfläche.",
+    steps: [
+      {
+        title: "1. Das Fenster",
+        body: "Das Hauptfenster gliedert sich in fünf Bereiche:<br>• <strong>Obere Werkzeugleiste</strong>: Enthält die Hauptmenüs, Katalog-Reiter, Datei-Schnellaktionen und Modus-Schalter.<br>• <strong>Linke Katalog-Seitenleiste</strong> (<code>B</code>): Zeigt den aktiven Reiter (Gleiskatalog mit Suche &amp; Kategorie-Filtern, Straßen, 3D-Gebäude, Gelände-Editor, Tisch/Platte oder Stückliste). Klicke auf ein Element oder ziehe es auf den Plan.<br>• <strong>2D-Zeichenfläche / 3D-Ansicht</strong> (<code>3</code>): Deine Arbeitsfläche mit Millimeter-Linealen am Rand. Mit rechter/mittlerer Maustaste verschieben, mit dem Mausrad zoomen, mit <code>Strg+0</code> zentrieren.<br>• <strong>Rechtes Ebenen-Panel</strong> (<code>Shift+B</code>): Listet alle Höhenebenen von oben nach unten. Jede Ebene hat ein <strong>👁️ Auge-Symbol</strong> (ein-/ausblenden), ein <strong>🔒 Schloss-Symbol</strong> (gegen Bearbeitung sperren) und ein <strong>🗑️ Papierkorb-Symbol</strong> (löschen) sowie die Schaltflächen <strong>+ Neue Ebene</strong> und <strong>📐 Höhe &amp; Rampe…</strong>.<br>• <strong>Untere Auswahlleiste</strong>: Erscheint automatisch, sobald ein oder mehrere Gleise bzw. Modelle ausgewählt sind.",
+        image: "layout",
+        caption: "Bereiche des Hauptfensters",
+      },
+      {
+        title: "2. Die Werkzeugleiste & alle Schaltflächen",
+        body: "<strong>Obere Zeile (Menüs):</strong> <strong>Gleisplan</strong> (Neu, Öffnen, Demo-Layouts, Speichern, XML/CSV/PDF-Export, Zusammenarbeit) · <strong>Bearbeiten</strong> (Rückgängig/Wiederholen, Kopieren/Einfügen, Drehen, Höhe, Elektrik-Schalter) · <strong>Ansicht</strong> (Zoom, 3D, Lineale, Design, Performance-Monitor) · <strong>Einstellungen</strong> (Spannung, Einrasten, Farben, Sprache, Tastaturkürzel) · <strong>Hilfe</strong> (diese Anleitung &amp; Willkommens-Fenster, in dessen Kopfzeile oben rechts die Schaltfläche <strong>Anleitung</strong> ebenfalls direkt diese Bildanleitung öffnet).<br><br><strong>Zweite Zeile (von links nach rechts):</strong><br>• <strong>Gleise / Straßen / 3D / Gelände / Tisch / Stückliste</strong>: Wechselt die linke Seitenleiste zwischen Gleiskatalog, Straßen, 3D-Modellen, Gelände-Pinseln, Platten-Editor und Teileliste.<br>• <strong>📄 Neu · 📂 Öffnen · 💾 Speichern</strong>: Schnellschalter für neuen Plan, Datei laden (<code>.railbench</code>) und aktuelles Layout speichern.<br>• <strong>🧲 Snap</strong> (<code>S</code>): Schaltet das magnetische Einrasten an Gleisenden beim Ziehen ein oder aus.<br>• <strong>🔒 Sel-Lock</strong> (<code>Alt+L</code>): Wenn aktiv, können nur Gleise der aktuell gewählten Ebene angeklickt werden (schützt andere Ebenen).<br>• <strong>↺ / ↻ 30° ▾</strong> (<code>R</code> / <code>Shift+R</code>): Dreht ausgewählte Elemente gegen oder im Uhrzeigersinn; über den Pfeil wählst du den Drehwinkel-Schritt (z. B. 7,5°, 15°, 30°, 45°).<br>• <strong>🔒 Lock</strong>: Rastet das freie Drehen per Maus auf den gewählten Winkelschritt ein.<br>• <strong>📏 Measure</strong>: Aktiviert das Messwerkzeug zum Abmessen von Abständen auf dem Plan.<br>• <strong>🎨 Colors ▾</strong> (<code>C</code>): Färbt Gleise nach Gleistyp, nach Ebene oder realistisch dunkel.<br>• <strong>🏷️ Numbers</strong> (<code>N</code>): Blendet die Artikelnummern auf den Gleisen ein oder aus.<br>• <strong>⚡ Voltage ▾</strong> (<code>P</code>): Schaltet die Spannungsabfall-Simulation (Heatmap) ein/aus; der Pfeil öffnet die Spannungs- und Stromeinstellungen.<br>• <strong>🧊 3D</strong> (<code>3</code>): Wechselt zwischen dem 2D-Gleisplan und der interaktiven 3D-Ansicht.<br>• <strong>👥 Zusammenarbeit</strong>: Öffnet den Multi-User-Server- und Raum-Dialog.<br>• <strong>☀️/🌙 Design</strong>: Wechselt zwischen System-, dunklem und hellem Design.<br>• <strong>EN / DE</strong>: Schaltet die Sprache direkt zwischen Deutsch und Englisch um.<br>• <strong>🥞 Ebenen</strong> (<code>Shift+B</code>): Blendet das rechte Ebenen-Panel ein oder aus.",
+        image: "toolbar",
+        caption: "Menüs und Schnellschalter der Werkzeugleiste",
+      },
+      {
+        title: "3. Die Auswahlleiste & Eigenschafts-Schalter",
+        body: "Erscheint unten über der Zeichenfläche, sobald Gleise ausgewählt sind (von links nach rechts):<br>• <strong>Auswahl-Anzeige</strong>: Zeigt die Anzahl der gewählten Gleise und deren Artikelnummer (oder <em>gemischt</em>).<br>• <strong>Ebenen-Auswahl</strong>: Verschiebt die gewählten Gleise auf eine andere Ebene.<br>• <strong>⤉ Höhenfeld (mm)</strong>: Zeigt oder setzt die exakte Gleishöhe (<code>Enter</code> übernimmt, <code>↑/↓</code> ändert um ±1 mm). Ein Klick auf das Symbol <strong>⤉</strong> öffnet das Panel Höhe &amp; Rampe.<br>• <strong>↻ Winkelfeld (°)</strong>: Zeigt oder setzt den exakten Drehwinkel in Grad.<br>• <strong>⚡ Einspeisung</strong> (<code>F</code>): Setzt oder entfernt einen Stromeinspeisepunkt am Gleis.<br>• <strong>⊘ Trennstelle</strong> (<code>I</code>): Setzt eine elektrische Schienen-Trennstelle (Isolierstoß).<br>• <strong>⌁ Oberleitung</strong> (<code>O</code>): Aktiviert Fahrdraht und 3D-Oberleitungsmasten auf den gewählten Gleisen.<br>• <strong>⌁⚡ Oberleitungs-Einspeisung</strong> (<code>Shift+F</code>): Setzt eine Stromeinspeisung für die Oberleitung.<br>• <strong>⌁⊘ Oberleitungs-Trennstelle</strong> (<code>Shift+I</code>): Setzt einen Streckentrenner in der Oberleitung.<br>• <strong>🚦 Signal</strong> (<code>Shift+S</code>): Stellt ein Signal am Gleis auf oder entfernt es.<br>• <strong>🌉 Brücke</strong> (<code>B</code>): Definiert das Gleis als Brücke / Viadukt mit 3D-Brückenträgern und Pfeilern.<br>• <strong>🚇 Tunnel</strong> (<code>T</code>): Definiert das Gleis als Tunnelstrecke mit 3D-Tunnelportalen.<br>• <strong>↺ / ↻ 30°</strong>: Dreht die Auswahl gegen oder im Uhrzeigersinn um den eingestellten Winkelschritt.<br>• <strong>🗑️ Löschen</strong> (<code>Entf</code>): Entfernt die ausgewählten Elemente aus dem Plan.",
+        image: "selection",
+        caption: "Auswahlleiste mit Höhe, Winkel und Eigenschaften",
+      },
+      {
+        title: "4. Rechtsklick-Kontextmenü am Gleis",
+        body: "Ein Rechtsklick auf ein Gleis öffnet das Kontextmenü. Der Kopfbereich zeigt Artikelnummer, Gleistyp, freie Enden sowie Ebene und Höhe:<br>• <strong>📐 Höhe &amp; Steigung (Rampe)…</strong> (<code>M</code>): Öffnet das Panel Höhe &amp; Rampe für die Auswahl.<br>• <strong>⚡ Auto-Rampe generieren…</strong> (<code>Shift+M</code>): Öffnet den automatischen Rampen-Generator an diesem Gleis.<br>• <strong>🔗 Verbundene Gleise auswählen</strong>: Wählt alle zusammenhängend verbundenen Gleise aus.<br>• <strong>📑 Ganze Ebene auswählen</strong>: Wählt alle Gleise derselben Ebene aus.<br>• <strong>ℹ Eigenschaften / Info…</strong>: Zeigt ein Datenblatt mit Länge, Radius, Winkel, Spurweite, Elektrik-Status und Höhe.<br>• <strong>🚦 Signal aufstellen / entfernen</strong> (<code>Shift+S</code>): Schaltet ein Signal an diesem Gleis (bei aktivem Signal erscheinen zudem Einträge für <strong>Signal-Seite</strong> und <strong>Signal-Richtung</strong>).<br>• <strong>🌉 Als Brücke definieren</strong> (<code>B</code>) · <strong>🚇 Als Tunnel definieren</strong> (<code>T</code>) · <strong>⌁ Oberleitung aktivieren</strong> (<code>O</code>): Schaltet Brücke, Tunnel oder Oberleitung (sowie Decoder/Weichenlaterne bei Weichen).",
+        image: "contextMenu",
+        caption: "Rechtsklick-Kontextmenü eines Gleisstücks",
+      },
+      {
+        title: "5. Panel Höhe & Rampe",
+        body: "Öffnen über das Ebenen-Panel, das Rechtsklick-Menü oder die Auswahlleiste:<br>• <strong>Reiter Höhe / Ebene</strong>: Setzt Gleise auf die Höhe einer Zielebene (<strong>Ebenenhöhe</strong>) oder auf einen festen Millimeterwert (<strong>Eigener Wert</strong>).<br>• <strong>Reiter Steigung</strong>: Berechnet eine gleichmäßige Rampe über vorhandene, verbundene Gleise zwischen <strong>A (Start)</strong> und <strong>B (Ende)</strong>. Mit den <strong>📍-Schaltflächen</strong> wählst du Start- und Endgleis im Plan, gibst rechts die Höhen in mm ein oder vertauschst Start und Ende mit <strong>⇅</strong>. Darunter wählst du die <strong>Maximale Steigung</strong> (<strong>2.0%</strong>, <strong>2.5%</strong>, <strong>3.0%</strong> oder eigener Wert mit <strong>Auto-Fit</strong>) und das <strong>Steigungsprofil</strong> (<strong>Linear</strong> für konstante Steigung oder <strong>S-Kurve</strong> für sanfte Ausrundung an Start und Ende).<br>• <strong>Reiter Automatisch</strong>: Generiert neue gerade, gebogene oder Wendel-Rampengleise ab einem freien Anschluss.<br>• <strong>Status Verbunden / Getrennt</strong>: Neben ⇅ zeigt <strong>Verbunden</strong> (Continuous), dass die gewählten Gleise eine lückenlose Kette bilden, und <strong>Getrennt</strong> (Split), dass eine Lücke, ein Abzweig oder eine Schleife vorliegt – wähle dann den ganzen Weg aus. Das farbige Statusfeld bewertet die Steigung (sicher ≤ 3 %, mäßig ≤ 4,5 %, steil &gt; 4,5 %), und <strong>Abbrechen / Übernehmen</strong> verwirft oder speichert die Änderung.<br><em>Hinweis: Die Screenshots zeigen die englische Oberfläche.</em>",
+        image: "heightRamp",
+        caption: "Panel Höhe & Rampe, Reiter Steigung",
+      },
+    ],
   },
   layers: {
     title: "Mehrebenen-Verwaltung & Höhenplanung",

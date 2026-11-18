@@ -11,11 +11,13 @@ import { getAppVersionTag } from "@/version";
 import { downloadFile } from "@/io/export";
 import { EXAMPLE_H0_CATALOG_JSON } from "@/catalog/example-catalog";
 import { openKeymapDialog } from "./keymap-dialog";
+import { renderHelpGuide } from "./help-guide";
 
 export type { HelpTab } from "@/i18n";
 
 export const HELP_TABS: readonly HelpTab[] = [
   "overview",
+  "guide",
   "layers",
   "print",
   "power",
@@ -104,6 +106,10 @@ export function renderHelpTab(
     case "baseboard":
     case "view3d":
       contentArea.innerHTML = renderStandardSection(t[tab]);
+      break;
+
+    case "guide":
+      contentArea.innerHTML = renderHelpGuide(t.guide);
       break;
 
     case "server": {

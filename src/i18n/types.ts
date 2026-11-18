@@ -595,6 +595,7 @@ export interface Translations {
 
 export type HelpTab =
   | "overview"
+  | "guide"
   | "layers"
   | "print"
   | "power"
@@ -617,6 +618,15 @@ export interface HelpStandardSection {
   callout?: string;
 }
 
+export type HelpGuideImage = "layout" | "toolbar" | "selection" | "contextMenu" | "heightRamp";
+
+export interface HelpGuideStep {
+  title: string;
+  body: string;
+  image: HelpGuideImage;
+  caption: string;
+}
+
 export interface HelpDialogTranslations {
   modalTitle: string;
   closeTitle: string;
@@ -625,6 +635,7 @@ export interface HelpDialogTranslations {
   copiedText: string;
   tabs: Record<HelpTab, string>;
   overview: HelpStandardSection;
+  guide: { title: string; intro: string; steps: HelpGuideStep[] };
   layers: HelpStandardSection;
   print: HelpStandardSection;
   power: HelpStandardSection;

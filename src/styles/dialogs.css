@@ -1799,6 +1799,10 @@
 }
 
 /* --- HELP & FEATURE GUIDE MODAL --- */
+#help-modal {
+  z-index: 10050;
+}
+
 .help-modal-card {
   width: 900px;
   max-width: 96vw;
@@ -2027,6 +2031,32 @@
   border: 1px solid var(--border-main, #334155);
   padding: 1px 6px;
   border-radius: 5px;
+}
+
+.welcome-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.welcome-guide-btn {
+  padding: 4px 10px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid var(--border-main, #334155);
+  background: var(--bg-card, #1e293b);
+  color: var(--text-main, #f8fafc);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.welcome-guide-btn:hover {
+  background: rgba(2, 132, 199, 0.14);
+  border-color: var(--primary-color, #0284c7);
+  color: #38bdf8;
 }
 
 .welcome-close-btn {
@@ -2976,6 +3006,19 @@
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.hp-endpoint-input {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 0 0 74px;
+  width: 74px;
+}
+
+.hp-endpoint-input .hp-input {
+  width: 100% !important;
+  padding-right: 26px;
 }
 
 .hp-point-tag {

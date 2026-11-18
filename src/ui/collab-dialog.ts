@@ -59,7 +59,7 @@ export function openCollabDialog(options: CollabDialogOptions): void {
   // Determine default WebSocket URL
   const defaultWsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
   const defaultWsHost = window.location.host || "localhost:3000";
-  const defaultServerUrl = client.getServerUrl() || `${defaultWsProtocol}//${defaultWsHost}`;
+  const defaultServerUrl = client.getServerUrl() || `${defaultWsProtocol}//${defaultWsHost}/collab`;
 
   let selectedColor = user.color || COLOR_PALETTE[0]!;
   let serverUrlsInfo: { localUrl?: string; networkUrls?: string[]; wsUrl?: string } | null = null;

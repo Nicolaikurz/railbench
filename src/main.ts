@@ -42,6 +42,7 @@ import {
   openRampGeneratorForPiece,
   type HeightPanelDeps,
 } from "@/editor/height-panel-integration";
+import { notifyHeightPanelUpdate } from "@/ui/height-panel";
 import {
   applyStartupAction,
   triggerDemoTracksDialog,
@@ -515,6 +516,7 @@ async function main() {
   function sync(dirty = false, transient = false) {
     if (dirty) {
       updatePieceConnections(layout.pieces, layout.layers);
+      notifyHeightPanelUpdate();
       planManager.markDirty(true);
       if (!transient) {
         planManager.saveToLocalStorage(layout);
@@ -815,7 +817,7 @@ async function main() {
     const password = urlParams.get("pass") || urlParams.get("password") || undefined;
     const wsProto = window.location.protocol === "https:" ? "wss:" : "ws:";
     const wsHost = window.location.host || "localhost:3000";
-    const wsUrl = `${wsProto}//${wsHost}`;
+    const wsUrl = `${wsProto}//${wsHost}/collab`;
     collabClient.connect(wsUrl, room, userName, undefined, layout, password);
   }
 
@@ -832,7 +834,7 @@ async function main() {
         );
         if (config.autoConnect && collabClient.getStatus() !== "connected") {
           collabClient.connect(
-            `ws://localhost:${config.port}`,
+            `ws://localhost:${config.port}/collab`,
             config.defaultRoom,
             "Host",
             undefined,

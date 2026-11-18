@@ -137,7 +137,16 @@ export class CollabClient {
 
     this.disconnect();
 
-    this.serverUrl = serverUrl.trim();
+    let normalizedUrl = serverUrl.trim();
+    try {
+      const parsed = new URL(normalizedUrl);
+      if (!parsed.pathname || parsed.pathname === "/") {
+        parsed.pathname = "/collab";
+        normalizedUrl = parsed.toString();
+      }
+    } catch {}
+
+    this.serverUrl = normalizedUrl;
     this.room = (roomName || "default").trim();
 
     this.setStatus("connecting");

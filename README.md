@@ -226,4 +226,5 @@ node server.mjs --port 8080 --password mysecret --room layout1
 ## Documentation
 
 * [Build & Binary Execution Guide (Windows, Linux & macOS)](docs/BUILD_GUIDE.md)
+* [Menus & User Interface Guide](docs/UI_GUIDE.md)
 * [System Architecture & Technical Documentation](docs/architektur.md)

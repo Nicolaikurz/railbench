@@ -16,6 +16,7 @@ import { handleCanvasDrop } from "./canvas-drop-handler";
 import { KeyboardController } from "./keyboard-controller";
 import { adjustFlexTrackOpenConnector, bendFlexTrackBetweenFixedEnds } from "@/core/flextrack";
 import { closeTrackContextMenu } from "@/ui/track-context-menu";
+import { notifyHeightPanelUpdate } from "@/ui/height-panel";
 import type { CanvasControllerDeps } from "./canvas-controller-types";
 import { openTrackContextMenu } from "./canvas-context-menu";
 import {
@@ -430,6 +431,7 @@ export class CanvasController {
         this.draggedInitialConnections,
       );
       canvas.style.cursor = "move";
+      notifyHeightPanelUpdate(hit, wPos);
       this.deps.sync();
     } else {
       const sidebar = this.deps.getSidebar();
@@ -554,6 +556,25 @@ export class CanvasController {
         this.activePin.y = currentWPos.y;
       }
 
+      // Live-Update der Auto-Rampe, während Pin A in Echtzeit auf ein anderes Gleisende gezogen wird
+      const pinDropHandler = this.deps.getPinDropHandler?.();
+      if (pinDropHandler) {
+        const catalog = this.deps.getCatalog();
+        const hitGauge = catalog.gauge ?? 16.5;
+        const hit = findTrackPieceAt(
+          layout,
+          { x: this.activePin.x, y: this.activePin.y },
+          scale,
+          hitGauge,
+          (p) => this.deps.isPieceInteractive(p),
+          (p) => this.deps.getCatalogEntryForPiece(p),
+        );
+        if (hit) {
+          const pinId = this.activePin.id || (this.activePin.label.includes("B") || this.activePin.label === "Stop" ? "B" : "A");
+          pinDropHandler(pinId, { x: this.activePin.x, y: this.activePin.y }, hit);
+        }
+      }
+
       this.deps.sync(false, true);
       return;
     }
@@ -672,6 +693,7 @@ export class CanvasController {
         this.deps.isSnappingEnabled() && shouldSnap,
         (p) => this.deps.getCatalogEntryForPiece(p),
       );
+      notifyHeightPanelUpdate();
       this.deps.sync(false, true);
       return;
     }
@@ -746,6 +768,7 @@ export class CanvasController {
         (p) => this.deps.getCatalogEntryForPiece(p),
       );
 
+      notifyHeightPanelUpdate();
       this.deps.sync(false, true);
       return;
     }
@@ -881,6 +904,7 @@ export class CanvasController {
     if (this.isDraggingPin && this.activePin) {
       const currentWPos = renderer.screenToWorld(e.clientX, e.clientY);
       const scale = renderer.world.scale.x || 1;
+      const pinPos = { x: this.activePin.x, y: this.activePin.y };
       this.isDraggingPin = false;
       try { canvas.releasePointerCapture(e.pointerId); } catch (_) {}
       canvas.style.cursor = "default";
@@ -888,6 +912,13 @@ export class CanvasController {
       const catalog = this.deps.getCatalog();
       const hitGauge = catalog.gauge ?? 16.5;
       const hit = findTrackPieceAt(
+        layout,
+        pinPos,
+        scale,
+        hitGauge,
+        (p) => this.deps.isPieceInteractive(p),
+        (p) => this.deps.getCatalogEntryForPiece(p),
+      ) || findTrackPieceAt(
         layout,
         currentWPos,
         scale,
@@ -900,9 +931,9 @@ export class CanvasController {
       const pinDropHandler = this.deps.getPinDropHandler?.();
 
       if (hit && pinDropHandler) {
-        pinDropHandler(pinId, currentWPos, hit);
+        pinDropHandler(pinId, pinPos, hit);
       } else if (hit && this.deps.getPickHandler?.()) {
-        this.deps.getPickHandler()!(currentWPos, hit);
+        this.deps.getPickHandler()!(pinPos, hit);
       } else if (this.activePinOriginalPos) {
         this.activePin.x = this.activePinOriginalPos.x;
         this.activePin.y = this.activePinOriginalPos.y;
@@ -966,6 +997,7 @@ export class CanvasController {
     } else if (this.isRotatingPiece) {
       if (commitMovedItems(layout, history, this.draggedPiecesMap)) {
         updatePieceConnections(layout.pieces, layout.layers);
+        notifyHeightPanelUpdate();
         this.deps.sync(true);
       }
       this.isRotatingPiece = false; this.activePiece = null; this.draggedPiecesMap.clear();
@@ -979,8 +1011,13 @@ export class CanvasController {
         if (m?.builtinId === "mountain") {
           this.deps.getSidebar()?.selectMountain(m.id);
         }
+        const clicked = layout.pieces.find((p) => p.id === this.pendingSingleSelect);
+        if (clicked) {
+          notifyHeightPanelUpdate(clicked);
+        }
       } else if (this.hasDragMoved && commitMovedItems(layout, history, this.draggedPiecesMap)) {
         updatePieceConnections(layout.pieces, layout.layers);
+        notifyHeightPanelUpdate();
         this.deps.sync(true);
       }
       this.isDraggingPiece = false; this.activePiece = null; this.activeModel = null;
