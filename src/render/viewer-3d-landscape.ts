@@ -71,9 +71,7 @@ export function buildRealisticLandscape(
   const roadColor = isDark ? 0x18181b : 0x27272a;
   const treeBarkColor = 0x3f2e21;
   const pineGreen1 = isDark ? 0x052e16 : 0x14532d;
-  const pineGreen2 = isDark ? 0x064e3b : 0x166534;
   const leafGreen1 = isDark ? 0x166534 : 0x15803d;
-  const leafGreen2 = isDark ? 0x15803d : 0x65a30d;
 
   const meadowMat = new THREE.MeshStandardMaterial({ color: meadowColor, roughness: 0.9, metalness: 0.05 });
   const hillMat = new THREE.MeshStandardMaterial({ color: hillColor, roughness: 0.92, metalness: 0.04 });
@@ -92,9 +90,7 @@ export function buildRealisticLandscape(
   const bridgeStoneMat = new THREE.MeshStandardMaterial({ color: 0x71717a, roughness: 0.9 });
   const barkMat = new THREE.MeshStandardMaterial({ color: treeBarkColor, roughness: 0.9 });
   const pineMat1 = new THREE.MeshStandardMaterial({ color: pineGreen1, roughness: 0.95 });
-  const pineMat2 = new THREE.MeshStandardMaterial({ color: pineGreen2, roughness: 0.95 });
   const leafMat1 = new THREE.MeshStandardMaterial({ color: leafGreen1, roughness: 0.9 });
-  const leafMat2 = new THREE.MeshStandardMaterial({ color: leafGreen2, roughness: 0.9 });
 
   // 1. Weitläufiges Talboden-Gelände bis zum Horizont (Radius 180.000 mm, 32 Segmente reichen für den Horizont)
   const worldPlaneGeo = new THREE.CircleGeometry(180000, 32);
@@ -120,7 +116,7 @@ export function buildRealisticLandscape(
   buildLandscapeRoad(landscapeGroup, cx, cz, wTable, lTable, floorY, roadMat, roadMarkMat);
 
   // 7. Wälder & Baumgruppen (Mischwälder)
-  buildLandscapeForest(landscapeGroup, cx, cz, wTable, lTable, floorY, barkMat, pineMat1, pineMat2, leafMat1, leafMat2);
+  buildLandscapeForest(landscapeGroup, cx, cz, wTable, lTable, floorY, barkMat, pineMat1, leafMat1);
 
   // 8. Almhütte in den Hügeln
   buildLandscapeCottage(landscapeGroup, cx, cz, wTable, lTable, floorY);
@@ -429,9 +425,7 @@ function buildLandscapeForest(
   floorY: number,
   barkMat: THREE.Material,
   pineMat1: THREE.Material,
-  pineMat2: THREE.Material,
   leafMat1: THREE.Material,
-  leafMat2: THREE.Material,
 ) {
   // A. Nadelwald-Haine an den Hängen
   const pineClusters = [

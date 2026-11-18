@@ -35,6 +35,8 @@ export interface TrackPiece {
   customLength?: number;
   customRadius?: number;
   customAngle?: number;
+  customOffsets?: number[];
+  customChordDist?: number;
   groupId?: string;
   layerId?: string;
 }

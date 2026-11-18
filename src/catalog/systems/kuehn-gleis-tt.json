@@ -181,9 +181,18 @@
       "gauge": 12
     },
     {
+      "id": "72750",
+      "name": "Prellbock Bausatz",
+      "kind": "buffer-stop",
+      "category": "Zubehör",
+      "description": "Prellbock mit Holzbohle zum Aufstecken (Bausatz)",
+      "length": 20,
+      "gauge": 12
+    },
+    {
       "id": "72810",
       "name": "Prellbockgleis G64",
-      "kind": "straight",
+      "kind": "buffer-stop",
       "category": "Zubehör",
       "description": "Gleis G64 (64 mm) mit montiertem Prellbock",
       "length": 64,

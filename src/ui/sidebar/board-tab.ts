@@ -4,7 +4,6 @@ import type {
   BaseboardStyle,
   Layer,
   LayerPlate,
-  LayerWoodPlateMode,
 } from "@/core/types";
 import {
   getBaseboards,

@@ -273,4 +273,63 @@ describe("Two-line Toolbar & macOS System Menus", () => {
     expect(btnSnap.classList.contains("active")).toBe(false);
     expect(btnLabels.classList.contains("active")).toBe(false);
   });
+
+  it("handles rotation button, step settings (5.7°, 30°, 90°) and rotation lock", () => {
+    const host = createMockElement("div");
+    createToolbar(host, dummyEvents);
+
+    const btnRotateCcw = elementsById["tb-rotate-ccw"];
+    const btnRotate = elementsById["tb-rotate"];
+    const btnRotateLock = elementsById["tb-rotate-lock"];
+    expect(btnRotateCcw).toBeDefined();
+    expect(btnRotate).toBeDefined();
+    expect(btnRotateLock).toBeDefined();
+
+    // Initially disabled without selection
+    expect(btnRotateCcw.disabled).toBe(true);
+    expect(btnRotate.disabled).toBe(true);
+
+    // Update with selection
+    updateToolbarState({ hasSelection: true, rotationStep: 30, rotationSnapLocked: true });
+    expect(btnRotateCcw.disabled).toBe(false);
+    expect(btnRotate.disabled).toBe(false);
+    expect(btnRotate.innerHTML).toContain("30°");
+    // Long word "Drehen" / "Rotate" is removed to fit cleanly
+    expect(btnRotate.innerHTML).not.toContain("Drehen 30°");
+    expect(btnRotateLock.classList.contains("active")).toBe(true);
+
+    // Update rotation step to 5.7°
+    updateToolbarState({ rotationStep: 5.7 });
+    expect(btnRotate.innerHTML).toContain("5.7°");
+    const step57 = elementsById["rotate-step-5-7"];
+    if (step57) {
+      expect(step57.classList.contains("active")).toBe(true);
+    }
+
+    // Update rotation step to 90°
+    updateToolbarState({ rotationStep: 90 });
+    expect(btnRotate.innerHTML).toContain("90°");
+    const step90 = elementsById["rotate-step-90"];
+    if (step90) {
+      expect(step90.classList.contains("active")).toBe(true);
+    }
+
+    // Toggle rotation lock off
+    updateToolbarState({ rotationSnapLocked: false });
+    expect(btnRotateLock.classList.contains("active")).toBe(false);
+  });
+
+  it("updates power button title with active feed voltage", () => {
+    const host = createMockElement("div");
+    createToolbar(host, dummyEvents);
+
+    const btnPower = elementsById["tb-power"];
+    expect(btnPower).toBeDefined();
+
+    updateToolbarState({ feedVoltage: 12 });
+    expect(btnPower.title).toContain("(12V)");
+
+    updateToolbarState({ feedVoltage: 18 });
+    expect(btnPower.title).toContain("(18V)");
+  });
 });

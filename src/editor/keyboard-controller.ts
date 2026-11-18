@@ -6,9 +6,15 @@ import type { PlanManager } from "@/io/plan-manager";
 import type { Ruler } from "@/ui/ruler";
 import type { PerfMonitor } from "@/ui/perf-monitor";
 import type { TrackOperations } from "./track-operations";
-import { getLanguage, getTranslations } from "@/i18n";
+import { getLanguage } from "@/i18n";
 import { isTurnoutEntry } from "@/core/simulation";
 import { boardSketcher } from "./board-sketcher-controller";
+import {
+  loadKeymap,
+  onKeymapChange,
+  matchesAction,
+  type KeyActionId,
+} from "@/settings/keymap-manager";
 
 export interface KeyboardControllerDeps {
   getLayout: () => Layout;
@@ -20,6 +26,9 @@ export interface KeyboardControllerDeps {
   getPerfMonitor: () => PerfMonitor;
   is3DMode: () => boolean;
   toggle3D: (force?: boolean) => void;
+  zoomView?: (factor: number) => void;
+  panView?: (dx: number, dy: number) => void;
+  resetView?: () => void;
   isMeasureToolActive: () => boolean;
   toggleMeasureTool: (force?: boolean) => void;
   getMeasureState: () => { start: { x: number; y: number } | null };
@@ -27,6 +36,7 @@ export interface KeyboardControllerDeps {
   updateMeasureHud: () => void;
   isSnappingEnabled: () => boolean;
   setSnappingEnabled: (val: boolean) => void;
+  getRotationStep?: () => number;
   toggleSelectionLock?: () => void;
   getColorMode: () => ColorMode;
   cycleColorMode: (target?: ColorMode) => void;
@@ -46,19 +56,36 @@ export interface KeyboardControllerDeps {
 export class KeyboardController {
   private deps: KeyboardControllerDeps;
   private handler: (e: KeyboardEvent) => void;
+  private currentKeymap = loadKeymap();
+  private unbindKeymapListener: () => void;
 
   constructor(deps: KeyboardControllerDeps) {
     this.deps = deps;
     this.handler = this.onKeyDown.bind(this);
-    window.addEventListener("keydown", this.handler);
+    if (typeof window !== "undefined") {
+      window.addEventListener("keydown", this.handler);
+    }
+    this.unbindKeymapListener = onKeymapChange((k) => {
+      this.currentKeymap = k;
+    });
   }
 
   public destroy(): void {
-    window.removeEventListener("keydown", this.handler);
+    if (typeof window !== "undefined") {
+      window.removeEventListener("keydown", this.handler);
+    }
+    this.unbindKeymapListener();
+  }
+
+  private match(e: KeyboardEvent, actionId: KeyActionId): boolean {
+    return matchesAction(e, actionId, this.currentKeymap);
   }
 
   private onKeyDown(e: KeyboardEvent): void {
-    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+    const target = e.target as HTMLElement | null;
+    if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || (target as any).isContentEditable)) {
+      return;
+    }
 
     if (boardSketcher.isActive) {
       if (e.key === "Escape") {
@@ -86,49 +113,103 @@ export class KeyboardController {
       }
     }
 
-    const ctrlOrMeta = e.ctrlKey || e.metaKey;
     const ops = this.deps.getOperations();
     const layout = this.deps.getLayout();
     const selection = this.deps.getSelection();
 
-    if (ctrlOrMeta && (e.key.toLowerCase() === "s" || e.code === "KeyS")) {
+    // 1. Zooming (+ / -)
+    if (this.match(e, "zoomIn")) {
       e.preventDefault();
-      if (e.shiftKey) {
-        ops.triggerSavePlanAs("railbench");
-      } else {
-        ops.triggerSavePlan();
-      }
-    } else if (ctrlOrMeta && (e.key.toLowerCase() === "n" || e.code === "KeyN")) {
+      this.deps.zoomView?.(1.15);
+      return;
+    }
+    if (this.match(e, "zoomOut")) {
+      e.preventDefault();
+      this.deps.zoomView?.(1 / 1.15);
+      return;
+    }
+
+    // 2. View Panning (Arrow Keys)
+    if (this.match(e, "panUp")) {
+      e.preventDefault();
+      const step = e.shiftKey ? 180 : 60;
+      this.deps.panView?.(0, step);
+      return;
+    }
+    if (this.match(e, "panDown")) {
+      e.preventDefault();
+      const step = e.shiftKey ? 180 : 60;
+      this.deps.panView?.(0, -step);
+      return;
+    }
+    if (this.match(e, "panLeft")) {
+      e.preventDefault();
+      const step = e.shiftKey ? 180 : 60;
+      this.deps.panView?.(step, 0);
+      return;
+    }
+    if (this.match(e, "panRight")) {
+      e.preventDefault();
+      const step = e.shiftKey ? 180 : 60;
+      this.deps.panView?.(-step, 0);
+      return;
+    }
+
+    // 3. Reset View
+    if (this.match(e, "resetView")) {
+      e.preventDefault();
+      this.deps.resetView?.();
+      return;
+    }
+
+    // 4. File operations
+    if (this.match(e, "savePlanAs")) {
+      e.preventDefault();
+      ops.triggerSavePlanAs("railbench");
+      return;
+    }
+    if (this.match(e, "savePlan")) {
+      e.preventDefault();
+      ops.triggerSavePlan();
+      return;
+    }
+    if (this.match(e, "newPlan")) {
       e.preventDefault();
       ops.triggerNewPlan();
-    } else if (ctrlOrMeta && (e.key.toLowerCase() === "o" || e.code === "KeyO")) {
+      return;
+    }
+    if (this.match(e, "openPlan")) {
       e.preventDefault();
       ops.triggerOpenPlan();
-    } else if (ctrlOrMeta && (e.key.toLowerCase() === "e" || e.code === "KeyE")) {
+      return;
+    }
+    if (this.match(e, "exportCsv")) {
       e.preventDefault();
       ops.triggerExportCSV();
-    } else if (ctrlOrMeta && (e.key.toLowerCase() === "p" || e.code === "KeyP")) {
+      return;
+    }
+    if (this.match(e, "printPlan")) {
       e.preventDefault();
       this.deps.openPrintDialog();
-    } else if (e.key.toLowerCase() === "m" && !ctrlOrMeta) {
-      e.preventDefault();
-      if (e.shiftKey) {
-        ops.applyAutoRamp(() => this.deps.openHeightDialogForSelection());
-      } else if (selection.all().length > 0 && !this.deps.isMeasureToolActive()) {
-        this.deps.openHeightDialogForSelection();
-      } else {
-        this.deps.toggleMeasureTool();
-      }
-    } else if (ctrlOrMeta && (e.key.toLowerCase() === "z" || e.code === "KeyZ")) {
-      e.preventDefault();
-      if (e.shiftKey) this.deps.getHistory().redo();
-      else this.deps.getHistory().undo();
-      this.deps.sync(true);
-    } else if (ctrlOrMeta && (e.key.toLowerCase() === "y" || e.code === "KeyY")) {
+      return;
+    }
+
+    // 5. History (Undo / Redo)
+    if (this.match(e, "redo")) {
       e.preventDefault();
       this.deps.getHistory().redo();
       this.deps.sync(true);
-    } else if (ctrlOrMeta && (e.key.toLowerCase() === "c" || e.code === "KeyC")) {
+      return;
+    }
+    if (this.match(e, "undo")) {
+      e.preventDefault();
+      this.deps.getHistory().undo();
+      this.deps.sync(true);
+      return;
+    }
+
+    // 6. Clipboard & Selection
+    if (this.match(e, "copy")) {
       const textSelected = window.getSelection()?.toString();
       if (!textSelected || textSelected.trim().length === 0) {
         e.preventDefault();
@@ -138,23 +219,50 @@ export class KeyboardController {
           this.deps.showToast(isDe ? "Keine Gleise zum Kopieren markiert" : "No tracks selected to copy", "⚠️");
         }
       }
-    } else if (ctrlOrMeta && (e.key.toLowerCase() === "v" || e.code === "KeyV")) {
+      return;
+    }
+    if (this.match(e, "paste")) {
       e.preventDefault();
       ops.pasteClipboard();
-    } else if (ctrlOrMeta && (e.key.toLowerCase() === "d" || e.code === "KeyD")) {
+      return;
+    }
+    if (this.match(e, "duplicate")) {
       e.preventDefault();
       ops.duplicateSelected();
-    } else if (ctrlOrMeta && (e.key.toLowerCase() === "a" || e.code === "KeyA")) {
+      return;
+    }
+    if (this.match(e, "selectAll")) {
       e.preventDefault();
       ops.selectAll();
-    } else if (e.key === "Delete" || e.key === "Backspace") {
+      return;
+    }
+    if (this.match(e, "deleteSelected")) {
       e.preventDefault();
       ops.deleteSelected();
-    } else if (e.key.toLowerCase() === "r" || e.code === "KeyR") {
+      return;
+    }
+
+    // 7. Rotation
+    if (this.match(e, "rotateCcw")) {
       e.preventDefault();
-      const step = e.shiftKey ? -7.5 : 7.5;
-      ops.rotateSelected(step);
-    } else if ((e.key.toLowerCase() === "w" || e.code === "KeyW") && !ctrlOrMeta) {
+      const rotStep = this.deps.getRotationStep ? this.deps.getRotationStep() : 7.5;
+      ops.rotateSelected(-rotStep);
+      return;
+    }
+    if (this.match(e, "rotateCw")) {
+      e.preventDefault();
+      const rotStep = this.deps.getRotationStep ? this.deps.getRotationStep() : 7.5;
+      ops.rotateSelected(rotStep);
+      return;
+    }
+
+    // 8. Turnout controls
+    if (this.match(e, "toggleTurnoutDecoder")) {
+      e.preventDefault();
+      ops.toggleSelectedTurnoutDecoder();
+      return;
+    }
+    if (this.match(e, "toggleTurnoutLantern")) {
       e.preventDefault();
       const selPieces = selection.all().map((id) => layout.pieces.find((p) => p.id === id)).filter(Boolean) as TrackPiece[];
       const turnoutPieces = selPieces.filter((p) => {
@@ -162,102 +270,147 @@ export class KeyboardController {
         return isTurnoutEntry(entry);
       });
       if (turnoutPieces.length > 0) {
-        if (e.shiftKey) {
-          ops.toggleSelectedTurnoutDecoder();
-        } else {
-          ops.toggleSelectedTurnoutLantern();
-        }
+        ops.toggleSelectedTurnoutLantern();
       } else {
         const isDe = getLanguage() === "de";
         this.deps.showToast(
           isDe
-            ? "Weichen-Taste W: Bitte zuerst eine Weiche markieren (Laterne: W, Decoder: Umschalt+W)"
-            : "Turnout key W: Please select a turnout first (Lantern: W, Decoder: Shift+W)",
+            ? "Weichen-Taste: Bitte zuerst eine Weiche markieren (Laterne: W, Decoder: Umschalt+W)"
+            : "Turnout key: Please select a turnout first (Lantern: W, Decoder: Shift+W)",
           "💡",
         );
       }
-    } else if (e.key.toLowerCase() === "f" && !ctrlOrMeta) {
+      return;
+    }
+
+    // 9. Electrical & Track features
+    if (this.match(e, "toggleCatenary")) {
+      e.preventDefault();
+      ops.toggleSelectedCatenary();
+      return;
+    }
+    if (this.match(e, "toggleSignal")) {
+      e.preventDefault();
+      ops.toggleSelectedSignal();
+      return;
+    }
+    if (this.match(e, "toggleFeeder")) {
       e.preventDefault();
       if (e.shiftKey) {
         ops.toggleSelectedCatenaryFeeder();
       } else {
         ops.toggleSelectedFeeder();
       }
-    } else if (e.key.toLowerCase() === "i" && !ctrlOrMeta) {
+      return;
+    }
+    if (this.match(e, "toggleIsolator")) {
       e.preventDefault();
       if (e.shiftKey) {
         ops.toggleSelectedCatenaryIsolator();
       } else {
         ops.toggleSelectedIsolator();
       }
-    } else if (e.key.toLowerCase() === "o" && !ctrlOrMeta) {
+      return;
+    }
+    if (this.match(e, "toggleBridge")) {
       e.preventDefault();
-      ops.toggleSelectedCatenary();
-    } else if (e.key.toLowerCase() === "s" && !ctrlOrMeta) {
+      ops.toggleSelectedBridge();
+      return;
+    }
+    if (this.match(e, "toggleTunnel")) {
       e.preventDefault();
-      if (e.shiftKey) {
-        ops.toggleSelectedSignal();
-      } else {
-        this.deps.setSnappingEnabled(!this.deps.isSnappingEnabled());
-        this.deps.sync();
-      }
-    } else if (e.key.toLowerCase() === "c" && !ctrlOrMeta) {
+      ops.toggleSelectedTunnel();
+      return;
+    }
+
+    // 10. Toggles & Tools
+    if (this.match(e, "toggleSnapping")) {
       e.preventDefault();
-      this.deps.cycleColorMode();
-    } else if (e.key.toLowerCase() === "n" && !ctrlOrMeta) {
+      this.deps.setSnappingEnabled(!this.deps.isSnappingEnabled());
+      this.deps.sync();
+      return;
+    }
+    if (this.match(e, "toggleTrackLabels")) {
       e.preventDefault();
       this.deps.setTrackLabelsEnabled(!this.deps.isTrackLabelsEnabled());
       this.deps.sync();
-    } else if (e.key.toLowerCase() === "p" && !ctrlOrMeta) {
+      return;
+    }
+    if (this.match(e, "togglePowerSim")) {
       e.preventDefault();
       this.deps.setPowerSimEnabled(!this.deps.isPowerSimEnabled());
       this.deps.sync();
-    } else if (e.key.toLowerCase() === "b" && !ctrlOrMeta) {
+      return;
+    }
+    if (this.match(e, "toggleMeasure")) {
       e.preventDefault();
       if (e.shiftKey) {
-        this.deps.toggleRightSidebar();
+        ops.applyAutoRamp(() => this.deps.openHeightDialogForSelection());
+      } else if (selection.all().length > 0 && !this.deps.isMeasureToolActive()) {
+        this.deps.openHeightDialogForSelection();
       } else {
-        ops.toggleSelectedBridge();
+        this.deps.toggleMeasureTool();
       }
-    } else if (e.key.toLowerCase() === "t" && !ctrlOrMeta) {
-      e.preventDefault();
-      ops.toggleSelectedTunnel();
-    } else if (e.altKey && (e.key.toLowerCase() === "l" || e.code === "KeyL")) {
+      return;
+    }
+    if (this.match(e, "toggleSelectionLock")) {
       e.preventDefault();
       this.deps.toggleSelectionLock?.();
-    } else if (e.key.toLowerCase() === "l" && !ctrlOrMeta) {
+      return;
+    }
+    if (this.match(e, "toggleRuler")) {
       e.preventDefault();
-      if (e.shiftKey) {
-        ops.toggleSelectedTurnoutLantern();
-      } else {
-        this.deps.getRuler().toggle();
-        this.deps.sync();
-      }
-    } else if (e.key.toLowerCase() === "d" && e.shiftKey && !ctrlOrMeta) {
+      this.deps.getRuler().toggle();
+      this.deps.sync();
+      return;
+    }
+    if (this.match(e, "toggleLayersSidebar")) {
       e.preventDefault();
-      ops.toggleSelectedTurnoutDecoder();
-    } else if (e.key === "Escape" && this.deps.isMeasureToolActive()) {
-      e.preventDefault();
-      const mState = this.deps.getMeasureState();
-      if (mState.start) {
-        this.deps.setMeasureState({ start: null, current: null, locked: false, draggingPoint: null });
-        this.deps.updateMeasureHud();
-        this.deps.sync();
-      } else {
-        this.deps.toggleMeasureTool(false);
-      }
-    } else if (e.key === "Escape" && this.deps.is3DMode()) {
-      e.preventDefault();
-      this.deps.toggle3D(false);
-    } else if (e.key === "3" || (e.key.toLowerCase() === "v" && !ctrlOrMeta)) {
+      this.deps.toggleRightSidebar();
+      return;
+    }
+    if (this.match(e, "toggle3D")) {
       e.preventDefault();
       this.deps.toggle3D();
-    } else if (e.key === "F1" || (e.key === "?" && !ctrlOrMeta)) {
+      return;
+    }
+    if (this.match(e, "deselectAll")) {
+      e.preventDefault();
+      if (this.deps.isMeasureToolActive()) {
+        const mState = this.deps.getMeasureState();
+        if (mState.start) {
+          this.deps.setMeasureState({ start: null, current: null, locked: false, draggingPoint: null });
+          this.deps.updateMeasureHud();
+          this.deps.sync();
+        } else {
+          this.deps.toggleMeasureTool(false);
+        }
+        return;
+      }
+      if (this.deps.is3DMode()) {
+        this.deps.toggle3D(false);
+        return;
+      }
+      selection.clear();
+      this.deps.sync();
+      return;
+    }
+    if (this.match(e, "openHelp")) {
       e.preventDefault();
       this.deps.openHelpDialog("overview");
-    } else if (e.key === "F3") {
+      return;
+    }
+    if (this.match(e, "togglePerfMonitor")) {
       e.preventDefault();
       this.deps.getPerfMonitor().toggle();
+      return;
+    }
+
+    // Color mode cycle (C key)
+    if (e.key.toLowerCase() === "c" && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+      e.preventDefault();
+      this.deps.cycleColorMode();
+      return;
     }
   }
 }

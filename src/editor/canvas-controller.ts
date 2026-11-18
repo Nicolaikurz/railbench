@@ -1,4 +1,4 @@
-import type { Layout, TrackPiece, Model3D, Transform, BaseboardConfig } from "@/core/types";
+import type { TrackPiece, Model3D, Transform, BaseboardConfig } from "@/core/types";
 import type { CatalogEntry } from "@/catalog/catalog";
 import { computeWorldConnectors } from "@/catalog/catalog";
 import { updatePieceConnections } from "@/core/snapping";
@@ -12,11 +12,11 @@ import {
   getPieceRotationHandleWorld, isPieceInSelectionBox, computeGroupCentroid, type RotatableItem,
 } from "@/core/geometry";
 import { MoveModelCommand, MoveBaseboardCommand } from "@/editor/commands";
-import type { Selection } from "@/editor/selection";
 import { handleCanvasDrop } from "./canvas-drop-handler";
 import { KeyboardController } from "./keyboard-controller";
-import { adjustFlexTrackOpenConnector } from "@/core/flextrack";
+import { adjustFlexTrackOpenConnector, bendFlexTrackBetweenFixedEnds } from "@/core/flextrack";
 import { closeTrackContextMenu } from "@/ui/track-context-menu";
+import { notifyHeightPanelUpdate } from "@/ui/height-panel";
 import type { CanvasControllerDeps } from "./canvas-controller-types";
 import { openTrackContextMenu } from "./canvas-context-menu";
 import {
@@ -50,7 +50,13 @@ export class CanvasController {
   private baseboardOriginalPos = { positionMode: "custom" as const, customX: 0, customY: 0 };
   private activeBaseboardSnapGuides: BaseboardSnapGuide[] = [];
   private baseboardInitialTrackTransforms = new Map<string, Transform>();
-  private isAdjustingFlex = false; private activeFlexPiece: TrackPiece | null = null; private activeFlexEntry: CatalogEntry | null = null;
+  private isAdjustingFlex = false;
+  private isAdjustingFlexMiddle = false;
+  private flexMiddleFixedC0: { x: number; y: number } | null = null;
+  private flexMiddleFixedC1: { x: number; y: number } | null = null;
+  private activeFlexPivotFraction = 0.5;
+  private activeFlexPiece: TrackPiece | null = null;
+  private activeFlexEntry: CatalogEntry | null = null;
   private handleDragOver = (e: DragEvent) => this.onDragOver(e);
   private handleDrop = (e: DragEvent) => this.onDrop(e);
   private handleContextMenu = (e: MouseEvent) => {
@@ -82,8 +88,35 @@ export class CanvasController {
     }
   };
   private handlePointerDown = (e: PointerEvent) => this.onPointerDown(e);
-  private handlePointerMove = (e: PointerEvent) => this.onPointerMove(e);
-  private handlePointerUp = (e: PointerEvent) => this.onPointerUp(e);
+  private rafMoveId: number | null = null;
+  private latestMoveEvent: PointerEvent | null = null;
+
+  private handlePointerMove = (e: PointerEvent) => {
+    this.latestMoveEvent = e;
+    if (typeof requestAnimationFrame === "undefined") {
+      this.onPointerMove(e);
+      return;
+    }
+    if (this.rafMoveId === null) {
+      this.rafMoveId = requestAnimationFrame(() => {
+        this.rafMoveId = null;
+        if (this.latestMoveEvent) {
+          this.onPointerMove(this.latestMoveEvent);
+        }
+      });
+    }
+  };
+
+  private handlePointerUp = (e: PointerEvent) => {
+    if (this.rafMoveId !== null) {
+      cancelAnimationFrame(this.rafMoveId);
+      this.rafMoveId = null;
+      if (this.latestMoveEvent) {
+        this.onPointerMove(this.latestMoveEvent);
+      }
+    }
+    this.onPointerUp(e);
+  };
   private handleWheel = (e: WheelEvent) => this.onWheel(e);
   private keyboardController: KeyboardController;
 
@@ -105,6 +138,10 @@ export class CanvasController {
   }
 
   public destroy(): void {
+    if (this.rafMoveId !== null) {
+      cancelAnimationFrame(this.rafMoveId);
+      this.rafMoveId = null;
+    }
     closeTrackContextMenu();
     const { canvas } = this.deps;
     canvas.removeEventListener("dragover", this.handleDragOver);
@@ -196,24 +233,7 @@ export class CanvasController {
     const selectedIds = selection.all();
     const handleHitRadius = Math.max(24, 20 / scale);
 
-    // Klick auf Plus-Button an offenem Gleisende
-    if (!isMultiSelect) {
-      const openHit = findOpenConnectorAt(
-        layout,
-        selection,
-        (p) => this.deps.isPieceInteractive(p),
-        wPos,
-        scale,
-      );
-      if (openHit) {
-        const added = this.deps.getOperations().appendTrackToConnector(openHit.piece, openHit.connectorIndex);
-        if (added) {
-          this.deps.sync(true);
-          return;
-        }
-      }
-    }
-
+    // Flexgleis-Griffe zum Kürzen und Biegen immer zuerst vor Plus-Buttons prüfen
     if (!isMultiSelect) {
       const flexHit = checkFlexHandleHit(
         layout,
@@ -224,12 +244,38 @@ export class CanvasController {
         handleHitRadius,
       );
       if (flexHit) {
-        this.isAdjustingFlex = true;
+        if (flexHit.handleType === "middle" && flexHit.fixedC0 && flexHit.fixedC1) {
+          this.isAdjustingFlexMiddle = true;
+          this.activeFlexPivotFraction = flexHit.pivotFraction ?? 0.5;
+          this.flexMiddleFixedC0 = { ...flexHit.fixedC0 };
+          this.flexMiddleFixedC1 = { ...flexHit.fixedC1 };
+        } else {
+          this.isAdjustingFlex = true;
+        }
         this.activeFlexPiece = flexHit.piece;
         this.activeFlexEntry = flexHit.entry;
         this.deps.canvas.style.cursor = "crosshair";
         this.deps.sync();
         return;
+      }
+    }
+
+    // Klick auf Plus-Button an offenem Gleisende
+    if (!isMultiSelect) {
+      const openHit = findOpenConnectorAt(
+        layout,
+        selection,
+        (p) => this.deps.isPieceInteractive(p),
+        wPos,
+        scale,
+        (p) => this.deps.getCatalogEntryForPiece(p),
+      );
+      if (openHit) {
+        const added = this.deps.getOperations().appendTrackToConnector(openHit.piece, openHit.connectorIndex);
+        if (added) {
+          this.deps.sync(true);
+          return;
+        }
       }
     }
 
@@ -385,6 +431,7 @@ export class CanvasController {
         this.draggedInitialConnections,
       );
       canvas.style.cursor = "move";
+      notifyHeightPanelUpdate(hit, wPos);
       this.deps.sync();
     } else {
       const sidebar = this.deps.getSidebar();
@@ -509,7 +556,26 @@ export class CanvasController {
         this.activePin.y = currentWPos.y;
       }
 
-      this.deps.sync(false);
+      // Live-Update der Auto-Rampe, während Pin A in Echtzeit auf ein anderes Gleisende gezogen wird
+      const pinDropHandler = this.deps.getPinDropHandler?.();
+      if (pinDropHandler) {
+        const catalog = this.deps.getCatalog();
+        const hitGauge = catalog.gauge ?? 16.5;
+        const hit = findTrackPieceAt(
+          layout,
+          { x: this.activePin.x, y: this.activePin.y },
+          scale,
+          hitGauge,
+          (p) => this.deps.isPieceInteractive(p),
+          (p) => this.deps.getCatalogEntryForPiece(p),
+        );
+        if (hit) {
+          const pinId = this.activePin.id || (this.activePin.label.includes("B") || this.activePin.label === "Stop" ? "B" : "A");
+          pinDropHandler(pinId, { x: this.activePin.x, y: this.activePin.y }, hit);
+        }
+      }
+
+      this.deps.sync(false, true);
       return;
     }
 
@@ -525,6 +591,21 @@ export class CanvasController {
       return;
     }
 
+    if (this.isAdjustingFlexMiddle && this.activeFlexPiece && this.activeFlexEntry && this.flexMiddleFixedC0 && this.flexMiddleFixedC1) {
+      bendFlexTrackBetweenFixedEnds(
+        this.activeFlexPiece,
+        this.activeFlexEntry,
+        this.flexMiddleFixedC0,
+        this.flexMiddleFixedC1,
+        currentWPos,
+        layout.layers,
+        this.activeFlexPivotFraction,
+      );
+      canvas.style.cursor = "crosshair";
+      this.deps.sync(false, true);
+      return;
+    }
+
     if (this.isAdjustingFlex && this.activeFlexPiece && this.activeFlexEntry) {
       adjustFlexTrackOpenConnector(
         this.activeFlexPiece,
@@ -535,7 +616,7 @@ export class CanvasController {
         this.deps.isSnappingEnabled() ? 25 : 0,
       );
       canvas.style.cursor = "crosshair";
-      this.deps.sync(false);
+      this.deps.sync(false, true);
       return;
     }
 
@@ -572,7 +653,7 @@ export class CanvasController {
           }
         }
       }
-      this.deps.sync();
+      this.deps.sync(false, true);
       return;
     }
 
@@ -581,11 +662,14 @@ export class CanvasController {
       const dy = currentWPos.y - this.activeModel.transform.y;
       const pointerAngleDeg = rad2deg(Math.atan2(dy, dx));
       let newRot = normAngle(pointerAngleDeg + 90);
-      if (!e.altKey) {
-        newRot = Math.round(newRot / 7.5) * 7.5;
+      const isLocked = this.deps.isRotationSnapLocked ? this.deps.isRotationSnapLocked() : true;
+      const step = this.deps.getRotationStep ? this.deps.getRotationStep() : 7.5;
+      const shouldSnap = isLocked ? !e.altKey : e.altKey;
+      if (shouldSnap) {
+        newRot = Math.round(newRot / step) * step;
       }
       this.activeModel.transform.rotation = newRot;
-      this.deps.sync();
+      this.deps.sync(false, true);
       return;
     }
 
@@ -594,8 +678,11 @@ export class CanvasController {
       const currentAngle = Math.atan2(currentWPos.y - this.pieceCenterWorld.y, currentWPos.x - this.pieceCenterWorld.x);
       let deltaDeg = rad2deg(currentAngle - startAngle);
 
-      if (!e.altKey) {
-        deltaDeg = Math.round(deltaDeg / 7.5) * 7.5;
+      const isLocked = this.deps.isRotationSnapLocked ? this.deps.isRotationSnapLocked() : true;
+      const step = this.deps.getRotationStep ? this.deps.getRotationStep() : 7.5;
+      const shouldSnap = isLocked ? !e.altKey : e.altKey;
+      if (shouldSnap) {
+        deltaDeg = Math.round(deltaDeg / step) * step;
       }
 
       applyGroupRotationWithSnapping(
@@ -603,10 +690,11 @@ export class CanvasController {
         this.draggedPiecesMap,
         this.pieceCenterWorld,
         deltaDeg,
-        this.deps.isSnappingEnabled() && !e.altKey,
+        this.deps.isSnappingEnabled() && shouldSnap,
         (p) => this.deps.getCatalogEntryForPiece(p),
       );
-      this.deps.sync();
+      notifyHeightPanelUpdate();
+      this.deps.sync(false, true);
       return;
     }
 
@@ -652,9 +740,8 @@ export class CanvasController {
         }
       }
 
-      this.deps.getSidebar()?.update(layout, this.deps.getCurrentSimulation());
       this.deps.setDraggingBaseboardState(true, this.activeBaseboard, this.activeBaseboardSnapGuides);
-      this.deps.sync();
+      this.deps.sync(false, true);
       return;
     }
 
@@ -681,37 +768,17 @@ export class CanvasController {
         (p) => this.deps.getCatalogEntryForPiece(p),
       );
 
-      this.deps.sync();
+      notifyHeightPanelUpdate();
+      this.deps.sync(false, true);
       return;
     }
 
-    if (!this.isDraggingPiece && !this.isRotatingPiece && !this.isRotatingModel && !this.isBoxSelecting && !this.isDraggingBaseboard && !this.isAdjustingFlex) {
+    if (!this.isDraggingPiece && !this.isRotatingPiece && !this.isRotatingModel && !this.isBoxSelecting && !this.isDraggingBaseboard && !this.isAdjustingFlex && !this.isAdjustingFlexMiddle) {
       const selectedIds = selection.all();
       const scale = renderer.world.scale.x || 1;
       const handleHitRadius = Math.max(24, 20 / scale);
 
-      // Hover über offenem Gleisende / Plus-Button
-      const openHit = findOpenConnectorAt(
-        layout,
-        selection,
-        (p) => this.deps.isPieceInteractive(p),
-        currentWPos,
-        scale,
-      );
-      const currentHovered = this.deps.getHoveredOpenConnector?.() ?? null;
-      const newHovered = openHit ? { pieceId: openHit.piece.id, connectorIndex: openHit.connectorIndex } : null;
-
-      const hoveredChanged = (currentHovered?.pieceId !== newHovered?.pieceId) || (currentHovered?.connectorIndex !== newHovered?.connectorIndex);
-      if (hoveredChanged && this.deps.setHoveredOpenConnector) {
-        this.deps.setHoveredOpenConnector(newHovered);
-        this.deps.sync(false);
-      }
-
-      if (openHit) {
-        canvas.style.cursor = "pointer";
-        return;
-      }
-
+      // Flexgleis-Griffe zum Kürzen und Biegen prüfen
       if (isNearFlexHandle(
         layout,
         selection,
@@ -721,6 +788,29 @@ export class CanvasController {
         handleHitRadius,
       )) {
         canvas.style.cursor = "crosshair";
+        return;
+      }
+
+      // Hover über offenem Gleisende / Plus-Button
+      const openHit = findOpenConnectorAt(
+        layout,
+        selection,
+        (p) => this.deps.isPieceInteractive(p),
+        currentWPos,
+        scale,
+        (p) => this.deps.getCatalogEntryForPiece(p),
+      );
+      const currentHovered = this.deps.getHoveredOpenConnector?.() ?? null;
+      const newHovered = openHit ? { pieceId: openHit.piece.id, connectorIndex: openHit.connectorIndex } : null;
+
+      const hoveredChanged = (currentHovered?.pieceId !== newHovered?.pieceId) || (currentHovered?.connectorIndex !== newHovered?.connectorIndex);
+      if (hoveredChanged && this.deps.setHoveredOpenConnector) {
+        this.deps.setHoveredOpenConnector(newHovered);
+        this.deps.sync(false, true);
+      }
+
+      if (openHit) {
+        canvas.style.cursor = "pointer";
         return;
       }
 
@@ -814,6 +904,7 @@ export class CanvasController {
     if (this.isDraggingPin && this.activePin) {
       const currentWPos = renderer.screenToWorld(e.clientX, e.clientY);
       const scale = renderer.world.scale.x || 1;
+      const pinPos = { x: this.activePin.x, y: this.activePin.y };
       this.isDraggingPin = false;
       try { canvas.releasePointerCapture(e.pointerId); } catch (_) {}
       canvas.style.cursor = "default";
@@ -821,6 +912,13 @@ export class CanvasController {
       const catalog = this.deps.getCatalog();
       const hitGauge = catalog.gauge ?? 16.5;
       const hit = findTrackPieceAt(
+        layout,
+        pinPos,
+        scale,
+        hitGauge,
+        (p) => this.deps.isPieceInteractive(p),
+        (p) => this.deps.getCatalogEntryForPiece(p),
+      ) || findTrackPieceAt(
         layout,
         currentWPos,
         scale,
@@ -833,9 +931,9 @@ export class CanvasController {
       const pinDropHandler = this.deps.getPinDropHandler?.();
 
       if (hit && pinDropHandler) {
-        pinDropHandler(pinId, currentWPos, hit);
+        pinDropHandler(pinId, pinPos, hit);
       } else if (hit && this.deps.getPickHandler?.()) {
-        this.deps.getPickHandler()!(currentWPos, hit);
+        this.deps.getPickHandler()!(pinPos, hit);
       } else if (this.activePinOriginalPos) {
         this.activePin.x = this.activePinOriginalPos.x;
         this.activePin.y = this.activePinOriginalPos.y;
@@ -844,6 +942,19 @@ export class CanvasController {
 
       this.activePin = null;
       this.activePinOriginalPos = null;
+      return;
+    }
+
+    if (this.isAdjustingFlexMiddle) {
+      if (this.activeFlexPiece) updatePieceConnections(layout.pieces, layout.layers);
+      this.isAdjustingFlexMiddle = false;
+      this.activeFlexPivotFraction = 0.5;
+      this.flexMiddleFixedC0 = null;
+      this.flexMiddleFixedC1 = null;
+      this.activeFlexPiece = null;
+      this.activeFlexEntry = null;
+      canvas.style.cursor = "default";
+      this.deps.sync(true);
       return;
     }
 
@@ -886,6 +997,7 @@ export class CanvasController {
     } else if (this.isRotatingPiece) {
       if (commitMovedItems(layout, history, this.draggedPiecesMap)) {
         updatePieceConnections(layout.pieces, layout.layers);
+        notifyHeightPanelUpdate();
         this.deps.sync(true);
       }
       this.isRotatingPiece = false; this.activePiece = null; this.draggedPiecesMap.clear();
@@ -893,17 +1005,19 @@ export class CanvasController {
       canvas.style.cursor = "default";
       this.deps.sync();
     } else if (this.isDraggingPiece) {
-      const clickedPiece = this.activePiece;
-      const wasDrag = this.hasDragMoved;
-
       if (!this.hasDragMoved && this.pendingSingleSelect) {
         selection.set(this.pendingSingleSelect);
         const m = layout.models?.find((x) => x.id === this.pendingSingleSelect);
         if (m?.builtinId === "mountain") {
           this.deps.getSidebar()?.selectMountain(m.id);
         }
+        const clicked = layout.pieces.find((p) => p.id === this.pendingSingleSelect);
+        if (clicked) {
+          notifyHeightPanelUpdate(clicked);
+        }
       } else if (this.hasDragMoved && commitMovedItems(layout, history, this.draggedPiecesMap)) {
         updatePieceConnections(layout.pieces, layout.layers);
+        notifyHeightPanelUpdate();
         this.deps.sync(true);
       }
       this.isDraggingPiece = false; this.activePiece = null; this.activeModel = null;
@@ -947,7 +1061,8 @@ export class CanvasController {
       if (sel) {
         e.preventDefault();
         e.stopPropagation();
-        const step = e.deltaY < 0 ? -7.5 : 7.5;
+        const rotStep = this.deps.getRotationStep ? this.deps.getRotationStep() : 7.5;
+        const step = e.deltaY < 0 ? -rotStep : rotStep;
         this.deps.getOperations().rotateSelected(step);
       }
     }

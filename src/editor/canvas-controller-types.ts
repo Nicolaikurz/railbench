@@ -1,5 +1,5 @@
 import type { Renderer } from "@/render/renderer";
-import type { Layout, TrackPiece, Model3D, BaseboardConfig, Transform, ColorMode } from "@/core/types";
+import type { Layout, TrackPiece, Model3D, BaseboardConfig, ColorMode } from "@/core/types";
 import type { Catalog, CatalogEntry } from "@/catalog/catalog";
 import type { BaseboardSnapGuide } from "@/core/baseboard-snapping";
 import type { CollabClient } from "@/collab/collab-client";
@@ -26,6 +26,9 @@ export interface CanvasControllerDeps {
   getPlanManager: () => PlanManager;
   is3DMode: () => boolean;
   toggle3D: (force?: boolean) => void;
+  zoomView?: (factor: number) => void;
+  panView?: (dx: number, dy: number) => void;
+  resetView?: () => void;
   isMeasureToolActive: () => boolean;
   toggleMeasureTool: (force?: boolean) => void;
   findMeasureSnapPoint: (pos: { x: number; y: number }, snapDist?: number, forceNoSnap?: boolean) => { x: number; y: number } | null;
@@ -47,6 +50,8 @@ export interface CanvasControllerDeps {
   }>) => void;
   isSnappingEnabled: () => boolean;
   setSnappingEnabled: (val: boolean) => void;
+  getRotationStep?: () => number;
+  isRotationSnapLocked?: () => boolean;
   toggleSelectionLock?: () => void;
   getColorMode: () => ColorMode;
   cycleColorMode: (target?: ColorMode) => void;
@@ -62,7 +67,7 @@ export interface CanvasControllerDeps {
   isPieceInteractive: (piece: TrackPiece) => boolean;
   isModelInteractive: (model: Model3D) => boolean;
   getCatalogEntryForPiece: (piece: TrackPiece) => CatalogEntry | undefined;
-  sync: (dirty?: boolean) => void;
+  sync: (dirty?: boolean, transient?: boolean) => void;
   saveSettingsState: () => void;
   showToast: (msg: string, icon?: string) => void;
   getCurrentSimulation: () => any;

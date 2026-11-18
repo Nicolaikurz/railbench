@@ -1,22 +1,23 @@
 import "./styles/main.css";
 import { Renderer } from "@/render/renderer";
 import { attachCamera } from "@/render/camera";
-import { createLayout, ensureDefaultLayers, getBaseboards, getBaseboardPolygon } from "@/core/layout";
+import { createLayout, ensureDefaultLayers, getBaseboards } from "@/core/layout";
 import { updatePieceConnections } from "@/core/snapping";
 import type { BaseboardSnapGuide } from "@/core/baseboard-snapping";
-import type { BaseboardConfig, Layout, TrackPiece, Transform, Model3D, ColorMode } from "@/core/types";
+import type { BaseboardConfig, Layout, TrackPiece, Model3D, ColorMode } from "@/core/types";
 import { Ruler } from "@/ui/ruler";
 import { Viewer3D } from "@/render/viewer-3d";
-import { catalogRegistry, computeWorldConnectors, type Catalog, type CatalogEntry } from "@/catalog/catalog";
+import { catalogRegistry, type Catalog, type CatalogEntry } from "@/catalog/catalog";
 import {
   simulatePowerDrop,
   type SimulationSummary,
-  isTurnoutEntry,
   detectShortCircuit,
   type ShortCircuitDetectionResult,
+  getDefaultFeedVoltage,
+  getDefaultLocoCurrentMa,
 } from "@/core/simulation";
 import { Selection } from "@/editor/selection";
-import { History, AddPiecesCommand } from "@/editor/commands";
+import { History } from "@/editor/commands";
 import { createToolbar, updateToolbarState, type ToolbarEvents } from "@/ui/toolbar";
 import { buildToolbarEvents } from "@/ui/toolbar-events-factory";
 import { getTranslations, onLanguageChange, getLanguage, setLanguage } from "@/i18n";
@@ -24,10 +25,7 @@ import { Sidebar } from "@/ui/sidebar";
 import { RightSidebar } from "@/ui/right-sidebar";
 import { PlanManager } from "@/io/plan-manager";
 import { openPrintDialog } from "@/io/print";
-import { openChangeHeightDialog } from "@/ui/height-dialog";
-import { openRampGeneratorDialog } from "@/ui/ramp-generator-dialog";
-import { openHeightPanel } from "@/ui/height-panel";
-import { openHelpDialog, type HelpTab } from "@/ui/help-dialog";
+import { openHelpDialog } from "@/ui/help-dialog";
 import { openCatalogImportDialog } from "@/catalog/catalog-importer";
 import { openCollabDialog } from "@/ui/collab-dialog";
 import { CollabClient } from "@/collab/collab-client";
@@ -36,15 +34,15 @@ import { PerfMonitor } from "@/ui/perf-monitor";
 import { themeManager } from "@/theme/theme-manager";
 import { loadAppSettings, saveAppSettings } from "@/settings/settings-manager";
 import { SelectionBar } from "@/ui/selection-bar";
-import { MeasureHud, getScaleRatio } from "@/ui/measure-hud";
+import { getScaleRatio } from "@/ui/measure-hud";
 import { MeasureController } from "@/editor/measure-controller";
 import { showToast, showCollabToast } from "@/ui/toast";
 import {
-  openHeightPanelUnified,
   openHeightDialogForSelection,
   openRampGeneratorForPiece,
   type HeightPanelDeps,
 } from "@/editor/height-panel-integration";
+import { notifyHeightPanelUpdate } from "@/ui/height-panel";
 import {
   applyStartupAction,
   triggerDemoTracksDialog,
@@ -53,9 +51,8 @@ import {
 } from "@/editor/app-startup";
 import { TrackOperations } from "@/editor/track-operations";
 import { CanvasController } from "@/editor/canvas-controller";
-import { initDemoTracks, generateStressTracks, type DemoLayoutDef } from "@/editor/demo-tracks";
+import { initDemoTracks, generateStressTracks } from "@/editor/demo-tracks";
 import { showWelcomeDialog, type StartupAction } from "@/ui/welcome-dialog";
-import { showDemoTracksDialog } from "@/ui/demo-tracks-dialog";
 import { getFullAppTitle } from "@/version";
 import { getEffectiveFlexEntry } from "@/core/flextrack";
 import { initLayoutResizers } from "@/ui/layout-resizer";
@@ -77,6 +74,8 @@ async function main() {
   let powerSimEnabled = savedSettings.powerSimEnabled ?? false;
   let rightSidebarCollapsed = savedSettings.rightSidebarCollapsed ?? false;
   let selectionLockDisabled = savedSettings.selectionLockDisabled ?? false;
+  let rotationStep = savedSettings.rotationStep ?? 30;
+  let rotationSnapLocked = savedSettings.rotationSnapLocked ?? true;
   let sidebar: Sidebar | null = null, rightSidebar: RightSidebar | null = null;
   let ruler: Ruler | null = null, viewer3D: Viewer3D | null = null;
   let currentSimulation: SimulationSummary | undefined = undefined;
@@ -113,6 +112,8 @@ async function main() {
     saveAppSettings({
       snappingEnabled,
       selectionLockDisabled,
+      rotationStep,
+      rotationSnapLocked,
       colorMode,
       trackLabelsEnabled,
       powerSimEnabled,
@@ -129,6 +130,28 @@ async function main() {
     });
   }
 
+  function setRotationStep(val: number) {
+    rotationStep = val;
+    saveSettingsState();
+    const isDe = getLanguage() === "de";
+    const angleStr = val === 5.7 ? "5.7°" : `${val}°`;
+    showToast(isDe ? `Drehwinkel: ${angleStr}` : `Rotation angle: ${angleStr}`, "↻");
+    sync();
+  }
+
+  function toggleRotationLock(forcedState?: boolean) {
+    rotationSnapLocked = forcedState !== undefined ? forcedState : !rotationSnapLocked;
+    saveSettingsState();
+    const isDe = getLanguage() === "de";
+    showToast(
+      rotationSnapLocked
+        ? (isDe ? "Drehwinkelsperre aktiviert (Einrasten)" : "Rotation angle lock enabled (Snapping)")
+        : (isDe ? "Drehwinkelsperre aufgehoben (Freie Drehung)" : "Rotation angle lock disabled (Free rotation)"),
+      rotationSnapLocked ? "🔒" : "🔓"
+    );
+    sync();
+  }
+
   let saveSettingsTimeout: any = null;
   function debouncedSaveSettings() {
     if (saveSettingsTimeout) clearTimeout(saveSettingsTimeout);
@@ -136,7 +159,7 @@ async function main() {
   }
   const handleBeforeUnload = () => {
     saveSettingsState();
-    planManager.saveToLocalStorage(layout);
+    planManager.flush(layout);
   };
   window.addEventListener("beforeunload", handleBeforeUnload);
   window.addEventListener("pagehide", handleBeforeUnload);
@@ -199,10 +222,13 @@ async function main() {
       hasSelection: selection.all().length > 0,
       snappingEnabled,
       selectionLockDisabled,
+      rotationStep,
+      rotationSnapLocked,
       colorCodeEnabled: colorMode !== "off",
       colorMode,
       trackLabelsEnabled,
       powerSimEnabled,
+      feedVoltage: layout.feedVoltage ?? getDefaultFeedVoltage(layout.scale),
       totalPieces: layout.pieces.length,
       activeFileName: state.fileName ?? layout.name,
       isDirty: state.isDirty,
@@ -327,6 +353,45 @@ async function main() {
   viewer3D = new Viewer3D(canvasHost);
   let is3DMode = false;
 
+  function zoomView(factor: number) {
+    if (is3DMode && viewer3D?.isSupported()) {
+      viewer3D.zoomBy(factor);
+      return;
+    }
+    const canvas = renderer.app.canvas;
+    const rect = canvas.getBoundingClientRect();
+    const mx = rect.width / 2;
+    const my = rect.height / 2;
+    const wx = (mx - renderer.world.x) / renderer.world.scale.x;
+    const wy = (my - renderer.world.y) / renderer.world.scale.y;
+    const newScale = Math.max(0.04, Math.min(25, renderer.world.scale.x * factor));
+    renderer.world.scale.set(newScale);
+    renderer.world.x = mx - wx * newScale;
+    renderer.world.y = my - wy * newScale;
+    ruler?.update();
+    collabOverlay.update();
+    debouncedSaveSettings();
+  }
+
+  function panView(dx: number, dy: number) {
+    if (is3DMode && viewer3D?.isSupported()) {
+      viewer3D.panBy(dx, dy);
+      return;
+    }
+    renderer.world.x += dx;
+    renderer.world.y += dy;
+    ruler?.update();
+    collabOverlay.update();
+    debouncedSaveSettings();
+  }
+
+  function resetView() {
+    renderer.resetView();
+    ruler?.update();
+    collabOverlay.update();
+    debouncedSaveSettings();
+  }
+
   function toggle3D(force?: boolean) {
     if (!viewer3D?.isSupported()) {
       const msg = getLanguage() === "de"
@@ -368,7 +433,7 @@ async function main() {
     isPieceInteractive,
     isModelInteractive,
     getCatalogEntry: getCatalogEntryForPiece,
-    sync: (dirty?: boolean) => sync(dirty),
+    sync: (dirty?: boolean, transient?: boolean) => sync(dirty, transient),
     showToast,
   });
 
@@ -417,6 +482,7 @@ async function main() {
     onApplyHeight: (h) => operations.applyHeightInput(h),
     onApplyAngle: (deg) => operations.applyAngleInput(deg),
     onAdjustFlexTrack: (id, len, r, a) => operations.adjustFlexTrack(id, len, r, a),
+    onResetFlexTrack: (id) => operations.resetFlexTrack(id),
     onSelectLayer: (layerId) => operations.moveSelectedToLayer(layerId, { start: 0, end: 0 }),
     onOpenHeightDialog: () => openHeightDialogForSelection(heightPanelDeps),
     onApplyAutoRamp: () => operations.applyAutoRamp(() => openHeightDialogForSelection(heightPanelDeps)),
@@ -437,7 +503,8 @@ async function main() {
     onToggleSignal: () => operations.toggleSelectedSignal(),
     onToggleBridge: () => operations.toggleSelectedBridge(),
     onToggleTunnel: () => operations.toggleSelectedTunnel(),
-    onRotate: (delta) => operations.rotateSelected(delta ?? 7.5),
+    onRotate: (delta) => operations.rotateSelected(delta ?? rotationStep),
+    getRotationStep: () => rotationStep,
     onDelete: () => operations.deleteSelected(),
     getSelectedPieceIds: () => selection.all(),
     getLayout: () => layout,
@@ -446,30 +513,32 @@ async function main() {
   });
 
   // Sync-Funktion für UI und Rendering
-  function sync(dirty = false) {
+  function sync(dirty = false, transient = false) {
     if (dirty) {
       updatePieceConnections(layout.pieces, layout.layers);
+      notifyHeightPanelUpdate();
       planManager.markDirty(true);
-      planManager.saveToLocalStorage(layout);
-      if (!isApplyingRemote) {
-        collabClient.broadcastLayout(layout);
+      if (!transient) {
+        planManager.saveToLocalStorage(layout);
+        if (!isApplyingRemote) {
+          collabClient.broadcastLayout(layout);
+        }
       }
     }
 
     if (powerSimEnabled) {
-      if (dirty || !currentSimulation) {
-        currentSimulation = simulatePowerDrop(layout, catalog);
-      }
+      currentSimulation = simulatePowerDrop(layout, catalog);
     } else {
       currentSimulation = undefined;
     }
 
-    if (dirty || !currentShortCircuit) {
+    if (dirty || !transient || !currentShortCircuit) {
       currentShortCircuit = detectShortCircuit(layout, catalog);
     }
 
     const selectedIds = new Set(selection.all());
     const selectedPiece = layout.pieces.find((p) => selectedIds.has(p.id));
+    const selectedModel = layout.models?.find((m) => selectedIds.has(m.id));
 
     if (!is3DMode) {
       renderer.render(layout, catalog, {
@@ -501,18 +570,24 @@ async function main() {
           : null,
       });
       ruler?.update();
-    }
-    collabOverlay.update();
-    collabClient.broadcastSelection(selection.all());
-    selectionBar.update();
-
-    if (is3DMode) {
+    } else {
       viewer3D?.updateLayout(layout, catalog, {
         colorMode,
         showColorCode: colorMode !== "off",
         shortCircuit: currentShortCircuit,
       });
     }
+    collabOverlay.update();
+
+    // Während flüchtiger Aktionen (aktives Mausziehen/Drehen) überspringen wir
+    // das teure Neuaufbauen des HTML-DOM von Seitenleisten und Toolbar
+    if (transient) {
+      selectionBar.updateLiveValues(selectedPiece, selectedModel);
+      return;
+    }
+
+    collabClient.broadcastSelection(selection.all());
+    selectionBar.update();
 
     const planState = planManager.getState();
     updateToolbarState({
@@ -521,11 +596,14 @@ async function main() {
       hasSelection: selectedIds.size > 0,
       snappingEnabled,
       selectionLockDisabled,
+      rotationStep,
+      rotationSnapLocked,
       measureToolActive: measureController.isActive,
       colorCodeEnabled: colorMode !== "off",
       colorMode,
       trackLabelsEnabled,
       powerSimEnabled,
+      feedVoltage: layout.feedVoltage ?? getDefaultFeedVoltage(layout.scale),
       hasShortCircuit: currentShortCircuit.hasShortCircuit,
       shortCircuitCount: currentShortCircuit.shortCircuitPoints.length,
       rulersEnabled: ruler?.isVisible() ?? true,
@@ -557,7 +635,10 @@ async function main() {
         sidebar?.setCatalog(catalog);
         if (layout.pieces.length === 0 && (newCat.scale === "H0" || newCat.scale === "N" || newCat.scale === "TT" || newCat.scale === "Z" || newCat.scale === "1" || newCat.scale === "G" || newCat.scale === "0")) {
           layout.scale = newCat.scale;
+          layout.feedVoltage = getDefaultFeedVoltage(newCat.scale);
+          layout.locoCurrentMa = getDefaultLocoCurrentMa(newCat.scale);
         }
+        renderer.invalidateCaches();
         sync(false);
         saveSettingsState();
       },
@@ -579,7 +660,10 @@ async function main() {
         sidebar?.setCatalog(catalog);
         if (layout.pieces.length === 0 && (newCat.scale === "H0" || newCat.scale === "N" || newCat.scale === "TT" || newCat.scale === "Z" || newCat.scale === "1" || newCat.scale === "G" || newCat.scale === "0")) {
           layout.scale = newCat.scale;
+          layout.feedVoltage = getDefaultFeedVoltage(newCat.scale);
+          layout.locoCurrentMa = getDefaultLocoCurrentMa(newCat.scale);
         }
+        renderer.invalidateCaches();
         sync(false);
         saveSettingsState();
       }
@@ -697,6 +781,10 @@ async function main() {
     },
     isSnappingEnabled: () => snappingEnabled,
     setSnappingEnabled: (val) => { snappingEnabled = val; },
+    getRotationStep: () => rotationStep,
+    setRotationStep: (val: number) => setRotationStep(val),
+    isRotationSnapLocked: () => rotationSnapLocked,
+    toggleRotationLock: () => toggleRotationLock(),
     toggleSelectionLock: () => toggleSelectionLock(),
     cycleColorMode,
     isTrackLabelsEnabled: () => trackLabelsEnabled,
@@ -729,7 +817,7 @@ async function main() {
     const password = urlParams.get("pass") || urlParams.get("password") || undefined;
     const wsProto = window.location.protocol === "https:" ? "wss:" : "ws:";
     const wsHost = window.location.host || "localhost:3000";
-    const wsUrl = `${wsProto}//${wsHost}`;
+    const wsUrl = `${wsProto}//${wsHost}/collab`;
     collabClient.connect(wsUrl, room, userName, undefined, layout, password);
   }
 
@@ -746,7 +834,7 @@ async function main() {
         );
         if (config.autoConnect && collabClient.getStatus() !== "connected") {
           collabClient.connect(
-            `ws://localhost:${config.port}`,
+            `ws://localhost:${config.port}/collab`,
             config.defaultRoom,
             "Host",
             undefined,
@@ -774,6 +862,9 @@ async function main() {
     getPlanManager: () => planManager,
     is3DMode: () => is3DMode,
     toggle3D,
+    zoomView,
+    panView,
+    resetView,
     isMeasureToolActive: () => measureController.isActive,
     toggleMeasureTool: (force) => measureController.toggle(force),
     findMeasureSnapPoint: (pos, snapDist, forceNoSnap) => measureController.findSnapPoint(pos, snapDist, forceNoSnap),
@@ -795,6 +886,8 @@ async function main() {
     },
     isSnappingEnabled: () => snappingEnabled,
     setSnappingEnabled: (val) => { snappingEnabled = val; },
+    getRotationStep: () => rotationStep,
+    isRotationSnapLocked: () => rotationSnapLocked,
     toggleSelectionLock: () => toggleSelectionLock(),
     getColorMode: () => colorMode,
     cycleColorMode,

@@ -9,6 +9,7 @@ export const helpEn: HelpDialogTranslations = {
   copiedText: "✓ Copied to clipboard!",
   tabs: {
     overview: "Getting Started",
+    guide: "Visual Guide",
     layers: "Layers & Heights",
     print: "Layer Printing",
     power: "Voltage Simulation",
@@ -43,6 +44,43 @@ export const helpEn: HelpDialogTranslations = {
     ],
     callout:
       "<strong>Pro-Tip for Navigation:</strong> Hold <strong>Right Mouse Button</strong> or the <strong>Mouse Wheel (Middle Click)</strong> to pan the canvas. Use the <strong>Mouse Wheel</strong> to zoom in and out. Press <code>Ctrl+0</code> anytime to re-center the layout.",
+  },
+  guide: {
+    title: "Visual Guide: Menus & Interface",
+    intro:
+      "A quick tour of the Railbench window. Each picture is a real screenshot and shows where to find the tools and what every button does.",
+    steps: [
+      {
+        title: "1. The window",
+        body: "The main window is split into five areas:<br>• <strong>Top toolbar</strong>: Holds the main dropdown menus, catalog tab switchers, quick file/edit actions, and mode buttons.<br>• <strong>Left catalog sidebar</strong> (<code>B</code>): Displays the content of the active catalog tab (tracks with search &amp; category filter pills, streets, 3D buildings, terrain editor, table benchwork, or parts list). Click an item or drag it onto the canvas.<br>• <strong>2D canvas / 3D view</strong> (<code>3</code>): Your planning workspace with millimeter rulers around the edges. Drag with right/middle mouse button to pan, scroll the wheel to zoom, and press <code>Ctrl+0</code> to center.<br>• <strong>Right layers panel</strong> (<code>Shift+B</code>): Lists all height decks sorted from top to bottom. Each layer card has an <strong>👁️ Eye button</strong> (show/hide layer), a <strong>🔒 Lock button</strong> (freeze layer against editing), a <strong>🗑️ Trash button</strong> (delete layer), plus <strong>+ Add layer</strong> and <strong>📐 Height &amp; Ramp…</strong> buttons.<br>• <strong>Bottom selection bar</strong>: Appears automatically whenever one or more tracks or models are selected.",
+        image: "layout",
+        caption: "Main window areas",
+      },
+      {
+        title: "2. The toolbar & all its buttons",
+        body: "<strong>Top row (Menus):</strong> <strong>Layout</strong> (new, open, demo layouts, save, XML/CSV/PDF export, collaboration) · <strong>Edit</strong> (undo/redo, copy/paste, rotate, elevation, electrical toggles) · <strong>View</strong> (zoom, 3D, rulers, theme, performance monitor) · <strong>Settings</strong> (voltage, snapping, colors, language, custom shortcuts) · <strong>Help</strong> (this guide &amp; welcome screen, where the <strong>Guide</strong> button in the top-right header also opens this visual guide directly).<br><br><strong>Second row (Left to Right):</strong><br>• <strong>Tracks / Streets / 3D / Terrain / Table / Parts List</strong>: Switches the left sidebar between track catalogs, roads, 3D scenery models, terrain sculpting brushes, baseboard sketcher, and the bill of materials.<br>• <strong>📄 New · 📂 Open · 💾 Save</strong>: Quick buttons to start an empty layout, load a <code>.railbench</code> file, or save your current plan.<br>• <strong>🧲 Snap</strong> (<code>S</code>): Toggles magnetic connector snapping when dragging tracks.<br>• <strong>🔒 Sel-Lock</strong> (<code>Alt+L</code>): When active, only tracks on the currently active layer can be selected (protects lower/upper decks).<br>• <strong>↺ / ↻ 30° ▾</strong> (<code>R</code> / <code>Shift+R</code>): Rotates selected items counter-clockwise or clockwise; the dropdown arrow selects the rotation step (e.g. 7.5°, 15°, 30°, 45°).<br>• <strong>🔒 Lock</strong>: Locks free drag rotation to the chosen step angle.<br>• <strong>📏 Measure</strong>: Activates the point-to-point distance and scale measurement tool on the canvas.<br>• <strong>🎨 Colors ▾</strong> (<code>C</code>): Colors tracks by track type, by layer, or realistic dark sleepers.<br>• <strong>🏷️ Numbers</strong> (<code>N</code>): Shows or hides catalog article numbers on every track piece.<br>• <strong>⚡ Voltage ▾</strong> (<code>P</code>): Toggles the live traction voltage drop simulation heatmap; the arrow opens voltage &amp; current settings.<br>• <strong>🧊 3D</strong> (<code>3</code>): Switches between the 2D CAD plan and the interactive 3D elevation viewer.<br>• <strong>👥 Collaborate</strong>: Opens the multi-user live collaboration server &amp; room dialog.<br>• <strong>☀️/🌙 Theme</strong>: Cycles between System, Dark, and Light themes.<br>• <strong>EN / DE</strong>: Switches the interface language between English and German.<br>• <strong>🥞 Layers</strong> (<code>Shift+B</code>): Collapses or expands the floating layers panel on the right.",
+        image: "toolbar",
+        caption: "Toolbar menus and quick buttons",
+      },
+      {
+        title: "3. The selection bar & property buttons",
+        body: "Appears at the bottom of the canvas when tracks are selected. From left to right:<br>• <strong>Selection badge</strong>: Shows how many tracks are selected and their catalog number (or <em>mixed</em>).<br>• <strong>Layer dropdown</strong>: Moves the selected tracks to another layer.<br>• <strong>⤉ Height field (mm)</strong>: Displays or sets exact track elevation (<code>Enter</code> applies, <code>↑/↓</code> adjusts by ±1 mm). Clicking the <strong>⤉</strong> icon opens the Height &amp; Ramp panel.<br>• <strong>↻ Angle field (°)</strong>: Displays or sets the exact rotation angle in degrees.<br>• <strong>⚡ Power Feeder</strong> (<code>F</code>): Adds or removes a track power feed point.<br>• <strong>⊘ Track Isolator</strong> (<code>I</code>): Places an electrical rail gap / block isolator at a connector.<br>• <strong>⌁ Catenary</strong> (<code>O</code>): Enables overhead catenary wire and 3D masts on the selected tracks.<br>• <strong>⌁⚡ Catenary Feeder</strong> (<code>Shift+F</code>): Adds an overhead wire power feed point.<br>• <strong>⌁⊘ Catenary Isolator</strong> (<code>Shift+I</code>): Places an electrical insulator gap in the overhead wire.<br>• <strong>🚦 Signal</strong> (<code>Shift+S</code>): Places or removes a trackside signal.<br>• <strong>🌉 Bridge</strong> (<code>B</code>): Marks the track as a bridge / viaduct with 3D side girders and piers.<br>• <strong>🚇 Tunnel</strong> (<code>T</code>): Marks the track as a tunnel section with 3D tunnel portals.<br>• <strong>↺ / ↻ 30°</strong>: Rotates the selection counter-clockwise or clockwise by the active step.<br>• <strong>🗑️ Delete</strong> (<code>Del</code>): Removes the selected items from the layout.",
+        image: "selection",
+        caption: "Selection bar with height, angle and property buttons",
+      },
+      {
+        title: "4. Track right-click context menu",
+        body: "Right-click any track on the canvas to open its context menu. The header shows the part number, track type, open ends, and current layer with elevation:<br>• <strong>📐 Height &amp; Ramp…</strong> (<code>M</code>): Opens the Height &amp; Ramp panel for the selected tracks.<br>• <strong>⚡ Auto-Generate Ramp…</strong> (<code>Shift+M</code>): Opens the automatic ramp generator starting at this track.<br>• <strong>🔗 Select connected tracks</strong>: Selects all tracks continuously connected to this piece.<br>• <strong>📑 Select whole layer</strong>: Selects every track piece on the same layer.<br>• <strong>ℹ Properties / Info…</strong>: Opens a detailed sheet with length, radius, angle, gauge, electrical state, and elevation.<br>• <strong>🚦 Place / Remove Signal</strong> (<code>Shift+S</code>): Toggles a signal on this track (when placed, additional rows appear to cycle <strong>Signal Side</strong> and <strong>Signal Direction</strong>).<br>• <strong>🌉 Define as Bridge</strong> (<code>B</code>) · <strong>🚇 Define as Tunnel</strong> (<code>T</code>) · <strong>⌁ Enable Catenary</strong> (<code>O</code>): Toggles bridge, tunnel, or overhead wire on this track (plus decoder/lantern options on turnouts).",
+        image: "contextMenu",
+        caption: "Right-click context menu on a track piece",
+      },
+      {
+        title: "5. Height & Ramp panel",
+        body: "Open it from the layers panel, the right-click menu or the selection bar:<br>• <strong>Height / Level tab</strong>: Assigns tracks to a target layer (<strong>Level height</strong>) or a fixed millimeter value (<strong>Custom value</strong>).<br>• <strong>Slope tab</strong>: Creates a smooth incline over existing connected tracks between <strong>A (Start)</strong> and <strong>B (End)</strong>. Use the <strong>📍 Pick</strong> buttons to click start/end tracks on the plan, enter their heights in mm, or click <strong>⇅</strong> to swap A and B. Choose a <strong>Maximum slope</strong> preset (<strong>2.0%</strong>, <strong>2.5%</strong>, <strong>3.0%</strong>, or custom with <strong>Auto-Fit</strong>) and a <strong>Slope profile</strong> (<strong>Linear (uniform)</strong> for constant grade, or <strong>S-curve (eased)</strong> for gentle vertical transitions).<br>• <strong>Automatic tab</strong>: Generates new straight, curved, or helix ramp tracks from an open connector to a target height.<br>• <strong>Continuous / Split status</strong>: Next to ⇅, <strong>Continuous</strong> means the selected tracks form one unbroken chain, while <strong>Split</strong> means there is a gap, branch, or loop – select the complete path to fix it. The bottom status box shows whether the slope is safe (≤ 3 %), moderate (≤ 4.5 %), or steep, and <strong>Cancel / Apply Ramp</strong> discards or commits the change.",
+        image: "heightRamp",
+        caption: "Height & Ramp panel, Slope tab",
+      },
+    ],
   },
   layers: {
     title: "Multi-Deck Layers & Height Management",
@@ -284,6 +322,9 @@ export const helpEn: HelpDialogTranslations = {
       ["<kbd>Shift</kbd> + <kbd>R</kbd>", "Rotate selected item -7.5° counter-clockwise", "Editing"],
       ["<kbd>Shift</kbd> + <kbd>Wheel</kbd>", "Rotate track under cursor by mouse wheel", "Editing"],
       ["<kbd>Left Click</kbd> + Drag (empty area)", "<strong>Marquee Box Selection (Multiple Tracks)</strong>", "Selection"],
+      ["<kbd>+</kbd> / <kbd>-</kbd>", "Zoom in / out of layout view", "Navigation"],
+      ["<kbd>Arrow Keys</kbd>", "Pan viewport up / down / left / right", "Navigation"],
+      ["<kbd>Shift</kbd> + <kbd>Arrow Keys</kbd>", "Fast pan viewport", "Navigation"],
       ["<kbd>Right Click</kbd> / <kbd>Middle Click</kbd> + Drag", "Pan Canvas Viewport", "Navigation"],
       ["<kbd>Ctrl</kbd> / <kbd>Shift</kbd> + <kbd>Left Click</kbd>", "Toggle track in selection (Multi-selection)", "Selection"],
       ["<kbd>Alt</kbd> + <kbd>L</kbd>", "<strong>Toggle Selection Lock (Select locked & deleted layer items)</strong>", "Workspace / Layers"],

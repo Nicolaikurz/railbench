@@ -7,9 +7,6 @@ import { buildLightSignal3D } from "@/render/builtin-models-3d";
 import { applyCurveElevation } from "./viewer-3d-roads";
 
 // Shared materials for turnout accessories and bridges
-const SHARED_PILLAR_MAT = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.75, metalness: 0.1 });
-SHARED_PILLAR_MAT.userData.shared = true;
-
 const SHARED_TURNOUT_METAL_MAT = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.5, metalness: 0.8 });
 SHARED_TURNOUT_METAL_MAT.userData.shared = true;
 
@@ -67,27 +64,6 @@ SHARED_TURNOUT_DEC_GEO.userData.shared = true;
 
 const SHARED_TURNOUT_LED_GEO = new THREE.CylinderGeometry(0.8, 0.8, 1, 8);
 SHARED_TURNOUT_LED_GEO.userData.shared = true;
-
-const _pillarGeoCache = new Map<number, THREE.CylinderGeometry>();
-function getSharedPillarGeometry(height: number): THREE.CylinderGeometry {
-  const key = Math.round(height * 10);
-  let geo = _pillarGeoCache.get(key);
-  if (!geo) {
-    geo = new THREE.CylinderGeometry(10, 13, height, 12);
-    geo.userData.shared = true;
-    _pillarGeoCache.set(key, geo);
-  }
-  return geo;
-}
-
-export function buildBridgePillar(pillarsGroup: THREE.Group, x: number, z: number, height: number) {
-  const pillarGeo = getSharedPillarGeometry(height);
-  const pillar = new THREE.Mesh(pillarGeo, SHARED_PILLAR_MAT);
-  pillar.position.set(x, height / 2, z);
-  pillar.castShadow = true;
-  pillar.receiveShadow = true;
-  pillarsGroup.add(pillar);
-}
 
 export function buildTurnoutAccessories3D(group: THREE.Group, entry: CatalogEntry, piece: TrackPiece) {
   const kind = entry.kind;

@@ -1,7 +1,7 @@
 import type { BaseboardConfig, Layout, TrackPiece, Layer } from "@/core/types";
 import type { Catalog, CatalogEntry } from "@/catalog/catalog";
-import { getBaseboardBounds, getBaseboardPolygon, isPointInsideBaseboard } from "@/core/layout";
-import { deg2rad, dist, isCurvedTrackEntry, isStraightTrackEntry, normAngle, transformPoint } from "@/core/geometry";
+import { getBaseboardPolygon, isPointInsideBaseboard } from "@/core/layout";
+import { deg2rad, dist, isCurvedTrackEntry, isStraightTrackEntry, transformPoint } from "@/core/geometry";
 import { getMinClearanceHeightForScale } from "@/core/ramp-generator";
 import { getPieceConnectorHeight } from "@/core/snapping";
 

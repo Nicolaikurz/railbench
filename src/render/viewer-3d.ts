@@ -1,11 +1,10 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import type { Layout, TrackPiece, Layer, BaseboardConfig, Model3D, ColorMode, LayerWoodPlateMode, Vec2 } from "@/core/types";
+import type { Layout, TrackPiece, Layer, Model3D, ColorMode, LayerWoodPlateMode, Vec2 } from "@/core/types";
 import { getBaseboardBounds, getBaseboards } from "@/core/layout";
 import type { Catalog, CatalogEntry } from "@/catalog/catalog";
 import { catalogRegistry } from "@/catalog/catalog";
-import { deg2rad } from "@/core/geometry";
 import { parseModelScale, type ModelScale } from "@/core/model-scale";
 import type { ShortCircuitDetectionResult } from "@/core/simulation";
 import { getTranslations, getLanguage, onLanguageChange } from "@/i18n";
@@ -13,9 +12,9 @@ import { getEffectiveFlexEntry } from "@/core/flextrack";
 import { buildRealisticLandscape } from "./viewer-3d-landscape";
 import { buildTrainHall } from "./viewer-3d-trainhall";
 import { buildBaseboard3D, buildCustomLayerPlate3D, buildLayerDeckPlate3D } from "./viewer-3d-baseboard";
-import { buildWoodPlatePiece3D, buildAllWoodPlates3D, type WoodPlateBuildItem } from "./viewer-3d-roads";
-import { buildAllModels3D, buildBuildingWoodPlate3D, buildModel3D } from "./viewer-3d-models";
-import { buildTrackPiece3D } from "./viewer-3d-track";
+import { buildAllWoodPlates3D, type WoodPlateBuildItem } from "./viewer-3d-roads";
+import { buildAllModels3D, buildBuildingWoodPlate3D } from "./viewer-3d-models";
+import { buildAllTracks3D, freezeStaticTransforms, type TrackBuildItem } from "./viewer-3d-track";
 import { buildCatenary3D, buildTurntableCatenary3D, buildTransferTableCatenary3D } from "./viewer-3d-catenary";
 import { buildTrackSignal3D, isPillarColliding, buildTrackBridge3D } from "./viewer-3d-bridges";
 import {
@@ -40,7 +39,6 @@ export class Viewer3D {
   private animId: number | null = null;
   private trackGroup = new THREE.Group();
   private tableGroup = new THREE.Group();
-  private pillarsGroup = new THREE.Group();
   private woodPlateGroup = new THREE.Group();
   private modelsGroup = new THREE.Group();
   private trainHallGroup = new THREE.Group();
@@ -51,7 +49,6 @@ export class Viewer3D {
   private lastOptions?: { showColorCode?: boolean; colorMode?: ColorMode; shortCircuit?: ShortCircuitDetectionResult };
   private currentShortCircuit?: ShortCircuitDetectionResult;
   private envMode: Viewer3DEnvironment = "hall";
-  private showTrainHall = true;
   private showWoodPlate = true;
   private gltfLoader = new GLTFLoader();
   private gltfCache = new Map<string, THREE.Group>();
@@ -64,12 +61,14 @@ export class Viewer3D {
   private hemiLight: THREE.HemisphereLight | null = null;
   private overlayEl: HTMLElement | null = null;
 
-  // Tag/Nacht-Zyklus & wandernde Sonne
-  private dayNightActive = true;
+  // Tag/Nacht-Zyklus & wandernde Sonne (standardmäßig pausiert auf 14:00 Uhr für 0% Idle-GPU-Last)
+  private dayNightActive = false;
   private timeOfDay = 14.0; // 14:00 Uhr
   private cycleSpeed = 1.0;
   private readonly cycleDayDurationSec = 1200; // 20 Minuten für einen vollen 24h-Tag (Bereich 15 - 30 Min.)
   private lastFrameTime = performance.now();
+  private lastDayNightRenderTime = 0;
+  private lastLayoutSignature = "";
   private sceneCenter = new THREE.Vector3(0, 0, 0);
   private celestialGroup = new THREE.Group();
   private sunMesh: THREE.Mesh | null = null;
@@ -121,7 +120,6 @@ export class Viewer3D {
 
     this.trainHallGroup.visible = this.envMode === "hall";
     this.landscapeGroup.visible = this.envMode === "landscape";
-    this.showTrainHall = this.envMode === "hall";
 
     this.showWoodPlate = true;
     this.woodPlateGroup.visible = this.showWoodPlate;
@@ -181,7 +179,6 @@ export class Viewer3D {
     this.scene.add(this.landscapeGroup);
     this.scene.add(this.trainHallGroup);
     this.scene.add(this.tableGroup);
-    this.scene.add(this.pillarsGroup);
     this.scene.add(this.woodPlateGroup);
     this.scene.add(this.trackGroup);
     this.scene.add(this.modelsGroup);
@@ -305,17 +302,32 @@ export class Viewer3D {
     } else if (mode === "landscape") {
       this.clearGroup(this.trainHallGroup);
       this.builtHallKey = "";
+      this.nightLampMats = [];
     } else if (mode === "minimal") {
+      // Im Minimalmodus Tag/Nacht-Zyklus stoppen und Lokhalle komplett entladen
+      this.setDayNightActive(false);
       this.clearGroup(this.trainHallGroup);
       this.clearGroup(this.landscapeGroup);
+      this.nightLampMats = [];
       this.builtHallKey = "";
       this.builtLandscapeKey = "";
+      if (this.currentLayout) {
+        const { cx, cz } = this.computeTableCenter(this.currentLayout);
+        this.sceneCenter.set(cx, 0, cz);
+        if (this.controls) {
+          this.controls.target.set(cx, 0, cz);
+        }
+      } else {
+        this.sceneCenter.set(0, 0, 0);
+        if (this.controls) {
+          this.controls.target.set(0, 0, 0);
+        }
+      }
     }
     this.ensureActiveEnvironmentBuilt();
     this.landscapeGroup.visible = mode === "landscape";
     this.trainHallGroup.visible = mode === "hall";
     this.celestialGroup.visible = mode !== "minimal";
-    this.showTrainHall = mode === "hall";
     this.updateSceneBackground();
     this.updateLighting();
 
@@ -383,6 +395,28 @@ export class Viewer3D {
 
   orbitCameraBy(deltaAzimuthDeg: number, deltaPolarDeg: number) {
     orbitCameraByDegrees(this.camera, this.controls, deltaAzimuthDeg, deltaPolarDeg);
+    updateViewCubeOrientation(this.viewCubeEl, this.camera, this.controls);
+  }
+
+  zoomBy(factor: number) {
+    if (!this.controls || !this.camera) return;
+    const offset = this.camera.position.clone().sub(this.controls.target);
+    offset.multiplyScalar(1 / factor);
+    this.camera.position.copy(this.controls.target).add(offset);
+    this.controls.update();
+    updateViewCubeOrientation(this.viewCubeEl, this.camera, this.controls);
+  }
+
+  panBy(dx: number, dy: number) {
+    if (!this.controls || !this.camera) return;
+    const vRight = new THREE.Vector3(1, 0, 0).applyQuaternion(this.camera.quaternion);
+    const vUp = new THREE.Vector3(0, 1, 0).applyQuaternion(this.camera.quaternion);
+    const dist = this.camera.position.distanceTo(this.controls.target);
+    const scale = Math.max(1, dist * 0.002);
+    const panOffset = vRight.multiplyScalar(-dx * scale).add(vUp.multiplyScalar(dy * scale));
+    this.camera.position.add(panOffset);
+    this.controls.target.add(panOffset);
+    this.controls.update();
     updateViewCubeOrientation(this.viewCubeEl, this.camera, this.controls);
   }
 
@@ -530,13 +564,13 @@ export class Viewer3D {
     this.clearGroup(this.trainHallGroup);
     this.clearGroup(this.landscapeGroup);
     this.clearGroup(this.tableGroup);
-    this.clearGroup(this.pillarsGroup);
     this.clearGroup(this.woodPlateGroup);
     this.clearGroup(this.trackGroup);
     this.clearGroup(this.modelsGroup);
     this.clearGroup(this.shortCircuitGroup);
     this.builtHallKey = "";
     this.builtLandscapeKey = "";
+    this.lastLayoutSignature = "";
     this.currentLayout = undefined;
     this.lastCatalog = undefined;
     this.lastOptions = undefined;
@@ -700,13 +734,15 @@ export class Viewer3D {
   }
 
   private updateDayNight(dt: number) {
-    if (!this.dayNightActive) return;
+    if (!this.dayNightActive || this.envMode === "minimal") return;
     const deltaHours = (dt * (24 / this.cycleDayDurationSec)) * this.cycleSpeed;
     this.timeOfDay = (this.timeOfDay + deltaHours) % 24;
-    this.applyTimeOfDay();
     const now = performance.now();
-    // Shadow updates are expensive (2048/1024 depth pass) - throttle to ~8 FPS during day-night cycle
-    if (now - this.lastShadowUpdateTime > 120) {
+    // Throttle sky/sun interpolation to ~15 FPS and shadow map depth pass to 2 FPS during active cycle
+    if (now - this.lastDayNightRenderTime < 66) return;
+    this.lastDayNightRenderTime = now;
+    this.applyTimeOfDay();
+    if (now - this.lastShadowUpdateTime > 500) {
       this.lastShadowUpdateTime = now;
       if (this.renderer) {
         this.renderer.shadowMap.needsUpdate = true;
@@ -744,7 +780,7 @@ export class Viewer3D {
       const dt = Math.min((now - this.lastFrameTime) / 1000, 0.1);
       this.lastFrameTime = now;
 
-      if (this.dayNightActive) {
+      if (this.dayNightActive && this.envMode !== "minimal") {
         this.updateDayNight(dt);
       }
 
@@ -755,8 +791,10 @@ export class Viewer3D {
       }
 
       if (this.needsRender) {
-        if (this.sunCorona) this.sunCorona.quaternion.copy(this.camera.quaternion);
-        if (this.moonGlow) this.moonGlow.quaternion.copy(this.camera.quaternion);
+        if (this.envMode !== "minimal") {
+          if (this.sunCorona) this.sunCorona.quaternion.copy(this.camera.quaternion);
+          if (this.moonGlow) this.moonGlow.quaternion.copy(this.camera.quaternion);
+        }
 
         updateViewCubeOrientation(this.viewCubeEl, this.camera, this.controls);
         if (this.camera) {
@@ -817,6 +855,29 @@ export class Viewer3D {
     return `${isDark ? 1 : 0}:${Math.round(minX)}:${Math.round(maxX)}:${Math.round(minZ)}:${Math.round(maxZ)}`;
   }
 
+  private computeTableCenter(layout: Layout): { cx: number; cz: number } {
+    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    for (const bb of getBaseboards(layout)) {
+      if (!bb.enabled) continue;
+      const b = getBaseboardBounds(bb);
+      minX = Math.min(minX, b.x);
+      maxX = Math.max(maxX, b.x + b.width);
+      minZ = Math.min(minZ, b.y);
+      maxZ = Math.max(maxZ, b.y + b.depth);
+    }
+    if (!Number.isFinite(minX)) {
+      for (const p of layout.pieces) {
+        minX = Math.min(minX, p.transform.x);
+        maxX = Math.max(maxX, p.transform.x);
+        minZ = Math.min(minZ, p.transform.y);
+        maxZ = Math.max(maxZ, p.transform.y);
+      }
+    }
+    const cx = Number.isFinite(minX) ? (minX + maxX) / 2 : 0;
+    const cz = Number.isFinite(minZ) ? (minZ + maxZ) / 2 : 0;
+    return { cx, cz };
+  }
+
   private ensureActiveEnvironmentBuilt() {
     if (!this.currentLayout) return;
     const isDark = this.currentTheme === "dark";
@@ -827,11 +888,45 @@ export class Viewer3D {
       this.sceneCenter.set(hallRes.sceneCenter.cx, hallRes.sceneCenter.floorY, hallRes.sceneCenter.cz);
       this.nightLampMats = hallRes.nightLampMats;
       this.builtHallKey = envKey;
+      freezeStaticTransforms(this.trainHallGroup);
     } else if (this.envMode === "landscape" && this.builtLandscapeKey !== envKey) {
       this.clearGroup(this.landscapeGroup);
       buildRealisticLandscape(this.landscapeGroup, this.currentLayout, isDark);
       this.builtLandscapeKey = envKey;
+      freezeStaticTransforms(this.landscapeGroup);
+    } else if (this.envMode === "minimal") {
+      this.clearGroup(this.trainHallGroup);
+      this.clearGroup(this.landscapeGroup);
+      this.nightLampMats = [];
+      this.builtHallKey = "";
+      this.builtLandscapeKey = "";
+      const { cx, cz } = this.computeTableCenter(this.currentLayout);
+      this.sceneCenter.set(cx, 0, cz);
     }
+  }
+
+  private computeLayout3DSignature(
+    layout: Layout,
+    catalog: Catalog,
+    options?: { showColorCode?: boolean; colorMode?: ColorMode; shortCircuit?: ShortCircuitDetectionResult },
+  ): string {
+    const colorMode: ColorMode = options?.colorMode ?? (options?.showColorCode === false ? "off" : "types");
+    const scPts = options?.shortCircuit?.hasShortCircuit
+      ? options.shortCircuit.shortCircuitPoints.map((p) => `${Math.round(p.x)}:${Math.round(p.y)}:${p.pieceId1}`).join(",")
+      : "";
+    const bbSig = getBaseboards(layout)
+      .map((b) => `${b.id ?? ""}:${b.enabled ? 1 : 0}:${b.width}:${b.depth}:${b.customX ?? 0}:${b.customY ?? 0}:${b.rotation ?? 0}:${b.shape ?? "rect"}:${b.style ?? "wood"}:${b.customPolygon?.length ?? 0}`)
+      .join("|");
+    const layerSig = (layout.layers ?? [])
+      .map((l) => `${l.id}:${l.visible ? 1 : 0}:${l.heightMm ?? 0}:${l.color ?? ""}:${l.woodPlateMode ?? ""}:${l.woodPlateThicknessMm ?? ""}:${l.woodPlateStyle ?? ""}:${l.plates?.map((pl) => `${pl.id}:${pl.width}:${pl.depth}:${pl.x ?? 0}:${pl.y ?? 0}:${pl.style ?? ""}:${pl.shape ?? ""}`).join(",") ?? ""}`)
+      .join("|");
+    const piecesSig = layout.pieces
+      .map((p) => `${p.id}:${p.catalogId}:${Math.round(p.transform.x * 10)}:${Math.round(p.transform.y * 10)}:${Math.round(p.transform.rotation * 10)}:${p.layerId ?? ""}:${p.elevation?.start ?? 0}:${p.elevation?.end ?? 0}:${p.hasBridge ? 1 : 0}:${p.hasTunnel ? 1 : 0}:${p.hasCatenary ? 1 : 0}:${p.hasSignal ? 1 : 0}:${p.signalSide ?? ""}:${p.signalDirection ?? ""}:${p.hasLantern ? 1 : 0}:${p.hasDecoder ? 1 : 0}:${p.customLength ?? ""}:${p.customRadius ?? ""}:${p.customAngle ?? ""}:${p.customOffsets?.join(",") ?? ""}`)
+      .join("|");
+    const modelsSig = (layout.models ?? [])
+      .map((m) => `${m.id}:${m.builtinId ?? m.fileName ?? ""}:${Math.round(m.transform.x * 10)}:${Math.round(m.transform.y * 10)}:${Math.round(m.transform.rotation * 10)}:${m.layerId ?? ""}:${m.elevation ?? 0}:${m.scale ?? 1}:${m.width}:${m.depth}:${m.height}:${m.mountainStyle ?? ""}:${m.mountainPath?.length ?? 0}`)
+      .join("|");
+    return `${catalog.system}:${layout.scale ?? ""}:${colorMode}:${scPts}#${bbSig}#${layerSig}#${piecesSig}#${modelsSig}`;
   }
 
   /** Baut die gesamte 3D-Szene auf: Tischform, Pfeiler, Schotterbett, Schienen und Schwellen nach Ebenen. */
@@ -845,8 +940,16 @@ export class Viewer3D {
     this.lastOptions = options;
     this.currentShortCircuit = options?.shortCircuit;
     this.layoutScale = parseModelScale(layout.scale);
+
+    const nextSig = this.computeLayout3DSignature(layout, catalog, options);
+    if (this.lastLayoutSignature === nextSig && (this.trackGroup.children.length > 0 || layout.pieces.length === 0)) {
+      this.ensureActiveEnvironmentBuilt();
+      this.requestRender();
+      return;
+    }
+    this.lastLayoutSignature = nextSig;
+
     this.clearGroup(this.tableGroup);
-    this.clearGroup(this.pillarsGroup);
     this.clearGroup(this.woodPlateGroup);
     this.clearGroup(this.trackGroup);
     this.clearGroup(this.modelsGroup);
@@ -895,6 +998,7 @@ export class Viewer3D {
     const colorMode: ColorMode = options?.colorMode ?? (options?.showColorCode === false ? "off" : "types");
 
     // 3. Gleise mit realer 3D-Höhe (Elevation) nach Ebene erzeugen
+    const trackItems: TrackBuildItem[] = [];
     const woodPlateItems: WoodPlateBuildItem[] = [];
 
     for (const piece of layout.pieces) {
@@ -924,7 +1028,14 @@ export class Viewer3D {
 
       entry = getEffectiveFlexEntry(entry, piece);
 
-      buildTrackPiece3D(this.trackGroup, piece, entry, startElev, endElev, colorMode, layer?.color, layout);
+      trackItems.push({
+        piece,
+        entry,
+        startElev,
+        endElev,
+        colorMode,
+        layerColor: layer?.color,
+      });
 
       // Wood Plate (Trassenbrett)
       const plateMode = layer?.woodPlateMode ?? (baseElevation !== 0 || Math.abs(endElev - startElev) > 0.01 ? "tight" : "none");
@@ -938,6 +1049,10 @@ export class Viewer3D {
           thickness: plateThickness,
         });
       }
+    }
+
+    if (trackItems.length > 0) {
+      buildAllTracks3D(this.trackGroup, trackItems, layout);
     }
 
     if (woodPlateItems.length > 0) {
@@ -1054,6 +1169,13 @@ export class Viewer3D {
         scBtn.style.display = "none";
       }
     }
+
+    // Statische Objekt-Transformationen einfrieren (spart 1000e Matrix-Multiplikationen pro Frame)
+    freezeStaticTransforms(this.tableGroup);
+    freezeStaticTransforms(this.woodPlateGroup);
+    freezeStaticTransforms(this.trackGroup);
+    freezeStaticTransforms(this.modelsGroup);
+
     this.requestShadowUpdate();
   }
 
@@ -1143,7 +1265,6 @@ export class Viewer3D {
     this.clearGroup(this.landscapeGroup);
     this.clearGroup(this.trainHallGroup);
     this.clearGroup(this.tableGroup);
-    this.clearGroup(this.pillarsGroup);
     this.clearGroup(this.woodPlateGroup);
     this.clearGroup(this.trackGroup);
     this.clearGroup(this.modelsGroup);

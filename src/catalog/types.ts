@@ -1,5 +1,3 @@
-import type { Connector, Transform } from "@/core/types";
-
 export type TrackKind =
   | "straight"
   | "curve"
@@ -43,6 +41,8 @@ export interface CatalogEntry {
   hasRoadbed?: boolean; // Bettungsgleis (true) oder Schwellengleis (false)
   isRoad?: boolean; // Kennzeichnung als Straße / Fahrbahn
   roadWidth?: number; // Fahrbahnbreite in mm (Standard: 60mm)
+  customOffsets?: number[];
+  customChordDist?: number;
   localConnectors?: LocalConnector[];
 }
 
@@ -69,13 +69,6 @@ export function compareCatalogEntriesByNumber(a: CatalogEntry, b: CatalogEntry):
   const cmp = a.id.localeCompare(b.id, undefined, { numeric: true, sensitivity: "base" });
   if (cmp !== 0) return cmp;
   return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" });
-}
-
-/**
- * Sortiert ein Array von Katalogeinträgen nach Artikelnummer / ID.
- */
-export function sortCatalogEntries(entries: CatalogEntry[]): CatalogEntry[] {
-  return [...entries].sort(compareCatalogEntriesByNumber);
 }
 
 /**

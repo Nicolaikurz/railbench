@@ -15,7 +15,6 @@ import * as THREE from "three";
 export function buildEngineShed3D(group: THREE.Group): void {
   // Material-Definitionen
   const brickMat = new THREE.MeshStandardMaterial({ color: 0x852e16, roughness: 0.85 });
-  const darkInteriorMat = new THREE.MeshStandardMaterial({ color: 0x27272a, roughness: 0.95 });
   const trimMat = new THREE.MeshStandardMaterial({ color: 0xc4b5a5, roughness: 0.8 });
   const foundationMat = new THREE.MeshStandardMaterial({ color: 0x52525b, roughness: 0.9 });
   const pitMat = new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.95 });

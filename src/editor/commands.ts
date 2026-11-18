@@ -6,6 +6,8 @@ export interface Command {
   undo(layout: Layout): void;
 }
 
+const MAX_HISTORY_SIZE = 100;
+
 export class History {
   private undoStack: Command[] = [];
   private redoStack: Command[] = [];
@@ -15,6 +17,9 @@ export class History {
   run(cmd: Command) {
     cmd.do(this.layout);
     this.undoStack.push(cmd);
+    if (this.undoStack.length > MAX_HISTORY_SIZE) {
+      this.undoStack.shift();
+    }
     this.redoStack = [];
   }
 
@@ -492,41 +497,6 @@ export class ToggleTunnelCommand implements Command {
       if (p) {
         p.hasTunnel = state.hasTunnel;
         p.hasBridge = state.hasBridge;
-      }
-    }
-  }
-}
-
-export class SetTurnoutAccessoriesCommand implements Command {
-  private prevStates = new Map<string, { hasLantern?: boolean; hasDecoder?: boolean; turnoutCurrentMa?: number }>();
-
-  constructor(
-    private pieceIds: string[],
-    private settings: { hasLantern?: boolean; hasDecoder?: boolean; turnoutCurrentMa?: number },
-  ) {}
-
-  do(layout: Layout): void {
-    this.prevStates.clear();
-    const pieces = layout.pieces.filter((p) => this.pieceIds.includes(p.id));
-    for (const p of pieces) {
-      this.prevStates.set(p.id, {
-        hasLantern: p.hasLantern,
-        hasDecoder: p.hasDecoder,
-        turnoutCurrentMa: p.turnoutCurrentMa,
-      });
-      if (this.settings.hasLantern !== undefined) p.hasLantern = this.settings.hasLantern;
-      if (this.settings.hasDecoder !== undefined) p.hasDecoder = this.settings.hasDecoder;
-      if (this.settings.turnoutCurrentMa !== undefined) p.turnoutCurrentMa = this.settings.turnoutCurrentMa;
-    }
-  }
-
-  undo(layout: Layout): void {
-    for (const [id, state] of this.prevStates.entries()) {
-      const p = layout.pieces.find((x) => x.id === id);
-      if (p) {
-        p.hasLantern = state.hasLantern;
-        p.hasDecoder = state.hasDecoder;
-        p.turnoutCurrentMa = state.turnoutCurrentMa;
       }
     }
   }

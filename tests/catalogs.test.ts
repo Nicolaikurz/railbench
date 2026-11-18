@@ -4,6 +4,7 @@ import {
   maerklinMCatalog,
   maerklinKCatalog,
   genericStreetsCatalog,
+  pecoStreamlineNCode55Catalog,
   computeWorldConnectors,
   getLocalConnectors,
 } from "@/catalog/catalog";
@@ -690,6 +691,276 @@ describe("Scale 0, 1 & Scale G Tracks, Streets, and Buildings", () => {
         const conns = getLocalConnectors(entry);
         expect(conns.length, `Entry ${entry.id} (${entry.kind}) must have at least 1 connector`).toBeGreaterThanOrEqual(1);
       }
+    });
+  });
+
+  describe("Peco Streamline N (Code 55) Catalog", () => {
+    it("registers Peco Streamline N Code 55 in CatalogRegistry with 9 mm gauge", () => {
+      const pecoCat = catalogRegistry.get("peco-streamline-n-code55");
+      expect(pecoCat).toBeDefined();
+      expect(pecoCat?.name).toBe("Peco Streamline N (Code 55)");
+      expect(pecoCat?.manufacturer).toBe("Peco");
+      expect(pecoCat?.system).toBe("Streamline Code 55");
+      expect(pecoCat?.scale).toBe("N");
+      expect(pecoCat?.gauge).toBe(9.0);
+      expect(pecoCat?.hasRoadbed).toBe(false);
+      expect(pecoCat?.entries.length).toBeGreaterThanOrEqual(30);
+    });
+
+    it("verifies accurate geometry for key Peco Code 55 track components", () => {
+      // SL-300F flexible track (914 mm)
+      const sl300 = catalogRegistry.findEntry("SL-300F");
+      expect(sl300).toBeDefined();
+      expect(sl300?.kind).toBe("flex");
+      expect(sl300?.length).toBe(914);
+      expect(sl300?.gauge).toBe(9);
+
+      // SL-E395F medium turnout right (137 mm, R457, 10°)
+      const slE395 = catalogRegistry.findEntry("SL-E395F");
+      expect(slE395).toBeDefined();
+      expect(slE395?.kind).toBe("turnout-right");
+      expect(slE395?.length).toBe(137);
+      expect(slE395?.branchRadius).toBe(457);
+      expect(slE395?.branchAngle).toBe(10);
+
+      // SL-E388F large turnout right (164 mm, R914, 10°)
+      const slE388 = catalogRegistry.findEntry("SL-E388F");
+      expect(slE388).toBeDefined();
+      expect(slE388?.kind).toBe("turnout-right");
+      expect(slE388?.length).toBe(164);
+      expect(slE388?.branchRadius).toBe(914);
+      expect(slE388?.branchAngle).toBe(10);
+
+      // SL-E386F curved turnout (R457 / R914, 10°)
+      const slE386 = catalogRegistry.findEntry("SL-E386F");
+      expect(slE386).toBeDefined();
+      expect(slE386?.kind).toBe("curved-turnout-right");
+      expect(slE386?.radius).toBe(457);
+      expect(slE386?.branchRadius).toBe(914);
+      expect(slE386?.angle).toBe(10);
+      expect(slE386?.branchAngle).toBe(10);
+
+      // SL-E383F scissors crossover (271 mm, 10°, R511)
+      const slE383 = catalogRegistry.findEntry("SL-E383F");
+      expect(slE383).toBeDefined();
+      expect(slE383?.length).toBe(271);
+      expect(slE383?.angle).toBe(10);
+
+      // SL-340 buffer stop
+      const sl340 = catalogRegistry.findEntry("SL-340");
+      expect(sl340).toBeDefined();
+      expect(sl340?.kind).toBe("buffer-stop");
+    });
+
+    it("generates valid local connectors for all Peco Code 55 components", () => {
+      const pecoCat = catalogRegistry.get("peco-streamline-n-code55");
+      expect(pecoCat).toBeDefined();
+      for (const entry of pecoCat!.entries) {
+        const conns = getLocalConnectors(entry);
+        expect(conns.length, `Component ${entry.id} (${entry.kind}) should have connectors`).toBeGreaterThanOrEqual(1);
+      }
+    });
+  });
+
+  describe("Tillig TT Modellgleis & Kato Unitrack N & Kühn TT Catalog Completeness", () => {
+    it("verifies newly added Tillig TT track components and geometry", () => {
+      const tilligCat = catalogRegistry.get("tillig-tt");
+      expect(tilligCat).toBeDefined();
+      expect(tilligCat?.entries.length).toBeGreaterThanOrEqual(45);
+
+      // 83100 Prellbock mit Gleis
+      const t83100 = catalogRegistry.findEntry("83100");
+      expect(t83100).toBeDefined();
+      expect(t83100?.kind).toBe("buffer-stop");
+      expect(t83100?.length).toBe(41.5);
+
+      // 83115 Bogen R04 (267 mm / 7,5°)
+      const t83115 = catalogRegistry.findEntry("83115");
+      expect(t83115).toBeDefined();
+      expect(t83115?.radius).toBe(267);
+      expect(t83115?.angle).toBe(7.5);
+
+      // 83120 Kurzgerade G6 (21,3 mm)
+      const t83120 = catalogRegistry.findEntry("83120");
+      expect(t83120).toBeDefined();
+      expect(t83120?.length).toBe(21.3);
+
+      // 83363 IBW rechts (R631 / R310)
+      const t83363 = catalogRegistry.findEntry("83363");
+      expect(t83363).toBeDefined();
+      expect(t83363?.kind).toBe("curved-turnout-right");
+      expect(t83363?.radius).toBe(631);
+      expect(t83363?.angle).toBe(15);
+      expect(t83363?.branchRadius).toBe(310);
+      expect(t83363?.branchAngle).toBe(30);
+
+      // 83364 IBW links (R631 / R310)
+      const t83364 = catalogRegistry.findEntry("83364");
+      expect(t83364).toBeDefined();
+      expect(t83364?.kind).toBe("curved-turnout-left");
+
+      // 83381 Außenbogenweiche ABW 15°
+      const t83381 = catalogRegistry.findEntry("83381");
+      expect(t83381).toBeDefined();
+      expect(t83381?.branchRadius).toBe(353);
+      expect(t83381?.branchAngle).toBe(15);
+
+      // 83310 EKW 15°
+      const t83310 = catalogRegistry.findEntry("83310");
+      expect(t83310).toBeDefined();
+      expect(t83310?.kind).toBe("double-slip");
+      expect(t83310?.length).toBe(166);
+      expect(t83310?.angle).toBe(15);
+    });
+
+    it("verifies newly added Kato Unitrack N components including double crossover and bumpers", () => {
+      const katoCat = catalogRegistry.get("kato-unitrack-n");
+      expect(katoCat).toBeDefined();
+
+      // 20-240 Double crossover (Hosenträger)
+      const k20240 = catalogRegistry.findEntry("20-240");
+      expect(k20240).toBeDefined();
+      expect(k20240?.kind).toBe("double-slip");
+      expect(k20240?.length).toBe(310);
+      expect(k20240?.angle).toBe(15);
+
+      // 20-060 Bumper track
+      const k20060 = catalogRegistry.findEntry("20-060");
+      expect(k20060).toBeDefined();
+      expect(k20060?.kind).toBe("buffer-stop");
+      expect(k20060?.length).toBe(62);
+
+      // 20-310 Crossing 15° R
+      const k20310 = catalogRegistry.findEntry("20-310");
+      expect(k20310).toBeDefined();
+      expect(k20310?.kind).toBe("crossing");
+      expect(k20310?.length).toBe(124);
+      expect(k20310?.angle).toBe(15);
+    });
+
+    it("verifies Kühn TT buffer stops are correctly typed", () => {
+      const k72810 = catalogRegistry.findEntry("72810");
+      expect(k72810).toBeDefined();
+      expect(k72810?.kind).toBe("buffer-stop");
+
+      const k72750 = catalogRegistry.findEntry("72750");
+      expect(k72750).toBeDefined();
+      expect(k72750?.kind).toBe("buffer-stop");
+    });
+
+    it("registers and verifies Kato Unitrack H0 catalog", () => {
+      const katoH0 = catalogRegistry.get("kato-unitrack-h0");
+      expect(katoH0).toBeDefined();
+      expect(katoH0?.scale).toBe("H0");
+      expect(katoH0?.gauge).toBe(16.5);
+      expect(katoH0?.hasRoadbed).toBe(true);
+      expect(katoH0?.entries.length).toBeGreaterThan(25);
+
+      // 2-150 standard straight 246 mm
+      const s246 = catalogRegistry.findEntry("2-150");
+      expect(s246).toBeDefined();
+      expect(s246?.length).toBe(246);
+      expect(s246?.kind).toBe("straight");
+
+      // 2-860 #6 turnout left
+      const to6L = catalogRegistry.findEntry("2-860");
+      expect(to6L).toBeDefined();
+      expect(to6L?.kind).toBe("turnout-left");
+      expect(to6L?.length).toBe(246);
+      expect(to6L?.branchAngle).toBe(10.5);
+
+      // 2-190 buffer stop track
+      const b190 = catalogRegistry.findEntry("2-190");
+      expect(b190).toBeDefined();
+      expect(b190?.kind).toBe("buffer-stop");
+    });
+
+    it("registers and verifies Bachmann E-Z Track H0 catalog", () => {
+      const bachmannH0 = catalogRegistry.get("bachmann-ez-track-h0");
+      expect(bachmannH0).toBeDefined();
+      expect(bachmannH0?.scale).toBe("H0");
+      expect(bachmannH0?.gauge).toBe(16.5);
+      expect(bachmannH0?.hasRoadbed).toBe(true);
+      expect(bachmannH0?.entries.length).toBeGreaterThan(20);
+
+      // 44511 9" Straight
+      const s9 = catalogRegistry.findEntry("44511");
+      expect(s9).toBeDefined();
+      expect(s9?.length).toBe(228.6);
+      expect(s9?.kind).toBe("straight");
+
+      // 44501 18" R 30° curve
+      const c18 = catalogRegistry.findEntry("44501");
+      expect(c18).toBeDefined();
+      expect(c18?.radius).toBe(457.2);
+      expect(c18?.angle).toBe(30);
+
+      // 44565 #6 Turnout left
+      const to6 = catalogRegistry.findEntry("44565");
+      expect(to6).toBeDefined();
+      expect(to6?.kind).toBe("turnout-left");
+      expect(to6?.length).toBe(304.8);
+      expect(to6?.branchAngle).toBe(9.5);
+    });
+
+    it("registers and verifies Bachmann E-Z Track N catalog", () => {
+      const bachmannN = catalogRegistry.get("bachmann-ez-track-n");
+      expect(bachmannN).toBeDefined();
+      expect(bachmannN?.scale).toBe("N");
+      expect(bachmannN?.gauge).toBe(9);
+      expect(bachmannN?.hasRoadbed).toBe(true);
+      expect(bachmannN?.entries.length).toBeGreaterThan(20);
+
+      // 44811 5" Straight
+      const s5 = catalogRegistry.findEntry("44811");
+      expect(s5).toBeDefined();
+      expect(s5?.length).toBe(127);
+      expect(s5?.kind).toBe("straight");
+
+      // 44801 11.25" R 30° curve
+      const c11 = catalogRegistry.findEntry("44801");
+      expect(c11).toBeDefined();
+      expect(c11?.radius).toBe(285.75);
+      expect(c11?.angle).toBe(30);
+
+      // 44851 #6 Turnout left
+      const to6N = catalogRegistry.findEntry("44851");
+      expect(to6N).toBeDefined();
+      expect(to6N?.kind).toBe("turnout-left");
+      expect(to6N?.length).toBe(165);
+      expect(to6N?.branchAngle).toBe(10);
+    });
+
+    it("verifies curved tracks in Kato and Bachmann are included in the Curves category filter", () => {
+      const allowedCats = ["Curves", "Bögen", "Kurven"];
+
+      const katoH0 = catalogRegistry.get("kato-unitrack-h0");
+      const katoH0Curves = katoH0?.entries.filter(
+        (e) => allowedCats.includes(e.category) || e.kind === "curve"
+      );
+      expect(katoH0Curves?.length).toBe(14);
+      expect(katoH0Curves?.every((e) => e.kind === "curve")).toBe(true);
+
+      const katoN = catalogRegistry.get("kato-unitrack-n");
+      const katoNCurves = katoN?.entries.filter(
+        (e) => allowedCats.includes(e.category) || e.kind === "curve"
+      );
+      expect(katoNCurves?.length).toBe(11);
+      expect(katoNCurves?.every((e) => e.kind === "curve")).toBe(true);
+
+      const bachmannH0 = catalogRegistry.get("bachmann-ez-track-h0");
+      const bachmannH0Curves = bachmannH0?.entries.filter(
+        (e) => allowedCats.includes(e.category) || e.kind === "curve"
+      );
+      expect(bachmannH0Curves?.length).toBe(9);
+      expect(bachmannH0Curves?.every((e) => e.kind === "curve")).toBe(true);
+
+      const bachmannN = catalogRegistry.get("bachmann-ez-track-n");
+      const bachmannNCurves = bachmannN?.entries.filter(
+        (e) => allowedCats.includes(e.category) || e.kind === "curve"
+      );
+      expect(bachmannNCurves?.length).toBe(8);
+      expect(bachmannNCurves?.every((e) => e.kind === "curve")).toBe(true);
     });
   });
 });

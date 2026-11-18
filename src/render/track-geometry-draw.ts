@@ -1,11 +1,25 @@
 import { Graphics } from "pixi.js";
 import type { CatalogEntry } from "@/catalog/catalog";
-import { isStraightTrackEntry, isCurvedTrackEntry, deg2rad } from "@/core/geometry";
+import { isStraightTrackEntry, isCurvedTrackEntry, deg2rad, evaluateFlexSpline, computeFlexSplineLength } from "@/core/geometry";
+import { sampleFlexSplinePoints } from "@/core/flextrack";
 import { drawArcStroke } from "./track-render-utils";
 
 export function drawBallast(g: Graphics, entry: CatalogEntry, color: number, ballastWidth = 36): void {
   const kind = entry.kind;
   const ballastHalf = ballastWidth / 2;
+
+  if (entry.customOffsets && entry.customOffsets.length >= 3) {
+    const chordLen = entry.customChordDist ?? entry.length ?? 900;
+    const pts = sampleFlexSplinePoints(chordLen, entry.customOffsets);
+    if (pts.length > 1) {
+      g.moveTo(pts[0]!.x, pts[0]!.y);
+      for (let i = 1; i < pts.length; i++) {
+        g.lineTo(pts[i]!.x, pts[i]!.y);
+      }
+      g.stroke({ width: ballastWidth, color, alpha: 0.95, cap: "butt", join: "round" });
+    }
+    return;
+  }
 
   if (isStraightTrackEntry(entry)) {
     const l = entry.length ?? 188.3;
@@ -226,6 +240,25 @@ export function drawTies(
   tieSpacing = 6.5,
 ): void {
   const kind = entry.kind;
+
+  if (entry.customOffsets && entry.customOffsets.length >= 3) {
+    const chordLen = entry.customChordDist ?? entry.length ?? 900;
+    const totalLen = computeFlexSplineLength(chordLen, entry.customOffsets);
+    const count = Math.max(3, Math.floor(totalLen / tieSpacing));
+    for (let i = 1; i < count; i++) {
+      const t = i / count;
+      const { h, dh } = evaluateFlexSpline(entry.customOffsets, t);
+      const x = t * chordLen;
+      const y = h;
+      const ang = Math.atan2(dh, chordLen);
+      const nx = -Math.sin(ang);
+      const ny = Math.cos(ang);
+      g.moveTo(x - nx * tieLenHalf, y - ny * tieLenHalf);
+      g.lineTo(x + nx * tieLenHalf, y + ny * tieLenHalf);
+    }
+    g.stroke({ width: tieWidth, color, cap: "butt" });
+    return;
+  }
 
   if (isStraightTrackEntry(entry)) {
     const l = entry.length ?? 188.3;

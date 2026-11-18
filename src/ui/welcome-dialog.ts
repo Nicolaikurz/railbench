@@ -1,5 +1,6 @@
 import { getLanguage } from "@/i18n";
 import { getAppVersionTag } from "@/version";
+import { openHelpDialog } from "./help-dialog";
 
 export type StartupAction = "recent" | "new" | "demo" | "open" | "ask";
 
@@ -38,7 +39,10 @@ export function showWelcomeDialog(
             <span>Railbench</span>
             <span class="welcome-version">${getAppVersionTag()}</span>
           </h2>
-          <button type="button" class="welcome-close-btn" id="welcome-close-btn" title="${isDe ? "Schließen (Esc)" : "Close (Esc)"}">×</button>
+          <div class="welcome-header-actions">
+            <button type="button" class="welcome-guide-btn" id="welcome-btn-guide" title="${isDe ? "Bildanleitung & Hilfe öffnen" : "Open visual guide & help"}">${isDe ? "Anleitung" : "Guide"}</button>
+            <button type="button" class="welcome-close-btn" id="welcome-close-btn" title="${isDe ? "Schließen (Esc)" : "Close (Esc)"}">×</button>
+          </div>
         </div>
 
         <div class="welcome-actions">
@@ -98,6 +102,7 @@ export function showWelcomeDialog(
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        if (document.getElementById?.("help-modal")) return;
         e.preventDefault();
         cleanup(hasRecent ? "recent" : "demo");
       }
@@ -110,6 +115,11 @@ export function showWelcomeDialog(
       }
     });
 
+    modal
+      .querySelector("#welcome-btn-guide")
+      ?.addEventListener("click", () => {
+        openHelpDialog("guide");
+      });
     modal
       .querySelector("#welcome-close-btn")
       ?.addEventListener("click", () => cleanup(hasRecent ? "recent" : "demo"));

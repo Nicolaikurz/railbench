@@ -3,7 +3,7 @@ import * as BufferGeometryUtils from "three/examples/jsm/utils/BufferGeometryUti
 import type { CatalogEntry } from "@/catalog/catalog";
 import { isBufferStopPiece } from "@/catalog/catalog";
 import type { ColorMode, Layout, TrackPiece } from "@/core/types";
-import { deg2rad, isCurvedTrackEntry, isStraightTrackEntry } from "@/core/geometry";
+import { deg2rad, isCurvedTrackEntry, isStraightTrackEntry, evaluateFlexSpline, computeFlexSplineLength } from "@/core/geometry";
 import { getTrackBlueprintColor } from "@/render/blueprint-colors";
 import { buildBufferStop3D } from "@/render/builtin-models-3d";
 import { applyCurveElevation, buildRoadPiece3D } from "./viewer-3d-roads";
@@ -18,10 +18,33 @@ SHARED_TIE_MAT.userData.shared = true;
 const SHARED_RAIL_MAT = new THREE.MeshStandardMaterial({ color: 0xd1d5db, metalness: 0.85, roughness: 0.25 });
 SHARED_RAIL_MAT.userData.shared = true;
 
+const MAX_GEO_CACHE_SIZE = 256;
+
+function setBoundedGeoCache<K, V extends THREE.BufferGeometry>(cache: Map<K, V>, key: K, geo: V): void {
+  if (cache.size >= MAX_GEO_CACHE_SIZE) {
+    const oldestKey = cache.keys().next().value;
+    if (oldestKey !== undefined) {
+      const oldGeo = cache.get(oldestKey);
+      if (oldGeo) oldGeo.userData.shared = false;
+      cache.delete(oldestKey);
+    }
+  }
+  geo.userData.shared = true;
+  cache.set(key, geo);
+}
+
 const _ballastMatCache = new Map<number, THREE.MeshStandardMaterial>();
 function getSharedBallastMaterial(color: number): THREE.MeshStandardMaterial {
   let mat = _ballastMatCache.get(color);
   if (!mat) {
+    if (_ballastMatCache.size >= 64) {
+      const oldestKey = _ballastMatCache.keys().next().value;
+      if (oldestKey !== undefined) {
+        const oldMat = _ballastMatCache.get(oldestKey);
+        if (oldMat) oldMat.userData.shared = false;
+        _ballastMatCache.delete(oldestKey);
+      }
+    }
     mat = new THREE.MeshStandardMaterial({
       color,
       roughness: 0.9,
@@ -42,8 +65,7 @@ function getSharedTieGeometry(gauge: number): THREE.BoxGeometry {
   if (!geo) {
     const tieW = Math.max(1.5, (gauge / 16.5) * 2.6);
     geo = new THREE.BoxGeometry(tieW, 2.2, gauge * 1.55);
-    geo.userData.shared = true;
-    _tieGeoCache.set(key, geo);
+    setBoundedGeoCache(_tieGeoCache, key, geo);
   }
   return geo;
 }
@@ -54,20 +76,7 @@ function getSharedStraightBallastGeometry(len: number, h: number, w: number): TH
   let geo = _straightBallastGeoCache.get(key);
   if (!geo) {
     geo = new THREE.BoxGeometry(len, h, w);
-    geo.userData.shared = true;
-    _straightBallastGeoCache.set(key, geo);
-  }
-  return geo;
-}
-
-const _straightRailGeoCache = new Map<string, THREE.BoxGeometry>();
-function getSharedStraightRailGeometry(len: number, h: number, w: number): THREE.BoxGeometry {
-  const key = `${Math.round(len * 10)}:${Math.round(h * 10)}:${Math.round(w * 10)}`;
-  let geo = _straightRailGeoCache.get(key);
-  if (!geo) {
-    geo = new THREE.BoxGeometry(len, h, w);
-    geo.userData.shared = true;
-    _straightRailGeoCache.set(key, geo);
+    setBoundedGeoCache(_straightBallastGeoCache, key, geo);
   }
   return geo;
 }
@@ -82,17 +91,98 @@ function getSharedStraightDualRailGeometry(len: number, h: number, w: number, ga
     const rR = new THREE.BoxGeometry(len, h, w);
     rR.translate(0, 0, gaugeHalf);
     geo = BufferGeometryUtils.mergeGeometries([rL, rR]);
-    geo.userData.shared = true;
     rL.dispose();
     rR.dispose();
-    _straightDualRailGeoCache.set(key, geo);
+    setBoundedGeoCache(_straightDualRailGeoCache, key, geo);
   }
   return geo;
 }
 
 const _curvedBallastGeoCache = new Map<string, THREE.BufferGeometry>();
-const _curvedRailGeoCache = new Map<string, THREE.BufferGeometry>();
 const _curvedDualRailGeoCache = new Map<string, THREE.BufferGeometry>();
+
+export function getSharedCurvedBallastGeometry(
+  r: number,
+  rad: number,
+  dir: 1 | -1,
+  ballastH: number,
+  ballastW: number,
+  leadX = 0,
+): THREE.BufferGeometry {
+  const curveCacheKey = `${Math.round(r * 10)}:${Math.round(rad * 1000)}:${dir}:${leadX}:${ballastH}:${ballastW}`;
+  let curveGeo = _curvedBallastGeoCache.get(curveCacheKey);
+  if (!curveGeo) {
+    const rIn = r - ballastW / 2;
+    const rOut = r + ballastW / 2;
+
+    const curveShape = new THREE.Shape();
+    if (dir === 1) {
+      curveShape.absarc(0, 0, rOut, -Math.PI / 2, -Math.PI / 2 + rad, false);
+      curveShape.absarc(0, 0, rIn, -Math.PI / 2 + rad, -Math.PI / 2, true);
+    } else {
+      curveShape.absarc(0, 0, rOut, Math.PI / 2, Math.PI / 2 - rad, true);
+      curveShape.absarc(0, 0, rIn, Math.PI / 2 - rad, Math.PI / 2, false);
+    }
+    curveShape.closePath();
+
+    curveGeo = new THREE.ExtrudeGeometry(curveShape, { depth: ballastH, bevelEnabled: false });
+    curveGeo.rotateX(Math.PI / 2);
+    curveGeo.translate(leadX, ballastH, dir * r);
+    setBoundedGeoCache(_curvedBallastGeoCache, curveCacheKey, curveGeo);
+  }
+  return curveGeo;
+}
+
+export function getSharedCurvedDualRailGeometry(
+  r: number,
+  rad: number,
+  dir: 1 | -1,
+  gaugeHalf: number,
+  railH: number,
+  railW: number,
+  railY: number,
+  leadX = 0,
+): THREE.BufferGeometry {
+  const railCacheKey = `${Math.round(r * 10)}:${Math.round(gaugeHalf * 100)}:${Math.round(rad * 1000)}:${dir}:${leadX}:${railH}:${railW}`;
+  let dualCurvedGeo = _curvedDualRailGeoCache.get(railCacheKey);
+  if (!dualCurvedGeo) {
+    const railGeos: THREE.BufferGeometry[] = [];
+    for (const offset of [-gaugeHalf, gaugeHalf]) {
+      const railShape = new THREE.Shape();
+      const rr = r + offset;
+      if (dir === 1) {
+        railShape.absarc(0, 0, rr + railW / 2, -Math.PI / 2, -Math.PI / 2 + rad, false);
+        railShape.absarc(0, 0, rr - railW / 2, -Math.PI / 2 + rad, -Math.PI / 2, true);
+      } else {
+        railShape.absarc(0, 0, rr + railW / 2, Math.PI / 2, Math.PI / 2 - rad, true);
+        railShape.absarc(0, 0, rr - railW / 2, Math.PI / 2 - rad, Math.PI / 2, false);
+      }
+      railShape.closePath();
+
+      const bRailGeo = new THREE.ExtrudeGeometry(railShape, { depth: railH, bevelEnabled: false });
+      bRailGeo.rotateX(Math.PI / 2);
+      bRailGeo.translate(leadX, railY, dir * r);
+      railGeos.push(bRailGeo);
+    }
+    dualCurvedGeo = BufferGeometryUtils.mergeGeometries(railGeos);
+    railGeos.forEach((g) => g.dispose());
+    setBoundedGeoCache(_curvedDualRailGeoCache, railCacheKey, dualCurvedGeo);
+  }
+  return dualCurvedGeo;
+}
+
+export function getBallastColor(entry: CatalogEntry, colorMode: ColorMode, layerColor?: string): number {
+  const bpColor = getTrackBlueprintColor(entry.id);
+  let ballastColor = 0x78716c;
+  if (colorMode === "types" && bpColor) {
+    ballastColor = bpColor.hex;
+  } else if (colorMode === "layers") {
+    const hexStr = layerColor || "#38bdf8";
+    const parsedHex = parseInt(hexStr.replace(/^#/, ""), 16);
+    ballastColor = isNaN(parsedHex) ? 0x38bdf8 : parsedHex;
+  }
+  return ballastColor;
+}
 
 const SHARED_BUFFER_LAMP_MAT = new THREE.MeshStandardMaterial({
   color: 0xef4444,
@@ -130,15 +220,7 @@ export function buildTrackPiece3D(
     return;
   }
 
-  const bpColor = getTrackBlueprintColor(entry.id);
-  let ballastColor = 0x78716c;
-  if (colorMode === "types" && bpColor) {
-    ballastColor = bpColor.hex;
-  } else if (colorMode === "layers") {
-    const hexStr = layerColor || "#38bdf8";
-    const parsedHex = parseInt(hexStr.replace(/^#/, ""), 16);
-    ballastColor = isNaN(parsedHex) ? 0x38bdf8 : parsedHex;
-  }
+  const ballastColor = getBallastColor(entry, colorMode, layerColor);
 
   const kind = entry.kind;
   if (kind === "turntable") {
@@ -190,7 +272,7 @@ export function buildTrackPiece3D(
     const tieCount = Math.floor(len / tieStep);
     if (tieCount > 0) {
       const tiesInstanced = new THREE.InstancedMesh(tieGeo, tieMat, tieCount);
-      tiesInstanced.castShadow = true;
+      tiesInstanced.castShadow = false;
       _tieDummy.rotation.set(0, 0, 0);
       for (let i = 0; i < tieCount; i++) {
         _tieDummy.position.set(startX + i * tieStep + tieStep / 2, ballastH + 1.1, 0);
@@ -250,10 +332,11 @@ export function buildTrackPiece3D(
   ) => {
     const rad = deg2rad(a);
     const isFlat = Math.abs(customHDiff) < 0.01;
-    const curveCacheKey = isFlat ? `${Math.round(r * 10)}:${Math.round(rad * 1000)}:${dir}:${leadX}:${ballastH}:${ballastW}` : null;
 
-    let curveGeo = curveCacheKey ? _curvedBallastGeoCache.get(curveCacheKey) : undefined;
-    if (!curveGeo) {
+    let curveGeo: THREE.BufferGeometry;
+    if (isFlat) {
+      curveGeo = getSharedCurvedBallastGeometry(r, rad, dir, ballastH, ballastW, leadX);
+    } else {
       const rIn = r - ballastW / 2;
       const rOut = r + ballastW / 2;
 
@@ -270,12 +353,7 @@ export function buildTrackPiece3D(
       curveGeo = new THREE.ExtrudeGeometry(curveShape, { depth: ballastH, bevelEnabled: false });
       curveGeo.rotateX(Math.PI / 2);
       curveGeo.translate(leadX, ballastH, dir * r);
-      if (!isFlat) {
-        applyCurveElevation(curveGeo, r, rad, customHDiff, dir, leadX);
-      } else {
-        curveGeo.userData.shared = true;
-        _curvedBallastGeoCache.set(curveCacheKey!, curveGeo);
-      }
+      applyCurveElevation(curveGeo, r, rad, customHDiff, dir, leadX);
     }
 
     const ballastMesh = new THREE.Mesh(curveGeo, ballastMat);
@@ -283,10 +361,10 @@ export function buildTrackPiece3D(
     ballastMesh.castShadow = true;
     targetGroup.add(ballastMesh);
 
-    const railCacheKey = isFlat ? `${Math.round(r * 10)}:${Math.round(gaugeHalf * 100)}:${Math.round(rad * 1000)}:${dir}:${leadX}:${railH}:${railW}` : null;
-    let dualCurvedGeo = railCacheKey ? _curvedDualRailGeoCache.get(railCacheKey) : undefined;
-
-    if (!dualCurvedGeo) {
+    let dualCurvedGeo: THREE.BufferGeometry;
+    if (isFlat) {
+      dualCurvedGeo = getSharedCurvedDualRailGeometry(r, rad, dir, gaugeHalf, railH, railW, railY, leadX);
+    } else {
       const railGeos: THREE.BufferGeometry[] = [];
       for (const offset of [-gaugeHalf, gaugeHalf]) {
         const railShape = new THREE.Shape();
@@ -303,17 +381,11 @@ export function buildTrackPiece3D(
         const bRailGeo = new THREE.ExtrudeGeometry(railShape, { depth: railH, bevelEnabled: false });
         bRailGeo.rotateX(Math.PI / 2);
         bRailGeo.translate(leadX, railY, dir * r);
-        if (!isFlat) {
-          applyCurveElevation(bRailGeo, r, rad, customHDiff, dir, leadX);
-        }
+        applyCurveElevation(bRailGeo, r, rad, customHDiff, dir, leadX);
         railGeos.push(bRailGeo);
       }
       dualCurvedGeo = BufferGeometryUtils.mergeGeometries(railGeos);
       railGeos.forEach((g) => g.dispose());
-      if (isFlat) {
-        dualCurvedGeo.userData.shared = true;
-        _curvedDualRailGeoCache.set(railCacheKey!, dualCurvedGeo);
-      }
     }
 
     const bRailMesh = new THREE.Mesh(dualCurvedGeo, railMat);
@@ -323,7 +395,7 @@ export function buildTrackPiece3D(
     const tieStep = Math.max(3.5, (gauge / 16.5) * 6.5);
     const tieCount = Math.max(3, Math.floor(arcLen / tieStep));
     const tiesInstanced = new THREE.InstancedMesh(tieGeo, tieMat, tieCount);
-    tiesInstanced.castShadow = true;
+    tiesInstanced.castShadow = false;
     for (let i = 0; i < tieCount; i++) {
       const u = (i + 0.5) / tieCount;
       const phi = u * rad;
@@ -340,13 +412,81 @@ export function buildTrackPiece3D(
     targetGroup.add(tiesInstanced);
   };
 
+  const addSplineSection = (
+    targetGroup: THREE.Group,
+    offsets: number[],
+    customHDiff = heightDiff,
+  ) => {
+    const chordDist = entry.customChordDist ?? entry.length ?? 900;
+    const splineLen = computeFlexSplineLength(chordDist, offsets);
+
+    // 1. Schwellen entlang des Splines
+    const tieStep = Math.max(3.5, (gauge / 16.5) * 6.5);
+    const tieCount = Math.max(3, Math.floor(splineLen / tieStep));
+    const tiesInstanced = new THREE.InstancedMesh(tieGeo, tieMat, tieCount);
+    tiesInstanced.castShadow = false;
+    for (let i = 0; i < tieCount; i++) {
+      const u = (i + 0.5) / tieCount;
+      const { h, dh } = evaluateFlexSpline(offsets, u);
+      const tx = u * chordDist;
+      const tz = h;
+      const ty = ballastH + 1.1 + u * customHDiff;
+      const ang = Math.atan2(dh, chordDist);
+
+      _tieDummy.position.set(tx, ty, tz);
+      _tieDummy.rotation.set(0, -ang, 0);
+      _tieDummy.updateMatrix();
+      tiesInstanced.setMatrixAt(i, _tieDummy.matrix);
+    }
+    tiesInstanced.instanceMatrix.needsUpdate = true;
+    targetGroup.add(tiesInstanced);
+
+    // 2. Segmentiertes Schotterbett & Schienenstränge (24 Segmente)
+    const numSegments = 24;
+    for (let s = 0; s < numSegments; s++) {
+      const u1 = s / numSegments;
+      const u2 = (s + 1) / numSegments;
+      const pt1 = evaluateFlexSpline(offsets, u1);
+      const pt2 = evaluateFlexSpline(offsets, u2);
+      const x1 = u1 * chordDist;
+      const z1 = pt1.h;
+      const y1 = ballastH / 2 + u1 * customHDiff;
+      const x2 = u2 * chordDist;
+      const z2 = pt2.h;
+      const y2 = ballastH / 2 + u2 * customHDiff;
+
+      const segDx = x2 - x1;
+      const segDz = z2 - z1;
+      const segLen = Math.hypot(segDx, segDz);
+      const segAng = Math.atan2(segDz, segDx);
+
+      // Schotter-Segment
+      const bGeo = getSharedStraightBallastGeometry(segLen, ballastH, ballastW);
+      const bMesh = new THREE.Mesh(bGeo, ballastMat);
+      bMesh.position.set((x1 + x2) / 2, (y1 + y2) / 2, (z1 + z2) / 2);
+      bMesh.rotation.y = -segAng;
+      bMesh.receiveShadow = true;
+      bMesh.castShadow = true;
+      targetGroup.add(bMesh);
+
+      // Schienen-Segment
+      const rGeo = getSharedStraightDualRailGeometry(segLen, railH, railW, gaugeHalf);
+      const rMesh = new THREE.Mesh(rGeo, railMat);
+      rMesh.position.set((x1 + x2) / 2, (y1 + y2) / 2 + railY - ballastH / 2, (z1 + z2) / 2);
+      rMesh.rotation.y = -segAng;
+      targetGroup.add(rMesh);
+    }
+  };
+
   const isCurvedTurnout =
     kind === "curved-turnout-left" ||
     kind === "curved-turnout-right" ||
     ((kind === "turnout-left" || kind === "turnout-right") && !!entry.radius && !entry.length);
 
   const isBufferStop = isBufferStopPiece(entry);
-  if (isStraightTrackEntry(entry)) {
+  if (entry.customOffsets && entry.customOffsets.length >= 3) {
+    addSplineSection(group, entry.customOffsets, heightDiff);
+  } else if (isStraightTrackEntry(entry)) {
     const len = entry.length ?? (kind === "flex" ? 900 : 188.3);
     const straightGroup = new THREE.Group();
     if (Math.abs(heightDiff) > 0.01) {
@@ -490,4 +630,299 @@ export function buildTrackPiece3D(
   }
 
   trackGroup.add(group);
+}
+
+export interface TrackBuildItem {
+  piece: TrackPiece;
+  entry: CatalogEntry;
+  startElev: number;
+  endElev: number;
+  colorMode: ColorMode;
+  layerColor?: string;
+}
+
+/**
+ * Baut alle Gleisstücke einer 3D-Szene auf.
+ * Flache Geraden und Kurven werden über InstancedMesh zusammengefasst,
+ * wodurch bis zu 90% der Mesh- und Draw-Call-Overheads eingespart werden.
+ */
+export function buildAllTracks3D(
+  trackGroup: THREE.Group,
+  items: TrackBuildItem[],
+  layout?: Layout,
+) {
+  if (items.length === 0) return;
+
+  const straightGroups = new Map<string, TrackBuildItem[]>();
+  const curvedGroups = new Map<string, TrackBuildItem[]>();
+  const individualItems: TrackBuildItem[] = [];
+
+  for (const item of items) {
+    const isFlat = Math.abs(item.endElev - item.startElev) < 0.01;
+    const kind = item.entry.kind;
+    const hasStructuralMods =
+      item.piece.hasBridge ||
+      item.piece.hasTunnel ||
+      isBufferStopPiece(item.entry) ||
+      item.entry.isRoad ||
+      kind === "turntable" ||
+      kind === "transfer-table" ||
+      kind === "turnout-left" ||
+      kind === "turnout-right" ||
+      kind === "curved-turnout-left" ||
+      kind === "curved-turnout-right" ||
+      kind === "three-way" ||
+      kind === "crossing" ||
+      kind === "double-slip";
+
+    if (isFlat && !hasStructuralMods && isStraightTrackEntry(item.entry)) {
+      const ballastColor = getBallastColor(item.entry, item.colorMode, item.layerColor);
+      const len = item.entry.length ?? (item.entry.kind === "flex" ? 900 : 188.3);
+      const gauge = item.entry.gauge ?? 16.5;
+      const key = `${item.entry.id}:${ballastColor}:${Math.round(len * 10)}:${Math.round(gauge * 10)}`;
+      let list = straightGroups.get(key);
+      if (!list) {
+        list = [];
+        straightGroups.set(key, list);
+      }
+      list.push(item);
+    } else if (isFlat && !hasStructuralMods && isCurvedTrackEntry(item.entry)) {
+      const ballastColor = getBallastColor(item.entry, item.colorMode, item.layerColor);
+      const r = item.entry.radius ?? 437.5;
+      const a = item.entry.angle ?? 30;
+      const gauge = item.entry.gauge ?? 16.5;
+      const key = `${item.entry.id}:${ballastColor}:${Math.round(r * 10)}:${Math.round(a * 100)}:${Math.round(gauge * 10)}`;
+      let list = curvedGroups.get(key);
+      if (!list) {
+        list = [];
+        curvedGroups.set(key, list);
+      }
+      list.push(item);
+    } else {
+      individualItems.push(item);
+    }
+  }
+
+  const worldMat = new THREE.Matrix4();
+  const localMat = new THREE.Matrix4();
+  const finalMat = new THREE.Matrix4();
+  const pos = new THREE.Vector3();
+  const quat = new THREE.Quaternion();
+  const scale = new THREE.Vector3(1, 1, 1);
+  const upAxis = new THREE.Vector3(0, 1, 0);
+
+  const tiePos = new THREE.Vector3();
+  const tieQuat = new THREE.Quaternion();
+
+  // 1. Gerade Gleise stapeln
+  for (const [, list] of straightGroups) {
+    if (list.length < 2) {
+      individualItems.push(...list);
+      continue;
+    }
+    const first = list[0]!;
+    const entry = first.entry;
+    const len = entry.length ?? (entry.kind === "flex" ? 900 : 188.3);
+    const gauge = entry.gauge ?? 16.5;
+    const gaugeHalf = gauge / 2;
+    const hasRoadbed = entry.hasRoadbed !== false;
+    const ballastH = hasRoadbed ? 6 : 1.5;
+    const ballastW = hasRoadbed ? (gauge / 16.5) * 36 : (gauge / 16.5) * 26;
+    const railH = 2.2;
+    const railW = 1.2;
+    const railY = ballastH + railH;
+    const ballastColor = getBallastColor(entry, first.colorMode, first.layerColor);
+    const ballastMat = getSharedBallastMaterial(ballastColor);
+
+    const tieStep = Math.max(3.5, (gauge / 16.5) * 6.5);
+    const tieCount = Math.floor(len / tieStep);
+
+    const ballastGeo = getSharedStraightBallastGeometry(len, ballastH, ballastW);
+    const ballastInst = new THREE.InstancedMesh(ballastGeo, ballastMat, list.length);
+    ballastInst.receiveShadow = true;
+    ballastInst.castShadow = true;
+
+    const dualRailGeo = getSharedStraightDualRailGeometry(len, railH, railW, gaugeHalf);
+    const railsInst = new THREE.InstancedMesh(dualRailGeo, SHARED_RAIL_MAT, list.length);
+    railsInst.castShadow = true;
+
+    const tiesInst = tieCount > 0 ? new THREE.InstancedMesh(getSharedTieGeometry(gauge), SHARED_TIE_MAT, list.length * tieCount) : null;
+    if (tiesInst) {
+      tiesInst.castShadow = false;
+    }
+
+    let tieGlobalIdx = 0;
+    const localBallastMat = new THREE.Matrix4().makeTranslation(len / 2, ballastH / 2, 0);
+    const localRailMat = new THREE.Matrix4().makeTranslation(len / 2, railY, 0);
+
+    for (let pIdx = 0; pIdx < list.length; pIdx++) {
+      const it = list[pIdx]!;
+      pos.set(it.piece.transform.x, it.startElev, it.piece.transform.y);
+      quat.setFromAxisAngle(upAxis, -deg2rad(it.piece.transform.rotation));
+      worldMat.compose(pos, quat, scale);
+
+      finalMat.multiplyMatrices(worldMat, localBallastMat);
+      ballastInst.setMatrixAt(pIdx, finalMat);
+
+      finalMat.multiplyMatrices(worldMat, localRailMat);
+      railsInst.setMatrixAt(pIdx, finalMat);
+
+      if (tiesInst) {
+        for (let i = 0; i < tieCount; i++) {
+          localMat.makeTranslation(i * tieStep + tieStep / 2, ballastH + 1.1, 0);
+          finalMat.multiplyMatrices(worldMat, localMat);
+          tiesInst.setMatrixAt(tieGlobalIdx++, finalMat);
+        }
+      }
+
+      if (it.piece.hasCatenary || it.piece.hasSignal || it.piece.hasLantern || it.piece.hasDecoder) {
+        const accGroup = new THREE.Group();
+        accGroup.position.set(it.piece.transform.x, it.startElev, it.piece.transform.y);
+        accGroup.rotation.y = -deg2rad(it.piece.transform.rotation);
+        if (it.piece.hasCatenary) {
+          buildCatenary3D(accGroup, it.entry, it.startElev, it.endElev, it.piece);
+        }
+        if (it.piece.hasLantern || it.piece.hasDecoder) {
+          buildTurnoutAccessories3D(accGroup, it.entry, it.piece);
+        }
+        if (it.piece.hasSignal) {
+          buildTrackSignal3D(accGroup, it.entry, it.piece);
+        }
+        trackGroup.add(accGroup);
+      }
+    }
+
+    ballastInst.instanceMatrix.needsUpdate = true;
+    railsInst.instanceMatrix.needsUpdate = true;
+    ballastInst.computeBoundingSphere?.();
+    railsInst.computeBoundingSphere?.();
+    trackGroup.add(ballastInst);
+    trackGroup.add(railsInst);
+
+    if (tiesInst) {
+      tiesInst.instanceMatrix.needsUpdate = true;
+      tiesInst.computeBoundingSphere?.();
+      trackGroup.add(tiesInst);
+    }
+  }
+
+  // 2. Kurvige Gleise stapeln
+  for (const [, list] of curvedGroups) {
+    if (list.length < 2) {
+      individualItems.push(...list);
+      continue;
+    }
+    const first = list[0]!;
+    const entry = first.entry;
+    const r = entry.radius ?? 437.5;
+    const a = entry.angle ?? 30;
+    const dir: 1 | -1 = a < 0 ? -1 : 1;
+    const deg = Math.abs(a);
+    const rad = deg2rad(deg);
+    const gauge = entry.gauge ?? 16.5;
+    const gaugeHalf = gauge / 2;
+    const hasRoadbed = entry.hasRoadbed !== false;
+    const ballastH = hasRoadbed ? 6 : 1.5;
+    const ballastW = hasRoadbed ? (gauge / 16.5) * 36 : (gauge / 16.5) * 26;
+    const railH = 2.2;
+    const railW = 1.2;
+    const railY = ballastH + railH;
+    const ballastColor = getBallastColor(entry, first.colorMode, first.layerColor);
+    const ballastMat = getSharedBallastMaterial(ballastColor);
+
+    const arcLen = r * rad;
+    const tieStep = Math.max(3.5, (gauge / 16.5) * 6.5);
+    const tieCount = Math.max(3, Math.floor(arcLen / tieStep));
+
+    const curveGeo = getSharedCurvedBallastGeometry(r, rad, dir, ballastH, ballastW, 0);
+    const dualRailGeo = getSharedCurvedDualRailGeometry(r, rad, dir, gaugeHalf, railH, railW, railY, 0);
+
+    const ballastInst = new THREE.InstancedMesh(curveGeo, ballastMat, list.length);
+    ballastInst.receiveShadow = true;
+    ballastInst.castShadow = true;
+
+    const railsInst = new THREE.InstancedMesh(dualRailGeo, SHARED_RAIL_MAT, list.length);
+    railsInst.castShadow = true;
+
+    const tiesInst = new THREE.InstancedMesh(getSharedTieGeometry(gauge), SHARED_TIE_MAT, list.length * tieCount);
+    tiesInst.castShadow = false;
+
+    let tieGlobalIdx = 0;
+
+    for (let pIdx = 0; pIdx < list.length; pIdx++) {
+      const it = list[pIdx]!;
+      pos.set(it.piece.transform.x, it.startElev, it.piece.transform.y);
+      quat.setFromAxisAngle(upAxis, -deg2rad(it.piece.transform.rotation));
+      worldMat.compose(pos, quat, scale);
+
+      ballastInst.setMatrixAt(pIdx, worldMat);
+      railsInst.setMatrixAt(pIdx, worldMat);
+
+      for (let i = 0; i < tieCount; i++) {
+        const u = (i + 0.5) / tieCount;
+        const phi = u * rad;
+        const tx = r * Math.sin(phi);
+        const tz = dir * r * (1 - Math.cos(phi));
+        const ty = ballastH + 1.1;
+
+        tiePos.set(tx, ty, tz);
+        tieQuat.setFromAxisAngle(upAxis, -dir * phi);
+        localMat.compose(tiePos, tieQuat, scale);
+        finalMat.multiplyMatrices(worldMat, localMat);
+        tiesInst.setMatrixAt(tieGlobalIdx++, finalMat);
+      }
+
+      if (it.piece.hasCatenary || it.piece.hasSignal || it.piece.hasLantern || it.piece.hasDecoder) {
+        const accGroup = new THREE.Group();
+        accGroup.position.set(it.piece.transform.x, it.startElev, it.piece.transform.y);
+        accGroup.rotation.y = -deg2rad(it.piece.transform.rotation);
+        if (it.piece.hasCatenary) {
+          buildCatenary3D(accGroup, it.entry, it.startElev, it.endElev, it.piece);
+        }
+        if (it.piece.hasLantern || it.piece.hasDecoder) {
+          buildTurnoutAccessories3D(accGroup, it.entry, it.piece);
+        }
+        if (it.piece.hasSignal) {
+          buildTrackSignal3D(accGroup, it.entry, it.piece);
+        }
+        trackGroup.add(accGroup);
+      }
+    }
+
+    ballastInst.instanceMatrix.needsUpdate = true;
+    railsInst.instanceMatrix.needsUpdate = true;
+    tiesInst.instanceMatrix.needsUpdate = true;
+    ballastInst.computeBoundingSphere?.();
+    railsInst.computeBoundingSphere?.();
+    tiesInst.computeBoundingSphere?.();
+
+    trackGroup.add(ballastInst);
+    trackGroup.add(railsInst);
+    trackGroup.add(tiesInst);
+  }
+
+  // 3. Individuelle Teile (Weichen, Brücken, Rampen, DKW, etc.)
+  for (const item of individualItems) {
+    buildTrackPiece3D(
+      trackGroup,
+      item.piece,
+      item.entry,
+      item.startElev,
+      item.endElev,
+      item.colorMode,
+      item.layerColor,
+      layout,
+    );
+  }
+}
+
+/**
+ * Friert die Matrix-Berechnungen statischer Objekte ein.
+ * Reduziert CPU-Overhead bei jeder Kamerabewegung / Orbit drastisch.
+ */
+export function freezeStaticTransforms(root: THREE.Object3D) {
+  root.updateMatrixWorld(true);
+  root.traverse((obj) => {
+    obj.matrixAutoUpdate = false;
+  });
 }

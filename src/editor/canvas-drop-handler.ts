@@ -1,4 +1,4 @@
-import type { Model3D, TrackPiece } from "@/core/types";
+import type { Model3D } from "@/core/types";
 import type { CatalogEntry } from "@/catalog/catalog";
 import { parseGlbOrGltfFile } from "@/core/models-3d";
 import type { Renderer } from "@/render/renderer";

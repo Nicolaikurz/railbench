@@ -1,4 +1,4 @@
-import { rad2deg, normAngle, rotate } from "@/core/geometry";
+import { normAngle, rotate } from "@/core/geometry";
 import type { Layout, TrackPiece, Model3D, Transform } from "@/core/types";
 import type { Selection } from "@/editor/selection";
 import type { History } from "@/editor/commands";
@@ -259,7 +259,7 @@ export function applyGroupDragWithSnapping(
   draggedPiecesMap: Map<string, Transform>,
   dx: number,
   dy: number,
-  dragDist: number,
+  _dragDist: number,
   snappingEnabled: boolean,
   hasUnlatchedFromInitial: boolean,
   draggedInitialConnections: { pieceId: string; connectorIndex: number }[],

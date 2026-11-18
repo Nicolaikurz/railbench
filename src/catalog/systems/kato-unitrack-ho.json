@@ -1,0 +1,361 @@
+{
+  "id": "kato-unitrack-h0",
+  "name": "Kato Unitrack H0",
+  "manufacturer": "Kato",
+  "system": "Unitrack H0",
+  "scale": "H0",
+  "gauge": 16.5,
+  "hasRoadbed": true,
+  "conductors": 2,
+  "entries": [
+    {
+      "id": "2-150",
+      "name": "Gerades Gleis S246",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Standard-Gerade, Länge 246 mm",
+      "length": 246,
+      "gauge": 16.5
+    },
+    {
+      "id": "2-151",
+      "name": "Anschlussgleis S246F",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Gerade 246 mm mit Stromanschluss",
+      "length": 246,
+      "gauge": 16.5
+    },
+    {
+      "id": "2-152",
+      "name": "Gerades Gleis S174",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Gerades Gleis, Länge 174 mm",
+      "length": 174,
+      "gauge": 16.5
+    },
+    {
+      "id": "2-160",
+      "name": "Gerades Gleis S114",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Gerades Gleis, Länge 114 mm",
+      "length": 114,
+      "gauge": 16.5
+    },
+    {
+      "id": "2-170",
+      "name": "Gerades Gleis S149",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Gerades Gleis, Länge 149 mm",
+      "length": 149,
+      "gauge": 16.5
+    },
+    {
+      "id": "2-180",
+      "name": "Gerades Gleis S123",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Halbes Standardgleis, Länge 123 mm",
+      "length": 123,
+      "gauge": 16.5
+    },
+    {
+      "id": "2-186",
+      "name": "Gerades Gleis S94",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Kurzes Ausgleichsstück, Länge 94 mm",
+      "length": 94,
+      "gauge": 16.5
+    },
+    {
+      "id": "2-188",
+      "name": "Aufgleisgleis S123R",
+      "kind": "straight",
+      "category": "Zubehör",
+      "description": "Aufgleiser mit Bahnübergang, Länge 123 mm",
+      "length": 123,
+      "gauge": 16.5
+    },
+    {
+      "id": "2-190",
+      "name": "Prellbockgleis S123B",
+      "kind": "buffer-stop",
+      "category": "Zubehör",
+      "description": "Gleis mit Prellbock, Länge 123 mm",
+      "length": 123,
+      "gauge": 16.5
+    },
+    {
+      "id": "2-192",
+      "name": "Prellbockgleis S114B",
+      "kind": "buffer-stop",
+      "category": "Zubehör",
+      "description": "Gleis mit Prellbock, Länge 114 mm",
+      "length": 114,
+      "gauge": 16.5
+    },
+    {
+      "id": "2-193",
+      "name": "Ausziehgleis S212-252",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Teleskopgleis, verstellbar von 212 bis 252 mm",
+      "length": 246,
+      "gauge": 16.5
+    },
+    {
+      "id": "2-200",
+      "name": "Gebogenes Gleis R370-22.5°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Kompaktbogen Radius 370 mm, 22.5° (16 Stk./Kreis)",
+      "radius": 370,
+      "angle": 22.5,
+      "gauge": 16.5
+    },
+    {
+      "id": "2-201",
+      "name": "Gebogenes Gleis R370-45°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Kompaktbogen Radius 370 mm, 45° (8 Stk./Kreis)",
+      "radius": 370,
+      "angle": 45,
+      "gauge": 16.5
+    },
+    {
+      "id": "2-210",
+      "name": "Gebogenes Gleis R430-22.5°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Bogen Radius 430 mm, 22.5°",
+      "radius": 430,
+      "angle": 22.5,
+      "gauge": 16.5
+    },
+    {
+      "id": "2-211",
+      "name": "Gebogenes Gleis R430-45°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Bogen Radius 430 mm, 45°",
+      "radius": 430,
+      "angle": 45,
+      "gauge": 16.5
+    },
+    {
+      "id": "2-220",
+      "name": "Gebogenes Gleis R490-22.5°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Bogen Radius 490 mm, 22.5°",
+      "radius": 490,
+      "angle": 22.5,
+      "gauge": 16.5
+    },
+    {
+      "id": "2-221",
+      "name": "Gebogenes Gleis R490-45°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Bogen Radius 490 mm, 45°",
+      "radius": 490,
+      "angle": 45,
+      "gauge": 16.5
+    },
+    {
+      "id": "2-230",
+      "name": "Gebogenes Gleis R550-22.5°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Bogen Radius 550 mm, 22.5°",
+      "radius": 550,
+      "angle": 22.5,
+      "gauge": 16.5
+    },
+    {
+      "id": "2-231",
+      "name": "Gebogenes Gleis R550-45°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Bogen Radius 550 mm, 45°",
+      "radius": 550,
+      "angle": 45,
+      "gauge": 16.5
+    },
+    {
+      "id": "2-240",
+      "name": "Gebogenes Gleis R610-22.5°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Bogen Radius 610 mm, 22.5°",
+      "radius": 610,
+      "angle": 22.5,
+      "gauge": 16.5
+    },
+    {
+      "id": "2-241",
+      "name": "Gebogenes Gleis R610-45°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Bogen Radius 610 mm, 45°",
+      "radius": 610,
+      "angle": 45,
+      "gauge": 16.5
+    },
+    {
+      "id": "2-250",
+      "name": "Gebogenes Gleis R670-22.5°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Großkreis Radius 670 mm, 22.5°",
+      "radius": 670,
+      "angle": 22.5,
+      "gauge": 16.5
+    },
+    {
+      "id": "2-260",
+      "name": "Gebogenes Gleis R730-22.5°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Großkreis Radius 730 mm, 22.5°",
+      "radius": 730,
+      "angle": 22.5,
+      "gauge": 16.5
+    },
+    {
+      "id": "2-270",
+      "name": "Gebogenes Gleis R790-22.5°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Großkreis Radius 790 mm, 22.5°",
+      "radius": 790,
+      "angle": 22.5,
+      "gauge": 16.5
+    },
+    {
+      "id": "2-280",
+      "name": "Ausgleichsbogen R867-10°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Gegenbogen zu Weichen #6, Radius 867 mm, 10°",
+      "radius": 867,
+      "angle": 10,
+      "gauge": 16.5
+    },
+    {
+      "id": "2-840",
+      "name": "Weiche #4 links",
+      "kind": "turnout-left",
+      "category": "Weichen",
+      "description": "Kompaktweiche links, Länge 174 mm, Abzweig R490 / 15°",
+      "length": 174,
+      "branchRadius": 490,
+      "branchAngle": 15,
+      "gauge": 16.5
+    },
+    {
+      "id": "2-841",
+      "name": "Weiche #4 rechts",
+      "kind": "turnout-right",
+      "category": "Weichen",
+      "description": "Kompaktweiche rechts, Länge 174 mm, Abzweig R490 / 15°",
+      "length": 174,
+      "branchRadius": 490,
+      "branchAngle": 15,
+      "gauge": 16.5
+    },
+    {
+      "id": "2-850",
+      "name": "Bogenweiche links R550/R490",
+      "kind": "curved-turnout-left",
+      "category": "Weichen",
+      "description": "Kurvenweiche links, Stamm R550/22.5°, Abzweig R490/22.5°",
+      "radius": 550,
+      "angle": 22.5,
+      "branchRadius": 490,
+      "branchAngle": 22.5,
+      "gauge": 16.5
+    },
+    {
+      "id": "2-851",
+      "name": "Bogenweiche rechts R550/R490",
+      "kind": "curved-turnout-right",
+      "category": "Weichen",
+      "description": "Kurvenweiche rechts, Stamm R550/22.5°, Abzweig R490/22.5°",
+      "radius": 550,
+      "angle": 22.5,
+      "branchRadius": 490,
+      "branchAngle": 22.5,
+      "gauge": 16.5
+    },
+    {
+      "id": "2-860",
+      "name": "Weiche #6 links elektrisch",
+      "kind": "turnout-left",
+      "category": "Weichen",
+      "description": "Schlanke Weiche links EP860L, Länge 246 mm, Abzweig R867 / 10.5°",
+      "length": 246,
+      "branchRadius": 867,
+      "branchAngle": 10.5,
+      "gauge": 16.5
+    },
+    {
+      "id": "2-861",
+      "name": "Weiche #6 rechts elektrisch",
+      "kind": "turnout-right",
+      "category": "Weichen",
+      "description": "Schlanke Weiche rechts EP860R, Länge 246 mm, Abzweig R867 / 10.5°",
+      "length": 246,
+      "branchRadius": 867,
+      "branchAngle": 10.5,
+      "gauge": 16.5
+    },
+    {
+      "id": "2-862",
+      "name": "Weiche #6 links manuell",
+      "kind": "turnout-left",
+      "category": "Weichen",
+      "description": "Schlanke Handweiche links, Länge 246 mm, Abzweig R867 / 10.5°",
+      "length": 246,
+      "branchRadius": 867,
+      "branchAngle": 10.5,
+      "gauge": 16.5
+    },
+    {
+      "id": "2-863",
+      "name": "Weiche #6 rechts manuell",
+      "kind": "turnout-right",
+      "category": "Weichen",
+      "description": "Schlanke Handweiche rechts, Länge 246 mm, Abzweig R867 / 10.5°",
+      "length": 246,
+      "branchRadius": 867,
+      "branchAngle": 10.5,
+      "gauge": 16.5
+    },
+    {
+      "id": "2-300",
+      "name": "Kreuzung 90° X90",
+      "kind": "crossing",
+      "category": "Kreuzungen",
+      "description": "Rechtwinklige Kreuzung 90°, Länge 114 mm",
+      "length": 114,
+      "angle": 90,
+      "gauge": 16.5
+    },
+    {
+      "id": "2-301",
+      "name": "Kreuzung 22.5° X22.5",
+      "kind": "crossing",
+      "category": "Kreuzungen",
+      "description": "Kreuzung 22.5°, Länge 174 mm",
+      "length": 174,
+      "angle": 22.5,
+      "gauge": 16.5
+    }
+  ]
+}

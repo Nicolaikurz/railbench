@@ -1,5 +1,5 @@
 import type { Layout, TrackPiece, Model3D, Transform, SignalSide, SignalDirection } from "@/core/types";
-import { ensureDefaultLayers, createLayout } from "@/core/layout";
+import { createLayout } from "@/core/layout";
 import {
   computeWorldConnectors,
   getLocalConnectors,
@@ -12,32 +12,18 @@ import {
 import { findBestSnapForPiece, updatePieceConnections } from "@/core/snapping";
 import { snapModelToTurntable } from "@/core/turntable-snap";
 import { snapEngineShedToTrack, snapTrainhallToTrack } from "@/core/engine-shed-snap";
-import { cutFlexTrack, bendFlexTrack, flipFlexTrackPiece, isFlexTrack } from "@/core/flextrack";
+import { cutFlexTrack, bendFlexTrack, flipFlexTrackPiece, isFlexTrack, resetFlexTrackToOriginal } from "@/core/flextrack";
 import {
   AddPieceCommand,
-  AddPiecesCommand,
   RemovePieceCommand,
   MovePieceCommand,
-  ToggleFeederCommand,
-  ToggleIsolatorCommand,
-  ToggleCatenaryCommand,
-  ToggleCatenaryFeederCommand,
-  ToggleCatenaryIsolatorCommand,
-  ToggleTurnoutLanternCommand,
-  ToggleTurnoutDecoderCommand,
-  ToggleSignalCommand,
-  SetSignalConfigCommand,
-  ToggleBridgeCommand,
-  MovePiecesToLayerCommand,
-  ApplyRampElevationsCommand,
   AddModelCommand,
   RemoveModelCommand,
   MoveModelCommand,
+  History,
 } from "@/editor/commands";
-import { History } from "@/editor/commands";
 import type { Selection } from "@/editor/selection";
 import {
-  deg2rad,
   normAngle,
   rotate,
   rotateGroupAroundCentroid,
@@ -45,7 +31,6 @@ import {
 } from "@/core/geometry";
 import { getLanguage, getTranslations } from "@/i18n";
 import { exportPieceListCSV, downloadFile } from "@/io/export";
-import { calculateAutoRamp } from "@/core/ramp";
 import type { PlanManager, PlanFormat } from "@/io/plan-manager";
 import type { Renderer } from "@/render/renderer";
 
@@ -276,12 +261,10 @@ export class TrackOperations {
 
     const id = `track-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
     const connectors = computeWorldConnectors(entry, targetTransform);
-    const isFirst = layout.pieces.length === 0;
-
     const isFeeder = isFeederEntry(entry);
     const isIso = isIsolatingEntry(entry);
 
-    let powerFeed = isFirst;
+    let powerFeed = false;
     if ((entry as any)._initialPowerFeed !== undefined) {
       powerFeed = Boolean((entry as any)._initialPowerFeed);
     } else if (isFeeder) {
@@ -757,10 +740,19 @@ export class TrackOperations {
     if (cutLength !== undefined && cutLength > 0) {
       cutFlexTrack(piece, entry, cutLength);
     }
-    if (radius !== undefined || angle !== undefined) {
-      bendFlexTrack(piece, entry, radius, angle);
-    }
+    bendFlexTrack(piece, entry, radius, angle);
     updatePieceConnections(layout.pieces, layout.layers);
+    this.ctx.sync(true);
+  }
+
+  public resetFlexTrack(pieceId: string): void {
+    const layout = this.ctx.getLayout();
+    const piece = layout.pieces.find((p) => p.id === pieceId);
+    if (!piece || !this.ctx.isPieceInteractive(piece)) return;
+    const entry = this.ctx.getCatalogEntry(piece);
+    if (!entry) return;
+
+    resetFlexTrackToOriginal(piece, entry, layout.pieces, layout.layers);
     this.ctx.sync(true);
   }
 }

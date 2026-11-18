@@ -152,6 +152,7 @@ export function getTrackDisplayCategory(
       case "Geraden":
         return "Straights";
       case "Bögen":
+      case "Kurven":
         return "Curves";
       case "Weichen":
         return "Turnouts";
@@ -159,6 +160,10 @@ export function getTrackDisplayCategory(
         return "Crossings";
       case "Zubehör":
         return "Accessories";
+      case "Anschluss":
+        return "Power Feeders";
+      case "Funktionsgleise":
+        return "Functional Tracks";
       default:
         return category;
     }
@@ -167,6 +172,7 @@ export function getTrackDisplayCategory(
       case "Straights":
         return "Geraden";
       case "Curves":
+      case "Kurven":
         return "Bögen";
       case "Turnouts":
         return "Weichen";
@@ -174,6 +180,10 @@ export function getTrackDisplayCategory(
         return "Kreuzungen";
       case "Accessories":
         return "Zubehör";
+      case "Anschluss":
+        return "Anschluss";
+      case "Funktionsgleise":
+        return "Funktionsgleise";
       default:
         return category;
     }

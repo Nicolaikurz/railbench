@@ -501,7 +501,7 @@ function drawSkyscraperTopView(g: Graphics, w: number, d: number, halfW: number,
 }
 
 /** Ringlokschuppen: Fächerförmige Draufsicht mit 3 Gleisachsen, weit geöffneten Toren & Rauchabzügen */
-function drawTrainhallTopView(g: Graphics, w: number, d: number, halfW: number, halfD: number, isSelected: boolean) {
+function drawTrainhallTopView(g: Graphics, w: number, _d: number, halfW: number, halfD: number, isSelected: boolean) {
   const fw = w * 0.38;
   g.poly([
     -fw / 2 + 3, -halfD + 4,

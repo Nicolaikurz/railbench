@@ -5,6 +5,49 @@ import { terrainBrush } from "@/editor/terrain-brush-controller";
 import { boardSketcher } from "@/editor/board-sketcher-controller";
 import type { RenderStateOptions } from "./renderer";
 
+const _segmentBadgeStyleCache = new Map<number, TextStyle>();
+function getSegmentBadgeStyle(color: number): TextStyle {
+  let style = _segmentBadgeStyleCache.get(color);
+  if (!style) {
+    style = new TextStyle({
+      fontSize: 10.5,
+      fill: color,
+      fontWeight: "bold",
+      stroke: { color: 0x0f172a, width: 3 },
+    });
+    _segmentBadgeStyleCache.set(color, style);
+  }
+  return style;
+}
+
+const MEASURE_POINT_TEXT_STYLE = new TextStyle({
+  fontSize: 9,
+  fill: 0xffffff,
+  fontWeight: "bold",
+  stroke: { color: 0x0f172a, width: 2 },
+});
+
+const MEASURE_DIST_TEXT_STYLE = new TextStyle({
+  fontSize: 11,
+  fill: 0xffffff,
+  fontWeight: "bold",
+  align: "center",
+  stroke: { color: 0x0f172a, width: 3 },
+});
+
+const SHORT_CIRCUIT_TEXT_STYLE = new TextStyle({
+  fontSize: 9,
+  fill: 0xffffff,
+  fontWeight: "bold",
+});
+
+const POINT_MARKER_TEXT_STYLE = new TextStyle({
+  fontSize: 12.5,
+  fill: 0xffffff,
+  fontWeight: "bold",
+  stroke: { color: 0x0f172a, width: 3.5 },
+});
+
 export function drawDashedLine(
   g: Graphics,
   x1: number,
@@ -44,12 +87,7 @@ function addSegmentLengthBadge(
   const midY = (p1.y + p2.y) / 2;
   const txt = new Text({
     text: `${Math.round(len)} mm`,
-    style: new TextStyle({
-      fontSize: 10.5,
-      fill: color,
-      fontWeight: "bold",
-      stroke: { color: 0x0f172a, width: 3 },
-    }),
+    style: getSegmentBadgeStyle(color),
   });
   txt.anchor.set(0.5, 0.5);
   txt.position.set(midX, midY - 10);
@@ -291,12 +329,7 @@ export function renderSceneOverlays(
 
       const txtA = new Text({
         text: "A",
-        style: new TextStyle({
-          fontSize: 9,
-          fill: 0xffffff,
-          fontWeight: "bold",
-          stroke: { color: 0x0f172a, width: 2 },
-        }),
+        style: MEASURE_POINT_TEXT_STYLE,
       });
       txtA.anchor.set(0.5, 1);
       txtA.position.set(p1.x, p1.y - 7);
@@ -337,12 +370,7 @@ export function renderSceneOverlays(
 
         const txtB = new Text({
           text: "B",
-          style: new TextStyle({
-            fontSize: 9,
-            fill: 0xffffff,
-            fontWeight: "bold",
-            stroke: { color: 0x0f172a, width: 2 },
-          }),
+          style: MEASURE_POINT_TEXT_STYLE,
         });
         txtB.anchor.set(0.5, 1);
         txtB.position.set(p2.x, p2.y - 7);
@@ -363,13 +391,7 @@ export function renderSceneOverlays(
 
         const txt = new Text({
           text: distStr,
-          style: new TextStyle({
-            fontSize: 11,
-            fill: 0xffffff,
-            fontWeight: "bold",
-            align: "center",
-            stroke: { color: 0x0f172a, width: 3 },
-          }),
+          style: MEASURE_DIST_TEXT_STYLE,
         });
         txt.anchor.set(0.5, 0.5);
         txt.position.set(midX + nx * 16, midY + ny * 16);
@@ -410,11 +432,7 @@ export function renderSceneOverlays(
 
       const lbl = new Text({
         text: `⚡ ${overlayText}`,
-        style: new TextStyle({
-          fontSize: 9,
-          fill: 0xffffff,
-          fontWeight: "bold",
-        }),
+        style: SHORT_CIRCUIT_TEXT_STYLE,
       });
       lbl.anchor.set(0.5, 0.5);
       badgeCont.addChild(lbl);
@@ -463,12 +481,7 @@ export function renderSceneOverlays(
 
       const txt = new Text({
         text: pm.label,
-        style: new TextStyle({
-          fontSize: 12.5,
-          fill: 0xffffff,
-          fontWeight: "bold",
-          stroke: { color: 0x0f172a, width: 3.5 },
-        }),
+        style: POINT_MARKER_TEXT_STYLE,
       });
       txt.anchor.set(0.5, 0.5);
       txt.position.set(0, badgeY);

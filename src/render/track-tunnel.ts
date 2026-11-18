@@ -170,9 +170,11 @@ export function drawTunnel2D(
   bg.stroke({ width: 1, color: 0x94a3b8, alpha: 0.8 });
   badge.addChild(bg);
 
+const TUNNEL_BADGE_TEXT_STYLE = new TextStyle({ fontSize: 9, fill: 0xffffff });
+
   const txt = new Text({
     text: "🚇",
-    style: new TextStyle({ fontSize: 9, fill: 0xffffff }),
+    style: TUNNEL_BADGE_TEXT_STYLE,
   });
   txt.anchor.set(0.5);
   badge.addChild(txt);

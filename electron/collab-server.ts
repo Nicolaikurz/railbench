@@ -131,7 +131,7 @@ export class EmbeddedCollabServer {
   private distDir: string;
 
   constructor() {
-    this.plansDir = path.resolve(process.cwd(), "saved_plans");
+    this.plansDir = path.join(os.homedir(), ".railbench", "saved_plans");
     this.distDir = path.resolve(__dirname, "../dist");
   }
 
@@ -452,8 +452,8 @@ export class EmbeddedCollabServer {
       port: this.actualPort,
       localUrl: `http://localhost:${this.actualPort}`,
       networkUrls: ips.map((ip) => `http://${ip}:${this.actualPort}`),
-      wsUrl: `ws://localhost:${this.actualPort}`,
-      networkWsUrls: ips.map((ip) => `ws://${ip}:${this.actualPort}`),
+      wsUrl: `ws://localhost:${this.actualPort}/collab`,
+      networkWsUrls: ips.map((ip) => `ws://${ip}:${this.actualPort}/collab`),
       password: this.currentPassword,
       defaultRoom: this.currentDefaultRoom,
       connectionsCount: totalConnections,

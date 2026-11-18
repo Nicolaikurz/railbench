@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import * as THREE from "three";
 import { buildTrainHall } from "@/render/viewer-3d-trainhall";
 import { buildRealisticLandscape } from "@/render/viewer-3d-landscape";
-import { buildTrackPiece3D } from "@/render/viewer-3d-track";
+import { buildTrackPiece3D, buildAllTracks3D, freezeStaticTransforms } from "@/render/viewer-3d-track";
 import { buildWoodPlatePiece3D, buildAllWoodPlates3D } from "@/render/viewer-3d-roads";
 import { buildAllModels3D, buildBuildingWoodPlate3D, buildModel3D } from "@/render/viewer-3d-models";
 import { catalogRegistry } from "@/catalog/catalog";
@@ -89,15 +89,17 @@ describe("3D Viewer Benchmark", () => {
       for (const e of cat.entries) entryMap.set(e.id, e);
     }
 
+    const trackItems: any[] = [];
     const woodPlateItems: any[] = [];
     for (const piece of layoutData.pieces) {
       let entry = entryMap.get(piece.catalogId) || catalogRegistry.findEntry(piece.catalogId);
       if (!entry) {
         entry = { id: piece.catalogId, name: piece.catalogId, kind: "straight", length: 188.3 };
       }
-      buildTrackPiece3D(trackGroup, piece, entry, 0, 0, "types", undefined, layoutData);
+      trackItems.push({ piece, entry, startElev: 0, endElev: 0, colorMode: "types" });
       woodPlateItems.push({ piece, entry, startElev: 0, endElev: 0, thickness: 8 });
     }
+    buildAllTracks3D(trackGroup, trackItems, layoutData);
     buildAllWoodPlates3D(woodPlateGroup, woodPlateItems);
 
     const modelsWithElev = (layoutData.models || []).map((m: any) => ({ model: m, elev: 0 }));

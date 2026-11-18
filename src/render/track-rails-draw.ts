@@ -2,10 +2,24 @@ import { Graphics } from "pixi.js";
 import type { CatalogEntry } from "@/catalog/catalog";
 import { isStraightTrackEntry, isCurvedTrackEntry, deg2rad } from "@/core/geometry";
 import { isBufferStopPiece, isFeederEntry } from "@/catalog/catalog";
+import { sampleFlexSplinePoints } from "@/core/flextrack";
 import { drawArcStroke } from "./track-render-utils";
 
 export function drawTrackCenterline(g: Graphics, entry: CatalogEntry, color: number, width: number, alpha: number): void {
   const kind = entry.kind;
+
+  if (entry.customOffsets && entry.customOffsets.length >= 3) {
+    const chordLen = entry.customChordDist ?? entry.length ?? 900;
+    const pts = sampleFlexSplinePoints(chordLen, entry.customOffsets);
+    if (pts.length > 1) {
+      g.moveTo(pts[0]!.x, pts[0]!.y);
+      for (let i = 1; i < pts.length; i++) {
+        g.lineTo(pts[i]!.x, pts[i]!.y);
+      }
+      g.stroke({ width, color, alpha, cap: "round", join: "round" });
+    }
+    return;
+  }
 
   if (isStraightTrackEntry(entry)) {
     const l = entry.length ?? 188.3;
@@ -156,6 +170,27 @@ export function drawTrackCenterline(g: Graphics, entry: CatalogEntry, color: num
 export function drawRails(g: Graphics, entry: CatalogEntry, color: number, gaugeHalf: number): void {
   const kind = entry.kind;
   const railWidth = Math.max(1.1, gaugeHalf * 0.22);
+
+  if (entry.customOffsets && entry.customOffsets.length >= 3) {
+    const chordLen = entry.customChordDist ?? entry.length ?? 900;
+    const pts = sampleFlexSplinePoints(chordLen, entry.customOffsets);
+    if (pts.length > 1) {
+      // Left rail: offset by +gaugeHalf along normal
+      g.moveTo(pts[0]!.x + pts[0]!.nx * gaugeHalf, pts[0]!.y + pts[0]!.ny * gaugeHalf);
+      for (let i = 1; i < pts.length; i++) {
+        g.lineTo(pts[i]!.x + pts[i]!.nx * gaugeHalf, pts[i]!.y + pts[i]!.ny * gaugeHalf);
+      }
+      g.stroke({ width: railWidth, color, cap: "butt", join: "round" });
+
+      // Right rail: offset by -gaugeHalf along normal
+      g.moveTo(pts[0]!.x - pts[0]!.nx * gaugeHalf, pts[0]!.y - pts[0]!.ny * gaugeHalf);
+      for (let i = 1; i < pts.length; i++) {
+        g.lineTo(pts[i]!.x - pts[i]!.nx * gaugeHalf, pts[i]!.y - pts[i]!.ny * gaugeHalf);
+      }
+      g.stroke({ width: railWidth, color, cap: "butt", join: "round" });
+    }
+    return;
+  }
 
   if (isStraightTrackEntry(entry)) {
     const l = entry.length ?? 188.3;
@@ -502,6 +537,19 @@ export function drawSelectionContour(g: Graphics, entry: CatalogEntry, contourWi
   const glowColor = 0x0284c7;
   const glowAlpha = 0.5;
   const contourHalf = contourWidth / 2;
+
+  if (entry.customOffsets && entry.customOffsets.length >= 3) {
+    const chordLen = entry.customChordDist ?? entry.length ?? 900;
+    const pts = sampleFlexSplinePoints(chordLen, entry.customOffsets);
+    if (pts.length > 1) {
+      g.moveTo(pts[0]!.x, pts[0]!.y);
+      for (let i = 1; i < pts.length; i++) {
+        g.lineTo(pts[i]!.x, pts[i]!.y);
+      }
+      g.stroke({ width: contourWidth, color: glowColor, alpha: 0.6, cap: "round", join: "round" });
+    }
+    return;
+  }
 
   if (isStraightTrackEntry(entry)) {
     const l = entry.length ?? 188.3;

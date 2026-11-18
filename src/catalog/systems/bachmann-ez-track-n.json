@@ -1,0 +1,275 @@
+{
+  "id": "bachmann-ez-track-n",
+  "name": "Bachmann E-Z Track N",
+  "manufacturer": "Bachmann",
+  "system": "E-Z Track N",
+  "scale": "N",
+  "gauge": 9,
+  "hasRoadbed": true,
+  "conductors": 2,
+  "entries": [
+    {
+      "id": "44810",
+      "name": "Aufgleiser 5\"",
+      "kind": "straight",
+      "category": "Zubehör",
+      "description": "Gerades Aufgleisgleis mit Straßenüberweg, Länge 127.0 mm (5\")",
+      "length": 127,
+      "gauge": 9
+    },
+    {
+      "id": "44811",
+      "name": "Gerades Gleis 5\"",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Standard-Gerade, Länge 127.0 mm (5\")",
+      "length": 127,
+      "gauge": 9
+    },
+    {
+      "id": "44812",
+      "name": "Gerades Gleis 10\"",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Doppelte Gerade, Länge 254.0 mm (10\")",
+      "length": 254,
+      "gauge": 9
+    },
+    {
+      "id": "44813",
+      "name": "Gerades Gleis 2.25\"",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Ausgleichs-Gerade für Parallelabstand, Länge 57.15 mm (2.25\")",
+      "length": 57.15,
+      "gauge": 9
+    },
+    {
+      "id": "44814",
+      "name": "Gerades Gleis 1.25\"",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Kurzes Ausgleichsstück, Länge 31.75 mm (1.25\")",
+      "length": 31.75,
+      "gauge": 9
+    },
+    {
+      "id": "44829",
+      "name": "Prellbockgleis",
+      "kind": "buffer-stop",
+      "category": "Zubehör",
+      "description": "Gleis mit beleuchtetem Prellbock, Länge 63.5 mm",
+      "length": 63.5,
+      "gauge": 9
+    },
+    {
+      "id": "44859",
+      "name": "Anschlussgleis / Aufgleiser 5\"",
+      "kind": "straight",
+      "category": "Geraden",
+      "description": "Gerades Anschlussgleis mit Kabel, Länge 127.0 mm (5\")",
+      "length": 127,
+      "gauge": 9
+    },
+    {
+      "id": "44801",
+      "name": "Gebogenes Gleis 11.25\" R 30°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Standardbogen Radius 285.75 mm (11.25\"), 30° (12 Stk./Kreis)",
+      "radius": 285.75,
+      "angle": 30,
+      "gauge": 9
+    },
+    {
+      "id": "44802",
+      "name": "Gebogenes Gleis 12.50\" R 30°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Parallelbogen Radius 317.5 mm (12.5\"), 30° (12 Stk./Kreis)",
+      "radius": 317.5,
+      "angle": 30,
+      "gauge": 9
+    },
+    {
+      "id": "44803",
+      "name": "Gebogenes Gleis 19\" R 15°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Großkreisbogen Radius 482.6 mm (19\"), 15°",
+      "radius": 482.6,
+      "angle": 15,
+      "gauge": 9
+    },
+    {
+      "id": "44804",
+      "name": "Gebogenes Gleis 17.50\" R 15°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Bogen Radius 444.5 mm (17.5\"), 15°",
+      "radius": 444.5,
+      "angle": 15,
+      "gauge": 9
+    },
+    {
+      "id": "44805",
+      "name": "Gebogenes Gleis 14\" R 22.5°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Bogen Radius 355.6 mm (14\"), 22.5° (16 Stk./Kreis)",
+      "radius": 355.6,
+      "angle": 22.5,
+      "gauge": 9
+    },
+    {
+      "id": "44806",
+      "name": "Gebogenes Gleis 15.5\" R 22.5°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Bogen Radius 393.7 mm (15.5\"), 22.5° (16 Stk./Kreis)",
+      "radius": 393.7,
+      "angle": 22.5,
+      "gauge": 9
+    },
+    {
+      "id": "44807",
+      "name": "Gebogenes Gleis 16.5\" R 22.5°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Bogen Radius 419.1 mm (16.5\"), 22.5° (16 Stk./Kreis)",
+      "radius": 419.1,
+      "angle": 22.5,
+      "gauge": 9
+    },
+    {
+      "id": "44808",
+      "name": "Gebogenes Gleis 18\" R 15°",
+      "kind": "curve",
+      "category": "Bögen",
+      "description": "Bogen Radius 457.2 mm (18\"), 15°",
+      "radius": 457.2,
+      "angle": 15,
+      "gauge": 9
+    },
+    {
+      "id": "44840",
+      "name": "Kreuzung 90°",
+      "kind": "crossing",
+      "category": "Kreuzungen",
+      "description": "Rechtwinklige Kreuzung 90°, Länge 127.0 mm (5\")",
+      "length": 127,
+      "angle": 90,
+      "gauge": 9
+    },
+    {
+      "id": "44841",
+      "name": "Kreuzung 45°",
+      "kind": "crossing",
+      "category": "Kreuzungen",
+      "description": "Kreuzung 45°, Länge 127.0 mm (5\")",
+      "length": 127,
+      "angle": 45,
+      "gauge": 9
+    },
+    {
+      "id": "44842",
+      "name": "Kreuzung 30°",
+      "kind": "crossing",
+      "category": "Kreuzungen",
+      "description": "Kreuzung 30°, Länge 127.0 mm (5\")",
+      "length": 127,
+      "angle": 30,
+      "gauge": 9
+    },
+    {
+      "id": "44851",
+      "name": "Weiche #6 links",
+      "kind": "turnout-left",
+      "category": "Weichen",
+      "description": "Schlanke Weiche #6 links, Länge 165.0 mm, Abzweig R482.6 mm / 10°",
+      "length": 165,
+      "branchRadius": 482.6,
+      "branchAngle": 10,
+      "gauge": 9
+    },
+    {
+      "id": "44852",
+      "name": "Weiche #6 rechts",
+      "kind": "turnout-right",
+      "category": "Weichen",
+      "description": "Schlanke Weiche #6 rechts, Länge 165.0 mm, Abzweig R482.6 mm / 10°",
+      "length": 165,
+      "branchRadius": 482.6,
+      "branchAngle": 10,
+      "gauge": 9
+    },
+    {
+      "id": "44853",
+      "name": "Gleiswechsel links Single Crossover #6",
+      "kind": "turnout-left",
+      "category": "Weichen",
+      "description": "Gleiswechsel #6 links, Länge 165.0 mm, Abzweig 10°",
+      "length": 165,
+      "branchRadius": 482.6,
+      "branchAngle": 10,
+      "gauge": 9
+    },
+    {
+      "id": "44854",
+      "name": "Gleiswechsel rechts Single Crossover #6",
+      "kind": "turnout-right",
+      "category": "Weichen",
+      "description": "Gleiswechsel #6 rechts, Länge 165.0 mm, Abzweig 10°",
+      "length": 165,
+      "branchRadius": 482.6,
+      "branchAngle": 10,
+      "gauge": 9
+    },
+    {
+      "id": "44855",
+      "name": "Doppelkreuzungsweiche #6 Double Crossover",
+      "kind": "double-slip",
+      "category": "Weichen",
+      "description": "Hosenträger-Verbindung 4-fach, Länge 165.0 mm, Abzweig 10°",
+      "length": 165,
+      "branchRadius": 482.6,
+      "branchAngle": 10,
+      "gauge": 9
+    },
+    {
+      "id": "44856",
+      "name": "Y-Weiche #6 Wye",
+      "kind": "turnout-left",
+      "category": "Weichen",
+      "description": "Symmetrische Y-Weiche, Länge 127.0 mm, Abzweig je 5°",
+      "length": 127,
+      "radius": 482.6,
+      "angle": 5,
+      "branchRadius": 482.6,
+      "branchAngle": 5,
+      "gauge": 9
+    },
+    {
+      "id": "44861",
+      "name": "Standardweiche links 11.25\" R",
+      "kind": "turnout-left",
+      "category": "Weichen",
+      "description": "Standardweiche links, Länge 127.0 mm, Abzweig R285.75 mm / 30°",
+      "length": 127,
+      "branchRadius": 285.75,
+      "branchAngle": 30,
+      "gauge": 9
+    },
+    {
+      "id": "44862",
+      "name": "Standardweiche rechts 11.25\" R",
+      "kind": "turnout-right",
+      "category": "Weichen",
+      "description": "Standardweiche rechts, Länge 127.0 mm, Abzweig R285.75 mm / 30°",
+      "length": 127,
+      "branchRadius": 285.75,
+      "branchAngle": 30,
+      "gauge": 9
+    }
+  ]
+}

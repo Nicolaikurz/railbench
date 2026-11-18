@@ -5,8 +5,96 @@ export const deg2rad = (d: number) => (d * Math.PI) / 180;
 export const rad2deg = (r: number) => (r * 180) / Math.PI;
 export const normAngle = (a: number) => ((a % 360) + 360) % 360;
 
+/** Prüft, ob ein Gleisstück als Freiform-/Spline-Flexgleis (mit Pivot-Offsets) definiert ist. */
+export function isSplineTrackEntry(entry?: CatalogEntry | null): boolean {
+  return Boolean(entry?.customOffsets && entry.customOffsets.length >= 3);
+}
+
+/**
+ * Berechnet Auslenkung h und Ableitung dh/dt für einen Catmull-Rom/Cubic-Hermite Spline
+ * mit 3 Pivot-Offsets [h1, h2, h3] an t = [0.25, 0.50, 0.75] und festen Endpunkten (0 an t=0 und t=1).
+ */
+export function evaluateFlexSpline(offsets: number[], t: number): { h: number; dh: number } {
+  const h1 = offsets[0] ?? 0;
+  const h2 = offsets[1] ?? 0;
+  const h3 = offsets[2] ?? 0;
+
+  const w = 0.25;
+  // Tangenten an den inneren Knoten (Zentraldifferenzen)
+  const m1 = 2 * h2;
+  const m2 = 2 * (h3 - h1);
+  const m3 = -2 * h2;
+  // Tangenten an den Endpunkten
+  const m0 = 2 * (4 * h1 - h2);
+  const m4 = -2 * (4 * h3 - h2);
+
+  const clampedT = Math.max(0, Math.min(1, t));
+  let i = 0;
+  if (clampedT <= 0.25) i = 0;
+  else if (clampedT <= 0.5) i = 1;
+  else if (clampedT <= 0.75) i = 2;
+  else i = 3;
+
+  const u = Math.max(0, Math.min(1, (clampedT - i * w) / w));
+
+  let yA = 0;
+  let yB = 0;
+  let mA = 0;
+  let mB = 0;
+
+  if (i === 0) {
+    yA = 0; yB = h1; mA = m0; mB = m1;
+  } else if (i === 1) {
+    yA = h1; yB = h2; mA = m1; mB = m2;
+  } else if (i === 2) {
+    yA = h2; yB = h3; mA = m2; mB = m3;
+  } else {
+    yA = h3; yB = 0; mA = m3; mB = m4;
+  }
+
+  const sA = mA * w;
+  const sB = mB * w;
+
+  const u2 = u * u;
+  const u3 = u2 * u;
+
+  const H0 = 2 * u3 - 3 * u2 + 1;
+  const H1 = u3 - 2 * u2 + u;
+  const H2 = -2 * u3 + 3 * u2;
+  const H3 = u3 - u2;
+
+  const h = H0 * yA + H1 * sA + H2 * yB + H3 * sB;
+
+  const dH0 = 6 * u2 - 6 * u;
+  const dH1 = 3 * u2 - 4 * u + 1;
+  const dH2 = -6 * u2 + 6 * u;
+  const dH3 = 3 * u2 - 2 * u;
+
+  const dh = (dH0 * yA + dH1 * sA + dH2 * yB + dH3 * sB) / w;
+
+  return { h, dh };
+}
+
+/**
+ * Berechnet die Gesamtlänge des Splines durch numerische Integration.
+ */
+export function computeFlexSplineLength(chordDist: number, offsets: number[]): number {
+  let len = 0;
+  const steps = 16;
+  const dt = 1 / steps;
+  for (let i = 0; i < steps; i++) {
+    const tMid = (i + 0.5) * dt;
+    const { dh } = evaluateFlexSpline(offsets, tMid);
+    const dx = dt * chordDist;
+    const dy = dh * dt;
+    len += Math.hypot(dx, dy);
+  }
+  return len;
+}
+
 /** Prüft, ob ein Katalogeintrag geometrisch ein Bogengleis ist (inkl. gebogener Anschluss-/Flexgleise). */
 export function isCurvedTrackEntry(entry: CatalogEntry): boolean {
+  if (isSplineTrackEntry(entry)) return false;
   return (
     entry.kind === "curve" ||
     ((entry.kind === "flex" || entry.kind === "feeder") &&
@@ -16,6 +104,7 @@ export function isCurvedTrackEntry(entry: CatalogEntry): boolean {
 
 /** Prüft, ob ein Katalogeintrag geometrisch ein gerades Einzelgleis ist (inkl. Einspeise-, Trenn-, Entkupplungs- und Prellbockgleis). */
 export function isStraightTrackEntry(entry: CatalogEntry): boolean {
+  if (isSplineTrackEntry(entry)) return false;
   if (isCurvedTrackEntry(entry)) return false;
   const kind = entry.kind;
   return (
@@ -180,6 +269,25 @@ export function distanceToTrackPiece(
       const d2 = distToSegment(local, { x: midX, y: -midX }, { x: midX, y: midX });
       return Math.min(d1, d2);
     }
+  }
+
+  if (isSplineTrackEntry(entry)) {
+    const chordLen = entry.customChordDist ?? entry.length ?? 900;
+    let minD = Infinity;
+    let prevX = 0;
+    let prevY = 0;
+    const steps = 16;
+    for (let i = 1; i <= steps; i++) {
+      const t = i / steps;
+      const { h } = evaluateFlexSpline(entry.customOffsets!, t);
+      const curX = t * chordLen;
+      const curY = h;
+      const d = distToSegment(local, { x: prevX, y: prevY }, { x: curX, y: curY });
+      if (d < minD) minD = d;
+      prevX = curX;
+      prevY = curY;
+    }
+    return minD;
   }
 
   if (isStraightTrackEntry(entry)) {
@@ -362,6 +470,11 @@ export function getPieceLocalCenter(entry: CatalogEntry): Vec2 {
       y: r * (1 - Math.cos(halfRad)),
     };
   }
+  if (isSplineTrackEntry(entry)) {
+    const l = entry.customChordDist ?? entry.length ?? 900;
+    const { h } = evaluateFlexSpline(entry.customOffsets!, 0.5);
+    return { x: l / 2, y: h };
+  }
   if (isStraightTrackEntry(entry) || kind === "turnout-left" || kind === "turnout-right" || kind === "three-way" || kind === "double-slip") {
     const l = entry.length ?? (kind === "flex" ? 900 : 188.3);
     return { x: l / 2, y: 0 };
@@ -535,7 +648,14 @@ export function isPieceInSelectionBox(
   const isCurvedTurnoutR = kind === "curved-turnout-right" || (kind === "turnout-right" && entry.radius && !entry.length);
   const sampleSteps = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
 
-  if (isStraightTrackEntry(entry) || isStraightTurnout || kind === "three-way" || kind === "double-slip") {
+  if (isSplineTrackEntry(entry)) {
+    const chordLen = entry.customChordDist ?? entry.length ?? 900;
+    for (const t of sampleSteps) {
+      const { h } = evaluateFlexSpline(entry.customOffsets!, t);
+      const pt = transformPoint({ x: chordLen * t, y: h }, piece.transform);
+      if (isPointInside(pt)) return true;
+    }
+  } else if (isStraightTrackEntry(entry) || isStraightTurnout || kind === "three-way" || kind === "double-slip") {
     const l = entry.length ?? 188.3;
     for (const t of sampleSteps) {
       const pt = transformPoint({ x: l * t, y: 0 }, piece.transform);

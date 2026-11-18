@@ -1,7 +1,6 @@
 import type { Connector, Transform } from "@/core/types";
-import { deg2rad, normAngle, transformPoint } from "@/core/geometry";
-import type { LocalConnector, CatalogEntry, Catalog } from "./types";
-import { maerklinCCatalog, maerklinCEntries } from "./systems/maerklin-c-h0";
+import { deg2rad, normAngle, transformPoint, evaluateFlexSpline } from "@/core/geometry";
+import type { LocalConnector, CatalogEntry } from "./types";
 
 // Re-export aller Typen und Gleissysteme
 export * from "./types";
@@ -16,6 +15,12 @@ export * from "./systems/maerklin-z";
 export * from "./systems/piko-a-h0";
 export * from "./systems/roco-line-h0";
 export * from "./systems/fleischmann-piccolo-n";
+export * from "./systems/peco-streamline-h0-code100";
+export * from "./systems/peco-streamline-n-code55";
+export * from "./systems/kato-unitrack-n";
+export * from "./systems/kato-unitrack-ho";
+export * from "./systems/bachmann-ez-track-h0";
+export * from "./systems/bachmann-ez-track-n";
 export * from "./systems/tillig-tt";
 
 export * from "./systems/generic-streets-h0";
@@ -28,22 +33,6 @@ export * from "./systems/generic-streets-g";
 export * from "./systems/lenz-0";
 export * from "./systems/maerklin-1";
 export * from "./systems/lgb-g";
-
-
-// Abwärtskompatibilität
-export const cGleisCatalogEntries = maerklinCEntries;
-
-export interface C_Gleise {
-  id: string;
-  name: string;
-  description: string;
-}
-
-export const cGleisCatalog: C_Gleise[] = maerklinCEntries.map((e) => ({
-  id: e.id,
-  name: e.name,
-  description: e.description,
-}));
 
 /** Prüft, ob ein Gleisstück ein Prellbock / Buffer Stop ist. */
 export function isBufferStopPiece(entry?: CatalogEntry | null): boolean {
@@ -281,9 +270,37 @@ export function getLocalConnectors(entry?: CatalogEntry | null): LocalConnector[
 export function computeWorldConnectors(
   entry: CatalogEntry | undefined | null,
   transform: Transform,
-  piece?: { customLength?: number; customRadius?: number; customAngle?: number },
+  piece?: {
+    customLength?: number;
+    customRadius?: number;
+    customAngle?: number;
+    customOffsets?: number[];
+    customChordDist?: number;
+  },
 ): Connector[] {
   if (!entry) return [];
+
+  if (piece?.customOffsets && piece.customOffsets.length >= 3) {
+    const chordLen = piece.customChordDist ?? piece.customLength ?? entry.length ?? 900;
+    const { dh: dh0 } = evaluateFlexSpline(piece.customOffsets, 0);
+    const { dh: dh1 } = evaluateFlexSpline(piece.customOffsets, 1);
+    const a0 = Math.atan2(dh0, chordLen) * (180 / Math.PI);
+    const a1 = Math.atan2(dh1, chordLen) * (180 / Math.PI);
+    const locals = [
+      { x: 0, y: 0, angle: normAngle(180 + a0) },
+      { x: chordLen, y: 0, angle: normAngle(a1) },
+    ];
+    if (!transform) return [];
+    return locals.map((lc) => {
+      const wp = transformPoint(lc, transform);
+      return {
+        x: wp.x,
+        y: wp.y,
+        angle: normAngle((transform.rotation ?? 0) + lc.angle),
+      };
+    });
+  }
+
   let effectiveEntry = entry;
   if (piece && (piece.customLength !== undefined || piece.customRadius !== undefined || piece.customAngle !== undefined)) {
     const isCurved = Boolean(piece.customRadius && piece.customAngle && Math.abs(piece.customAngle) > 0.1);
@@ -306,11 +323,4 @@ export function computeWorldConnectors(
       angle: normAngle((transform.rotation ?? 0) + lc.angle),
     };
   });
-}
-
-/** Lädt einen Katalog über eine URL */
-export async function loadCatalog(url: string): Promise<Catalog> {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Katalog nicht ladbar: ${url}`);
-  return res.json();
 }

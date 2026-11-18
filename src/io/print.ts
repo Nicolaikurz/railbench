@@ -1,10 +1,9 @@
 import { Container, Graphics } from "pixi.js";
-import type { Layout, Layer, TrackPiece } from "@/core/types";
+import type { Layout, Layer } from "@/core/types";
 import { catalogRegistry, type Catalog, type CatalogEntry } from "@/catalog/catalog";
 import type { Renderer } from "@/render/renderer";
 import { createTrackGraphics } from "@/render/track-sprite";
-import { createBaseboardGraphics } from "@/render/baseboard-sprite";
-import { getPieceListSummary, getLayerPieceListSummary, type PieceSummaryItem } from "@/io/export";
+import { getPieceListSummary, getLayerPieceListSummary } from "@/io/export";
 import { getTranslations } from "@/i18n";
 import { getBaseboards, getBaseboardBounds } from "@/core/layout";
 import {
@@ -225,7 +224,7 @@ export async function renderLayerToDataUrl(
   } catch (err) {
     console.error("Failed to extract layer canvas for print:", err);
   } finally {
-    wrapper.destroy({ children: true });
+    wrapper.destroy({ children: true, context: true, texture: true, textureSource: true });
   }
 
   return dataUrl;
@@ -373,7 +372,6 @@ export async function openPrintDialog(
 
   const closeBtn = modal.querySelector("#print-modal-close") as HTMLButtonElement;
   const cancelBtn = modal.querySelector("#print-btn-cancel") as HTMLButtonElement;
-  const systemBtn = modal.querySelector("#print-btn-system") as HTMLButtonElement;
   const exportPdfBtn = modal.querySelector("#print-btn-export-pdf") as HTMLButtonElement;
   const previewScroll = modal.querySelector("#print-preview-scroll") as HTMLElement;
   const pageBadge = modal.querySelector("#print-page-count-badge") as HTMLElement;

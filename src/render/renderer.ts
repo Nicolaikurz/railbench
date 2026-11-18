@@ -1,16 +1,14 @@
-import { Application, Container, Graphics, Text, TextStyle, TexturePool } from "pixi.js";
+import { Application, Container, Graphics, TexturePool } from "pixi.js";
 import type { Layout, ColorMode, TrackPiece, BaseboardConfig } from "@/core/types";
 import { catalogRegistry, type Catalog, type CatalogEntry } from "@/catalog/catalog";
 import type { SimulationSummary, ShortCircuitDetectionResult } from "@/core/simulation";
-import { getTranslations } from "@/i18n";
 import { createTrackGraphics } from "./track-sprite";
-import { createBaseboardGraphics, getStyleColors } from "./baseboard-sprite";
+import { createBaseboardGraphics } from "./baseboard-sprite";
 import { createModel2DGraphics } from "./model-sprite";
-import { getBaseboards, getBaseboardBounds, getBaseboardPolygon, getLayerPlatePolygon } from "@/core/layout";
-import { computeTableTrackCutouts } from "@/core/table-cutout";
+import { getBaseboards, getBaseboardBounds } from "@/core/layout";
 import type { BaseboardSnapGuide } from "@/core/baseboard-snapping";
 import { getConnectorSnapStatus } from "@/core/snapping";
-import { isFlexTrack } from "@/core/flextrack";
+import { isFlexTrack, getFlexTrackPointAt } from "@/core/flextrack";
 import {
   getBuildingDoorConnectors,
   isConnectorConnectedToBuilding,
@@ -26,22 +24,6 @@ export interface MeasureState {
   scaleRatio?: number;
   scaleName?: string;
   showDeltas?: boolean;
-}
-
-function drawDashedLine(g: Graphics, x1: number, y1: number, x2: number, y2: number, dash = 4, gap = 4) {
-  const dx = x2 - x1;
-  const dy = y2 - y1;
-  const len = Math.hypot(dx, dy);
-  if (len === 0) return;
-  const cos = dx / len;
-  const sin = dy / len;
-  let dist = 0;
-  while (dist < len) {
-    const curDash = Math.min(dash, len - dist);
-    g.moveTo(x1 + cos * dist, y1 + sin * dist);
-    g.lineTo(x1 + cos * (dist + curDash), y1 + sin * (dist + curDash));
-    dist += dash + gap;
-  }
 }
 
 export interface RenderStateOptions {
@@ -73,6 +55,7 @@ export class Renderer {
   private modelsLayer = new Container();
   private tracksLayer = new Container();
   private overlayLayer = new Container();
+  private overlayGraphics = new Graphics();
   private currentTheme: "light" | "dark" = "light";
 
   getBaseboardContainer(): Container {
@@ -83,7 +66,11 @@ export class Renderer {
     while (layer.children.length > 0) {
       const child = layer.children[0]!;
       layer.removeChild(child);
-      child.destroy({ children: true });
+      if (child === this.overlayGraphics) {
+        this.overlayGraphics.clear();
+      } else {
+        child.destroy({ children: true, context: true, texture: true, textureSource: true });
+      }
     }
   }
 
@@ -192,7 +179,7 @@ export class Renderer {
     let selectedModels = "";
     for (let i = 0; i < models.length; i++) {
       const m = models[i]!;
-      hash = (hash * 31 + (m.transform.x | 0) + ((m.transform.y | 0) << 5) + ((m.transform.rotation | 0) << 10) + ((m.elevation ?? 0) | 0)) | 0;
+      hash = (hash * 31 + (m.transform.x | 0) + ((m.transform.y | 0) << 5) + (((m.transform.rotation * 10) | 0) << 10) + (((m.elevation ?? 0) * 10) | 0)) | 0;
       if (options.selectedIds && options.selectedIds.has(m.id)) {
         selectedModels += m.id + ",";
       }
@@ -208,12 +195,44 @@ export class Renderer {
       const p = pieces[i]!;
       const eStart = p.elevation?.start ?? 0;
       const eEnd = p.elevation?.end ?? eStart;
-      piecesHash = (piecesHash * 31 + (p.transform.x | 0) + ((p.transform.y | 0) << 5) + ((p.transform.rotation | 0) << 10) + ((eStart | 0) << 15) + ((eEnd | 0) << 20)) | 0;
+      const cLen = p.customLength ?? 0;
+      const cRad = p.customRadius ?? 0;
+      const cAng = p.customAngle ?? 0;
+      const flags = (p.powerFeed ? 1 : 0) |
+                    (p.isIsolator ? 2 : 0) |
+                    (p.hasCatenary ? 4 : 0) |
+                    (p.catenaryPowerFeed ? 8 : 0) |
+                    (p.catenaryIsolator ? 16 : 0) |
+                    (p.hasLantern ? 32 : 0) |
+                    (p.hasDecoder ? 64 : 0) |
+                    (p.hasSignal ? 128 : 0) |
+                    (p.hasBridge ? 256 : 0) |
+                    (p.hasTunnel ? 512 : 0);
+      const isoIdx = (p.isolatedConnectorIndex ?? 0) + 1;
+      const flexChord = p.customChordDist ? (p.customChordDist * 10) | 0 : 0;
+      let flexOffHash = 0;
+      if (p.customOffsets) {
+        for (let oi = 0; oi < p.customOffsets.length; oi++) {
+          flexOffHash = (flexOffHash * 31 + (((p.customOffsets[oi] ?? 0) * 10) | 0)) | 0;
+        }
+      }
+      piecesHash = (piecesHash * 31 + (p.transform.x | 0) + ((p.transform.y | 0) << 5) + (((p.transform.rotation * 10) | 0) << 10) + (((eStart * 10) | 0) << 15) + (((eEnd * 10) | 0) << 20) + ((cLen * 10) | 0) + ((cRad * 10) | 0) + ((cAng * 10) | 0) + flags + (isoIdx << 10) + flexChord + flexOffHash) | 0;
+      for (let ci = 0; ci < p.connectors.length; ci++) {
+        const c = p.connectors[ci]!;
+        piecesHash = (piecesHash * 31 + (c.x | 0) + ((c.y | 0) << 4) + (c.connectedTo ? 1 : 0)) | 0;
+      }
       if (options.selectedIds && options.selectedIds.has(p.id)) {
         selectedTracks += p.id + ",";
       }
     }
-    const prevPieces = options.previewPieces?.length ?? 0;
+    let prevPiecesHash = 0;
+    if (options.previewPieces && options.previewPieces.length > 0) {
+      prevPiecesHash = options.previewPieces.length;
+      for (let pi = 0; pi < options.previewPieces.length; pi++) {
+        const pp = options.previewPieces[pi]!;
+        prevPiecesHash = (prevPiecesHash * 31 + (pp.transform.x | 0) + ((pp.transform.y | 0) << 4) + (((pp.transform.rotation * 10) | 0) << 8)) | 0;
+      }
+    }
     let prevElevHash = 0;
     if (options.previewElevations && options.previewElevations.size > 0) {
       for (const [id, val] of options.previewElevations) {
@@ -228,10 +247,17 @@ export class Renderer {
       layerHash = (layerHash * 31 + (h | 0) + ((l.visible === false ? 0 : 1) << 8)) | 0;
     }
     const catId = catalog?.id ?? "";
-    const powerHash = options.powerSimulation ? options.powerSimulation.results.size : 0;
-    const scHash = options.shortCircuit ? options.shortCircuit.shortCircuitPieces.size : 0;
+    let powerHash = "0";
+    if (options.powerSimulation) {
+      const ps = options.powerSimulation;
+      powerHash = `${ps.feedVoltage}_${ps.catenaryFeedVoltage ?? ""}_${ps.locoCurrentMa}_${ps.locoCount}_${ps.totalCurrentAmps}_${ps.minVoltage}_${ps.maxDropPercent}_${ps.optimalCount}_${ps.warningCount}_${ps.criticalCount}_${ps.disconnectedCount}_${ps.catenaryMinVoltage ?? ""}_${ps.results.size}`;
+    }
+    let scHash = "0";
+    if (options.shortCircuit) {
+      scHash = `${options.shortCircuit.hasShortCircuit ? 1 : 0}_${options.shortCircuit.shortCircuitPieces.size}_${options.shortCircuit.shortCircuitPoints.length}`;
+    }
 
-    return `${piecesHash}_${selectedTracks}_${prevPieces}_${prevElevHash}_${layerHash}_${layout.activeLayerId || ""}_${catId}_${options.colorMode || ""}_${Boolean(options.showColorCode)}_${Boolean(options.showTrackLabels)}_${Boolean(options.showConnectors)}_${Boolean(options.showPowerDrop)}_${powerHash}_${scHash}`;
+    return `${piecesHash}_${selectedTracks}_${prevPiecesHash}_${prevElevHash}_${layerHash}_${layout.activeLayerId || ""}_${catId}_${layout.feedVoltage ?? ""}_${layout.catenaryFeedVoltage ?? ""}_${layout.catenaryCircuitMode || ""}_${layout.locoCurrentMa ?? ""}_${layout.locoCount ?? ""}_${layout.turnoutLanternCurrentMa ?? ""}_${layout.turnoutDecoderCurrentMa ?? ""}_${layout.trainCurrentAmps ?? ""}_${options.colorMode || ""}_${Boolean(options.showColorCode)}_${Boolean(options.showTrackLabels)}_${Boolean(options.showConnectors)}_${Boolean(options.showPowerDrop)}_${powerHash}_${scHash}`;
   }
 
   drawGrid(size = 50, extent = 6000) {
@@ -612,7 +638,8 @@ export class Renderer {
 
     // 2. Overlays rendern (Connectors, Snap-Ziele)
     this.clearLayer(this.overlayLayer);
-    const ov = new Graphics();
+    const ov = this.overlayGraphics;
+    ov.clear();
     this.overlayLayer.addChild(ov);
 
     if (options.showConnectors) {
@@ -680,7 +707,7 @@ export class Renderer {
 
             if ((isSelected || isHovered) && !isInactiveLayer) {
               const rad = deg2rad(conn.angle);
-              const plusDist = 15;
+              const plusDist = 28;
               const px = conn.x + Math.cos(rad) * plusDist;
               const py = conn.y + Math.sin(rad) * plusDist;
 
@@ -767,6 +794,27 @@ export class Renderer {
             ov.fill({ color: 0xffffff });
             ov.circle(flexConn.x, flexConn.y, 12);
             ov.stroke({ width: 1, color: 0x38bdf8, alpha: 0.5 });
+          }
+
+          if (rawEntry && piece.connectors.length >= 2) {
+            const fractions = [0.25, 0.5, 0.75];
+            for (const frac of fractions) {
+              const pt = getFlexTrackPointAt(piece, rawEntry, frac);
+              const isCenter = frac === 0.5;
+              const outerR = isCenter ? 11 : 9;
+              const midR = isCenter ? 7.5 : 6;
+              const innerR = isCenter ? 5 : 4;
+              const dotR = isCenter ? 2 : 1.5;
+
+              ov.circle(pt.x, pt.y, outerR);
+              ov.stroke({ width: 1.5, color: 0x38bdf8, alpha: isCenter ? 0.7 : 0.45 });
+              ov.circle(pt.x, pt.y, midR);
+              ov.stroke({ width: 2.2, color: 0x0284c7, alpha: 0.95 });
+              ov.circle(pt.x, pt.y, innerR);
+              ov.fill({ color: 0x06b6d4, alpha: 0.95 });
+              ov.circle(pt.x, pt.y, dotR);
+              ov.fill({ color: 0xffffff });
+            }
           }
         }
       }

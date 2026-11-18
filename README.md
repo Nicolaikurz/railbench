@@ -1,4 +1,4 @@
-# RAILbench – Model Railway Track Planner (v0.6.0)
+# RAILbench – Model Railway Track Planner (v0.6.1)
 
 An intuitive, fast, and precise model railway CAD track planning, 3D visualization, terrain sculpting, and electrical simulation application built with **TypeScript + PixiJS v8 + Three.js + Vite + Electron**.
 <img width="2346" height="1428" alt="Screenshot From 2026-11-14 21-49-15" src="https://github.com/user-attachments/assets/33434aab-9b8e-4923-9fc9-fb291fcc4329" />
@@ -6,55 +6,77 @@ An intuitive, fast, and precise model railway CAD track planning, 3D visualizati
 ---
 
 > [!IMPORTANT]
-> **Release 0.6.0 Multi-Platform Binaries**:
-> Release **0.6.0** provides standalone executables for **Windows (`x64`, `arm64`)**, **macOS (`arm64` Apple Silicon M1–M4, `x64` Intel)**, and **Linux (`x86_64`, `arm64` AppImage & Flatpak)**.
+> **Release 0.6.1 Multi-Platform Binaries**:
+> Release **0.6.1** provides standalone executables for **Windows (`x64`, `arm64`)**, **macOS (`arm64` Apple Silicon M1–M4, `x64` Intel)**, and **Linux (`x86_64`, `arm64` AppImage & Flatpak)**.
+
+---
+
+## Why RAILbench?
+
+I originally started developing **RAILbench** for myself out of pure necessity. As a dedicated Linux user, I spent a lot of time looking for a modern, fluid, and native track planning tool for Linux, but simply couldn't find one that met my expectations. I tried running several established Windows track planners through Wine and Bottles, but the experience was never satisfying—suffering from visual glitches, font rendering bugs, and clunky input performance.
+
+Another major frustration for me was the direction many modern tools are taking: requiring an active internet connection just to load basic track libraries, or being forced entirely into web browsers. When traveling, working on a train, or designing in a hobby basement or workshop without dependable Wi-Fi, software should just work seamlessly. RAILbench is built with a strict **100% offline-first** philosophy—every track geometry, manufacturer catalog, 3D asset, and electrical simulation is completely self-contained on your machine.
+
+What began as a personal hobby project quickly turned into something much bigger, and I didn't want it to remain an isolated "island solution" just for myself. I wanted to share it with the wider model railway community so that other enthusiasts—whether running **Linux, macOS, or Windows**—have access to a free, fast, and modern track planner.
+
+Because what works well for my personal layout planning might not always fit everyone else's workflow, **I am genuinely happy about any feedback, critique, and suggestions!** Whether you discover an edge case, have an idea for an enhancement, or notice a missing track system from your favorite manufacturer, please don't hesitate to open an issue or start a discussion. Your feedback helps make RAILbench better for everyone.
 
 ---
 
 ## Running Pre-Built Binaries (Windows, macOS & Linux)
 
-### 🪟 Windows (`x64` & `arm64`)
+### 🪟 Windows (`x64` & `arm64`) – Portable Directory & ZIP
 1. **Download**:
-   * **Unpacked Portable Folder**: `win-unpacked` (`x64`) or `win-arm64-unpacked` (`arm64`).
+   * **Portable ZIP Archive**: `railbench-0.6.1-portable-x64.zip` (Intel/AMD) or `railbench-0.6.1-portable-arm64.zip` (ARM / Snapdragon).
+   * Or use the unpacked folder: `win-unpacked` (`x64`) or `win-arm64-unpacked` (`arm64`).
 2. **Run**:
-   * Double-click `railbench.exe` inside the unpacked folder. No installation or administrator privileges are required.
+   * Extract the ZIP and double-click **`railbench.exe`**.
+   * **No installation** and **no administrator privileges** required. Instant startup without extracting to temporary directories.
 3. **Windows Defender SmartScreen Note**:
    * Because the open-source binary is not signed with a commercial EV certificate, Windows SmartScreen may show an *"Windows protected your PC"* prompt on first launch. Click **More info** (*Weitere Informationen*) $\rightarrow$ **Run anyway** (*Trotzdem ausführen*).
 
 ### 🍎 macOS (Apple Silicon `arm64` & Intel `x64`)
-1. **Download & Extract**:
-   * **Apple Silicon (M1 / M2 / M3 / M4)**: `railbench-0.6.0-mac-arm64.zip`.
-   * **Intel Mac**: `railbench-0.6.0-mac-x64.zip` (or `.dmg`)
-   * Double-click the `.zip` file to extract **`railbench.app`** and move **`railbench.app`** into `/Applications`.
-2. **Bypass macOS Gatekeeper on First Launch (Unsigned Open-Source Build)**:
-   * Because the binary is built without a paid Apple Developer ID certificate, macOS Gatekeeper may block the first launch with *"railbench.app cannot be opened because the developer cannot be verified"* or *"is damaged"*.
-   * **Option A — Terminal (Recommended, fastest)**:
-     ```bash
-     xattr -cr /Applications/railbench.app
-     open /Applications/railbench.app
-     ```
-     *(If running directly from `Downloads`, use `xattr -cr ~/Downloads/railbench.app`)*
-   * **Option B — Finder UI**:
-     **Right-click** (or <kbd>Control</kbd>-click) `railbench.app` in Finder $\rightarrow$ click **Open** $\rightarrow$ confirm **Open** in the security dialog (or allow it under *System Settings → Privacy & Security → Open Anyway*).
+* **Via Homebrew Cask (Recommended, easiest installation)**:
+  ```bash
+  brew tap Nicolaikurz/railbench
+  brew install --cask railbench
+  ```
+* **Manual DMG / ZIP Installation**:
+  1. Download `railbench-0.6.1-mac-arm64.dmg` (Apple Silicon M1–M4) or `railbench-0.6.1-mac-x64.dmg` (Intel), open the disk image, and drag **`railbench.app`** into your `/Applications` folder (or extract the `.zip` archive).
+  2. **Bypass macOS Gatekeeper on First Launch (Unsigned Open-Source Build)**:
+     * Because the binary is built without a paid Apple Developer ID certificate, macOS Gatekeeper may block the first launch with *"railbench.app cannot be opened because the developer cannot be verified"*.
+     * **Option A — Terminal (Recommended, fastest)**:
+       ```bash
+       xattr -cr /Applications/railbench.app
+       open /Applications/railbench.app
+       ```
+     * **Option B — Finder UI**:
+       **Right-click** (or <kbd>Control</kbd>-click) `railbench.app` in Finder $\rightarrow$ click **Open** $\rightarrow$ confirm **Open** in the security dialog (or allow it under *System Settings → Privacy & Security → Open Anyway*).
 
 ### 🐧 Linux (`x86_64` & `arm64` AppImage / Flatpak)
+* **Flatpak**:
+  ```bash
+  flatpak install --user release/Railbench.flatpak
+  flatpak run io.github.Nicolaikurz.railbench
+  ```
 * **AppImage**:
   ```bash
-  chmod +x railbench-0.6.0-x64.AppImage
-  ./railbench-0.6.0-x64.AppImage
+  chmod +x railbench-0.6.1-x64.AppImage
+  ./railbench-0.6.1-x64.AppImage
   ```
-  *(If `libfuse.so.2` is not installed on Ubuntu 24.04+, either run `sudo apt install libfuse2` or run `./railbench-0.6.0-x64.AppImage --appimage-extract-and-run`.)*
+  *(If `libfuse.so.2` is not installed on Ubuntu 24.04+, either run `sudo apt install libfuse2` or run `./railbench-0.6.1-x64.AppImage --appimage-extract-and-run`.)*
 
 ---
 
-## Key Features & Capabilities (v0.6.0)
+## Key Features & Capabilities (v0.6.1)
 
 ### 1. Precision Track CAD & Multi-Scale Catalogs
-* **16 Ready-to-Use Track Systems across H0, TT, N & Z**:
-  * **H0 (1:87)**: Märklin C-Gleis, Märklin K-Gleis, Märklin M-Gleis, Trix C-Gleis, Piko A-Gleis, Roco Line, Tillig Elite, Peco Streamline Code 100.
+* **21 Ready-to-Use Track Systems across H0, TT, N, Z, 0, 1 & G**:
+  * **H0 (1:87)**: Märklin C-Gleis, Märklin K-Gleis, Märklin M-Gleis, Trix C-Gleis, Piko A-Gleis, Roco Line, Tillig Elite, Peco Streamline Code 100, Kato Unitrack H0, Bachmann E-Z Track H0.
   * **TT (1:120)**: Tillig TT Modellgleis, Tillig TT Bettungsgleis, Kuehn TT Gleis.
-  * **N (1:160)**: Fleischmann Piccolo, Kato Unitrack, Minitrix.
+  * **N (1:160)**: Fleischmann Piccolo, Kato Unitrack N, Minitrix, Peco Streamline N Code 55, Bachmann E-Z Track N.
   * **Z (1:220)**: Märklin mini-club, Rokuhan.
+  * **Large Scales (0, 1, G)**: Lenz 0, Märklin Spur 1, LGB Spur G.
 * **Turntables & Transfer Tables**: Full support for **Märklin C-Gleis Drehscheibe 74862 / Trix 66862** (DB 23 m standard turntable with 30 exits at 12° increments) and **Transfer Tables (*Schiebebühnen*)** with 2D/3D pit rendering and catenary spider wiring.
 * **Customizable Flex-Track**: Dynamic length, radius, and arc angle adjustment directly from the selection bar.
 * **Integrated Street & Road Systems**: Dedicated street catalogs for H0, TT, N, and Z scale in their own sidebar tab (**Straßen / Roads**) with straights, curves, intersections, turning loops, road markings, and asphalt rendering.
@@ -204,4 +226,5 @@ node server.mjs --port 8080 --password mysecret --room layout1
 ## Documentation
 
 * [Build & Binary Execution Guide (Windows, Linux & macOS)](docs/BUILD_GUIDE.md)
+* [Menus & User Interface Guide](docs/UI_GUIDE.md)
 * [System Architecture & Technical Documentation](docs/architektur.md)

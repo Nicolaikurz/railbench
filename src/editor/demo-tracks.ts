@@ -219,6 +219,8 @@ export function initDemoTracks(layout: Layout, _catalog?: Catalog, demoId?: stri
   ensureDefaultLayers(layout);
 }
 
+const MAX_STRESS_PIECES = 5000;
+
 /**
  * Generiert eine vorgegebene Anzahl an Test-Gleisstücken im Gitter für Performance- & Stresstests.
  */
@@ -232,12 +234,17 @@ export function generateStressTracks(
   const entry = catalog.entries[0] || catalogRegistry.getAll()[0]?.entries[0];
   if (!entry) return;
 
+  const existingCount = layout.pieces.length;
+  const allowedCount = Math.max(0, Math.min(count, MAX_STRESS_PIECES - existingCount));
+  if (allowedCount <= 0) return;
+
   const newPieces: TrackPiece[] = [];
   const cols = 40;
   const startX = -2000;
-  const startY = -1000;
+  const startRow = Math.floor(existingCount / cols);
+  const startY = -1000 + startRow * 80;
 
-  for (let i = 0; i < count; i++) {
+  for (let i = 0; i < allowedCount; i++) {
     const col = i % cols;
     const row = Math.floor(i / cols);
     const pieceId = `stress-${Date.now()}-${i}-${Math.random().toString(36).substring(2, 6)}`;

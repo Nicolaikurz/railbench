@@ -705,16 +705,3 @@ export class Sidebar {
     return b;
   }
 }
-
-/** Legacy helper */
-export function renderCatalog(host: HTMLElement, catalog: Catalog) {
-  new Sidebar(
-    host,
-    catalog,
-    { name: "New Layout", scale: "H0", pieces: [] },
-    {
-      onAddPiece: () => {},
-      onExportCSV: () => {},
-    },
-  );
-}

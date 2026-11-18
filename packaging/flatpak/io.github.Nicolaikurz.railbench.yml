@@ -1,4 +1,4 @@
-app-id: de.railbench.Railbench
+app-id: io.github.Nicolaikurz.railbench
 runtime: org.freedesktop.Platform
 runtime-version: '24.08'
 sdk: org.freedesktop.Sdk
@@ -9,6 +9,7 @@ separate-locales: false
 
 finish-args:
   - --share=ipc
+  - --share=network
   - --socket=x11
   - --socket=wayland
   - --device=dri
@@ -22,21 +23,20 @@ modules:
     build-commands:
       - mkdir -p /app/main
       - cp -r * /app/main/
-      - chmod +x /app/main/railbench || chmod +x /app/main/Gleisplan
+      - chmod +x /app/main/railbench || true
       - mkdir -p /app/bin
       - install -Dm755 railbench.sh /app/bin/railbench
-      - install -Dm644 de.railbench.Railbench.desktop /app/share/applications/de.railbench.Railbench.desktop
-      - install -Dm644 de.railbench.Railbench.metainfo.xml /app/share/metainfo/de.railbench.Railbench.metainfo.xml
-      - install -Dm644 icon.png /app/share/icons/hicolor/512x512/apps/de.railbench.Railbench.png
+      - install -Dm644 io.github.Nicolaikurz.railbench.desktop /app/share/applications/io.github.Nicolaikurz.railbench.desktop
+      - install -Dm644 io.github.Nicolaikurz.railbench.metainfo.xml /app/share/metainfo/io.github.Nicolaikurz.railbench.metainfo.xml
+      - install -Dm644 icon.png /app/share/icons/hicolor/512x512/apps/io.github.Nicolaikurz.railbench.png
     sources:
       - type: dir
         path: ../../release/linux-unpacked
       - type: file
         path: railbench.sh
       - type: file
-        path: de.railbench.Railbench.desktop
+        path: io.github.Nicolaikurz.railbench.desktop
       - type: file
-        path: de.railbench.Railbench.metainfo.xml
+        path: io.github.Nicolaikurz.railbench.metainfo.xml
       - type: file
-        path: ../../build/icon.png
-
+        path: icon.png

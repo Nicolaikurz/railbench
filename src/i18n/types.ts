@@ -117,6 +117,19 @@ export interface Translations {
       selectionLockLabel: string;
       selectionLockDisabledLabel: string;
       selectionLockTitle: string;
+      rotateLabel: string;
+      rotateTitle: string;
+      rotateCcwTitle: string;
+      rotateLockLabel: string;
+      rotateLockTitle: string;
+      rotationStepTitle: string;
+      rotationStep5_7: string;
+      rotationStep30: string;
+      rotationStep90: string;
+      rotationStep7_5: string;
+      rotationStep15: string;
+      rotationStep45: string;
+      rotateLockMenu: string;
     };
     colorsMenu: {
       types: string;
@@ -124,10 +137,14 @@ export interface Translations {
       off: string;
     };
     powerMenu: {
+      zScale: string;
       h0Standard: string;
       h0Dcc: string;
       nScale: string;
+      ttScale: string;
+      gauge0: string;
       gauge1: string;
+      gaugeG: string;
       h0Current: string;
       ttCurrent: string;
       nzCurrent: string;
@@ -161,14 +178,27 @@ export interface Translations {
   };
   powerDialog: {
     title: string;
+    systemPresetHeader: string;
+    systemPresetSub: string;
     shortCircuitHeader: string;
     shortCircuitSub: string;
+    feederCheckHeader: string;
+    feederCheckMissing: string;
+    feederCheckDisconnected: string;
+    feederCheckOk: string;
+    setFeederBtn: string;
+    catenaryCheckMissing: string;
+    catenaryCheckOk: string;
+    catenaryCheckParallel: string;
+    setCatenaryFeederBtn: string;
     feederHeader: string;
     feederSub: string;
-    preset16VDesc: string;
-    preset14VDesc: string;
+    preset10VDesc: string;
     preset12VDesc: string;
+    preset14VDesc: string;
+    preset16VDesc: string;
     preset18VDesc: string;
+    preset24VDesc: string;
     customVoltageLabel: string;
     voltageUnit: string;
     locoHeader: string;
@@ -565,6 +595,7 @@ export interface Translations {
 
 export type HelpTab =
   | "overview"
+  | "guide"
   | "layers"
   | "print"
   | "power"
@@ -587,6 +618,15 @@ export interface HelpStandardSection {
   callout?: string;
 }
 
+export type HelpGuideImage = "layout" | "toolbar" | "selection" | "contextMenu" | "heightRamp";
+
+export interface HelpGuideStep {
+  title: string;
+  body: string;
+  image: HelpGuideImage;
+  caption: string;
+}
+
 export interface HelpDialogTranslations {
   modalTitle: string;
   closeTitle: string;
@@ -595,6 +635,7 @@ export interface HelpDialogTranslations {
   copiedText: string;
   tabs: Record<HelpTab, string>;
   overview: HelpStandardSection;
+  guide: { title: string; intro: string; steps: HelpGuideStep[] };
   layers: HelpStandardSection;
   print: HelpStandardSection;
   power: HelpStandardSection;

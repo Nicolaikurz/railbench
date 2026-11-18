@@ -5,13 +5,17 @@ import {
   adjustFlexTrackOpenConnector,
   cutFlexTrack,
   bendFlexTrack,
+  resetFlexTrackToOriginal,
   getFlexTrackRampInfo,
   flipFlexTrackPiece,
   findNearbyConnectorForFlex,
+  getFlexTrackMidpoint,
+  getFlexTrackPointAt,
+  bendFlexTrackBetweenFixedEnds,
 } from "@/core/flextrack";
 import type { CatalogEntry } from "@/catalog/catalog";
 import type { TrackPiece, Layer } from "@/core/types";
-import { toXML, toJSON, fromJSON } from "@/io/serialize";
+import { toXML, toJSON, fromJSON, fromXML } from "@/io/serialize";
 import { createLayout } from "@/core/layout";
 import { updatePieceConnections } from "@/core/snapping";
 
@@ -346,5 +350,292 @@ describe("Flextrack System", () => {
     expect(eff.isRoad).toBe(true);
     expect(roadPiece.connectors[1]!.x).toBeGreaterThan(0);
     expect(roadPiece.connectors[1]!.y).toBeGreaterThan(0);
+  });
+
+  it("stretches a shortened or curved flex track back into its straight original shape", () => {
+    const piece = createTestPiece();
+    // 1. Zuerst kürzen und biegen
+    bendFlexTrack(piece, flexCatalogEntry, 500, 30);
+    expect(piece.customRadius).toBe(500);
+    expect(piece.customAngle).toBe(30);
+
+    // 2. Mit der Maus gerade ziehen (Richtung x = 900, y = 5 mit geringer Abweichung)
+    // Zielpunkt in Weltkoordinaten: (100 + 950, 100 + 4) -> x = 950 >= maxLen, y = 4 (unter 14 mm Schwelle)
+    const adj = adjustFlexTrackOpenConnector(piece, flexCatalogEntry, { x: 1050, y: 104 });
+    expect(adj.customLength).toBe(900);
+    expect(adj.customRadius).toBeUndefined();
+    expect(adj.customAngle).toBeUndefined();
+
+    // Stück ist wieder vollständig gerade und auf voller Originallänge gestreckt
+    expect(piece.customLength).toBe(900);
+    expect(piece.customRadius).toBeUndefined();
+    expect(piece.customAngle).toBeUndefined();
+    expect(piece.connectors[1]!.x).toBe(1000);
+    expect(piece.connectors[1]!.y).toBe(100);
+    expect(piece.connectors[1]!.angle).toBe(0);
+  });
+
+  it("resets flex track to original shape via resetFlexTrackToOriginal", () => {
+    const piece = createTestPiece({ customLength: 400, customRadius: 600, customAngle: 25 });
+    resetFlexTrackToOriginal(piece, flexCatalogEntry);
+
+    expect(piece.customLength).toBeUndefined();
+    expect(piece.customRadius).toBeUndefined();
+    expect(piece.customAngle).toBeUndefined();
+    expect(piece.connectors[1]!.x).toBe(1000);
+    expect(piece.connectors[1]!.y).toBe(100);
+    expect(piece.connectors[1]!.angle).toBe(0);
+  });
+
+  it("resets flex track snappoint and keeps connection anchor when connected at connector 1", () => {
+    // Gleis 1 an (0, 0), Ende 1 bei (188.3, 0)
+    const p1: TrackPiece = {
+      id: "p-anchor",
+      catalogId: "24188",
+      transform: { x: 0, y: 0, rotation: 0 },
+      connectors: [
+        { x: 0, y: 0, angle: 180 },
+        { x: 188.3, y: 0, angle: 0, connectedTo: { pieceId: "piece-flex-1", connectorIndex: 1 } },
+      ],
+    };
+
+    // Flexgleis mit Connector 1 angeschlossen an p1, aber stark gekrümmt/verkürzt
+    const pieceFlex: TrackPiece = {
+      id: "piece-flex-1",
+      catalogId: "2205",
+      transform: { x: 300, y: 200, rotation: 45 },
+      customLength: 350,
+      customRadius: 400,
+      customAngle: 30,
+      connectors: [
+        { x: 300, y: 200, angle: 225 },
+        { x: 188.3, y: 0, angle: 180, connectedTo: { pieceId: "p-anchor", connectorIndex: 1 } },
+      ],
+    };
+
+    const allPieces = [p1, pieceFlex];
+    resetFlexTrackToOriginal(pieceFlex, flexCatalogEntry, allPieces);
+
+    // 1. Flexgleis-Verbindung bleibt an p1 verankert (nun als Connector 0 nach dem Flip)
+    expect(pieceFlex.connectors[0]!.connectedTo?.pieceId).toBe("p-anchor");
+    expect(p1.connectors[1]!.connectedTo?.pieceId).toBe("piece-flex-1");
+    expect(p1.connectors[1]!.connectedTo?.connectorIndex).toBe(0);
+
+    // 2. Offenes Ende (Connector 1) ist sauber auf Originallänge 900 mm geradeaus gestreckt
+    expect(pieceFlex.customRadius).toBeUndefined();
+    expect(pieceFlex.customAngle).toBeUndefined();
+    expect(pieceFlex.customLength).toBeUndefined();
+    expect(pieceFlex.connectors[1]!.x).toBeCloseTo(188.3 + 900, 1);
+    expect(pieceFlex.connectors[1]!.y).toBeCloseTo(0, 1);
+    expect(pieceFlex.connectors[1]!.angle).toBeCloseTo(0, 1);
+    expect(pieceFlex.connectors[1]!.connectedTo).toBeUndefined();
+  });
+
+  it("calculates midpoint of straight and curved flex tracks correctly", () => {
+    // Gerades Gleis von (100, 100) nach (1000, 100)
+    const straightPiece = createTestPiece();
+    const straightMid = getFlexTrackMidpoint(straightPiece, flexCatalogEntry);
+    expect(straightMid.x).toBeCloseTo(550, 1);
+    expect(straightMid.y).toBeCloseTo(100, 1);
+
+    // Gekrümmtes Gleis
+    const curvedPiece = createTestPiece({
+      transform: { x: 0, y: 0, rotation: 0 },
+      customLength: 300,
+      customRadius: 500,
+      customAngle: 34.38,
+    });
+    const curvedMid = getFlexTrackMidpoint(curvedPiece, flexCatalogEntry);
+    expect(curvedMid.x).toBeGreaterThan(0);
+    expect(curvedMid.y).toBeGreaterThan(0);
+  });
+
+  it("bends flex track from middle while keeping both ends fixed", () => {
+    const piece = createTestPiece({
+      transform: { x: 100, y: 100, rotation: 0 },
+      customLength: 400,
+      connectors: [
+        { x: 100, y: 100, angle: 180, connectedTo: { pieceId: "track-a", connectorIndex: 0 } },
+        { x: 500, y: 100, angle: 0, connectedTo: { pieceId: "track-b", connectorIndex: 1 } },
+      ],
+    });
+
+    const fixedC0 = { x: 100, y: 100 };
+    const fixedC1 = { x: 500, y: 100 };
+
+    // Ziehe den Mittelpunkt nach oben (y = 160)
+    bendFlexTrackBetweenFixedEnds(piece, flexCatalogEntry, fixedC0, fixedC1, { x: 300, y: 160 });
+
+    // 1. Beide Endpunkte bleiben exakt an fixedC0 und fixedC1 verankert
+    expect(piece.connectors[0]!.x).toBeCloseTo(100, 0);
+    expect(piece.connectors[0]!.y).toBeCloseTo(100, 0);
+    expect(piece.connectors[1]!.x).toBeCloseTo(500, 0);
+    expect(piece.connectors[1]!.y).toBeCloseTo(100, 0);
+
+    // 2. Verbindungen zu track-a und track-b bleiben erhalten
+    expect(piece.connectors[0]!.connectedTo?.pieceId).toBe("track-a");
+    expect(piece.connectors[1]!.connectedTo?.pieceId).toBe("track-b");
+
+    // 3. Das Gleis ist nun gebogen (bewegt sich in Zugrichtung der Maus)
+    expect(piece.customRadius).toBeDefined();
+    expect(piece.customRadius!).toBeGreaterThan(100);
+    expect(piece.customAngle).toBeDefined();
+    expect(piece.customAngle!).toBeLessThan(0); // Nach oben gewölbt in Zugrichtung
+
+    // Mittelpunkt liegt tatsächlich oberhalb der Sehne (y > 100)
+    const midAfterPull = getFlexTrackMidpoint(piece, flexCatalogEntry);
+    expect(midAfterPull.y).toBeGreaterThan(100);
+
+    // 4. Ziehe zurück zur Sehne (y = 100) -> snappt wieder zu gerade
+    bendFlexTrackBetweenFixedEnds(piece, flexCatalogEntry, fixedC0, fixedC1, { x: 300, y: 100.5 });
+    expect(piece.customRadius).toBeUndefined();
+    expect(piece.customAngle).toBeUndefined();
+    expect(piece.connectors[0]!.x).toBeCloseTo(100, 0);
+    expect(piece.connectors[0]!.y).toBeCloseTo(100, 0);
+    expect(piece.connectors[1]!.x).toBeCloseTo(500, 0);
+    expect(piece.connectors[1]!.y).toBeCloseTo(100, 0);
+
+    // 5. Ziehe an den zusätzlichen Pivot-Punkten (t = 0.25 und t = 0.75)
+    bendFlexTrackBetweenFixedEnds(piece, flexCatalogEntry, fixedC0, fixedC1, { x: 200, y: 140 }, undefined, 0.25);
+    const pt25 = getFlexTrackPointAt(piece, flexCatalogEntry, 0.25);
+    expect(pt25.y).toBeGreaterThan(100); // Wölbt sich nach oben in Zugrichtung
+    expect(piece.connectors[0]!.x).toBeCloseTo(100, 0);
+    expect(piece.connectors[1]!.x).toBeCloseTo(500, 0);
+
+    bendFlexTrackBetweenFixedEnds(piece, flexCatalogEntry, fixedC0, fixedC1, { x: 400, y: 140 }, undefined, 0.75);
+    const pt75 = getFlexTrackPointAt(piece, flexCatalogEntry, 0.75);
+    expect(pt75.y).toBeGreaterThan(100); // Wölbt sich nach oben in Zugrichtung
+    expect(piece.connectors[0]!.x).toBeCloseTo(100, 0);
+    expect(piece.connectors[1]!.x).toBeCloseTo(500, 0);
+  });
+
+  it("snaps reliably near max length (880-900mm) without discarding snap", () => {
+    // Zielgleis an x=990, connector index 0 bei x=990, angle=180
+    const targetPiece: TrackPiece = {
+      id: "track-target-890",
+      catalogId: "24188",
+      transform: { x: 990, y: 100, rotation: 0 },
+      connectors: [
+        { x: 990, y: 100, angle: 180 },
+        { x: 1178.3, y: 100, angle: 0 },
+      ],
+    };
+
+    // Flexgleis startet bei (100, 100) -> Abstand zum Ziel = 890 mm (in der 880-900mm Zone!)
+    const flexPiece = createTestPiece();
+    const allPieces = [flexPiece, targetPiece];
+
+    // Drag flex end near target connector at (990, 100)
+    const result = adjustFlexTrackOpenConnector(
+      flexPiece,
+      flexCatalogEntry,
+      { x: 995, y: 102 },
+      allPieces,
+      undefined,
+      25,
+    );
+
+    // Snap muss erfolgreich sein und darf NICHT durch x >= maxLen - 20 verworfen werden
+    expect(result.snappedConnector).toBeDefined();
+    expect(result.snappedConnector?.pieceId).toBe("track-target-890");
+    expect(flexPiece.connectors[1]!.connectedTo?.pieceId).toBe("track-target-890");
+    expect(targetPiece.connectors[0]!.connectedTo?.pieceId).toBe(flexPiece.id);
+
+    // Wenn ins Leere gezogen (weg vom Ziel): sauber unhooken
+    adjustFlexTrackOpenConnector(
+      flexPiece,
+      flexCatalogEntry,
+      { x: 500, y: 100 },
+      allPieces,
+      undefined,
+      25,
+    );
+    expect(flexPiece.connectors[1]!.connectedTo).toBeUndefined();
+    expect(targetPiece.connectors[0]!.connectedTo).toBeUndefined();
+  });
+
+  it("supports S-curves by bending different pivot points in opposite directions", () => {
+    const fixedC0 = { x: 100, y: 100 };
+    const fixedC1 = { x: 700, y: 100 };
+    const piece = createTestPiece({
+      id: "piece-s-curve",
+      transform: { x: 100, y: 100, rotation: 0 },
+      connectors: [
+        { x: 100, y: 100, angle: 180 },
+        { x: 700, y: 100, angle: 0 },
+      ],
+    });
+
+    // 1. Biege die erste Stelle (t = 0.25) nach oben (y = 150 -> Auslenkung +50mm)
+    bendFlexTrackBetweenFixedEnds(
+      piece,
+      flexCatalogEntry,
+      fixedC0,
+      fixedC1,
+      { x: 250, y: 150 },
+      undefined,
+      0.25,
+    );
+
+    expect(piece.customOffsets).toBeDefined();
+    expect(piece.customOffsets![0]).toBeCloseTo(50, 0);
+
+    // 2. Biege die zweite Stelle (t = 0.75) in die ENTGEGENGESETZTE Richtung nach unten (y = 50 -> Auslenkung -50mm)
+    bendFlexTrackBetweenFixedEnds(
+      piece,
+      flexCatalogEntry,
+      fixedC0,
+      fixedC1,
+      { x: 550, y: 50 },
+      undefined,
+      0.75,
+    );
+
+    expect(piece.customOffsets).toBeDefined();
+    expect(piece.customOffsets![0]).toBeCloseTo(50, 0); // Erste Wölbung bleibt erhalten
+    expect(piece.customOffsets![2]).toBeCloseTo(-50, 0); // Zweite Wölbung in Gegenrichtung!
+
+    // 3. Beide Endpunkte bleiben unverrückbar fixiert
+    expect(piece.connectors[0]!.x).toBeCloseTo(100, 0);
+    expect(piece.connectors[0]!.y).toBeCloseTo(100, 0);
+    expect(piece.connectors[1]!.x).toBeCloseTo(700, 0);
+    expect(piece.connectors[1]!.y).toBeCloseTo(100, 0);
+
+    // 4. Stützpunkte entlang des Gleises prüfen: S-Kurvenform
+    const pt25 = getFlexTrackPointAt(piece, flexCatalogEntry, 0.25);
+    const pt50 = getFlexTrackPointAt(piece, flexCatalogEntry, 0.5);
+    const pt75 = getFlexTrackPointAt(piece, flexCatalogEntry, 0.75);
+
+    expect(pt25.y).toBeGreaterThan(120); // Erste Wölbung oberhalb der Sehne
+    expect(pt50.y).toBeCloseTo(100, 0);  // Nulldurchgang / Wendepunkt in der Mitte
+    expect(pt75.y).toBeLessThan(80);     // Zweite Wölbung unterhalb der Sehne (Gegenrichtung)
+
+    // Bogenlänge der S-Kurve muss größer sein als die direkte Sehnendistanz (600 mm)
+    expect(piece.customLength).toBeGreaterThan(600);
+
+    // 5. XML- und JSON-Serialisierung und Wiederherstellung
+    const layout = createLayout();
+    layout.pieces = [piece];
+    const xml = toXML(layout);
+    expect(xml).toContain('customOffsets="50.0,0.0,-50.0"');
+
+    const json = toJSON(layout);
+    const restoredLayout = fromJSON(json);
+    const restoredPiece = restoredLayout.pieces.find((p) => p.id === "piece-s-curve");
+    expect(restoredPiece).toBeDefined();
+    expect(restoredPiece?.customOffsets).toEqual([50, 0, -50]);
+
+    const restoredPt25 = getFlexTrackPointAt(restoredPiece!, flexCatalogEntry, 0.25);
+    const restoredPt75 = getFlexTrackPointAt(restoredPiece!, flexCatalogEntry, 0.75);
+    expect(restoredPt25.y).toBeGreaterThan(120);
+    expect(restoredPt75.y).toBeLessThan(80);
+
+    // 6. Zurücksetzen auf Originallänge & gerade
+    resetFlexTrackToOriginal(restoredPiece!, flexCatalogEntry);
+    expect(restoredPiece?.customOffsets).toBeUndefined();
+    expect(restoredPiece?.customChordDist).toBeUndefined();
+    expect(restoredPiece?.customLength).toBeUndefined();
+    expect(restoredPiece?.customRadius).toBeUndefined();
+    expect(restoredPiece?.customAngle).toBeUndefined();
   });
 });

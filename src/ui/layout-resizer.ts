@@ -571,7 +571,3 @@ export function initLayoutResizers(options?: LayoutResizerOptions): LayoutResize
   activeInstance = new LayoutResizer(options);
   return activeInstance;
 }
-
-export function getLayoutResizer(): LayoutResizer | null {
-  return activeInstance;
-}
