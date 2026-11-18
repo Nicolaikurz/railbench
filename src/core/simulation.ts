@@ -1,5 +1,5 @@
 import type { Layout, TrackPiece, Connector } from "./types";
-import { computeWorldConnectors, isFeederEntry, type Catalog, type CatalogEntry } from "@/catalog/catalog";
+import { catalogRegistry, computeWorldConnectors, isFeederEntry, type Catalog, type CatalogEntry } from "@/catalog/catalog";
 import { dist, deg2rad, normAngle } from "./geometry";
 
 export type PowerStatus = "optimal" | "warning" | "critical" | "disconnected";
@@ -260,7 +260,7 @@ export function detectShortCircuit(layout: Layout, catalog: Catalog): ShortCircu
   }
 
   for (const p of pieces) {
-    const entry = entryMap.get(p.catalogId);
+    const entry = entryMap.get(p.catalogId) ?? catalogRegistry.findEntry(p.catalogId);
     if (entry && (!p.connectors || p.connectors.length === 0)) {
       p.connectors = computeWorldConnectors(entry, p.transform);
     }
@@ -334,8 +334,8 @@ export function detectShortCircuit(layout: Layout, catalog: Catalog): ShortCircu
   const shortCircuitPoints: ShortCircuitPoint[] = [];
 
   for (const conn of connections) {
-    const entry1 = entryMap.get(conn.p1.catalogId);
-    const entry2 = entryMap.get(conn.p2.catalogId);
+    const entry1 = entryMap.get(conn.p1.catalogId) ?? catalogRegistry.findEntry(conn.p1.catalogId);
+    const entry2 = entryMap.get(conn.p2.catalogId) ?? catalogRegistry.findEntry(conn.p2.catalogId);
 
     const node1L = getRailTerminal(conn.p1, entry1, conn.cIdx1, "L");
     const node1R = getRailTerminal(conn.p1, entry1, conn.cIdx1, "R");
@@ -373,7 +373,7 @@ export function detectShortCircuit(layout: Layout, catalog: Catalog): ShortCircu
     if (dsu.find(r1) === dsu.find(r2)) {
       shortCircuitPieces.add(p.id);
     }
-    const entry = entryMap.get(p.catalogId);
+    const entry = entryMap.get(p.catalogId) ?? catalogRegistry.findEntry(p.catalogId);
     if (entry?.kind === "crossing") {
       const r3 = `${p.id}:3`;
       const r4 = `${p.id}:4`;

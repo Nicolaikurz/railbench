@@ -98,8 +98,8 @@ describe("Upright Labels & Text Rotation (CAD-style horizontal orientation)", ()
     }
   });
 
-  it("scales track number label height to fit within track gauge boundaries for N and Z scales", () => {
-    // 1. Z-Spurweite (6.5 mm): Schieneninnenabstand ca. 5.4 mm
+  it("scales track number label height proportionally to track gauge (Z < N < H0 ≈ 18.5 mm)", () => {
+    // 1. Z-Spurweite (6.5 mm): ca. 7.3 mm
     const entryZ: CatalogEntry = {
       id: "8500",
       name: "Gerades Gleis 110 mm",
@@ -118,11 +118,9 @@ describe("Upright Labels & Text Rotation (CAD-style horizontal orientation)", ()
     const containerZ = createTrackGraphics(pieceZ, entryZ, undefined, { showTrackLabels: true });
     const labelZ = containerZ.children.find((c: any) => c.label === "track-number-label") as any;
     expect(labelZ).toBeDefined();
-    // Badge-Höhe muss streng kleiner als die Spurweite (6.5 mm) und kleiner als der Schienenabstand sein
-    expect(labelZ.badgeHeight).toBeLessThanOrEqual(5.0);
-    expect(labelZ.badgeHeight).toBeGreaterThanOrEqual(4.0);
+    expect(labelZ.badgeHeight).toBeCloseTo(7.3, 1);
 
-    // 2. N-Spurweite (9.0 mm): Schieneninnenabstand ca. 7.9 mm
+    // 2. N-Spurweite (9.0 mm): ca. 10.1 mm (kleiner als H0, größer als Z)
     const entryN: CatalogEntry = {
       id: "9100",
       name: "Gerades Gleis 222 mm",
@@ -141,11 +139,10 @@ describe("Upright Labels & Text Rotation (CAD-style horizontal orientation)", ()
     const containerN = createTrackGraphics(pieceN, entryN, undefined, { showTrackLabels: true });
     const labelN = containerN.children.find((c: any) => c.label === "track-number-label") as any;
     expect(labelN).toBeDefined();
-    // Badge-Höhe muss streng kleiner als die Spurweite (9.0 mm) und innerhalb der Schienenbegrenzung liegen
-    expect(labelN.badgeHeight).toBeLessThanOrEqual(7.1);
-    expect(labelN.badgeHeight).toBeGreaterThanOrEqual(6.0);
+    expect(labelN.badgeHeight).toBeCloseTo(10.1, 1);
+    expect(labelN.badgeHeight).toBeGreaterThan(labelZ.badgeHeight);
 
-    // 3. H0-Spurweite (16.5 mm): Schieneninnenabstand ca. 14.7 mm
+    // 3. H0-Spurweite (16.5 mm): ca. 18.5 mm (16.5 + 2 mm)
     const entryH0: CatalogEntry = {
       id: "24188",
       name: "Gerades Gleis 188,3 mm",
@@ -164,7 +161,7 @@ describe("Upright Labels & Text Rotation (CAD-style horizontal orientation)", ()
     const containerH0 = createTrackGraphics(pieceH0, entryH0, undefined, { showTrackLabels: true });
     const labelH0 = containerH0.children.find((c: any) => c.label === "track-number-label") as any;
     expect(labelH0).toBeDefined();
-    expect(labelH0.badgeHeight).toBeLessThanOrEqual(13.0);
-    expect(labelH0.badgeHeight).toBeGreaterThanOrEqual(11.0);
+    expect(labelH0.badgeHeight).toBeCloseTo(18.5, 1);
+    expect(labelH0.badgeHeight).toBeGreaterThan(labelN.badgeHeight);
   });
 });

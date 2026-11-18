@@ -537,7 +537,7 @@ async function main() {
       currentSimulation = undefined;
     }
 
-    if (dirty || !currentShortCircuit) {
+    if (dirty || !transient || !currentShortCircuit) {
       currentShortCircuit = detectShortCircuit(layout, catalog);
     }
 
@@ -643,6 +643,7 @@ async function main() {
           layout.feedVoltage = getDefaultFeedVoltage(newCat.scale);
           layout.locoCurrentMa = getDefaultLocoCurrentMa(newCat.scale);
         }
+        renderer.invalidateCaches();
         sync(false);
         saveSettingsState();
       },
@@ -667,6 +668,7 @@ async function main() {
           layout.feedVoltage = getDefaultFeedVoltage(newCat.scale);
           layout.locoCurrentMa = getDefaultLocoCurrentMa(newCat.scale);
         }
+        renderer.invalidateCaches();
         sync(false);
         saveSettingsState();
       }

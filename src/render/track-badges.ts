@@ -107,24 +107,20 @@ export function drawTrackNumberLabel(
   labelCont.position.set(center.x, center.y);
   labelCont.rotation = getUprightTextRotation(pieceRotation);
 
-  // Spurweite & Schienenabstand berücksichtigen (z.B. Z: 6.5mm, N: 9mm, TT: 12mm, H0: 16.5mm)
+  // Spurweite berücksichtigen (z.B. Z: 6.5mm, N: 9mm, TT: 12mm, H0: 16.5mm, 0: 32mm, G: 45mm)
+  // H0 (16.5 mm) -> ca. 18.5 mm (16.5 + 2 mm), N/Z proportional kleiner, 0/1/G proportional größer
   const gauge = entry.gauge ?? 16.5;
-  const gaugeHalf = gauge / 2;
-  const railWidth = Math.max(1.1, gaugeHalf * 0.22);
+  const targetBadgeH = Math.round(gauge * (18.5 / 16.5) * 10) / 10;
 
-  // Maximale Badge-Höhe so begrenzen, dass sie bei geraden Gleisen exakt zwischen die Schienen passt
-  // und keinesfalls über die Gleisbegrenzungen (Schieneninnenkanten) hinausragt
-  const maxBadgeH = Math.min(13.0, Math.max(4.2, (gauge - railWidth) * 0.88));
+  const padY = Math.max(0.8, Math.round(targetBadgeH * 0.15 * 10) / 10);
+  const padX = Math.max(2.2, Math.round(targetBadgeH * 0.34 * 10) / 10);
+  const cornerR = Math.max(1.5, Math.round(targetBadgeH * 0.2 * 10) / 10);
+  const strokeW = Math.max(0.7, Math.min(2.2, Math.round(targetBadgeH * 0.08 * 10) / 10));
 
-  const padY = Math.max(0.6, Math.round(maxBadgeH * 0.16 * 10) / 10);
-  const padX = Math.max(1.8, Math.round(maxBadgeH * 0.36 * 10) / 10);
-  const cornerR = Math.max(1.2, Math.round(maxBadgeH * 0.22 * 10) / 10);
-  const strokeW = Math.max(0.6, Math.min(1.2, Math.round(maxBadgeH * 0.09 * 10) / 10));
+  const targetTextH = targetBadgeH - 2 * padY;
+  const fontSize = Math.max(4.0, Math.round(targetTextH * 0.85 * 10) / 10);
 
-  const targetTextH = maxBadgeH - 2 * padY;
-  const fontSize = Math.max(3.0, Math.round(targetTextH * 0.82 * 10) / 10);
-
-  const voltOffset = (maxBadgeH / 2) + Math.max(0.8, 1.6 * (gauge / 16.5));
+  const voltOffset = targetBadgeH / 2 + Math.max(1.2, 2.0 * (gauge / 16.5));
   const yOffset = entry.kind === "turntable" ? -55 : entry.kind === "transfer-table" ? -70 : hasVoltageLabel ? -voltOffset : 0;
 
   const text = new Text({
@@ -134,7 +130,7 @@ export function drawTrackNumberLabel(
   text.anchor.set(0.5);
   text.position.set(0, yOffset);
 
-  let textW = Math.max(10, entry.id.length * fontSize * 0.65);
+  let textW = Math.max(12, entry.id.length * fontSize * 0.65);
   let textH = targetTextH;
   try {
     if (typeof document !== "undefined" && text.width > 0 && text.height > 0) {
@@ -145,8 +141,8 @@ export function drawTrackNumberLabel(
     // fallback
   }
 
-  // Falls gerenderte Texthöhe größer ist als die erlaubte targetTextH: Text herunterskalieren
-  if (textH > targetTextH) {
+  // Skaliere den Text exakt auf targetTextH, damit die Badge-Höhe exakt zum Gleis passt
+  if (textH > 0 && Math.abs(textH - targetTextH) > 0.05) {
     const scaleRatio = targetTextH / textH;
     text.scale.set(scaleRatio);
     textW *= scaleRatio;
@@ -154,7 +150,7 @@ export function drawTrackNumberLabel(
   }
 
   const bgW = textW + padX * 2;
-  const bgH = Math.min(maxBadgeH, textH + padY * 2);
+  const bgH = targetBadgeH;
 
   const bg = new Graphics();
   // Schatten
@@ -184,7 +180,9 @@ export function drawVoltageBadge(
   const badgeCont = new Container();
   badgeCont.position.set(center.x, center.y);
   badgeCont.rotation = getUprightTextRotation(pieceRotation);
-  const yOffset = hasNumberLabel ? 9 : 0;
+  const gauge = entry.gauge ?? 16.5;
+  const numberBadgeH = Math.round(gauge * (18.5 / 16.5) * 10) / 10;
+  const yOffset = hasNumberLabel ? numberBadgeH / 2 + Math.max(1.2, 2.0 * (gauge / 16.5)) : 0;
 
   const isShort = Boolean(powerResult.isShortCircuit);
   const isDisc = powerResult.status === "disconnected";
