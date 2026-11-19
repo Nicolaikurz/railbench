@@ -1,9 +1,9 @@
-import { Application, Container, Graphics, Sprite, Text, TexturePool } from "pixi.js";
+import { Application, Container, Graphics, Text, TexturePool } from "pixi.js";
 import type { Layout, ColorMode, TrackPiece, BaseboardConfig } from "@/core/types";
 import { catalogRegistry, type Catalog, type CatalogEntry } from "@/catalog/catalog";
 import type { SimulationSummary, ShortCircuitDetectionResult } from "@/core/simulation";
-import { createTrackGraphics, TRACK_TIES_LOD_MIN_SCALE } from "./track-sprite";
-import { computeLabelTextResolution, updateSharedLabelSpriteResolution } from "./track-badges";
+import { createTrackGraphics } from "./track-sprite";
+import { computeLabelTextResolution } from "./track-badges";
 import { CatenaryMast2DContext } from "./track-accessories-sprite";
 import { createBaseboardGraphics } from "./baseboard-sprite";
 import { createModel2DGraphics } from "./model-sprite";
@@ -697,7 +697,9 @@ export class Renderer {
     // 1. Tracks rendern (inkrementeller Per-Track-Cache, sortiert nach realer 3D-Höhe)
     const tracksSig = this.computeTracksSignature(layout, catalog, options);
     if (tracksSig !== this.lastTracksSignature) {
+      this.clearLayer(this.tracksLayer);
       const catenaryMastCtx = new CatenaryMast2DContext();
+
       const showPowerDrop = options.showPowerDrop ?? false;
       const powerSim = options.powerSimulation;
 
@@ -833,8 +835,38 @@ export class Renderer {
           this.trackSpriteCache.set(piece.id, { sig: pieceSig, sprite });
         }
 
-        orderedSprites.push(sprite);
-      }
+    for (const item of visibleTrackItems) {
+      const { piece, layer, baseElev, isInactiveLayer, isSelected } = item;
+
+      const entry: CatalogEntry = entryMap.get(piece.catalogId) ?? catalogRegistry.findEntry(piece.catalogId) ?? {
+        id: piece.catalogId,
+        name: `Gleis ${piece.catalogId}`,
+        kind: "straight",
+        category: "Geraden",
+        description: "",
+        length: 188.3,
+      };
+
+      const powerResult = powerSim?.results.get(piece.id);
+      const isShortCircuit = Boolean(options.shortCircuit?.shortCircuitPieces.has(piece.id));
+
+      const sprite = createTrackGraphics(piece, entry, catalog, {
+        isSelected,
+        showConnectors: options.showConnectors,
+        showPowerDrop,
+        powerResult,
+        isShortCircuit,
+        showTrackLabels: options.showTrackLabels,
+        showColorCode: options.showColorCode,
+        colorMode: options.colorMode,
+        layerColor: layer?.color,
+        layerHeightMm: baseElev,
+        isInactiveLayer,
+        minLayoutElev,
+        allPieces: layout.pieces,
+        worldScale: this.world.scale.x || 1,
+        catenaryMastCtx,
+      });
 
       // Nicht mehr vorhandene oder ausgeblendete Gleise aus dem Cache entfernen
       for (const [id, entry] of this.trackSpriteCache) {
@@ -1095,57 +1127,32 @@ export class Renderer {
   }
 
   /**
-   * Aktualisiert Viewport-Culling (blendet Gleise/Modelle außerhalb des Bildausschnitts aus),
-   * blendet das feine Hilfsraster beim starken Herauszoomen aus, passt Label-Auflösungen
-   * dynamisch an den Zoom an und triggert einen On-Demand-Frame.
+   * Aktualisiert die Rasterauflösung aller sichtbaren Gleis-Labels/Badges dynamisch passend zum Zoom.
+   * Gleise außerhalb des sichtbaren Bildausschnitts bleiben bei niedriger Basis-Auflösung,
+   * um Speicher- und VRAM-Verbrauch auch bei sehr großen Layouts minimal zu halten.
    */
   updateLabelResolutions() {
     const worldScale = this.world.scale.x || 1;
     const screenW = this.app?.screen?.width ?? 0;
     const screenH = this.app?.screen?.height ?? 0;
     const hasViewport = screenW > 0 && screenH > 0;
-
-    // 1. Zoom-adaptives Hilfsraster (spart ~480 Linien beim Herauszoomen)
-    this.fineGrid.visible = worldScale >= 0.35;
-
-    // 2. Großzügiger Sichtbereich für Viewport-Culling (1000 mm Puffer deckt auch 900 mm Flexgleise & Drehscheiben ab)
-    const cullPad = 1000;
-    const cullMinX = hasViewport ? (-this.world.x) / worldScale - cullPad : -Infinity;
-    const cullMaxX = hasViewport ? (screenW - this.world.x) / worldScale + cullPad : Infinity;
-    const cullMinY = hasViewport ? (-this.world.y) / worldScale - cullPad : -Infinity;
-    const cullMaxY = hasViewport ? (screenH - this.world.y) / worldScale + cullPad : Infinity;
-
-    const labelPad = 350;
-    const viewMinX = hasViewport ? (-this.world.x) / worldScale - labelPad : -Infinity;
-    const viewMaxX = hasViewport ? (screenW - this.world.x) / worldScale + labelPad : Infinity;
-    const viewMinY = hasViewport ? (-this.world.y) / worldScale - labelPad : -Infinity;
-    const viewMaxY = hasViewport ? (screenH - this.world.y) / worldScale + labelPad : Infinity;
+    const pad = 350;
+    const viewMinX = hasViewport ? (-this.world.x) / worldScale - pad : -Infinity;
+    const viewMaxX = hasViewport ? (screenW - this.world.x) / worldScale + pad : Infinity;
+    const viewMinY = hasViewport ? (-this.world.y) / worldScale - pad : -Infinity;
+    const viewMaxY = hasViewport ? (screenH - this.world.y) / worldScale + pad : Infinity;
 
     for (const trackCont of this.tracksLayer.children) {
       if (!(trackCont instanceof Container)) continue;
-      const inCullView =
-        !hasViewport ||
-        (trackCont.x >= cullMinX &&
-          trackCont.x <= cullMaxX &&
-          trackCont.y >= cullMinY &&
-          trackCont.y <= cullMaxY);
-      trackCont.visible = inCullView;
-      if (!inCullView) continue;
-
-      const inLabelView =
+      const inView =
         !hasViewport ||
         (trackCont.x >= viewMinX &&
           trackCont.x <= viewMaxX &&
           trackCont.y >= viewMinY &&
           trackCont.y <= viewMaxY);
-      const effectiveScale = inLabelView ? worldScale : 1;
+      const effectiveScale = inView ? worldScale : 1;
 
-      const showTies = worldScale >= TRACK_TIES_LOD_MIN_SCALE;
       for (const child of trackCont.children) {
-        if (child.label === "track-ties") {
-          child.visible = showTies;
-          continue;
-        }
         if (
           !(child instanceof Container) ||
           (child.label !== "track-number-label" &&
@@ -1155,9 +1162,7 @@ export class Renderer {
           continue;
         }
         for (const sub of child.children) {
-          if (sub instanceof Sprite && (sub as any)._sharedTexture) {
-            updateSharedLabelSpriteResolution(sub, effectiveScale);
-          } else if (sub instanceof Text) {
+          if (sub instanceof Text) {
             const baseFontSize: number =
               typeof (sub as any)._baseFontSize === "number"
                 ? (sub as any)._baseFontSize
@@ -1170,27 +1175,5 @@ export class Renderer {
         }
       }
     }
-
-    // 3. Viewport-Culling für 2D-Gebäude/Modelle (Gelände/Berge & Masken bleiben immer aktiv)
-    for (const modelChild of this.modelsLayer.children) {
-      if (!(modelChild instanceof Container) || modelChild instanceof Graphics) continue;
-      const r: number = typeof (modelChild as any)._cullRadius === "number" ? (modelChild as any)._cullRadius : 1000;
-      if (!isFinite(r)) {
-        modelChild.visible = true;
-        continue;
-      }
-      const mMinX = hasViewport ? (-this.world.x) / worldScale - r : -Infinity;
-      const mMaxX = hasViewport ? (screenW - this.world.x) / worldScale + r : Infinity;
-      const mMinY = hasViewport ? (-this.world.y) / worldScale - r : -Infinity;
-      const mMaxY = hasViewport ? (screenH - this.world.y) / worldScale + r : Infinity;
-      modelChild.visible =
-        !hasViewport ||
-        (modelChild.x >= mMinX &&
-          modelChild.x <= mMaxX &&
-          modelChild.y >= mMinY &&
-          modelChild.y <= mMaxY);
-    }
-
-    this.requestRender();
   }
 }

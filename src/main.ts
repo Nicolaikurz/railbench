@@ -791,20 +791,6 @@ async function main() {
       const isDe = getLanguage() === "de";
       showToast(locked ? (isDe ? "Leistengrößen fixiert" : "Panels locked") : (isDe ? "Leistengrößen freigegeben" : "Panels unlocked"), locked ? ICONS.lock : ICONS.unlock);
     },
-    onToggleLowGpuMode: () => {
-      lowGpuMode = !lowGpuMode;
-      renderer.setLowGpuMode(lowGpuMode);
-      viewer3D.setLowGpuMode(lowGpuMode);
-      saveSettingsState();
-      sync();
-      const isDe = getLanguage() === "de";
-      showToast(
-        lowGpuMode
-          ? (isDe ? "Low-GPU-Modus aktiviert (30 FPS, reduzierte Auflösung)" : "Low-GPU Mode enabled (30 FPS, reduced resolution)")
-          : (isDe ? "Low-GPU-Modus deaktiviert (volle Qualität)" : "Low-GPU Mode disabled (full quality)"),
-        ICONS.settings,
-      );
-    },
     isSnappingEnabled: () => snappingEnabled,
     setSnappingEnabled: (val) => { snappingEnabled = val; },
     getRotationStep: () => rotationStep,
