@@ -1,7 +1,7 @@
 import { Container, Graphics, Text, TextStyle } from "pixi.js";
 import type { Model3D } from "@/core/types";
 import { deg2rad, getUprightTextRotation } from "@/core/geometry";
-import { findBuiltinModelDef } from "@/core/models-3d";
+import { findBuiltinModelDef, getBuiltinModelName } from "@/core/models-3d";
 import { drawCoalingStationTopView, drawDieselFuelStationTopView } from "./model-sprite-depot";
 
 export function createModel2DGraphics(model: Model3D, isSelected: boolean): Container {
@@ -66,26 +66,60 @@ export function createModel2DGraphics(model: Model3D, isSelected: boolean): Cont
     drawPlatformTopView(g, w, d, halfW, halfD, isSelected);
   } else if (builtinId === "mountain") {
     drawMountainTopView(g, w, d, halfW, halfD, isSelected, model);
+  } else if (builtinId === "ground-terrain") {
+    drawGroundTerrainTopView(g, halfW, halfD, isSelected, model);
   } else {
     drawGenericBuildingTopView(g, w, d, halfW, halfD, model.category, isSelected);
   }
 
-  // 2. Wenn selektiert: Rotations-Griff zeichnen (oben)
+  // 2. Wenn selektiert: Deutliche CAD-Selektions-Hervorhebung (Glow, Doppelrahmen, Eckpunkte & Drehgriff)
   if (isSelected) {
-    const handleDist = halfD + 18;
+    const pad = 3.5;
+    const bx = -halfW - pad;
+    const by = -halfD - pad;
+    const bw = w + pad * 2;
+    const bh = d + pad * 2;
 
-    // Verbindungslinie
-    g.moveTo(0, -halfD);
+    // Weicher äußerer Cyan-Glow + dezente Flächen-Tönung für sofortige Sichtbarkeit auch bei weitem Zoom
+    g.roundRect(bx - 1.5, by - 1.5, bw + 3, bh + 3, 5);
+    g.fill({ color: 0x38bdf8, alpha: 0.14 });
+    g.stroke({ width: 7, color: 0x38bdf8, alpha: 0.28 });
+
+    // Kontrastreicher Doppelrahmen (dunkle Kontur + helles Cyan)
+    g.roundRect(bx, by, bw, bh, 3.5);
+    g.stroke({ width: 3.6, color: 0x0f172a, alpha: 0.85 });
+    g.roundRect(bx, by, bw, bh, 3.5);
+    g.stroke({ width: 2.2, color: 0x38bdf8, alpha: 1.0 });
+
+    // 4 CAD-Eckmarker an der Bounding-Box
+    const cornerSize = Math.max(5, Math.min(7.5, Math.min(w, d) * 0.12));
+    const halfC = cornerSize / 2;
+    const corners: Array<[number, number]> = [
+      [bx, by],
+      [bx + bw, by],
+      [bx, by + bh],
+      [bx + bw, by + bh],
+    ];
+    for (const [cx, cy] of corners) {
+      g.rect(cx - halfC, cy - halfC, cornerSize, cornerSize);
+      g.fill({ color: 0x38bdf8, alpha: 1.0 });
+      g.stroke({ width: 1.4, color: 0xffffff, alpha: 1.0 });
+    }
+
+    // Rotations-Griff oben
+    const handleDist = halfD + 22;
+    g.moveTo(0, by);
     g.lineTo(0, -handleDist);
-    g.stroke({ width: 1.5, color: 0x38bdf8, alpha: 0.85 });
+    g.stroke({ width: 3.4, color: 0x0f172a, alpha: 0.8 });
+    g.moveTo(0, by);
+    g.lineTo(0, -handleDist);
+    g.stroke({ width: 2.0, color: 0x38bdf8, alpha: 1.0 });
 
-    // Drehknopf
-    g.circle(0, -handleDist, 6);
+    g.circle(0, -handleDist, 7.5);
     g.fill({ color: 0x38bdf8 });
-    g.stroke({ width: 1.5, color: 0xffffff });
+    g.stroke({ width: 2.0, color: 0xffffff });
 
-    // Pfeil-Symbol im Knopf
-    g.circle(0, -handleDist, 2);
+    g.circle(0, -handleDist, 2.4);
     g.fill({ color: 0x0f172a });
   }
 
@@ -123,8 +157,16 @@ export function createModel2DGraphics(model: Model3D, isSelected: boolean): Cont
     const labelCont = new Container();
     labelCont.rotation = getUprightTextRotation(rot);
 
+    let displayName = model.name;
+    if (model.modelType === "builtin" && model.builtinId) {
+      const def = findBuiltinModelDef(model.builtinId);
+      if (def && (model.name === def.name || model.name === def.nameEn)) {
+        displayName = getBuiltinModelName(def);
+      }
+    }
+
     const labelText = new Text({
-      text: `${icon} ${model.name}`,
+      text: `${icon} ${displayName}`,
       style,
     });
     labelText.anchor.set(0.5, 0.5);
@@ -149,8 +191,8 @@ export function createModel2DGraphics(model: Model3D, isSelected: boolean): Cont
     bg.roundRect(-bgW / 2 + 0.5, -bgH / 2 + 1, bgW, bgH, 3);
     bg.fill({ color: 0x000000, alpha: 0.35 });
     bg.roundRect(-bgW / 2, -bgH / 2, bgW, bgH, 3);
-    bg.fill({ color: 0x0f172a, alpha: 0.78 });
-    bg.stroke({ width: 1, color: isSelected ? 0x38bdf8 : 0x475569, alpha: 0.85 });
+    bg.fill({ color: isSelected ? 0x0c4a6e : 0x0f172a, alpha: isSelected ? 0.94 : 0.78 });
+    bg.stroke({ width: isSelected ? 1.6 : 1, color: isSelected ? 0x38bdf8 : 0x475569, alpha: isSelected ? 1.0 : 0.85 });
 
     labelCont.addChild(bg);
     labelCont.addChild(labelText);
@@ -729,6 +771,64 @@ function drawPlatformLampTopView(g: Graphics, _w: number, _d: number, halfW: num
 }
 
 /** Standard-Gebäude: Architektonisches Walmdach mit 4-Flächen-Schattierung & Firstlinie */
+function drawGroundTerrainTopView(
+  g: Graphics,
+  halfW: number,
+  halfD: number,
+  isSelected: boolean,
+  model?: Model3D,
+) {
+  const type = model?.groundTerrainType ?? "hill";
+  const palette =
+    type === "water"
+      ? { outer: 0x0284c7, inner: 0x38bdf8, stroke: 0x0369a1, alpha: 0.45 }
+      : type === "sand"
+        ? { outer: 0xd6b97c, inner: 0xe7d3a3, stroke: 0xa1824a, alpha: 0.52 }
+        : type === "dirt"
+          ? { outer: 0x6b4c30, inner: 0x85603e, stroke: 0x4a331f, alpha: 0.52 }
+          : { outer: 0x4d7c0f, inner: 0x65a30d, stroke: 0x365314, alpha: 0.48 };
+
+  const path = model?.mountainPath;
+  if (path && path.length > 0) {
+    const avgR = path.reduce((s, n) => s + n.radius, 0) / path.length;
+    if (path.length >= 2) {
+      g.moveTo(path[0]!.x, path[0]!.y);
+      for (let i = 1; i < path.length; i++) g.lineTo(path[i]!.x, path[i]!.y);
+      g.stroke({ width: Math.max(8, avgR * 2), color: palette.outer, alpha: palette.alpha, cap: "round", join: "round" });
+
+      g.moveTo(path[0]!.x, path[0]!.y);
+      for (let i = 1; i < path.length; i++) g.lineTo(path[i]!.x, path[i]!.y);
+      g.stroke({ width: Math.max(4, avgR * 1.3), color: palette.inner, alpha: palette.alpha * 0.8, cap: "round", join: "round" });
+    } else {
+      const n0 = path[0]!;
+      g.circle(n0.x, n0.y, Math.max(8, n0.radius));
+      g.fill({ color: palette.outer, alpha: palette.alpha });
+      g.circle(n0.x, n0.y, Math.max(4, n0.radius * 0.65));
+      g.fill({ color: palette.inner, alpha: palette.alpha * 0.8 });
+    }
+    if (isSelected) {
+      g.rect(-halfW, -halfD, halfW * 2, halfD * 2);
+      g.stroke({ width: 2.0, color: 0x38bdf8, alpha: 0.85 });
+    }
+    return;
+  }
+
+  g.ellipse(0, 0, halfW, halfD);
+  g.fill({ color: palette.outer, alpha: palette.alpha });
+  g.stroke({ width: isSelected ? 2.5 : 1.5, color: isSelected ? 0x38bdf8 : palette.stroke });
+
+  g.ellipse(0, 0, halfW * 0.68, halfD * 0.68);
+  g.fill({ color: palette.inner, alpha: palette.alpha * 0.75 });
+  g.stroke({ width: 1, color: palette.stroke, alpha: 0.45 });
+
+  if (type === "water") {
+    for (const ry of [-halfD * 0.25, 0, halfD * 0.25]) {
+      g.moveTo(-halfW * 0.35, ry).lineTo(halfW * 0.35, ry);
+    }
+    g.stroke({ width: 1.2, color: 0xe0f2fe, alpha: 0.55 });
+  }
+}
+
 function drawMountainTopView(
   g: Graphics,
   _w: number,

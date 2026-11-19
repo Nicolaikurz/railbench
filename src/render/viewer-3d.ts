@@ -924,7 +924,7 @@ export class Viewer3D {
       .map((p) => `${p.id}:${p.catalogId}:${Math.round(p.transform.x * 10)}:${Math.round(p.transform.y * 10)}:${Math.round(p.transform.rotation * 10)}:${p.layerId ?? ""}:${p.elevation?.start ?? 0}:${p.elevation?.end ?? 0}:${p.hasBridge ? 1 : 0}:${p.hasTunnel ? 1 : 0}:${p.hasCatenary ? 1 : 0}:${p.hasSignal ? 1 : 0}:${p.signalSide ?? ""}:${p.signalDirection ?? ""}:${p.hasLantern ? 1 : 0}:${p.hasDecoder ? 1 : 0}:${p.customLength ?? ""}:${p.customRadius ?? ""}:${p.customAngle ?? ""}:${p.customOffsets?.join(",") ?? ""}`)
       .join("|");
     const modelsSig = (layout.models ?? [])
-      .map((m) => `${m.id}:${m.builtinId ?? m.fileName ?? ""}:${Math.round(m.transform.x * 10)}:${Math.round(m.transform.y * 10)}:${Math.round(m.transform.rotation * 10)}:${m.layerId ?? ""}:${m.elevation ?? 0}:${m.scale ?? 1}:${m.width}:${m.depth}:${m.height}:${m.mountainStyle ?? ""}:${m.mountainPath?.length ?? 0}`)
+      .map((m) => `${m.id}:${m.builtinId ?? m.fileName ?? ""}:${Math.round(m.transform.x * 10)}:${Math.round(m.transform.y * 10)}:${Math.round(m.transform.rotation * 10)}:${m.layerId ?? ""}:${m.elevation ?? 0}:${m.scale ?? 1}:${m.width}:${m.depth}:${m.height}:${m.mountainStyle ?? ""}:${m.groundTerrainType ?? ""}:${m.mountainPath?.length ?? 0}`)
       .join("|");
     return `${catalog.system}:${layout.scale ?? ""}:${colorMode}:${scPts}#${bbSig}#${layerSig}#${piecesSig}#${modelsSig}`;
   }
@@ -1071,7 +1071,7 @@ export class Viewer3D {
         modelsWithElev.push({ model, elev });
 
         const plateMode = layer?.woodPlateMode ?? (baseElevation !== 0 ? "tight" : "none");
-        if (plateMode === "tight" && model.builtinId !== "mountain") {
+        if (plateMode === "tight" && model.builtinId !== "mountain" && model.builtinId !== "ground-terrain") {
           const plateThickness = layer?.woodPlateThicknessMm ?? 8;
           buildBuildingWoodPlate3D(this.woodPlateGroup, model, elev, plateThickness);
         }

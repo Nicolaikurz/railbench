@@ -1,10 +1,13 @@
-import { Application, Container, Graphics, TexturePool } from "pixi.js";
+import { Application, Container, Graphics, Text, TexturePool } from "pixi.js";
 import type { Layout, ColorMode, TrackPiece, BaseboardConfig } from "@/core/types";
 import { catalogRegistry, type Catalog, type CatalogEntry } from "@/catalog/catalog";
 import type { SimulationSummary, ShortCircuitDetectionResult } from "@/core/simulation";
 import { createTrackGraphics } from "./track-sprite";
+import { computeLabelTextResolution } from "./track-badges";
+import { CatenaryMast2DContext } from "./track-accessories-sprite";
 import { createBaseboardGraphics } from "./baseboard-sprite";
 import { createModel2DGraphics } from "./model-sprite";
+import { collectTerrainSupportPolygons } from "./models-3d/ground-terrain";
 import { getBaseboards, getBaseboardBounds } from "@/core/layout";
 import type { BaseboardSnapGuide } from "@/core/baseboard-snapping";
 import { getConnectorSnapStatus } from "@/core/snapping";
@@ -522,6 +525,24 @@ export class Renderer {
           if (isInactive && !isSelected) {
             modelSprite.alpha = 0.58;
           }
+          // Gelände (Berge & Untergrund) in 2D sauber auf Tisch-/Plattenränder maskieren
+          if (model.builtinId === "mountain" || model.builtinId === "ground-terrain") {
+            const supportPolys = collectTerrainSupportPolygons(layout, model.layerId);
+            if (supportPolys.length > 0) {
+              const maskG = new Graphics();
+              for (const poly of supportPolys) {
+                if (poly.length < 3) continue;
+                maskG.moveTo(poly[0]!.x, poly[0]!.y);
+                for (let pi = 1; pi < poly.length; pi++) {
+                  maskG.lineTo(poly[pi]!.x, poly[pi]!.y);
+                }
+                maskG.closePath();
+                maskG.fill({ color: 0xffffff });
+              }
+              this.modelsLayer.addChild(maskG);
+              modelSprite.mask = maskG;
+            }
+          }
           this.modelsLayer.addChild(modelSprite);
         }
       }
@@ -532,6 +553,7 @@ export class Renderer {
     const tracksSig = this.computeTracksSignature(layout, catalog, options);
     if (tracksSig !== this.lastTracksSignature) {
       this.clearLayer(this.tracksLayer);
+      const catenaryMastCtx = new CatenaryMast2DContext();
 
       const showPowerDrop = options.showPowerDrop ?? false;
     const powerSim = options.powerSimulation;
@@ -608,6 +630,8 @@ export class Renderer {
         isInactiveLayer,
         minLayoutElev,
         allPieces: layout.pieces,
+        worldScale: this.world.scale.x || 1,
+        catenaryMastCtx,
       });
 
       this.tracksLayer.addChild(sprite);
@@ -844,6 +868,7 @@ export class Renderer {
   centerOn(worldX: number, worldY: number) {
     this.world.x = this.app.screen.width / 2 - worldX * this.world.scale.x;
     this.world.y = this.app.screen.height / 2 - worldY * this.world.scale.y;
+    this.updateLabelResolutions();
   }
 
   /** Zentriert die Ansicht auf den Ursprung oder Layout-Mittelpunkt. */
@@ -851,5 +876,57 @@ export class Renderer {
     this.world.scale.set(1);
     this.world.x = this.app.screen.width / 2;
     this.world.y = this.app.screen.height / 2;
+    this.updateLabelResolutions();
+  }
+
+  /**
+   * Aktualisiert die Rasterauflösung aller sichtbaren Gleis-Labels/Badges dynamisch passend zum Zoom.
+   * Gleise außerhalb des sichtbaren Bildausschnitts bleiben bei niedriger Basis-Auflösung,
+   * um Speicher- und VRAM-Verbrauch auch bei sehr großen Layouts minimal zu halten.
+   */
+  updateLabelResolutions() {
+    const worldScale = this.world.scale.x || 1;
+    const screenW = this.app?.screen?.width ?? 0;
+    const screenH = this.app?.screen?.height ?? 0;
+    const hasViewport = screenW > 0 && screenH > 0;
+    const pad = 350;
+    const viewMinX = hasViewport ? (-this.world.x) / worldScale - pad : -Infinity;
+    const viewMaxX = hasViewport ? (screenW - this.world.x) / worldScale + pad : Infinity;
+    const viewMinY = hasViewport ? (-this.world.y) / worldScale - pad : -Infinity;
+    const viewMaxY = hasViewport ? (screenH - this.world.y) / worldScale + pad : Infinity;
+
+    for (const trackCont of this.tracksLayer.children) {
+      if (!(trackCont instanceof Container)) continue;
+      const inView =
+        !hasViewport ||
+        (trackCont.x >= viewMinX &&
+          trackCont.x <= viewMaxX &&
+          trackCont.y >= viewMinY &&
+          trackCont.y <= viewMaxY);
+      const effectiveScale = inView ? worldScale : 1;
+
+      for (const child of trackCont.children) {
+        if (
+          !(child instanceof Container) ||
+          (child.label !== "track-number-label" &&
+            child.label !== "track-voltage-badge" &&
+            child.label !== "track-ramp-badge")
+        ) {
+          continue;
+        }
+        for (const sub of child.children) {
+          if (sub instanceof Text) {
+            const baseFontSize: number =
+              typeof (sub as any)._baseFontSize === "number"
+                ? (sub as any)._baseFontSize
+                : Number((sub.style as any)?.fontSize) || 12;
+            const targetRes = computeLabelTextResolution(baseFontSize, effectiveScale);
+            if (sub.resolution !== targetRes) {
+              sub.resolution = targetRes;
+            }
+          }
+        }
+      }
+    }
   }
 }

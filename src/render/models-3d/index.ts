@@ -15,6 +15,7 @@ import { buildTurntableTrainhall3D } from "./turntable-trainhall";
 import { buildSkyscraper3D } from "./skyscraper";
 import { buildIndustryBuilding3D } from "./industry-building";
 import { buildMountain3D, findCollidingTracksForMountain } from "./mountain";
+import { buildGroundTerrain3D } from "./ground-terrain";
 import { buildCoalingStation3D } from "./coaling-station";
 import { buildDieselFuelStation3D } from "./diesel-fuel-station";
 
@@ -40,6 +41,7 @@ export {
   buildSkyscraper3D,
   buildIndustryBuilding3D,
   buildMountain3D,
+  buildGroundTerrain3D,
   findCollidingTracksForMountain,
   buildCoalingStation3D,
   buildDieselFuelStation3D,
@@ -68,6 +70,7 @@ export const BUILTIN_MODEL_BUILDERS: Record<string, Model3DBuilder> = {
   skyscraper: buildSkyscraper3D,
   "industry-building": buildIndustryBuilding3D,
   mountain: buildMountain3D,
+  "ground-terrain": buildGroundTerrain3D,
 };
 
 export const BUILTIN_MODEL_LOW_POLY_BUILDERS: Record<string, Model3DBuilder> = {

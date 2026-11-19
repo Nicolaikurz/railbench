@@ -345,14 +345,16 @@ describe("Terrain Brush, Overlapping Mountain Tunnels & Track/Street Tunnel Togg
     const coaling = createBuiltinModel("coaling-station", { x: 100, y: 200, rotation: 0 });
     expect(coaling.category).toBe("railway");
     const coalingMesh = createBuiltinModel3DMesh("coaling-station", coaling, "H0");
-    expect(coalingMesh.children.length).toBeGreaterThanOrEqual(4);
+    expect(coalingMesh.children.length).toBeGreaterThanOrEqual(1);
+    expect(coalingMesh.children.length).toBeLessThanOrEqual(8);
     const coaling2D = createModel2DGraphics(coaling, true);
     expect(coaling2D.children.length).toBeGreaterThanOrEqual(1);
 
     const diesel = createBuiltinModel("diesel-fuel-station", { x: 300, y: 200, rotation: 0 });
     expect(diesel.category).toBe("railway");
     const dieselMesh = createBuiltinModel3DMesh("diesel-fuel-station", diesel, "H0");
-    expect(dieselMesh.children.length).toBeGreaterThanOrEqual(4);
+    expect(dieselMesh.children.length).toBeGreaterThanOrEqual(1);
+    expect(dieselMesh.children.length).toBeLessThanOrEqual(8);
     const diesel2D = createModel2DGraphics(diesel, true);
     expect(diesel2D.children.length).toBeGreaterThanOrEqual(1);
   });

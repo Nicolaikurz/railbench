@@ -5,12 +5,13 @@ import type { PiecePowerResult } from "@/core/simulation";
 import { deg2rad, getPieceLocalCenter } from "@/core/geometry";
 import { getTrackBlueprintColor, type BlueprintColor } from "./blueprint-colors";
 import { getEffectiveFlexEntry } from "@/core/flextrack";
-import { desaturateColor } from "./track-render-utils";
+import { desaturateColor, darkenColor } from "./track-render-utils";
 import { drawRoadElevationShadow, drawRoadSelectionContour, drawRoadPiece2D } from "./road-sprite";
 import { drawBallast, drawTies } from "./track-geometry-draw";
 import { drawRails, drawTrackCenterline, drawSelectionContour } from "./track-rails-draw";
 import {
   getPieceRunningLength,
+  getTrackBallastWidth,
   drawTrackNumberLabel,
   drawVoltageBadge,
   drawElevationShadow,
@@ -21,6 +22,7 @@ import {
   drawPowerFeederMarker,
   drawIsolatorMarker,
   drawCatenary2D,
+  CatenaryMast2DContext,
   drawCatenaryPowerFeederMarker,
   drawCatenaryIsolatorMarker,
   drawTurnoutAccessories2D,
@@ -53,6 +55,10 @@ export interface RenderOptions {
   /** Minimale Höhe (mm) aller sichtbaren Gleise im Layout für relativen Überführungs-Schatten */
   minLayoutElev?: number;
   allPieces?: TrackPiece[];
+  /** Aktueller Welt-Zoom-Faktor für gestochen scharfe Text-Auflösung auf Labels */
+  worldScale?: number;
+  /** Gemeinsamer Kontext zur Deduplizierung von 2D-Oberleitungsmasten an Gleisübergängen */
+  catenaryMastCtx?: CatenaryMast2DContext;
 }
 
 /**
@@ -128,7 +134,8 @@ export function createTrackGraphics(
     activeBpColor = bpColor;
   }
 
-  // Nicht-aktive Ebenen entsättigen, damit die ausgewählte Ebene visuell klar hervortritt
+  // Nicht-aktive Ebenen stark entsättigen; aktive Ebene dezent entsättigen (18 %),
+  // während selektierte Gleise volle Farbsättigung behalten und klar hervorstechen
   if (isInactiveLayer) {
     ballastColor = desaturateColor(ballastColor, 0.72);
     tieColor = desaturateColor(tieColor, 0.72);
@@ -144,13 +151,28 @@ export function createTrackGraphics(
       };
     }
     container.alpha = 0.58;
+  } else if (!isSelected) {
+    const activeDarken = 0.30;
+    ballastColor = darkenColor(ballastColor, activeDarken);
+    tieColor = darkenColor(tieColor, activeDarken);
+    railColor = darkenColor(railColor, activeDarken);
+    if (activeBpColor) {
+      const darkHex = darkenColor(activeBpColor.hex, activeDarken);
+      const darkCss = `#${darkHex.toString(16).padStart(6, "0")}`;
+      activeBpColor = {
+        ...activeBpColor,
+        hex: darkHex,
+        css: darkCss,
+        badgeBg: darkCss,
+      };
+    }
   }
 
   // Spurweite & Dimensionen (H0 = 16.5mm, TT = 12mm, N = 9mm, etc.)
   const gauge = entry.gauge ?? 16.5;
   const gaugeHalf = gauge / 2;
-  const hasRoadbed = entry.hasRoadbed ?? true;
-  const ballastWidth = hasRoadbed ? (gauge >= 30 ? gauge * 2.18 : (gauge >= 16 ? 36 : gauge * 2.2)) : gauge * 1.5;
+  const ballastWidth = getTrackBallastWidth(entry);
+  const worldScale = options.worldScale ?? 1;
   const tieLenHalf = gauge * 0.78;
   const tieWidth = gauge >= 30 ? 6.5 : (gauge >= 16 ? 2.6 : (gauge >= 12 ? 2.0 : 1.5));
   const tieSpacing = gauge >= 30 ? 16.0 : (gauge >= 16 ? 6.5 : (gauge >= 12 ? 4.8 : 3.5));
@@ -188,7 +210,7 @@ export function createTrackGraphics(
     }
 
     if (isNumberLabeled) {
-      drawTrackNumberLabel(container, entry, piece.transform.rotation, activeBpColor, false);
+      drawTrackNumberLabel(container, entry, piece.transform.rotation, activeBpColor, false, worldScale);
     }
     if (isRamp) {
       drawRampChevrons(g, entry, heightDiff, gradPercent);
@@ -201,6 +223,7 @@ export function createTrackGraphics(
         gradPercent,
         isNumberLabeled,
         false,
+        worldScale,
       );
     }
     if (options.showConnectors) {
@@ -260,7 +283,7 @@ export function createTrackGraphics(
     drawTrackCenterline(g, entry, powerColor, coreWidth, 0.95);
 
     // Deutliche Spannungs-Plakette auf dem Gleis
-    drawVoltageBadge(container, entry, piece.transform.rotation, powerResult, isNumberLabeled);
+    drawVoltageBadge(container, entry, piece.transform.rotation, powerResult, isNumberLabeled, worldScale);
   }
 
   // --- 5. EINSPEISEPUNKT MARKER (⚡) ---
@@ -279,7 +302,7 @@ export function createTrackGraphics(
 
   // --- 5C. OBERLEITUNG (Fahrdraht & Masten) ---
   if (piece.hasCatenary) {
-    drawCatenary2D(container, entry, showPowerDrop ? powerResult : undefined, piece, options.allPieces);
+    drawCatenary2D(container, entry, showPowerDrop ? powerResult : undefined, piece, options.allPieces, options.catenaryMastCtx);
     if (piece.catenaryPowerFeed) {
       drawCatenaryPowerFeederMarker(container, entry);
     }
@@ -308,7 +331,7 @@ export function createTrackGraphics(
 
   // --- 6. GLEISNUMMER / BAUPLAN-LABEL (z. B. 24188, 24611, 24624) ---
   if (isNumberLabeled) {
-    drawTrackNumberLabel(container, entry, piece.transform.rotation, activeBpColor, showPowerDrop && !!powerResult);
+    drawTrackNumberLabel(container, entry, piece.transform.rotation, activeBpColor, showPowerDrop && !!powerResult, worldScale);
   }
 
   // --- 6B. RAMPEN-VISUALISIERUNG (Chevrons & Steigungs-Plakette) ---
@@ -323,6 +346,7 @@ export function createTrackGraphics(
       gradPercent,
       isNumberLabeled,
       showPowerDrop && !!powerResult,
+      worldScale,
     );
   }
 

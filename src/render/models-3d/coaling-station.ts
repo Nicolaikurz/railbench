@@ -33,13 +33,13 @@ export function buildCoalingStation3D(group: THREE.Group): void {
   basePlate.position.set(0, 2, 0);
   group.add(basePlate);
 
-  // 2. Großer Kohlenbansen (Beton-Einfassung links/Mitte, X = -82 bis +22, Z = -32 bis +18)
-  const bansenMinX = -82;
-  const bansenMaxX = 22;
-  const bansenW = bansenMaxX - bansenMinX; // 104 mm
-  const bansenCX = (bansenMinX + bansenMaxX) / 2; // -30 mm
-  const bansenCZ = -7;
-  const bansenD = 50;
+  // 2. Großer Kohlenbansen (Beton-Einfassung links, X = -84 bis -8, Z = -32 bis +14)
+  const bansenMinX = -84;
+  const bansenMaxX = -8;
+  const bansenW = bansenMaxX - bansenMinX; // 76 mm
+  const bansenCX = (bansenMinX + bansenMaxX) / 2; // -46 mm
+  const bansenCZ = -9;
+  const bansenD = 46;
   const wallH = 22;
   const wallT = 3.5;
 
@@ -61,8 +61,8 @@ export function buildCoalingStation3D(group: THREE.Group): void {
   group.add(rightWall);
 
   // Beton-Strebepfeiler außen am Kohlenbansen
-  for (let i = 0; i <= 5; i++) {
-    const px = bansenMinX + 4 + i * ((bansenW - 8) / 5);
+  for (let i = 0; i <= 4; i++) {
+    const px = bansenMinX + 4 + i * ((bansenW - 8) / 4);
     const ribBack = new THREE.Mesh(new THREE.BoxGeometry(2.8, wallH + 1, 3.5), darkConcreteMat);
     ribBack.position.set(px, 4 + wallH / 2, bansenCZ - bansenD / 2 - 1);
     group.add(ribBack);
@@ -72,31 +72,30 @@ export function buildCoalingStation3D(group: THREE.Group): void {
     group.add(ribFront);
   }
 
-  // 3. Steinkohle-Halde im Bansen (Grundfüllung + facettierte Kohlehügel)
-  const coalBed = new THREE.Mesh(new THREE.BoxGeometry(bansenW - 6, 14, bansenD - 6), coalMat);
-  coalBed.position.set(bansenCX, 4 + 7, bansenCZ);
+  // 3. Steinkohle-Halde im Bansen (streng innerhalb der Innenwände: X ∈ [-80, -12], Z ∈ [-28, +10])
+  const coalBed = new THREE.Mesh(new THREE.BoxGeometry(bansenW - wallT * 2 - 1, 13, bansenD - wallT * 2 - 1), coalMat);
+  coalBed.position.set(bansenCX, 4 + 6.5, bansenCZ);
   group.add(coalBed);
 
   const coalMounds: Array<{ x: number; z: number; r: number; h: number }> = [
-    { x: -64, z: -10, r: 22, h: 18 },
-    { x: -42, z: -4, r: 25, h: 22 },
-    { x: -18, z: -9, r: 23, h: 20 },
-    { x: 2, z: -5, r: 20, h: 17 },
-    { x: -52, z: 6, r: 19, h: 15 },
-    { x: -26, z: 7, r: 21, h: 16 },
+    { x: -64, z: -12, r: 14, h: 15 },
+    { x: -46, z: -9, r: 16, h: 18 },
+    { x: -28, z: -11, r: 14, h: 16 },
+    { x: -56, z: -2, r: 11, h: 12 },
+    { x: -34, z: -2, r: 11, h: 13 },
   ];
   for (const m of coalMounds) {
     const cone = new THREE.Mesh(new THREE.ConeGeometry(m.r, m.h, 7), coalMat);
-    cone.position.set(m.x, 16 + m.h / 2, m.z);
+    cone.position.set(m.x, 15 + m.h / 2, m.z);
     cone.rotation.y = (m.x * 0.17) % Math.PI;
     group.add(cone);
   }
 
-  // 4. Stahl-Hochbunker / Wiegebunker (rechts bei X = +52 mm, Z = -2 mm)
-  const towerCX = 52;
-  const towerCZ = -2;
-  const towerSpanX = 36;
-  const towerSpanZ = 34;
+  // 4. Stahl-Hochbunker / Wiegebunker (rechts bei X = +54 mm, Z = -4 mm)
+  const towerCX = 54;
+  const towerCZ = -4;
+  const towerSpanX = 34;
+  const towerSpanZ = 32;
   const legH = 56;
 
   // 4 Stahlstützen mit Betonsockeln
@@ -135,23 +134,50 @@ export function buildCoalingStation3D(group: THREE.Group): void {
   }
 
   // Trichter-Unterteil (Pyramidenstumpf nach unten)
-  const funnel = new THREE.Mesh(new THREE.CylinderGeometry(24, 9, 20, 4), steelMat);
+  const funnel = new THREE.Mesh(new THREE.CylinderGeometry(22, 9, 20, 4), steelMat);
   funnel.rotation.y = Math.PI / 4;
   funnel.position.set(towerCX, 56, towerCZ);
   group.add(funnel);
 
-  // Haupt-Kohlenbunker-Aufsatz (oben offen mit Kohlefüllung)
-  const hopperBox = new THREE.Mesh(new THREE.BoxGeometry(38, 22, 36), steelMat);
-  hopperBox.position.set(towerCX, 76, towerCZ);
-  group.add(hopperBox);
+  // Haupt-Kohlenbunker-Aufsatz (oben offener Stahlkasten mit versenkter Kohlefüllung innen)
+  const hopW = 36;
+  const hopH = 22;
+  const hopD = 34;
+  const hopT = 2.2;
+  const hopCenterY = 76;
 
-  const hopperCoal = new THREE.Mesh(new THREE.ConeGeometry(21, 14, 6), coalMat);
-  hopperCoal.position.set(towerCX, 90, towerCZ);
-  group.add(hopperCoal);
+  const hopFloor = new THREE.Mesh(new THREE.BoxGeometry(hopW, 4, hopD), darkSteelMat);
+  hopFloor.position.set(towerCX, hopCenterY - hopH / 2 + 2, towerCZ);
+  group.add(hopFloor);
+
+  const hopWallBack = new THREE.Mesh(new THREE.BoxGeometry(hopW, hopH, hopT), steelMat);
+  hopWallBack.position.set(towerCX, hopCenterY, towerCZ - hopD / 2 + hopT / 2);
+  group.add(hopWallBack);
+
+  const hopWallFront = new THREE.Mesh(new THREE.BoxGeometry(hopW, hopH, hopT), steelMat);
+  hopWallFront.position.set(towerCX, hopCenterY, towerCZ + hopD / 2 - hopT / 2);
+  group.add(hopWallFront);
+
+  const hopWallL = new THREE.Mesh(new THREE.BoxGeometry(hopT, hopH, hopD - hopT * 2), steelMat);
+  hopWallL.position.set(towerCX - hopW / 2 + hopT / 2, hopCenterY, towerCZ);
+  group.add(hopWallL);
+
+  const hopWallR = new THREE.Mesh(new THREE.BoxGeometry(hopT, hopH, hopD - hopT * 2), steelMat);
+  hopWallR.position.set(towerCX + hopW / 2 - hopT / 2, hopCenterY, towerCZ);
+  group.add(hopWallR);
+
+  // Kohlefüllung sauber im Inneren des offenen Hochbunkers (unterhalb des Randes, nichts auf dem Dach)
+  const hopperCoalFill = new THREE.Mesh(new THREE.BoxGeometry(hopW - hopT * 2 - 0.6, 12, hopD - hopT * 2 - 0.6), coalMat);
+  hopperCoalFill.position.set(towerCX, hopCenterY - 2, towerCZ);
+  group.add(hopperCoalFill);
+
+  const hopperCoalPeak = new THREE.Mesh(new THREE.ConeGeometry(12, 6, 6), coalMat);
+  hopperCoalPeak.position.set(towerCX, hopCenterY + 6, towerCZ);
+  group.add(hopperCoalPeak);
 
   // Schwenkbare Kohlenschütte zur Gleisseite (+Z)
   const chuteGroup = new THREE.Group();
-  chuteGroup.position.set(towerCX, 50, towerCZ + 14);
+  chuteGroup.position.set(towerCX, 50, towerCZ + 13);
   chuteGroup.rotation.x = 0.55; // Nach vorn unten zum Gleis geneigt
   const chuteBed = new THREE.Mesh(new THREE.BoxGeometry(12, 2, 26), darkSteelMat);
   chuteBed.position.set(0, 0, 11);
@@ -164,99 +190,99 @@ export function buildCoalingStation3D(group: THREE.Group): void {
   chuteGroup.add(chuteSideR);
   group.add(chuteGroup);
 
-  // Bedienbühne & kleines Wärterhäuschen am Hochbunker
-  const walkway = new THREE.Mesh(new THREE.BoxGeometry(46, 2, 44), darkSteelMat);
+  // Bedienbühne am Hochbunker
+  const walkway = new THREE.Mesh(new THREE.BoxGeometry(42, 2, 40), darkSteelMat);
   walkway.position.set(towerCX, 65, towerCZ);
   group.add(walkway);
 
-  // 5. Drehkran mit Gittermast-Ausleger & Zweischalengreifer (bei X = +12 mm, Z = -12 mm)
+  // 5. Drehkran mit Gittermast-Ausleger & Zweischalengreifer (frei zwischen Bansen und Hochbunker bei X = +12 mm, Z = -10 mm)
   const craneX = 12;
-  const craneZ = -12;
+  const craneZ = -10;
 
-  // Massiver runder Kran-Turmsockel
-  const cranePedestal = new THREE.Mesh(new THREE.CylinderGeometry(11, 13, 42, 12), concreteMat);
+  // Massiver runder Kran-Turmsockel (klar getrennt von Bansen bei X=-8 und Hochbunker bei X=+37)
+  const cranePedestal = new THREE.Mesh(new THREE.CylinderGeometry(8.5, 10, 42, 12), concreteMat);
   cranePedestal.position.set(craneX, 4 + 21, craneZ);
   group.add(cranePedestal);
 
-  const slewingRing = new THREE.Mesh(new THREE.CylinderGeometry(12, 12, 3, 16), darkSteelMat);
+  const slewingRing = new THREE.Mesh(new THREE.CylinderGeometry(9.5, 9.5, 3, 16), darkSteelMat);
   slewingRing.position.set(craneX, 47, craneZ);
   group.add(slewingRing);
 
-  // Drehbarer Kranaufbau (zeigt schräg zwischen Bansen und Hochbunker)
+  // Drehbarer Kranaufbau: Ausleger zeigt nach links (-X) über den Kohlenbansen (frei vom Hochbunker!)
   const craneSuper = new THREE.Group();
   craneSuper.position.set(craneX, 48.5, craneZ);
-  craneSuper.rotation.y = -0.45;
+  craneSuper.rotation.y = Math.PI - 0.08;
 
-  const cabBody = new THREE.Mesh(new THREE.BoxGeometry(22, 18, 16), craneCabMat);
-  cabBody.position.set(-2, 9, 0);
+  const cabBody = new THREE.Mesh(new THREE.BoxGeometry(18, 16, 14), craneCabMat);
+  cabBody.position.set(-1, 8, 0);
   craneSuper.add(cabBody);
 
-  const cabRoof = new THREE.Mesh(new THREE.BoxGeometry(24, 2, 18), darkSteelMat);
-  cabRoof.position.set(-2, 19, 0);
+  const cabRoof = new THREE.Mesh(new THREE.BoxGeometry(20, 2, 16), darkSteelMat);
+  cabRoof.position.set(-1, 17, 0);
   craneSuper.add(cabRoof);
 
-  const cabWindow = new THREE.Mesh(new THREE.BoxGeometry(2, 8, 12), glassMat);
-  cabWindow.position.set(8.5, 11, 0);
+  const cabWindow = new THREE.Mesh(new THREE.BoxGeometry(2, 7, 10), glassMat);
+  cabWindow.position.set(7.5, 10, 0);
   craneSuper.add(cabWindow);
 
-  // Gegengewicht am Heck
-  const counterweight = new THREE.Mesh(new THREE.BoxGeometry(8, 12, 14), darkConcreteMat);
-  counterweight.position.set(-15, 7, 0);
+  // Gegengewicht am Heck (kompakt, bleibt weit vor dem Hochbunker)
+  const counterweight = new THREE.Mesh(new THREE.BoxGeometry(6, 10, 12), darkConcreteMat);
+  counterweight.position.set(-12, 6, 0);
   craneSuper.add(counterweight);
 
-  // Schräger Gitter-Ausleger (Länge 72 mm, ragt bis auf ~122 mm Höhe)
-  const boomLen = 72;
-  const boomAngle = 0.72; // ~41° nach oben
+  // Schräger Gitter-Ausleger (Länge 58 mm, schwenkt sauber über den Kohlenbansen)
+  const boomLen = 58;
+  const boomAngle = 0.78; // ~45° nach oben
   const boomGroup = new THREE.Group();
-  boomGroup.position.set(6, 12, 0);
+  boomGroup.position.set(5, 11, 0);
   boomGroup.rotation.z = boomAngle;
 
-  for (const bz of [-3, 3]) {
-    const chord = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.4, boomLen, 6), steelMat);
+  for (const bz of [-2.8, 2.8]) {
+    const chord = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 1.3, boomLen, 6), steelMat);
     chord.rotation.z = -Math.PI / 2;
     chord.position.set(boomLen / 2, 0, bz);
     boomGroup.add(chord);
   }
   for (let bStep = 6; bStep < boomLen; bStep += 10) {
-    const strut = new THREE.Mesh(new THREE.BoxGeometry(1.2, 3.2, 6.5), steelMat);
+    const strut = new THREE.Mesh(new THREE.BoxGeometry(1.2, 3.0, 6.0), steelMat);
     strut.position.set(bStep, 0, 0);
     boomGroup.add(strut);
   }
   craneSuper.add(boomGroup);
 
   // Auslegerspitze in lokalen Kran-Koordinaten berechnen
-  const tipX = 6 + Math.cos(boomAngle) * boomLen;
-  const tipY = 12 + Math.sin(boomAngle) * boomLen;
+  const tipX = 5 + Math.cos(boomAngle) * boomLen;
+  const tipY = 11 + Math.sin(boomAngle) * boomLen;
 
   // Umlenkrolle an der Auslegerspitze
-  const pulley = new THREE.Mesh(new THREE.CylinderGeometry(3, 3, 2.5, 12), warningMat);
+  const pulley = new THREE.Mesh(new THREE.CylinderGeometry(2.8, 2.8, 2.2, 12), warningMat);
   pulley.rotation.x = Math.PI / 2;
   pulley.position.set(tipX, tipY, 0);
   craneSuper.add(pulley);
 
-  // Stahlseil & Zweischalengreifer (hängt von der Auslegerspitze herab)
-  const cableLen = 42;
+  // Stahlseil & Zweischalengreifer (hängt frei über der Kohlehalde)
+  const cableLen = 36;
   const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, cableLen, 6), darkSteelMat);
   cable.position.set(tipX, tipY - cableLen / 2, 0);
   craneSuper.add(cable);
 
   const grabY = tipY - cableLen;
-  const grabHead = new THREE.Mesh(new THREE.BoxGeometry(5, 6, 5), darkSteelMat);
+  const grabHead = new THREE.Mesh(new THREE.BoxGeometry(4.5, 5.5, 4.5), darkSteelMat);
   grabHead.position.set(tipX, grabY, 0);
   craneSuper.add(grabHead);
 
-  const jawL = new THREE.Mesh(new THREE.BoxGeometry(6, 7, 8), rustMat);
-  jawL.position.set(tipX - 3, grabY - 5, 0);
+  const jawL = new THREE.Mesh(new THREE.BoxGeometry(5.5, 6.5, 7.5), rustMat);
+  jawL.position.set(tipX - 2.8, grabY - 4.5, 0);
   jawL.rotation.z = 0.25;
   craneSuper.add(jawL);
 
-  const jawR = new THREE.Mesh(new THREE.BoxGeometry(6, 7, 8), rustMat);
-  jawR.position.set(tipX + 3, grabY - 5, 0);
+  const jawR = new THREE.Mesh(new THREE.BoxGeometry(5.5, 6.5, 7.5), rustMat);
+  jawR.position.set(tipX + 2.8, grabY - 4.5, 0);
   jawR.rotation.z = -0.25;
   craneSuper.add(jawR);
 
-  const grabCoal = new THREE.Mesh(new THREE.SphereGeometry(4.5, 6, 5), coalMat);
-  grabCoal.position.set(tipX, grabY - 4, 0);
+  const grabCoal = new THREE.Mesh(new THREE.SphereGeometry(4.0, 6, 5), coalMat);
+  grabCoal.position.set(tipX, grabY - 3.8, 0);
   craneSuper.add(grabCoal);
 
   group.add(craneSuper);

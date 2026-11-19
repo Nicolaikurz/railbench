@@ -123,6 +123,8 @@ export type ModelCategory = "buildings" | "nature" | "railway" | "custom";
 
 export type MountainStyle = "alpine" | "rocky" | "forest" | "meadow";
 
+export type GroundTerrainType = "water" | "sand" | "dirt" | "hill";
+
 export interface MountainBrushNode {
   x: number; // local X offset relative to mountain.transform.x (mm)
   y: number; // local Y offset relative to mountain.transform.y (mm)
@@ -145,6 +147,7 @@ export interface Model3D {
   builtinId?: string;
   mountainStyle?: MountainStyle;
   mountainPath?: MountainBrushNode[];
+  groundTerrainType?: GroundTerrainType;
   fileData?: string;    // base64 data URI for glb / text for gltf
   fileName?: string;
 }

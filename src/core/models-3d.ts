@@ -1,14 +1,17 @@
 import type { Model3D, ModelCategory, Transform } from "@/core/types";
 import { deg2rad } from "@/core/geometry";
+import { getLanguage, type Language } from "@/i18n";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 
 export interface BuiltinModelDef {
   id: string;
   name: string;
+  nameEn: string;
   category: ModelCategory;
   icon: string;
   description: string;
+  descriptionDe?: string;
   width: number;  // mm (Footprint X)
   depth: number;  // mm (Footprint Y)
   height: number; // mm (Vertical Z)
@@ -20,9 +23,11 @@ export const BUILTIN_MODELS: BuiltinModelDef[] = [
   {
     id: "station",
     name: "Bahnhof Neustadt",
+    nameEn: "Passenger Station",
     category: "buildings",
     icon: "🏢",
     description: "Classic country passenger station with gabled tile roof, clock tower, and platform canopy.",
+    descriptionDe: "Klassischer Landbahnhof mit Satteldach, Uhrturm und Bahnsteigdach.",
     width: 320,
     depth: 140,
     height: 120,
@@ -32,9 +37,11 @@ export const BUILTIN_MODELS: BuiltinModelDef[] = [
   {
     id: "signal-box",
     name: "Stellwerk W1",
+    nameEn: "Signal Box W1",
     category: "railway",
     icon: "🏭",
     description: "Two-storey brick signal tower with panoramic upper control room windows and stairway.",
+    descriptionDe: "Zweistöckiges Backstein-Stellwerk mit Panoramafenstern im Obergeschoss und Außentreppe.",
     width: 120,
     depth: 75,
     height: 110,
@@ -44,9 +51,11 @@ export const BUILTIN_MODELS: BuiltinModelDef[] = [
   {
     id: "engine-shed",
     name: "Lokschuppen",
+    nameEn: "Engine Shed",
     category: "railway",
     icon: "🚂",
     description: "Single-stall red brick locomotive shed with arched doorway and exhaust vent.",
+    descriptionDe: "Einständiger Backstein-Lokschuppen mit Rundbogentor und Rauchabzug.",
     width: 240,
     depth: 72,
     height: 105,
@@ -56,9 +65,11 @@ export const BUILTIN_MODELS: BuiltinModelDef[] = [
   {
     id: "town-house",
     name: "Fachwerkhaus",
+    nameEn: "Half-Timbered House",
     category: "buildings",
     icon: "🏠",
     description: "Traditional half-timbered residential house with steep pitched roof and chimney.",
+    descriptionDe: "Traditionelles Fachwerkhaus mit steilem Satteldach und Schornstein.",
     width: 110,
     depth: 90,
     height: 125,
@@ -68,9 +79,11 @@ export const BUILTIN_MODELS: BuiltinModelDef[] = [
   {
     id: "water-tower",
     name: "Wasserturm",
+    nameEn: "Water Tower",
     category: "railway",
     icon: "💧",
     description: "Round stone tower supporting an elevated spherical water reservoir and pivoting crane.",
+    descriptionDe: "Runder gemauerter Wasserturm mit Kugelbehälter und schwenkbarem Wasserkran.",
     width: 85,
     depth: 85,
     height: 170,
@@ -80,9 +93,11 @@ export const BUILTIN_MODELS: BuiltinModelDef[] = [
   {
     id: "coaling-station",
     name: "Bekohlungsanlage (Dampflok)",
+    nameEn: "Coaling Station (Steam)",
     category: "railway",
     icon: "⛏️",
-    description: "Dampflok-Bekohlungsanlage mit Beton-Kohlenbansen, Hochbunker, Drehkran mit Greifer und Gelenk-Wasserkran.",
+    description: "Steam locomotive coaling station with concrete coal bunker, elevated hopper, slewing crane with clamshell bucket, and articulated water crane.",
+    descriptionDe: "Dampflok-Bekohlungsanlage mit Beton-Kohlenbansen, Hochbunker, Drehkran mit Greifer und Gelenk-Wasserkran.",
     width: 180,
     depth: 75,
     height: 125,
@@ -92,9 +107,11 @@ export const BUILTIN_MODELS: BuiltinModelDef[] = [
   {
     id: "diesel-fuel-station",
     name: "Dieseltankstelle (Diesellok)",
+    nameEn: "Diesel Fueling Station",
     category: "railway",
     icon: "⛽",
-    description: "Diesellok-Betankungsanlage mit liegendem Haupt-Dieseltank, Pumpenhaus, Öl-Auffangwanne und 2 überdachten Zapfsäulen.",
+    description: "Diesel locomotive fueling depot with horizontal main fuel tank, pump house, oil drip pan, and 2 covered fuel dispensers.",
+    descriptionDe: "Diesellok-Betankungsanlage mit liegendem Haupt-Dieseltank, Pumpenhaus, Öl-Auffangwanne und 2 überdachten Zapfsäulen.",
     width: 170,
     depth: 65,
     height: 68,
@@ -104,9 +121,11 @@ export const BUILTIN_MODELS: BuiltinModelDef[] = [
   {
     id: "light-signal",
     name: "Lichtsignal (Blocksignal)",
+    nameEn: "Color-Light Block Signal",
     category: "railway",
     icon: "🚦",
     description: "Standard railway color-light block signal with steel mast and visor optics.",
+    descriptionDe: "Standard-Lichtblocksignal mit Stahlmast und Blendschirm.",
     width: 25,
     depth: 25,
     height: 85,
@@ -116,9 +135,11 @@ export const BUILTIN_MODELS: BuiltinModelDef[] = [
   {
     id: "buffer-stop",
     name: "Prellbock",
+    nameEn: "Buffer Stop",
     category: "railway",
     icon: "🛑",
     description: "End of track buffer stop with steel rail A-frame and wooden bumper beam.",
+    descriptionDe: "Gleisabschluss-Prellbock aus Stahlprofilen mit hölzerner Pufferbohle.",
     width: 25,
     depth: 35,
     height: 25,
@@ -128,9 +149,11 @@ export const BUILTIN_MODELS: BuiltinModelDef[] = [
   {
     id: "pine-tree",
     name: "Fichte / Tanne",
+    nameEn: "Pine / Fir Tree",
     category: "nature",
     icon: "🌲",
     description: "Layered evergreen coniferous pine tree with natural foliage shading.",
+    descriptionDe: "Immergrüner Nadelbaum mit gestufter Krone und natürlicher Schattierung.",
     width: 55,
     depth: 55,
     height: 135,
@@ -140,9 +163,11 @@ export const BUILTIN_MODELS: BuiltinModelDef[] = [
   {
     id: "deciduous-tree",
     name: "Laubbaum / Eiche",
+    nameEn: "Deciduous Oak Tree",
     category: "nature",
     icon: "🌳",
     description: "Broadleaf deciduous oak tree with organic branching canopy.",
+    descriptionDe: "Laubbaum / Eiche mit organischer, verzweigter Baumkrone.",
     width: 80,
     depth: 80,
     height: 120,
@@ -152,9 +177,11 @@ export const BUILTIN_MODELS: BuiltinModelDef[] = [
   {
     id: "platform-lamp",
     name: "Bahnsteigleuchte",
+    nameEn: "Platform Lamppost",
     category: "railway",
     icon: "💡",
     description: "Curved swan-neck platform lamppost with lantern casing.",
+    descriptionDe: "Geschwungene Bahnsteig-Peitschenleuchte mit Laternengehäuse.",
     width: 20,
     depth: 20,
     height: 70,
@@ -164,9 +191,11 @@ export const BUILTIN_MODELS: BuiltinModelDef[] = [
   {
     id: "platform",
     name: "Bahnsteig",
+    nameEn: "Passenger Platform",
     category: "railway",
     icon: "🚉",
-    description: "Überdachter Personenbahnsteig mit Beton-Bahnsteigkanten, taktilen Sicherheitslinien, Glas-Stahldach, Sitzbänken, Bahnhofsuhren, ZZA und Treppenabgang.",
+    description: "Covered passenger platform with concrete curbs, tactile safety strips, glass-steel canopy, benches, station clocks, departure display, and stair access.",
+    descriptionDe: "Überdachter Personenbahnsteig mit Beton-Bahnsteigkanten, taktilen Sicherheitslinien, Glas-Stahldach, Sitzbänken, Bahnhofsuhren, ZZA und Treppenabgang.",
     width: 320,
     depth: 54,
     height: 55,
@@ -176,9 +205,11 @@ export const BUILTIN_MODELS: BuiltinModelDef[] = [
   {
     id: "turntable-trainhall",
     name: "Ringlokschuppen (Drehscheibe)",
+    nameEn: "Roundhouse (Turntable)",
     category: "railway",
     icon: "🏛️",
-    description: "3-ständiger Ringlokschuppen im 12°-Raster für Drehscheiben, mit Rauchabzügen und Loktoren.",
+    description: "3-stall curved roundhouse on a 12° turntable grid with exhaust stacks and locomotive doors.",
+    descriptionDe: "3-ständiger Ringlokschuppen im 12°-Raster für Drehscheiben, mit Rauchabzügen und Loktoren.",
     width: 320,
     depth: 310,
     height: 115,
@@ -188,9 +219,11 @@ export const BUILTIN_MODELS: BuiltinModelDef[] = [
   {
     id: "skyscraper",
     name: "Wolkenkratzer / Hochhaus",
+    nameEn: "Skyscraper / High-Rise",
     category: "buildings",
     icon: "🏙️",
-    description: "Modernes Hochhaus mit Glasfassade, gestufter Architektur, Antennenmast und Dachterrasse.",
+    description: "Modern high-rise tower with glass facade, stepped architecture, antenna mast, and rooftop terrace.",
+    descriptionDe: "Modernes Hochhaus mit Glasfassade, gestufter Architektur, Antennenmast und Dachterrasse.",
     width: 130,
     depth: 110,
     height: 280,
@@ -200,9 +233,11 @@ export const BUILTIN_MODELS: BuiltinModelDef[] = [
   {
     id: "industry-building",
     name: "Industriehalle / Fabrik",
+    nameEn: "Industrial Hall / Factory",
     category: "buildings",
     icon: "🏭",
-    description: "Große Industrie- und Fertigungshalle mit Sheddach (Sägezahndach), Laderampe, Stahlsilo und Werktor.",
+    description: "Large industrial manufacturing hall with sawtooth shed roof, loading dock, steel silo, and factory gate.",
+    descriptionDe: "Große Industrie- und Fertigungshalle mit Sheddach (Sägezahndach), Laderampe, Stahlsilo und Werktor.",
     width: 260,
     depth: 160,
     height: 110,
@@ -214,9 +249,11 @@ export const BUILTIN_MODELS: BuiltinModelDef[] = [
 export const MOUNTAIN_MODEL_DEF: BuiltinModelDef = {
   id: "mountain",
   name: "Berg / Gebirgsmassiv",
+  nameEn: "Mountain / Alpine Peak",
   category: "nature",
   icon: "⛰️",
-  description: "Massiver Gebirgszug mit Felsformationen, Schneegipfel und automatischen Tunnelausschnitten für kreuzende Gleise und Straßen.",
+  description: "Massive mountain range with rock formations, snow peaks, and automatic tunnel portals for crossing tracks and roads.",
+  descriptionDe: "Massiver Gebirgszug mit Felsformationen, Schneegipfel und automatischen Tunnelausschnitten für kreuzende Gleise und Straßen.",
   width: 600,
   depth: 450,
   height: 220,
@@ -224,8 +261,32 @@ export const MOUNTAIN_MODEL_DEF: BuiltinModelDef = {
   badgeColor: "#ffffff",
 };
 
+export const GROUND_TERRAIN_MODEL_DEF: BuiltinModelDef = {
+  id: "ground-terrain",
+  name: "Untergrund-Gelände",
+  nameEn: "Ground Terrain",
+  category: "nature",
+  icon: "🌊",
+  description: "Adaptive ground surface (water, sand, dirt, or rolling hill) that automatically flattens under buildings, tracks, and streets.",
+  descriptionDe: "Adaptiver Untergrund (Wasser, Sand, Erde oder Hügel), der sich automatisch an Gebäude, Gleise und Straßen anpasst.",
+  width: 700,
+  depth: 500,
+  height: 26,
+  badgeBg: "#0284c7",
+  badgeColor: "#ffffff",
+};
+
+export function getBuiltinModelName(def: BuiltinModelDef, lang: Language = getLanguage()): string {
+  return lang === "en" ? def.nameEn : def.name;
+}
+
+export function getBuiltinModelDescription(def: BuiltinModelDef, lang: Language = getLanguage()): string {
+  return lang === "de" && def.descriptionDe ? def.descriptionDe : def.description;
+}
+
 export function findBuiltinModelDef(id: string): BuiltinModelDef | undefined {
   if (id === "mountain") return MOUNTAIN_MODEL_DEF;
+  if (id === "ground-terrain") return GROUND_TERRAIN_MODEL_DEF;
   const normId = id === "bahnsteig" ? "platform" : id;
   return BUILTIN_MODELS.find((m) => m.id === normId);
 }
@@ -238,7 +299,7 @@ export function createBuiltinModel(
   const def = findBuiltinModelDef(defId) || BUILTIN_MODELS[0]!;
   return {
     id: `model-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-    name: def.name,
+    name: getBuiltinModelName(def),
     category: def.category,
     transform: { ...transform },
     elevation: 0,

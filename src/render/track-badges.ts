@@ -20,6 +20,46 @@ export function getPieceRunningLength(entry: CatalogEntry): number {
   return 188.3;
 }
 
+/**
+ * Berechnet die vollständige Gleisbreite inkl. Schotterbett ("Schotter") eines geraden Gleises.
+ * Dient als einheitliche Referenzhöhe für Schotterbett und Gleisnummern-Tag.
+ */
+export function getTrackBallastWidth(entry: CatalogEntry): number {
+  const gauge = entry.gauge ?? 16.5;
+  const hasRoadbed = entry.hasRoadbed ?? true;
+  const raw = hasRoadbed
+    ? (gauge >= 30 ? gauge * 2.18 : (gauge >= 16 ? 36 : gauge * 2.2))
+    : gauge * 1.5;
+  return Math.round(raw * 10) / 10;
+}
+
+/**
+ * Berechnet die Höhe des Gleisnummern-Tags:
+ * Etwas kompakter als die volle Schotterbreite (~80 %), mindestens jedoch die Spurweite (gauge).
+ */
+export function getTrackNumberBadgeHeight(entry: CatalogEntry): number {
+  const gauge = entry.gauge ?? 16.5;
+  const ballastWidth = getTrackBallastWidth(entry);
+  return Math.max(gauge, Math.round(ballastWidth * 0.8 * 10) / 10);
+}
+
+/**
+ * Berechnet die optimale Text-Rasterauflösung für scharfe Darstellung bei beliebigem Zoom-Level.
+ * Quantisiert in feste Stufen (2, 4, 8, 12, 16) und begrenzt die Texturhöhe auf max. 256 px.
+ */
+export function computeLabelTextResolution(fontSize: number, worldScale = 1): number {
+  const dpr = typeof window !== "undefined" ? Math.min(window.devicePixelRatio || 1, 2) : 1;
+  const effective = Math.max(2, Math.max(1, worldScale) * dpr);
+  let bucket: number;
+  if (effective <= 2) bucket = 2;
+  else if (effective <= 4) bucket = 4;
+  else if (effective <= 8) bucket = 8;
+  else if (effective <= 12) bucket = 12;
+  else bucket = 16;
+  const maxResForFont = Math.max(2, Math.floor(256 / Math.max(4, fontSize)));
+  return Math.min(bucket, maxResForFont);
+}
+
 // Statische Shared TextStyles, um GC-Allokationen bei jedem Render-Durchlauf zu vermeiden
 const _trackNumberStyleCache = new Map<number, TextStyle>();
 function getTrackNumberStyle(fontSize: number): TextStyle {
@@ -99,32 +139,34 @@ export function drawTrackNumberLabel(
   pieceRotation: number,
   bpColor?: BlueprintColor,
   hasVoltageLabel = false,
+  worldScale = 1,
 ): void {
   const center = getPieceLocalCenter(entry);
   const labelCont = new Container();
   labelCont.position.set(center.x, center.y);
   labelCont.rotation = getUprightTextRotation(pieceRotation);
 
-  // Spurweite berücksichtigen (z.B. Z: 6.5mm, N: 9mm, TT: 12mm, H0: 16.5mm, 0: 32mm, G: 45mm)
-  // H0 (16.5 mm) -> ca. 18.5 mm (16.5 + 2 mm), N/Z proportional kleiner, 0/1/G proportional größer
+  // Höhe leicht unterhalb der vollen Schotterbreite (~80 %), mindestens Spurweite (gauge)
   const gauge = entry.gauge ?? 16.5;
-  const targetBadgeH = Math.round(gauge * (18.5 / 16.5) * 10) / 10;
+  const targetBadgeH = getTrackNumberBadgeHeight(entry);
 
-  const padY = Math.max(0.8, Math.round(targetBadgeH * 0.15 * 10) / 10);
-  const padX = Math.max(2.2, Math.round(targetBadgeH * 0.34 * 10) / 10);
-  const cornerR = Math.max(1.5, Math.round(targetBadgeH * 0.2 * 10) / 10);
-  const strokeW = Math.max(0.7, Math.min(2.2, Math.round(targetBadgeH * 0.08 * 10) / 10));
+  const padY = Math.max(1.0, Math.round(targetBadgeH * 0.14 * 10) / 10);
+  const padX = Math.max(2.5, Math.round(targetBadgeH * 0.28 * 10) / 10);
+  const cornerR = Math.max(1.8, Math.round(targetBadgeH * 0.18 * 10) / 10);
+  const strokeW = Math.max(0.8, Math.min(2.6, Math.round(targetBadgeH * 0.06 * 10) / 10));
 
   const targetTextH = targetBadgeH - 2 * padY;
   const fontSize = Math.max(4.0, Math.round(targetTextH * 0.85 * 10) / 10);
 
-  const voltOffset = targetBadgeH / 2 + Math.max(1.2, 2.0 * (gauge / 16.5));
+  const voltOffset = targetBadgeH / 2 + Math.max(1.5, 2.5 * (gauge / 16.5));
   const yOffset = entry.kind === "turntable" ? -55 : entry.kind === "transfer-table" ? -70 : hasVoltageLabel ? -voltOffset : 0;
 
   const text = new Text({
     text: entry.id,
     style: getTrackNumberStyle(fontSize),
+    resolution: computeLabelTextResolution(fontSize, worldScale),
   });
+  (text as any)._baseFontSize = fontSize;
   text.anchor.set(0.5);
   text.position.set(0, yOffset);
 
@@ -173,14 +215,16 @@ export function drawVoltageBadge(
   pieceRotation: number,
   powerResult: PiecePowerResult,
   hasNumberLabel: boolean,
+  worldScale = 1,
 ): void {
   const center = getPieceLocalCenter(entry);
   const badgeCont = new Container();
+  badgeCont.label = "track-voltage-badge";
   badgeCont.position.set(center.x, center.y);
   badgeCont.rotation = getUprightTextRotation(pieceRotation);
   const gauge = entry.gauge ?? 16.5;
-  const numberBadgeH = Math.round(gauge * (18.5 / 16.5) * 10) / 10;
-  const yOffset = hasNumberLabel ? numberBadgeH / 2 + Math.max(1.2, 2.0 * (gauge / 16.5)) : 0;
+  const numberBadgeH = getTrackNumberBadgeHeight(entry);
+  const yOffset = hasNumberLabel ? numberBadgeH / 2 + Math.max(1.5, 2.5 * (gauge / 16.5)) + 7 : 0;
 
   const isShort = Boolean(powerResult.isShortCircuit);
   const isDisc = powerResult.status === "disconnected";
@@ -235,7 +279,9 @@ export function drawVoltageBadge(
   const text = new Text({
     text: voltText,
     style: textStyle,
+    resolution: computeLabelTextResolution(9.5, worldScale),
   });
+  (text as any)._baseFontSize = 9.5;
   text.anchor.set(0.5);
   text.position.set(0, yOffset);
 
@@ -516,19 +562,22 @@ export function drawRampBadge(
   gradPercent: number,
   hasNumberLabel: boolean,
   hasVoltageLabel: boolean,
+  worldScale = 1,
 ): void {
   const center = getPieceLocalCenter(entry);
   const badgeCont = new Container();
+  badgeCont.label = "track-ramp-badge";
   badgeCont.position.set(center.x, center.y);
   badgeCont.rotation = getUprightTextRotation(pieceRotation);
 
+  const numberBadgeH = getTrackNumberBadgeHeight(entry);
   let yOffset = 0;
   if (hasNumberLabel && hasVoltageLabel) {
-    yOffset = 18;
+    yOffset = numberBadgeH / 2 + 24;
   } else if (hasNumberLabel && !hasVoltageLabel) {
-    yOffset = 10;
+    yOffset = numberBadgeH / 2 + 10;
   } else if (!hasNumberLabel && hasVoltageLabel) {
-    yOffset = -10;
+    yOffset = -12;
   }
 
   const deltaH = endElev - startElev;
@@ -550,7 +599,9 @@ export function drawRampBadge(
   const text = new Text({
     text: badgeText,
     style: textStyle,
+    resolution: computeLabelTextResolution(9, worldScale),
   });
+  (text as any)._baseFontSize = 9;
   text.anchor.set(0.5);
   text.position.set(0, yOffset);
 

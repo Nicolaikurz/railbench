@@ -95,7 +95,7 @@ export function createTunnelProfile(
 export const R_PORTAL = 0.82;
 export const ELLIPSE_TOLERANCE = 1.05;
 export const APPROACH_SLOPE = 30; // Böschungsbreite des Einschnitts vor dem Portal
-export const PORTAL_LIFT = 1.5; // Portale + Röhre leicht anheben gegen Z-Fighting mit Gelände/Tischplatte
+export const PORTAL_LIFT = 0; // Portale + Röhre starten exakt auf Gleishöhe (kein Schwebespalt)
 
 export function mountainNoise(nx: number, nz: number): number {
   const s1 = Math.sin(nx * 3.1415 + 0.5) * Math.cos(nz * 3.1415 + 0.3);

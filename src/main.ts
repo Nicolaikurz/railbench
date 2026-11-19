@@ -335,6 +335,7 @@ async function main() {
   });
 
   attachCamera(renderer.app.canvas, renderer.world, () => {
+    renderer.updateLabelResolutions();
     ruler.update();
     collabOverlay.update();
     debouncedSaveSettings();
@@ -344,6 +345,7 @@ async function main() {
     renderer.world.x = savedSettings.camera.x;
     renderer.world.y = savedSettings.camera.y;
     renderer.world.scale.set(savedSettings.camera.zoom);
+    renderer.updateLabelResolutions();
     ruler.update();
   } else {
     renderer.resetView();
@@ -368,6 +370,7 @@ async function main() {
     renderer.world.scale.set(newScale);
     renderer.world.x = mx - wx * newScale;
     renderer.world.y = my - wy * newScale;
+    renderer.updateLabelResolutions();
     ruler?.update();
     collabOverlay.update();
     debouncedSaveSettings();
@@ -380,6 +383,7 @@ async function main() {
     }
     renderer.world.x += dx;
     renderer.world.y += dy;
+    renderer.updateLabelResolutions();
     ruler?.update();
     collabOverlay.update();
     debouncedSaveSettings();

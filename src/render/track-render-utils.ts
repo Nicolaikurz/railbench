@@ -12,6 +12,14 @@ export function desaturateColor(hex: number, factor = 0.72): number {
   return (nr << 16) | (ng << 8) | nb;
 }
 
+export function darkenColor(hex: number, factor = 0.18): number {
+  const scale = Math.max(0, Math.min(1, 1 - factor));
+  const r = Math.round(((hex >> 16) & 0xff) * scale);
+  const g = Math.round(((hex >> 8) & 0xff) * scale);
+  const b = Math.round((hex & 0xff) * scale);
+  return (r << 16) | (g << 8) | b;
+}
+
 export function drawArcStroke(
   g: Graphics,
   cx: number,

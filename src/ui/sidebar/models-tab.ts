@@ -2,6 +2,8 @@ import type { Model3D } from "@/core/types";
 import {
   BUILTIN_MODELS,
   createBuiltinModel,
+  getBuiltinModelName,
+  getBuiltinModelDescription,
   parseGlbOrGltfFile,
 } from "@/core/models-3d";
 import {
@@ -226,7 +228,8 @@ export function renderModelsTab(sidebar: Sidebar, container: HTMLElement) {
 export function renderModelsList(sidebar: Sidebar, container: HTMLElement) {
   container.innerHTML = "";
   const t = getTranslations().sidebar;
-  const isDe = getLanguage() === "de";
+  const lang = getLanguage();
+  const isDe = lang === "de";
 
   const query = sidebar.modelsSearchQuery.toLowerCase().trim();
   const selCat = sidebar.selectedModelCategory.toLowerCase();
@@ -238,7 +241,12 @@ export function renderModelsList(sidebar: Sidebar, container: HTMLElement) {
     }
     if (selCat === "custom") return false;
     if (!query) return true;
-    return def.name.toLowerCase().includes(query) || def.description.toLowerCase().includes(query);
+    return (
+      def.name.toLowerCase().includes(query) ||
+      def.nameEn.toLowerCase().includes(query) ||
+      def.description.toLowerCase().includes(query) ||
+      (def.descriptionDe?.toLowerCase().includes(query) ?? false)
+    );
   });
 
   const matchingCustoms = sidebar.customModelsLibrary.filter((m) => {
@@ -258,6 +266,8 @@ export function renderModelsList(sidebar: Sidebar, container: HTMLElement) {
   for (const def of matchingBuiltins) {
     const f = getModelScaleFactor(sidebar);
     const fmt = (v: number) => Math.round(v * f * 10) / 10;
+    const displayName = getBuiltinModelName(def, lang);
+    const displayDesc = getBuiltinModelDescription(def, lang);
 
     const card = document.createElement("div");
     card.className = "track-card model-card";
@@ -267,7 +277,7 @@ export function renderModelsList(sidebar: Sidebar, container: HTMLElement) {
       card.classList.add("dragging");
       const newModel = createScaledBuiltin(sidebar, def.id);
       e.dataTransfer?.setData("application/railbench-model", JSON.stringify(newModel));
-      e.dataTransfer?.setData("text/plain", def.name);
+      e.dataTransfer?.setData("text/plain", displayName);
       if (e.dataTransfer) {
         e.dataTransfer.effectAllowed = "copy";
         const zoom = sidebar.callbacks.getZoom?.() ?? 1.0;
@@ -284,22 +294,22 @@ export function renderModelsList(sidebar: Sidebar, container: HTMLElement) {
       <div class="card-top">
         <div style="display: flex; align-items: center; gap: 6px;">
           <span style="font-size: 16px;">${def.icon}</span>
-          <span class="card-id" style="font-weight: 700;">${def.name}</span>
+          <span class="card-id" style="font-weight: 700;">${displayName}</span>
         </div>
         <span class="card-category-badge" style="background: ${def.badgeBg}; color: ${def.badgeColor};">${def.category}</span>
       </div>
       <div class="card-spec" style="margin-top: 4px; font-weight: 600; color: var(--text-main);">
-        Size: ${fmt(def.width)} × ${fmt(def.depth)} × ${fmt(def.height)} mm (${sidebar.currentModelScale})
+        ${isDe ? "Größe" : "Size"}: ${fmt(def.width)} × ${fmt(def.depth)} × ${fmt(def.height)} mm (${sidebar.currentModelScale})
       </div>
       <div class="card-desc" style="font-size: 10px; color: var(--text-muted); line-height: 1.3; margin-top: 2px;">
-        ${def.description}
+        ${displayDesc}
       </div>
     `;
 
     const addBtn = document.createElement("button");
     addBtn.className = "card-add-btn";
     addBtn.innerHTML = `+ ${t.catalog.addToPlan}`;
-    addBtn.title = isDe ? `${def.name} in den Plan einfügen` : `Place ${def.name} in center of layout`;
+    addBtn.title = isDe ? `${displayName} in den Plan einfügen` : `Place ${displayName} in center of layout`;
     addBtn.addEventListener("click", (e) => {
       e.stopPropagation();
       sidebar.callbacks.onAddModel?.(createScaledBuiltin(sidebar, def.id));

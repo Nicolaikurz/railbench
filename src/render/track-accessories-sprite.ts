@@ -148,12 +148,57 @@ export function drawIsolatorMarker(parent: Container, entry: CatalogEntry, isoId
   parent.addChild(marker);
 }
 
+/**
+ * Verhindert doppelte Oberleitungsmasten in der 2D-Ansicht an derselben Weltposition
+ * (z. B. an verbundenen Gleisübergängen, Weichen oder Drehscheiben-Anschlüssen).
+ */
+export class CatenaryMast2DContext {
+  private static readonly CELL = 60;
+  private placedGrid = new Map<string, Array<{ x: number; y: number }>>();
+
+  tryClaimMast(piece: TrackPiece, localX: number, localY: number, tol = 35): boolean {
+    const rad = deg2rad(piece.transform.rotation);
+    const cos = Math.cos(rad);
+    const sin = Math.sin(rad);
+    const wx = piece.transform.x + localX * cos - localY * sin;
+    const wy = piece.transform.y + localX * sin + localY * cos;
+
+    const cx = Math.floor(wx / CatenaryMast2DContext.CELL);
+    const cy = Math.floor(wy / CatenaryMast2DContext.CELL);
+    const tolSq = tol * tol;
+
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        const list = this.placedGrid.get(`${cx + dx}:${cy + dy}`);
+        if (!list) continue;
+        for (const p of list) {
+          const ddx = p.x - wx;
+          const ddy = p.y - wy;
+          if (ddx * ddx + ddy * ddy <= tolSq) {
+            return false;
+          }
+        }
+      }
+    }
+
+    const key = `${cx}:${cy}`;
+    let bucket = this.placedGrid.get(key);
+    if (!bucket) {
+      bucket = [];
+      this.placedGrid.set(key, bucket);
+    }
+    bucket.push({ x: wx, y: wy });
+    return true;
+  }
+}
+
 export function drawCatenary2D(
   parent: Container,
   entry: CatalogEntry,
   powerResult?: PiecePowerResult,
   piece?: TrackPiece,
   allPieces?: TrackPiece[],
+  mastCtx?: CatenaryMast2DContext,
 ): void {
   const g = new Graphics();
   let wireColor = 0x0ea5e9; // Leuchtendes Cyan / Fahrdraht-Blau
@@ -181,7 +226,11 @@ export function drawCatenary2D(
   const insulatorColor = 0xb45309; // Bernstein / Keramik-Isolator
 
   // Streckenmasten mit Auslegern
-  const drawMast = (x: number, y: number, angleRad: number, side: 1 | -1 = 1) => {
+  const drawMast = (x: number, y: number, angleRad: number, side: 1 | -1 = 1, deduplicate = true) => {
+    if (deduplicate && mastCtx && piece && !mastCtx.tryClaimMast(piece, x, y)) {
+      return;
+    }
+
     const mastDist = Math.max(22, (entry.gauge ?? 16.5) * 1.15) * side;
     const sin = Math.sin(angleRad);
     const cos = Math.cos(angleRad);
@@ -220,9 +269,9 @@ export function drawCatenary2D(
     g.moveTo(-bridgeHalf, 0).lineTo(bridgeHalf, 0);
     g.stroke({ width: wireWidth, color: wireColor, alpha: wireAlpha });
 
-    // Masten an den beiden Bühnenenden
-    drawMast(-bridgeHalf, 0, Math.PI, 1);
-    drawMast(bridgeHalf, 0, 0, 1);
+    // Masten an den beiden Bühnenenden (fest auf der Bühne, nicht mit Außengleisen deduplizieren)
+    drawMast(-bridgeHalf, 0, Math.PI, 1, false);
+    drawMast(bridgeHalf, 0, 0, 1, false);
 
     // Snappoints am Grubenrand: NUR rendern, wenn ein Gleis mit Oberleitung angeschlossen ist!
     if (piece?.connectors && allPieces) {
@@ -259,8 +308,8 @@ export function drawCatenary2D(
     g.moveTo(36, bridgeY).lineTo(l - 36, bridgeY);
     g.stroke({ width: wireWidth, color: wireColor, alpha: wireAlpha });
 
-    drawMast(36, bridgeY, Math.PI, 1);
-    drawMast(l - 36, bridgeY, 0, 1);
+    drawMast(36, bridgeY, Math.PI, 1, false);
+    drawMast(l - 36, bridgeY, 0, 1, false);
 
     // Snappoints: NUR rendern, wenn ein Gleis mit Oberleitung angeschlossen ist!
     if (piece?.connectors && allPieces) {
@@ -358,12 +407,10 @@ export function drawCatenary2D(
     const endY = br * (1 - Math.cos(rad));
     drawMast(endX, endY, rad, 1);
   } else if (kind === "three-way") {
-    const l = entry.length ?? 188.3;
     const br = entry.branchRadius ?? 437.5;
     const ba = entry.branchAngle ?? 24.3;
     const rad = deg2rad(ba);
     drawMast(0, 0, 0, 1);
-    if (l >= 120) drawMast(l, 0, 0, 1);
     const endXL = br * Math.sin(rad);
     const endYL = -br * (1 - Math.cos(rad));
     drawMast(endXL, endYL, -rad, -1);
@@ -521,12 +568,20 @@ export function drawTurnoutAccessories2D(container: Container, entry: CatalogEnt
     lanternBox.fill({ color: 0x1e293b });
     lanternBox.stroke({ width: 1, color: 0x94a3b8 });
 
-    // Leuchtendes Weichensignal / Milchglas-Laternenfenster (warmgelb/weiß leuchtend)
-    lanternBox.circle(lanternX, lanternY, 2.2);
-    lanternBox.fill({ color: 0xfef08a, alpha: 0.95 });
+    // Leuchtendes Weichensignal (Abzweigpfeil links/rechts bzw. gerader Balken)
+    const isRight = kind === "turnout-right" || kind === "curved-turnout-right";
+    if (isLeft || isRight) {
+      const dirY = isLeft ? -1 : 1;
+      lanternBox.moveTo(lanternX - 2.2, lanternY + dirY * 1.4);
+      lanternBox.lineTo(lanternX + 2.2, lanternY - dirY * 1.4);
+      lanternBox.stroke({ width: 1.8, color: 0xfef9c3, alpha: 0.98 });
+    } else {
+      lanternBox.rect(lanternX - 0.9, lanternY - 2.4, 1.8, 4.8);
+      lanternBox.fill({ color: 0xfef9c3, alpha: 0.98 });
+    }
     // Strahlender Halo / Glüh-Effekt
     lanternBox.circle(lanternX, lanternY, 4.2);
-    lanternBox.stroke({ width: 1.2, color: 0xfef08a, alpha: 0.5 });
+    lanternBox.stroke({ width: 1.1, color: 0xfef08a, alpha: 0.45 });
 
     accGroup.addChild(lanternBox);
   }

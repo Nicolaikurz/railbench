@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
+import { Text } from "pixi.js";
 import { getUprightTextRotation, deg2rad } from "@/core/geometry";
 import { createTrackGraphics } from "@/render/track-sprite";
+import { getTrackNumberBadgeHeight, computeLabelTextResolution } from "@/render/track-badges";
 import { createModel2DGraphics } from "@/render/model-sprite";
 import type { TrackPiece, Model3D } from "@/core/types";
 import type { CatalogEntry } from "@/catalog/catalog";
@@ -98,8 +100,8 @@ describe("Upright Labels & Text Rotation (CAD-style horizontal orientation)", ()
     }
   });
 
-  it("scales track number label height proportionally to track gauge (Z < N < H0 ≈ 18.5 mm)", () => {
-    // 1. Z-Spurweite (6.5 mm): ca. 7.3 mm
+  it("fits track number label height slightly below ballast width (~80%) with minimum gauge (Z: 11.4 mm, N: 15.8 mm, H0: 28.8 mm)", () => {
+    // 1. Z-Spurweite (6.5 mm mit Bettung): 14.3 * 0.8 = 11.4 mm (>= 6.5 mm gauge)
     const entryZ: CatalogEntry = {
       id: "8500",
       name: "Gerades Gleis 110 mm",
@@ -118,9 +120,11 @@ describe("Upright Labels & Text Rotation (CAD-style horizontal orientation)", ()
     const containerZ = createTrackGraphics(pieceZ, entryZ, undefined, { showTrackLabels: true });
     const labelZ = containerZ.children.find((c: any) => c.label === "track-number-label") as any;
     expect(labelZ).toBeDefined();
-    expect(labelZ.badgeHeight).toBeCloseTo(7.3, 1);
+    expect(labelZ.badgeHeight).toBeCloseTo(getTrackNumberBadgeHeight(entryZ), 1);
+    expect(labelZ.badgeHeight).toBeCloseTo(11.4, 1);
+    expect(labelZ.badgeHeight).toBeGreaterThanOrEqual(6.5);
 
-    // 2. N-Spurweite (9.0 mm): ca. 10.1 mm (kleiner als H0, größer als Z)
+    // 2. N-Spurweite (9.0 mm mit Bettung): 19.8 * 0.8 = 15.8 mm (>= 9.0 mm gauge)
     const entryN: CatalogEntry = {
       id: "9100",
       name: "Gerades Gleis 222 mm",
@@ -139,10 +143,11 @@ describe("Upright Labels & Text Rotation (CAD-style horizontal orientation)", ()
     const containerN = createTrackGraphics(pieceN, entryN, undefined, { showTrackLabels: true });
     const labelN = containerN.children.find((c: any) => c.label === "track-number-label") as any;
     expect(labelN).toBeDefined();
-    expect(labelN.badgeHeight).toBeCloseTo(10.1, 1);
+    expect(labelN.badgeHeight).toBeCloseTo(getTrackNumberBadgeHeight(entryN), 1);
+    expect(labelN.badgeHeight).toBeCloseTo(15.8, 1);
     expect(labelN.badgeHeight).toBeGreaterThan(labelZ.badgeHeight);
 
-    // 3. H0-Spurweite (16.5 mm): ca. 18.5 mm (16.5 + 2 mm)
+    // 3. H0-Spurweite (16.5 mm mit Bettung / Schotter): 36.0 * 0.8 = 28.8 mm (>= 16.5 mm gauge)
     const entryH0: CatalogEntry = {
       id: "24188",
       name: "Gerades Gleis 188,3 mm",
@@ -161,7 +166,55 @@ describe("Upright Labels & Text Rotation (CAD-style horizontal orientation)", ()
     const containerH0 = createTrackGraphics(pieceH0, entryH0, undefined, { showTrackLabels: true });
     const labelH0 = containerH0.children.find((c: any) => c.label === "track-number-label") as any;
     expect(labelH0).toBeDefined();
-    expect(labelH0.badgeHeight).toBeCloseTo(18.5, 1);
+    expect(labelH0.badgeHeight).toBeCloseTo(getTrackNumberBadgeHeight(entryH0), 1);
+    expect(labelH0.badgeHeight).toBeCloseTo(28.8, 1);
     expect(labelH0.badgeHeight).toBeGreaterThan(labelN.badgeHeight);
+
+    // 4. H0 ohne Bettung (z.B. K-Gleis, hasRoadbed: false): 24.8 * 0.8 = 19.8 mm (>= 16.5 mm gauge)
+    const entryH0NoBed: CatalogEntry = {
+      ...entryH0,
+      id: "2200",
+      hasRoadbed: false,
+    };
+    const containerH0NoBed = createTrackGraphics(pieceH0, entryH0NoBed, undefined, { showTrackLabels: true });
+    const labelH0NoBed = containerH0NoBed.children.find((c: any) => c.label === "track-number-label") as any;
+    expect(labelH0NoBed.badgeHeight).toBeCloseTo(19.8, 1);
+    expect(labelH0NoBed.badgeHeight).toBeGreaterThanOrEqual(16.5);
+  });
+
+  it("increases track number label Text resolution when zoomed in so labels stay sharp", () => {
+    const entryH0: CatalogEntry = {
+      id: "24188",
+      name: "Gerades Gleis 188,3 mm",
+      kind: "straight",
+      category: "Geraden",
+      description: "Märklin C-Gleis H0",
+      length: 188.3,
+      gauge: 16.5,
+    };
+    const pieceH0: TrackPiece = {
+      id: "piece-zoom",
+      catalogId: "24188",
+      transform: { x: 100, y: 100, rotation: 0 },
+      connectors: [],
+    };
+
+    const container1x = createTrackGraphics(pieceH0, entryH0, undefined, {
+      showTrackLabels: true,
+      worldScale: 1,
+    });
+    const label1x = container1x.children.find((c: any) => c.label === "track-number-label") as any;
+    const text1x = label1x.children.find((c: any) => c instanceof Text) as Text;
+
+    const container8x = createTrackGraphics(pieceH0, entryH0, undefined, {
+      showTrackLabels: true,
+      worldScale: 8,
+    });
+    const label8x = container8x.children.find((c: any) => c.label === "track-number-label") as any;
+    const text8x = label8x.children.find((c: any) => c instanceof Text) as Text;
+
+    expect(text1x.resolution).toBeGreaterThanOrEqual(2);
+    expect(text8x.resolution).toBeGreaterThan(text1x.resolution);
+    expect(computeLabelTextResolution(12, 10)).toBeGreaterThan(computeLabelTextResolution(12, 1));
   });
 });

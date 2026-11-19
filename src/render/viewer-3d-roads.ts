@@ -28,7 +28,8 @@ export function applyCurveElevation(
       dir === 1
         ? Math.atan2(vz - centerZ, vx) + Math.PI / 2
         : Math.PI / 2 - Math.atan2(vz - centerZ, vx);
-    const u = Math.max(0, Math.min(1, theta / rad));
+    // Erlaubt minimalen Überlapp an Start/Ende (-0.02..1.02), damit Steigungs-Kurven nahtlos aneinander anschließen
+    const u = Math.max(-0.02, Math.min(1.02, theta / rad));
     pos.setY(i, vy + u * heightDiff);
   }
   geo.computeVertexNormals();
@@ -421,6 +422,10 @@ export function buildWoodPlatePiece3D(
   heightDiff: number,
   customThickness?: number,
 ) {
+  if (entry.kind === "turntable" || entry.kind === "transfer-table") {
+    return;
+  }
+
   const isRoad = entry.isRoad === true || entry.id.startsWith("ST-");
   const roadW = entry.roadWidth ?? 60;
   const plateWidth = isRoad ? roadW + 8 : (entry.gauge ?? 16.5) * 2.4;
@@ -429,10 +434,12 @@ export function buildWoodPlatePiece3D(
 
   if (isStraightTrackEntry(entry)) {
     const len = entry.length ?? (entry.kind === "flex" ? 900 : isRoad ? 200 : 180);
-    const geo = getSharedStraightWoodPlateGeo(len, thickness, plateWidth);
+    const isSloped = Math.abs(heightDiff) > 0.01;
+    const slopeLen = isSloped ? Math.hypot(len, heightDiff) : len;
+    const geo = getSharedStraightWoodPlateGeo(slopeLen, thickness, plateWidth);
     const mesh = new THREE.Mesh(geo, woodPlateMat);
-    mesh.position.set(len / 2, -thickness / 2, 0);
-    if (Math.abs(heightDiff) > 0.01) {
+    mesh.position.set(len / 2, -thickness / 2 + (isSloped ? heightDiff / 2 : 0), 0);
+    if (isSloped) {
       mesh.rotation.z = Math.atan2(heightDiff, len);
     }
     mesh.castShadow = true;
@@ -451,15 +458,16 @@ export function buildWoodPlatePiece3D(
     if (!geo) {
       const innerR = Math.max(10, r - plateWidth / 2);
       const outerR = r + plateWidth / 2;
-      const segments = Math.max(8, Math.round(deg / 3));
+      const eps = Math.min(0.004, 0.75 / Math.max(r, 80));
+      const segments = Math.max(16, Math.ceil(deg / 1.5));
 
       const curveShape = new THREE.Shape();
       if (dir === 1) {
-        curveShape.absarc(0, 0, outerR, -Math.PI / 2, -Math.PI / 2 + rad, false);
-        curveShape.absarc(0, 0, innerR, -Math.PI / 2 + rad, -Math.PI / 2, true);
+        curveShape.absarc(0, 0, outerR, -Math.PI / 2 - eps, -Math.PI / 2 + rad + eps, false);
+        curveShape.absarc(0, 0, innerR, -Math.PI / 2 + rad + eps, -Math.PI / 2 - eps, true);
       } else {
-        curveShape.absarc(0, 0, outerR, Math.PI / 2, Math.PI / 2 - rad, true);
-        curveShape.absarc(0, 0, innerR, Math.PI / 2 - rad, Math.PI / 2, false);
+        curveShape.absarc(0, 0, outerR, Math.PI / 2 + eps, Math.PI / 2 - rad - eps, true);
+        curveShape.absarc(0, 0, innerR, Math.PI / 2 - rad - eps, Math.PI / 2 + eps, false);
       }
       curveShape.closePath();
 
@@ -475,15 +483,20 @@ export function buildWoodPlatePiece3D(
     }
 
     const mesh = new THREE.Mesh(geo, woodPlateMat);
-    mesh.position.set(0, -thickness, 0);
+    mesh.position.set(0, 0, 0);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     group.add(mesh);
   } else {
     const len = entry.length ?? 180;
-    const geo = getSharedStraightWoodPlateGeo(len, thickness, plateWidth);
+    const isSloped = Math.abs(heightDiff) > 0.01;
+    const slopeLen = isSloped ? Math.hypot(len, heightDiff) : len;
+    const geo = getSharedStraightWoodPlateGeo(slopeLen, thickness, plateWidth);
     const mesh = new THREE.Mesh(geo, woodPlateMat);
-    mesh.position.set(len / 2, -thickness / 2, 0);
+    mesh.position.set(len / 2, -thickness / 2 + (isSloped ? heightDiff / 2 : 0), 0);
+    if (isSloped) {
+      mesh.rotation.z = Math.atan2(heightDiff, len);
+    }
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     group.add(mesh);
@@ -563,14 +576,15 @@ export function buildAllWoodPlates3D(woodPlateGroup: THREE.Group, items: WoodPla
         if (!geo) {
           const innerR = Math.max(10, r - plateWidth / 2);
           const outerR = r + plateWidth / 2;
-          const segments = Math.max(8, Math.round(deg / 3));
+          const eps = Math.min(0.004, 0.75 / Math.max(r, 80));
+          const segments = Math.max(16, Math.ceil(deg / 1.5));
           const curveShape = new THREE.Shape();
           if (dir === 1) {
-            curveShape.absarc(0, 0, outerR, -Math.PI / 2, -Math.PI / 2 + rad, false);
-            curveShape.absarc(0, 0, innerR, -Math.PI / 2 + rad, -Math.PI / 2, true);
+            curveShape.absarc(0, 0, outerR, -Math.PI / 2 - eps, -Math.PI / 2 + rad + eps, false);
+            curveShape.absarc(0, 0, innerR, -Math.PI / 2 + rad + eps, -Math.PI / 2 - eps, true);
           } else {
-            curveShape.absarc(0, 0, outerR, Math.PI / 2, Math.PI / 2 - rad, true);
-            curveShape.absarc(0, 0, innerR, Math.PI / 2 - rad, Math.PI / 2, false);
+            curveShape.absarc(0, 0, outerR, Math.PI / 2 + eps, Math.PI / 2 - rad - eps, true);
+            curveShape.absarc(0, 0, innerR, Math.PI / 2 - rad - eps, Math.PI / 2 + eps, false);
           }
           curveShape.closePath();
           geo = new THREE.ExtrudeGeometry(curveShape, { depth: thickness, bevelEnabled: false, curveSegments: segments });
@@ -582,7 +596,7 @@ export function buildAllWoodPlates3D(woodPlateGroup: THREE.Group, items: WoodPla
         const instMesh = new THREE.InstancedMesh(geo, SHARED_WOOD_PLATE_MAT, list.length);
         instMesh.castShadow = true;
         instMesh.receiveShadow = true;
-        localMat.makeTranslation(0, -thickness, 0);
+        localMat.makeTranslation(0, 0, 0);
 
         for (let i = 0; i < list.length; i++) {
           const it = list[i]!;

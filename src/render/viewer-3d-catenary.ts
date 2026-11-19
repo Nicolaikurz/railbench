@@ -104,11 +104,291 @@ function getSharedMessengerGeometry(len: number): THREE.BoxGeometry {
   return geo;
 }
 
+export interface CatenaryTrackItem {
+  piece: TrackPiece;
+  entry: CatalogEntry;
+  startElev: number;
+  endElev: number;
+}
+
+interface TrackSamplePoint {
+  x: number;
+  y: number;
+  z: number;
+  r: number;
+}
+
+interface PlacedMastPoint {
+  x: number;
+  y: number;
+  z: number;
+}
+
+/**
+ * Globaler Kontext für die 3D-Oberleitungsmasten einer Szene:
+ * 1. Verhindert doppelte Masten ("Träger") an derselben Stelle (z. B. an Gleisübergängen oder Weichenwurzeln).
+ * 2. Prüft per 2D-Raumgitter, ob ein Mastfuß auf einem Gleis / Weichenzweig stünde,
+ *    wechselt automatisch auf die freie Gleisseite oder lässt den Mast weg, wenn beide Seiten blockiert sind.
+ */
+export class CatenaryMastContext {
+  private static readonly CELL = 60;
+  private trackGrid = new Map<string, TrackSamplePoint[]>();
+  private placedGrid = new Map<string, PlacedMastPoint[]>();
+
+  constructor(items: CatenaryTrackItem[]) {
+    for (const item of items) {
+      if (item.entry.isRoad) continue;
+      this.indexTrackItem(item);
+    }
+  }
+
+  private cellKey(cx: number, cz: number): string {
+    return `${cx}:${cz}`;
+  }
+
+  private addTrackSample(wx: number, wy: number, wz: number, r: number): void {
+    const cx = Math.floor(wx / CatenaryMastContext.CELL);
+    const cz = Math.floor(wz / CatenaryMastContext.CELL);
+    const key = this.cellKey(cx, cz);
+    let list = this.trackGrid.get(key);
+    if (!list) {
+      list = [];
+      this.trackGrid.set(key, list);
+    }
+    list.push({ x: wx, y: wy, z: wz, r });
+  }
+
+  private toWorld(
+    piece: TrackPiece,
+    startElev: number,
+    lx: number,
+    ly: number,
+    lz: number,
+  ): { x: number; y: number; z: number } {
+    const ry = -deg2rad(piece.transform.rotation);
+    const cos = Math.cos(ry);
+    const sin = Math.sin(ry);
+    return {
+      x: piece.transform.x + lx * cos + lz * sin,
+      y: startElev + ly,
+      z: piece.transform.y - lx * sin + lz * cos,
+    };
+  }
+
+  private indexStraight(
+    piece: TrackPiece,
+    startElev: number,
+    x1: number,
+    z1: number,
+    x2: number,
+    z2: number,
+    heightDiff: number,
+    clearR: number,
+  ): void {
+    const len = Math.hypot(x2 - x1, z2 - z1);
+    const steps = Math.max(2, Math.ceil(len / 18));
+    for (let i = 0; i <= steps; i++) {
+      const u = i / steps;
+      const w = this.toWorld(piece, startElev, x1 + (x2 - x1) * u, heightDiff * u, z1 + (z2 - z1) * u);
+      this.addTrackSample(w.x, w.y, w.z, clearR);
+    }
+  }
+
+  private indexArc(
+    piece: TrackPiece,
+    startElev: number,
+    r: number,
+    rad: number,
+    dir: 1 | -1,
+    leadX: number,
+    heightDiff: number,
+    clearR: number,
+  ): void {
+    const arcLen = Math.abs(r * rad);
+    const steps = Math.max(3, Math.ceil(arcLen / 18));
+    for (let i = 0; i <= steps; i++) {
+      const u = i / steps;
+      const th = rad * u;
+      const lx = leadX + r * Math.sin(th);
+      const lz = dir * r * (1 - Math.cos(th));
+      const w = this.toWorld(piece, startElev, lx, heightDiff * u, lz);
+      this.addTrackSample(w.x, w.y, w.z, clearR);
+    }
+  }
+
+  private indexTrackItem(item: CatenaryTrackItem): void {
+    const { piece, entry, startElev, endElev } = item;
+    const heightDiff = endElev - startElev;
+    const gauge = entry.gauge ?? 16.5;
+    const hasRoadbed = entry.hasRoadbed !== false;
+    const ballastW = hasRoadbed ? (gauge / 16.5) * 36 : (gauge / 16.5) * 26;
+    // Halbe Schotterbreite + 2 mm Toleranz (~20 mm bei H0 < 24 mm Mastabstand am eigenen Gleis)
+    const clearR = ballastW / 2 + 2;
+    const kind = entry.kind;
+
+    if (kind === "turntable") {
+      const pitR = 142;
+      const w = this.toWorld(piece, startElev, 0, 0, 0);
+      this.addTrackSample(w.x, w.y, w.z, pitR);
+      return;
+    }
+
+    const isCurvedTurnout =
+      kind === "curved-turnout-left" ||
+      kind === "curved-turnout-right" ||
+      ((kind === "turnout-left" || kind === "turnout-right") && !!entry.radius && !entry.length);
+
+    if (isStraightTrackEntry(entry)) {
+      const len = entry.length ?? (kind === "flex" ? 900 : 188.3);
+      this.indexStraight(piece, startElev, 0, 0, len, 0, heightDiff, clearR);
+    } else if (isCurvedTrackEntry(entry)) {
+      const r = entry.radius ?? 437.5;
+      const a = entry.angle ?? 30;
+      const dir: 1 | -1 = a < 0 ? -1 : 1;
+      this.indexArc(piece, startElev, r, deg2rad(Math.abs(a)), dir, 0, heightDiff, clearR);
+    } else if (isCurvedTurnout) {
+      const dir: 1 | -1 = kind === "curved-turnout-left" || kind === "turnout-left" ? -1 : 1;
+      const r1 = entry.radius ?? 360;
+      const a1 = entry.angle ?? 30;
+      const lead =
+        entry.branchLength ??
+        (entry.branchRadius && entry.branchRadius > r1 ? entry.branchRadius - r1 : 0);
+      const r2 =
+        entry.branchLength !== undefined
+          ? (entry.branchRadius ?? r1)
+          : entry.branchRadius && entry.branchRadius > r1
+            ? r1
+            : (entry.branchRadius ?? r1);
+      const a2 = entry.branchAngle ?? 30;
+      this.indexArc(piece, startElev, r1, deg2rad(Math.abs(a1)), dir, 0, heightDiff, clearR);
+      if (lead > 0) this.indexStraight(piece, startElev, 0, 0, lead, 0, 0, clearR);
+      this.indexArc(piece, startElev, r2, deg2rad(Math.abs(a2)), dir, lead, heightDiff, clearR);
+    } else if (kind === "turnout-left" || kind === "turnout-right") {
+      const len = entry.length ?? 188.3;
+      const br = entry.branchRadius ?? 437.5;
+      const ba = entry.branchAngle ?? 24.3;
+      const dir: 1 | -1 = kind === "turnout-left" ? -1 : 1;
+      this.indexStraight(piece, startElev, 0, 0, len, 0, heightDiff, clearR);
+      this.indexArc(piece, startElev, br, deg2rad(Math.abs(ba)), dir, 0, heightDiff, clearR);
+    } else if (kind === "three-way") {
+      const len = entry.length ?? 188.3;
+      const br = entry.branchRadius ?? 437.5;
+      const ba = entry.branchAngle ?? 24.3;
+      this.indexStraight(piece, startElev, 0, 0, len, 0, heightDiff, clearR);
+      this.indexArc(piece, startElev, br, deg2rad(Math.abs(ba)), -1, 0, heightDiff, clearR);
+      this.indexArc(piece, startElev, br, deg2rad(Math.abs(ba)), 1, 0, heightDiff, clearR);
+    } else if (kind === "crossing") {
+      const len = entry.length ?? 188.3;
+      const rad = deg2rad(Math.abs(entry.angle ?? 24.3));
+      const h = len / 2;
+      const cos = Math.cos(rad);
+      const sin = Math.sin(rad);
+      this.indexStraight(piece, startElev, -h, 0, h, 0, heightDiff, clearR);
+      this.indexStraight(piece, startElev, -h * cos, -h * sin, h * cos, h * sin, heightDiff, clearR);
+    } else if (kind === "double-slip") {
+      const len = entry.length ?? 188.3;
+      const rad = deg2rad(Math.abs(entry.angle ?? 24.3));
+      const h = len / 2;
+      const cos = Math.cos(rad);
+      const sin = Math.sin(rad);
+      this.indexStraight(piece, startElev, 0, 0, len, 0, heightDiff, clearR);
+      this.indexStraight(piece, startElev, h - h * cos, -h * sin, h + h * cos, h * sin, heightDiff, clearR);
+    } else {
+      const len = entry.length ?? 188.3;
+      this.indexStraight(piece, startElev, 0, 0, len, 0, heightDiff, clearR);
+    }
+  }
+
+  private hasPlacedMastNear(wx: number, wy: number, wz: number, horizTol = 35, vertTol = 40): boolean {
+    const cx = Math.floor(wx / CatenaryMastContext.CELL);
+    const cz = Math.floor(wz / CatenaryMastContext.CELL);
+    const tolSq = horizTol * horizTol;
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dz = -1; dz <= 1; dz++) {
+        const list = this.placedGrid.get(this.cellKey(cx + dx, cz + dz));
+        if (!list) continue;
+        for (const p of list) {
+          if (Math.abs(p.y - wy) > vertTol) continue;
+          const ddx = p.x - wx;
+          const ddz = p.z - wz;
+          if (ddx * ddx + ddz * ddz <= tolSq) return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  private recordPlacedMast(wx: number, wy: number, wz: number): void {
+    const cx = Math.floor(wx / CatenaryMastContext.CELL);
+    const cz = Math.floor(wz / CatenaryMastContext.CELL);
+    const key = this.cellKey(cx, cz);
+    let list = this.placedGrid.get(key);
+    if (!list) {
+      list = [];
+      this.placedGrid.set(key, list);
+    }
+    list.push({ x: wx, y: wy, z: wz });
+  }
+
+  private isPoleCollidingWithTrack(wx: number, wy: number, wz: number): boolean {
+    const cx = Math.floor(wx / CatenaryMastContext.CELL);
+    const cz = Math.floor(wz / CatenaryMastContext.CELL);
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dz = -1; dz <= 1; dz++) {
+        const list = this.trackGrid.get(this.cellKey(cx + dx, cz + dz));
+        if (!list) continue;
+        for (const pt of list) {
+          if (Math.abs(pt.y - wy) > 55) continue;
+          const ddx = pt.x - wx;
+          const ddz = pt.z - wz;
+          if (ddx * ddx + ddz * ddz < pt.r * pt.r) return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Prüft Duplikate und Gleiskollisionen für einen Oberleitungsmast.
+   * Gibt die freie Seite (1 oder -1) zurück oder null, wenn der Mast weggelassen werden soll.
+   */
+  resolveMastSide(
+    piece: TrackPiece,
+    startElev: number,
+    localX: number,
+    localY: number,
+    localZ: number,
+    rotY: number,
+    preferredSide: 1 | -1,
+  ): 1 | -1 | null {
+    const attachWorld = this.toWorld(piece, startElev, localX, localY, localZ);
+    if (this.hasPlacedMastNear(attachWorld.x, attachWorld.y, attachWorld.z)) {
+      return null;
+    }
+
+    const candidates: Array<1 | -1> = [preferredSide, (preferredSide === 1 ? -1 : 1)];
+    for (const side of candidates) {
+      const mastDist = 24 * side;
+      const poleLx = localX + mastDist * Math.sin(rotY);
+      const poleLz = localZ + mastDist * Math.cos(rotY);
+      const poleWorld = this.toWorld(piece, startElev, poleLx, localY, poleLz);
+      if (!this.isPoleCollidingWithTrack(poleWorld.x, poleWorld.y, poleWorld.z)) {
+        this.recordPlacedMast(attachWorld.x, attachWorld.y, attachWorld.z);
+        return side;
+      }
+    }
+
+    return null;
+  }
+}
+
 export function buildTurntableCatenary3D(
   group: THREE.Group,
   piece: TrackPiece,
   entry: CatalogEntry,
   currentLayout?: Layout,
+  mastCtx?: CatenaryMastContext,
+  startElev = 0,
 ) {
   const catGroup = new THREE.Group();
 
@@ -121,12 +401,19 @@ export function buildTurntableCatenary3D(
   const contactH = 72;
   const messengerH = 85;
 
-  const buildMast = (x: number, z: number, rotY = 0, side = 1) => {
+  const buildMast = (x: number, z: number, rotY = 0, side: 1 | -1 = 1, checkCollision = false) => {
+    let resolvedSide: 1 | -1 = side;
+    if (checkCollision && mastCtx) {
+      const res = mastCtx.resolveMastSide(piece, startElev, x, 0, z, rotY, side);
+      if (res === null) return;
+      resolvedSide = res;
+    }
+
     const mastGroup = new THREE.Group();
     mastGroup.position.set(x, 0, z);
     mastGroup.rotation.y = rotY;
 
-    const mastDist = 24 * side;
+    const mastDist = 24 * resolvedSide;
 
     const baseMesh = new THREE.Mesh(SHARED_BASE_GEO, baseMat);
     baseMesh.position.set(0, 4, mastDist);
@@ -139,12 +426,12 @@ export function buildTurntableCatenary3D(
     poleMesh.castShadow = true;
     mastGroup.add(poleMesh);
 
-    const bracketGeo = side === -1 ? SHARED_MAST_BRACKET_NEG : SHARED_MAST_BRACKET_POS;
+    const bracketGeo = resolvedSide === -1 ? SHARED_MAST_BRACKET_NEG : SHARED_MAST_BRACKET_POS;
     const bracketMesh = new THREE.Mesh(bracketGeo, mastMat);
     bracketMesh.castShadow = true;
     mastGroup.add(bracketMesh);
 
-    const insGeo = side === -1 ? SHARED_MAST_INS_NEG : SHARED_MAST_INS_POS;
+    const insGeo = resolvedSide === -1 ? SHARED_MAST_INS_NEG : SHARED_MAST_INS_POS;
     const insMesh = new THREE.Mesh(insGeo, insMat);
     mastGroup.add(insMesh);
 
@@ -231,7 +518,7 @@ export function buildTurntableCatenary3D(
       addStraightWire(x1, z1, x2, z2, false);
 
       const mastAngle = Math.atan2(z2 - z1, x2 - x1);
-      buildMast(x2, z2, -mastAngle, 1);
+      buildMast(x2, z2, -mastAngle, 1, true);
     });
   }
 
@@ -243,6 +530,8 @@ export function buildTransferTableCatenary3D(
   piece: TrackPiece,
   entry: CatalogEntry,
   currentLayout?: Layout,
+  mastCtx?: CatenaryMastContext,
+  startElev = 0,
 ) {
   const catGroup = new THREE.Group();
 
@@ -255,12 +544,19 @@ export function buildTransferTableCatenary3D(
   const contactH = 72;
   const messengerH = 85;
 
-  const buildMast = (x: number, z: number, rotY = 0, side = 1) => {
+  const buildMast = (x: number, z: number, rotY = 0, side: 1 | -1 = 1, checkCollision = false) => {
+    let resolvedSide: 1 | -1 = side;
+    if (checkCollision && mastCtx) {
+      const res = mastCtx.resolveMastSide(piece, startElev, x, 0, z, rotY, side);
+      if (res === null) return;
+      resolvedSide = res;
+    }
+
     const mastGroup = new THREE.Group();
     mastGroup.position.set(x, 0, z);
     mastGroup.rotation.y = rotY;
 
-    const mastDist = 24 * side;
+    const mastDist = 24 * resolvedSide;
 
     const baseMesh = new THREE.Mesh(SHARED_BASE_GEO, baseMat);
     baseMesh.position.set(0, 4, mastDist);
@@ -273,12 +569,12 @@ export function buildTransferTableCatenary3D(
     poleMesh.castShadow = true;
     mastGroup.add(poleMesh);
 
-    const bracketGeo = side === -1 ? SHARED_MAST_BRACKET_NEG : SHARED_MAST_BRACKET_POS;
+    const bracketGeo = resolvedSide === -1 ? SHARED_MAST_BRACKET_NEG : SHARED_MAST_BRACKET_POS;
     const bracketMesh = new THREE.Mesh(bracketGeo, mastMat);
     bracketMesh.castShadow = true;
     mastGroup.add(bracketMesh);
 
-    const insGeo = side === -1 ? SHARED_MAST_INS_NEG : SHARED_MAST_INS_POS;
+    const insGeo = resolvedSide === -1 ? SHARED_MAST_INS_NEG : SHARED_MAST_INS_POS;
     const insMesh = new THREE.Mesh(insGeo, insMat);
     mastGroup.add(insMesh);
 
@@ -358,10 +654,10 @@ export function buildTransferTableCatenary3D(
 
       if (isLeft) {
         addStraightWire(0, z, pitLeft, z, false);
-        buildMast(0, z, -Math.PI, 1);
+        buildMast(0, z, -Math.PI, 1, true);
       } else {
         addStraightWire(pitRight, z, l, z, false);
-        buildMast(l, z, 0, 1);
+        buildMast(l, z, 0, 1, true);
       }
     });
   }
@@ -375,6 +671,7 @@ export function buildCatenary3D(
   startElev: number,
   endElev: number,
   piece?: TrackPiece,
+  mastCtx?: CatenaryMastContext,
 ) {
   const catGroup = new THREE.Group();
 
@@ -386,13 +683,30 @@ export function buildCatenary3D(
 
   const contactH = 72;
   const messengerH = 85;
+  const localPlacedMasts: Array<{ x: number; y: number; z: number }> = [];
 
-  const buildMast = (x: number, z: number, rotY = 0, side = 1, y = 0) => {
+  const buildMast = (x: number, z: number, rotY = 0, side: 1 | -1 = 1, y = 0) => {
+    // Lokale Duplikatprüfung (z. B. gemeinsame Weichenwurzel bei Standalone-Aufruf)
+    for (const pm of localPlacedMasts) {
+      if (Math.hypot(pm.x - x, pm.z - z) < 30 && Math.abs(pm.y - y) < 40) {
+        return;
+      }
+    }
+
+    let resolvedSide: 1 | -1 = side;
+    if (mastCtx && piece) {
+      const res = mastCtx.resolveMastSide(piece, startElev, x, y, z, rotY, side);
+      if (res === null) return;
+      resolvedSide = res;
+    }
+
+    localPlacedMasts.push({ x, y, z });
+
     const mastGroup = new THREE.Group();
     mastGroup.position.set(x, y, z);
     mastGroup.rotation.y = rotY;
 
-    const mastDist = 24 * side;
+    const mastDist = 24 * resolvedSide;
 
     const baseMesh = new THREE.Mesh(SHARED_BASE_GEO, baseMat);
     baseMesh.position.set(0, 4, mastDist);
@@ -405,12 +719,12 @@ export function buildCatenary3D(
     poleMesh.castShadow = true;
     mastGroup.add(poleMesh);
 
-    const bracketGeo = side === -1 ? SHARED_MAST_BRACKET_NEG : SHARED_MAST_BRACKET_POS;
+    const bracketGeo = resolvedSide === -1 ? SHARED_MAST_BRACKET_NEG : SHARED_MAST_BRACKET_POS;
     const bracketMesh = new THREE.Mesh(bracketGeo, mastMat);
     bracketMesh.castShadow = true;
     mastGroup.add(bracketMesh);
 
-    const insGeo = side === -1 ? SHARED_MAST_INS_NEG : SHARED_MAST_INS_POS;
+    const insGeo = resolvedSide === -1 ? SHARED_MAST_INS_NEG : SHARED_MAST_INS_POS;
     const insMesh = new THREE.Mesh(insGeo, insMat);
     mastGroup.add(insMesh);
 
@@ -425,9 +739,11 @@ export function buildCatenary3D(
     x2: number,
     z2: number,
     withMasts = true,
-    mastSide = 1,
+    mastSide: 1 | -1 = 1,
     y1 = 0,
     y2 = 0,
+    placeStartMast = true,
+    placeEndMast = true,
   ) => {
     const dx = x2 - x1;
     const dy = y2 - y1;
@@ -468,8 +784,10 @@ export function buildCatenary3D(
     }
 
     if (withMasts) {
-      buildMast(x1, z1, -angle, mastSide, y1);
-      if (horizLen >= 120) {
+      if (placeStartMast) {
+        buildMast(x1, z1, -angle, mastSide, y1);
+      }
+      if (placeEndMast && horizLen >= 120) {
         buildMast(x2, z2, -angle, mastSide, y2);
       }
     }
@@ -481,9 +799,11 @@ export function buildCatenary3D(
     dir: 1 | -1 = 1,
     leadX = 0,
     withMasts = true,
-    mastSide = 1,
+    mastSide: 1 | -1 = 1,
     startH = 0,
     heightDiff = 0,
+    placeStartMast = true,
+    placeEndMast = true,
   ) => {
     const segs = Math.max(4, Math.floor(rad / deg2rad(5)));
     for (let i = 0; i < segs; i++) {
@@ -528,10 +848,14 @@ export function buildCatenary3D(
     }
 
     if (withMasts) {
-      buildMast(leadX, 0, 0, mastSide, startH);
-      const endX = leadX + r * Math.sin(rad);
-      const endZ = dir * r * (1 - Math.cos(rad));
-      buildMast(endX, endZ, -dir * rad, mastSide, startH + heightDiff);
+      if (placeStartMast) {
+        buildMast(leadX, 0, 0, mastSide, startH);
+      }
+      if (placeEndMast) {
+        const endX = leadX + r * Math.sin(rad);
+        const endZ = dir * r * (1 - Math.cos(rad));
+        buildMast(endX, endZ, -dir * rad, mastSide, startH + heightDiff);
+      }
     }
   };
 
@@ -550,7 +874,7 @@ export function buildCatenary3D(
     const a = entry.angle ?? 30;
     const dir: 1 | -1 = a < 0 ? -1 : 1;
     const absRad = deg2rad(Math.abs(a));
-    addCurvedWire(r, absRad, dir, 0, true, -dir, 0, heightDiff);
+    addCurvedWire(r, absRad, dir, 0, true, -dir as 1 | -1, 0, heightDiff);
   } else if (isCurvedTurnout) {
     const dir: 1 | -1 = kind === "curved-turnout-left" || kind === "turnout-left" ? -1 : 1;
     const r1 = entry.radius ?? 360;
@@ -566,27 +890,33 @@ export function buildCatenary3D(
           : (entry.branchRadius ?? r1);
     const a2 = entry.branchAngle ?? 30;
 
-    addCurvedWire(r1, deg2rad(Math.abs(a1)), dir, 0, true, -dir, 0, heightDiff);
+    // Nur ein Mast an der Wurzel (0,0) und je ein äußerer Mast an den beiden Bogenenden
+    // Kein Mast bei (lead, 0) mitten zwischen den Weichenzweigen!
+    addCurvedWire(r1, deg2rad(Math.abs(a1)), dir, 0, true, -dir as 1 | -1, 0, heightDiff, true, true);
     if (lead > 0) {
       addStraightWire(0, 0, lead, 0, false, 1, 0, heightDiff);
     }
-    addCurvedWire(r2, deg2rad(Math.abs(a2)), dir, lead, true, dir, 0, heightDiff);
+    addCurvedWire(r2, deg2rad(Math.abs(a2)), dir, lead, true, dir, 0, heightDiff, false, true);
   } else if (kind === "turnout-left" || kind === "turnout-right") {
     const len = entry.length ?? 188.3;
     const br = entry.branchRadius ?? 437.5;
     const ba = entry.branchAngle ?? 24.3;
     const dir: 1 | -1 = kind === "turnout-left" ? -1 : 1;
 
-    addStraightWire(0, 0, len, 0, true, -dir, 0, heightDiff);
-    addCurvedWire(br, deg2rad(Math.abs(ba)), dir, 0, true, dir, 0, heightDiff);
+    // Gerade: Mast an Wurzel & Ende auf der Außenseite (-dir, weg vom Abzweig)
+    // Abzweig: kein doppelter Mast an der Wurzel, nur am Bogenende auf der Außenseite (+dir)
+    addStraightWire(0, 0, len, 0, true, -dir as 1 | -1, 0, heightDiff, true, true);
+    addCurvedWire(br, deg2rad(Math.abs(ba)), dir, 0, true, dir, 0, heightDiff, false, true);
   } else if (kind === "three-way") {
     const len = entry.length ?? 188.3;
     const br = entry.branchRadius ?? 437.5;
     const ba = entry.branchAngle ?? 24.3;
 
-    addStraightWire(0, 0, len, 0, true, 1, 0, heightDiff);
-    addCurvedWire(br, deg2rad(Math.abs(ba)), -1, 0, true, -1, 0, heightDiff);
-    addCurvedWire(br, deg2rad(Math.abs(ba)), 1, 0, true, 1, 0, heightDiff);
+    // Ein Mast an der Wurzel, kein Mast am Mittelende (eingeschlossen zwischen den beiden Bögen),
+    // je ein äußerer Mast an den beiden Außenbögen
+    addStraightWire(0, 0, len, 0, true, 1, 0, heightDiff, true, false);
+    addCurvedWire(br, deg2rad(Math.abs(ba)), -1, 0, true, -1, 0, heightDiff, false, true);
+    addCurvedWire(br, deg2rad(Math.abs(ba)), 1, 0, true, 1, 0, heightDiff, false, true);
   } else if (kind === "crossing") {
     const len = entry.length ?? 188.3;
     const a = entry.angle ?? 24.3;
@@ -596,7 +926,7 @@ export function buildCatenary3D(
     const sin = Math.sin(rad);
 
     addStraightWire(-h, 0, h, 0, true, 1, 0, heightDiff);
-    addStraightWire(-h * cos, -h * sin, h * cos, h * sin, true, 1, 0, heightDiff);
+    addStraightWire(-h * cos, -h * sin, h * cos, h * sin, true, -1, 0, heightDiff);
   } else if (kind === "double-slip") {
     const len = entry.length ?? 188.3;
     const a = entry.angle ?? 24.3;
@@ -607,7 +937,7 @@ export function buildCatenary3D(
     const sin = Math.sin(rad);
 
     addStraightWire(0, 0, len, 0, true, 1, 0, heightDiff);
-    addStraightWire(cx - h * cos, -h * sin, cx + h * cos, h * sin, true, 1, 0, heightDiff);
+    addStraightWire(cx - h * cos, -h * sin, cx + h * cos, h * sin, true, -1, 0, heightDiff);
   } else {
     const len = entry.length ?? 188.3;
     addStraightWire(0, 0, len, 0, true, 1, 0, heightDiff);
