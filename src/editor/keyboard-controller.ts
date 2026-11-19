@@ -7,6 +7,7 @@ import type { Ruler } from "@/ui/ruler";
 import type { PerfMonitor } from "@/ui/perf-monitor";
 import type { TrackOperations } from "./track-operations";
 import { getLanguage } from "@/i18n";
+import { ICONS } from "@/ui/icons";
 import { isTurnoutEntry } from "@/core/simulation";
 import { boardSketcher } from "./board-sketcher-controller";
 import {
@@ -216,7 +217,7 @@ export class KeyboardController {
         const ok = ops.copySelected();
         if (!ok) {
           const isDe = getLanguage() === "de";
-          this.deps.showToast(isDe ? "Keine Gleise zum Kopieren markiert" : "No tracks selected to copy", "⚠️");
+          this.deps.showToast(isDe ? "Keine Gleise zum Kopieren markiert" : "No tracks selected to copy", ICONS.alertTriangle);
         }
       }
       return;
@@ -277,7 +278,7 @@ export class KeyboardController {
           isDe
             ? "Weichen-Taste: Bitte zuerst eine Weiche markieren (Laterne: W, Decoder: Umschalt+W)"
             : "Turnout key: Please select a turnout first (Lantern: W, Decoder: Shift+W)",
-          "💡",
+          ICONS.lantern,
         );
       }
       return;

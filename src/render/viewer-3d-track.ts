@@ -6,7 +6,7 @@ import type { ColorMode, Layout, TrackPiece } from "@/core/types";
 import { deg2rad, isCurvedTrackEntry, isStraightTrackEntry, evaluateFlexSpline, computeFlexSplineLength } from "@/core/geometry";
 import { getTrackBlueprintColor } from "@/render/blueprint-colors";
 import { buildBufferStop3D } from "@/render/builtin-models-3d";
-import { applyCurveElevation, buildRoadPiece3D } from "./viewer-3d-roads";
+import { applyCurveElevation, applyStraightElevation, buildRoadPiece3D } from "./viewer-3d-roads";
 import { buildTransferTable3D, buildTurntable3D } from "./viewer-3d-turntables";
 import {
   buildCatenary3D,
@@ -281,22 +281,37 @@ export function buildTrackPiece3D(
     len: number,
     startX = 0,
     isAccessory = false,
+    customHDiff = 0,
   ) => {
-    const ballastGeo = getSharedStraightBallastGeometry(len, ballastH, ballastW);
-    const ballastMesh = new THREE.Mesh(ballastGeo, ballastMat);
-    ballastMesh.position.set(startX + len / 2, ballastH / 2, 0);
+    const isSloped = Math.abs(customHDiff) > 0.01;
+    const pad = isSloped ? 0.4 : 0;
+
+    let ballastMesh: THREE.Mesh;
+    if (isSloped) {
+      const ballastGeo = new THREE.BoxGeometry(len + pad * 2, ballastH, ballastW);
+      ballastGeo.translate(startX + len / 2, ballastH / 2, 0);
+      applyStraightElevation(ballastGeo, len, customHDiff, startX);
+      ballastMesh = new THREE.Mesh(ballastGeo, ballastMat);
+    } else {
+      const ballastGeo = getSharedStraightBallastGeometry(len, ballastH, ballastW);
+      ballastMesh = new THREE.Mesh(ballastGeo, ballastMat);
+      ballastMesh.position.set(startX + len / 2, ballastH / 2, 0);
+    }
     ballastMesh.receiveShadow = true;
     ballastMesh.castShadow = true;
     targetGroup.add(ballastMesh);
 
     const tieStep = Math.max(3.5, (gauge / 16.5) * 6.5);
     const tieCount = Math.floor(len / tieStep);
+    const slopePitch = isSloped && len > 0.1 ? Math.atan2(customHDiff, len) : 0;
     if (tieCount > 0) {
       const tiesInstanced = new THREE.InstancedMesh(tieGeo, tieMat, tieCount);
       tiesInstanced.castShadow = false;
-      _tieDummy.rotation.set(0, 0, 0);
+      _tieDummy.rotation.set(0, 0, slopePitch);
       for (let i = 0; i < tieCount; i++) {
-        _tieDummy.position.set(startX + i * tieStep + tieStep / 2, ballastH + 1.1, 0);
+        const tx = startX + i * tieStep + tieStep / 2;
+        const u = len > 0 ? (tx - startX) / len : 0;
+        _tieDummy.position.set(tx, ballastH + 1.1 + (isSloped ? u * customHDiff : 0), 0);
         _tieDummy.updateMatrix();
         tiesInstanced.setMatrixAt(i, _tieDummy.matrix);
       }
@@ -304,9 +319,22 @@ export function buildTrackPiece3D(
       targetGroup.add(tiesInstanced);
     }
 
-    const dualRailGeo = getSharedStraightDualRailGeometry(len, railH, railW, gaugeHalf);
-    const railsMesh = new THREE.Mesh(dualRailGeo, railMat);
-    railsMesh.position.set(startX + len / 2, railY, 0);
+    let railsMesh: THREE.Mesh;
+    if (isSloped) {
+      const rL = new THREE.BoxGeometry(len + pad * 2, railH, railW);
+      rL.translate(startX + len / 2, railY, -gaugeHalf);
+      const rR = new THREE.BoxGeometry(len + pad * 2, railH, railW);
+      rR.translate(startX + len / 2, railY, gaugeHalf);
+      const dualRailGeo = BufferGeometryUtils.mergeGeometries([rL, rR]);
+      rL.dispose();
+      rR.dispose();
+      applyStraightElevation(dualRailGeo, len, customHDiff, startX);
+      railsMesh = new THREE.Mesh(dualRailGeo, railMat);
+    } else {
+      const dualRailGeo = getSharedStraightDualRailGeometry(len, railH, railW, gaugeHalf);
+      railsMesh = new THREE.Mesh(dualRailGeo, railMat);
+      railsMesh.position.set(startX + len / 2, railY, 0);
+    }
     targetGroup.add(railsMesh);
 
     if (isAccessory) {
@@ -319,7 +347,9 @@ export function buildTrackPiece3D(
 
       const endX = startX + len;
       const backOffset = 15 * scale;
-      bufferGroup.position.set(endX - backOffset, ballastH + 2.2, 0);
+      const bx = endX - backOffset;
+      const bu = len > 0 ? (bx - startX) / len : 1;
+      bufferGroup.position.set(bx, ballastH + 2.2 + (isSloped ? bu * customHDiff : 0), 0);
 
       const isIlluminated =
         /beleuchtet|illuminat/i.test(entry.name || "") ||
@@ -516,14 +546,7 @@ export function buildTrackPiece3D(
     addSplineSection(group, entry.customOffsets, heightDiff);
   } else if (isStraightTrackEntry(entry)) {
     const len = entry.length ?? (kind === "flex" ? 900 : 188.3);
-    const straightGroup = new THREE.Group();
-    const isSloped = Math.abs(heightDiff) > 0.01;
-    if (isSloped) {
-      straightGroup.rotation.z = Math.atan2(heightDiff, len);
-    }
-    const slopeLen = isSloped ? Math.hypot(len, heightDiff) : len;
-    addStraightSection(straightGroup, slopeLen, 0, isBufferStop);
-    group.add(straightGroup);
+    addStraightSection(group, len, 0, isBufferStop, heightDiff);
   } else if (isCurvedTrackEntry(entry)) {
     const r = entry.radius ?? 437.5;
     const a = entry.angle ?? 30;
@@ -557,32 +580,16 @@ export function buildTrackPiece3D(
     const ba = entry.branchAngle ?? 24.3;
     const dir: 1 | -1 = kind === "turnout-left" ? -1 : 1;
 
-    const turnoutGroup = new THREE.Group();
-    const isSloped = Math.abs(heightDiff) > 0.01;
-    if (isSloped) {
-      turnoutGroup.rotation.z = Math.atan2(heightDiff, len);
-    }
-    const slopeLen = isSloped ? Math.hypot(len, heightDiff) : len;
-
-    addStraightSection(turnoutGroup, slopeLen, 0, false);
-    addCurvedSection(turnoutGroup, br, ba, dir, 0, 0);
-    group.add(turnoutGroup);
+    addStraightSection(group, len, 0, false, heightDiff);
+    addCurvedSection(group, br, ba, dir, 0, heightDiff);
   } else if (kind === "three-way") {
     const len = entry.length ?? 188.3;
     const br = entry.branchRadius ?? 437.5;
     const ba = entry.branchAngle ?? 24.3;
 
-    const threeWayGroup = new THREE.Group();
-    const isSloped = Math.abs(heightDiff) > 0.01;
-    if (isSloped) {
-      threeWayGroup.rotation.z = Math.atan2(heightDiff, len);
-    }
-    const slopeLen = isSloped ? Math.hypot(len, heightDiff) : len;
-
-    addStraightSection(threeWayGroup, slopeLen, 0, false);
-    addCurvedSection(threeWayGroup, br, ba, -1, 0, 0);
-    addCurvedSection(threeWayGroup, br, ba, 1, 0, 0);
-    group.add(threeWayGroup);
+    addStraightSection(group, len, 0, false, heightDiff);
+    addCurvedSection(group, br, ba, -1, 0, heightDiff);
+    addCurvedSection(group, br, ba, 1, 0, heightDiff);
   } else if (kind === "crossing") {
     const len = entry.length ?? 188.3;
     const a = entry.angle ?? 24.3;
@@ -952,6 +959,9 @@ export function buildAllTracks3D(
       mastCtx,
     );
   }
+
+  // 4. Alle Oberleitungen (Drähte, Hänger, Masten) als ~7-9 globale InstancedMeshes ausgeben
+  mastCtx?.flush(trackGroup);
 }
 
 /**

@@ -23,9 +23,13 @@ export function drawBallast(g: Graphics, entry: CatalogEntry, color: number, bal
 
   if (isStraightTrackEntry(entry)) {
     const l = entry.length ?? 188.3;
-    g.rect(0, -ballastHalf, l, ballastWidth);
-    g.fill({ color, alpha: 0.95 });
-    g.stroke({ width: 1, color: 0x6c655b, alpha: 0.6, join: "miter" });
+    const pad = 0.35;
+    g.rect(-pad, -ballastHalf, l + pad * 2, ballastWidth);
+    g.fill({ color, alpha: 1 });
+    // Nur die beiden Längskanten umranden (nicht die Stirnseiten), damit Übergänge nahtlos wirken
+    g.moveTo(-pad, -ballastHalf).lineTo(l + pad, -ballastHalf);
+    g.moveTo(-pad, ballastHalf).lineTo(l + pad, ballastHalf);
+    g.stroke({ width: 1, color: 0x6c655b, alpha: 0.6, cap: "butt" });
     return;
   }
 

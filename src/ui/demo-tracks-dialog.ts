@@ -1,5 +1,6 @@
 import { DEMO_LAYOUTS, type DemoLayoutDef } from "@/editor/demo-tracks";
 import { getLanguage, getTranslations } from "@/i18n";
+import { ICONS } from "./icons";
 
 export interface DemoTracksDialogOptions {
   currentLayoutDirty?: boolean;
@@ -29,7 +30,7 @@ export function showDemoTracksDialog(options: DemoTracksDialogOptions): Promise<
     header.className = "demo-dialog-header";
     header.innerHTML = `
       <h2 class="demo-dialog-title">
-        <span>🚆</span>
+        <span style="display:inline-flex;align-items:center;">${ICONS.train}</span>
         <span>${t.title}</span>
       </h2>
       <button type="button" class="demo-dialog-close" aria-label="${t.closeBtn}">×</button>

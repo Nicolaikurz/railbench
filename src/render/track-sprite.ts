@@ -203,7 +203,7 @@ export function createTrackGraphics(
     }
     drawRoadPiece2D(g, entry, isSelected);
     if (piece.hasBridge) {
-      drawBridge2D(container, entry, piece);
+      drawBridge2D(container, entry, piece, options.allPieces);
     }
     if (piece.hasTunnel) {
       drawTunnel2D(container, entry, piece, options.allPieces);
@@ -318,7 +318,7 @@ export function createTrackGraphics(
 
   // --- 5E. BRÜCKEN-AUFBAU (Träger, Geländer & Widerlager) ---
   if (piece.hasBridge) {
-    drawBridge2D(container, entry, piece);
+    drawBridge2D(container, entry, piece, options.allPieces);
   }
   if (piece.hasTunnel) {
     drawTunnel2D(container, entry, piece, options.allPieces);

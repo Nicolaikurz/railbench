@@ -6,6 +6,7 @@ import { isTurnoutEntry } from "@/core/simulation";
 import { isFlexTrack } from "@/core/flextrack";
 import { getLanguage } from "@/i18n";
 import { getOpenConnectors } from "@/core/ramp-generator";
+import { ICONS } from "./icons";
 
 export interface TrackContextMenuOptions {
   piece: TrackPiece;
@@ -148,7 +149,7 @@ export function showTrackContextMenu(options: TrackContextMenuOptions): void {
 
     <div class="ctx-item primary-accent" data-action="height-dialog">
       <div class="ctx-item-left">
-        <span class="ctx-icon">📐</span>
+        <span class="ctx-icon">${ICONS.slope}</span>
         <span>${isDe ? "Höhe & Steigung (Rampe)..." : "Height & Ramp..."}</span>
       </div>
       <span class="ctx-shortcut">M</span>
@@ -156,7 +157,7 @@ export function showTrackContextMenu(options: TrackContextMenuOptions): void {
 
     <div class="ctx-item" data-action="ramp-generator">
       <div class="ctx-item-left">
-        <span class="ctx-icon">⚡</span>
+        <span class="ctx-icon">${ICONS.zap}</span>
         <span>${isDe ? "Auto-Rampe generieren..." : "Auto-Generate Ramp..."}</span>
       </div>
       <span class="ctx-shortcut">⇧M</span>
@@ -169,14 +170,14 @@ export function showTrackContextMenu(options: TrackContextMenuOptions): void {
 
     <div class="ctx-item" data-action="select-connected">
       <div class="ctx-item-left">
-        <span class="ctx-icon">🔗</span>
+        <span class="ctx-icon">${ICONS.link}</span>
         <span>${isDe ? "Verbundene Gleise auswählen" : "Select connected tracks"}</span>
       </div>
     </div>
 
     <div class="ctx-item" data-action="select-layer">
       <div class="ctx-item-left">
-        <span class="ctx-icon">📑</span>
+        <span class="ctx-icon">${ICONS.list}</span>
         <span>${isDe ? "Ganze Ebene auswählen" : "Select whole layer"}</span>
       </div>
     </div>
@@ -188,14 +189,14 @@ export function showTrackContextMenu(options: TrackContextMenuOptions): void {
 
     <div class="ctx-item" data-action="properties-info">
       <div class="ctx-item-left">
-        <span class="ctx-icon">ℹ</span>
+        <span class="ctx-icon">${ICONS.info}</span>
         <span>${isDe ? "Eigenschaften / Info..." : "Properties / Info..."}</span>
       </div>
     </div>
 
     <div class="ctx-item" data-action="toggle-signal">
       <div class="ctx-item-left">
-        <span class="ctx-icon">🚦</span>
+        <span class="ctx-icon">${ICONS.signal}</span>
         <span>${piece.hasSignal ? (isDe ? "Signal entfernen" : "Remove Signal") : (isDe ? "Signal aufstellen" : "Place Signal")}</span>
       </div>
       <span class="ctx-shortcut">⇧S</span>
@@ -223,7 +224,7 @@ export function showTrackContextMenu(options: TrackContextMenuOptions): void {
 
     <div class="ctx-item" data-action="toggle-bridge">
       <div class="ctx-item-left">
-        <span class="ctx-icon">🌉</span>
+        <span class="ctx-icon">${ICONS.bridge}</span>
         <span>${piece.hasBridge ? (isDe ? "Brücke entfernen" : "Remove Bridge") : (isDe ? "Als Brücke definieren" : "Define as Bridge")}</span>
       </div>
       <span class="ctx-shortcut">B</span>
@@ -231,7 +232,7 @@ export function showTrackContextMenu(options: TrackContextMenuOptions): void {
 
     <div class="ctx-item" data-action="toggle-tunnel">
       <div class="ctx-item-left">
-        <span class="ctx-icon">🚇</span>
+        <span class="ctx-icon">${ICONS.tunnel}</span>
         <span>${piece.hasTunnel ? (isDe ? "Tunnel entfernen" : "Remove Tunnel") : (isDe ? "Als Tunnel definieren" : "Define as Tunnel")}</span>
       </div>
       <span class="ctx-shortcut">T</span>
@@ -264,14 +265,14 @@ export function showTrackContextMenu(options: TrackContextMenuOptions): void {
         ? `
       <div class="ctx-item" data-action="toggle-decoder">
         <div class="ctx-item-left">
-          <span class="ctx-icon">📟</span>
+          <span class="ctx-icon">${ICONS.decoder}</span>
           <span>${piece.hasDecoder ? (isDe ? "Decoder entfernen" : "Remove Decoder") : (isDe ? "Digitaldecoder einbauen" : "Install Decoder")}</span>
         </div>
         <span class="ctx-shortcut">⇧D</span>
       </div>
       <div class="ctx-item" data-action="toggle-lantern">
         <div class="ctx-item-left">
-          <span class="ctx-icon">💡</span>
+          <span class="ctx-icon">${ICONS.lantern}</span>
           <span>${piece.hasLantern ? (isDe ? "Laterne entfernen" : "Remove Lantern") : (isDe ? "Weichenlaterne montieren" : "Mount Lantern")}</span>
         </div>
         <span class="ctx-shortcut">⇧L</span>
@@ -502,19 +503,19 @@ export function openPropertiesDialog(piece: TrackPiece, catalogEntry?: CatalogEn
     .replace("{{LAYER_LABEL}}", isDe ? "Ebene:" : "Layer:")
     .replace("{{LAYER_VALUE}}", layerName)
     .replace("{{HEIGHT_LABEL}}", isDe ? "Höhe (Start / Ende):" : "Height (Start / End):")
-    .replace("{{HEIGHT_VALUE}}", `${Math.round(h0)} mm ➔ ${Math.round(h1)} mm ${slopePercent > 0 ? `(${slopePercent.toFixed(1)}% Steigung)` : ""}`)
+    .replace("{{HEIGHT_VALUE}}", `${Math.round(h0)} mm ➔ ${Math.round(h1)} mm ${slopePercent > 0 ? `(${slopePercent.toFixed(1)}% ${isDe ? "Steigung" : "slope"})` : ""}`)
     .replace("{{OPEN_ENDS_LABEL}}", isDe ? "Offene Enden:" : "Open Ends:")
     .replace("{{OPEN_ENDS_VALUE}}", `${openConns.length} / ${piece.connectors.length} ${isDe ? "frei" : "free"}`)
     .replace("{{FEEDER_LABEL}}", isDe ? "Stromeinspeisung:" : "Power Feeder:")
-    .replace("{{FEEDER_VALUE}}", piece.powerFeed ? (isDe ? "⚡ Aktiv" : "⚡ Active") : (isDe ? "Nein" : "No"))
+    .replace("{{FEEDER_VALUE}}", piece.powerFeed ? `<span style="display:inline-flex;align-items:center;gap:4px;">${ICONS.zap} ${isDe ? "Aktiv" : "Active"}</span>` : (isDe ? "Nein" : "No"))
     .replace("{{ISOLATOR_LABEL}}", isDe ? "Trennstelle:" : "Isolator Gap:")
     .replace("{{ISOLATOR_VALUE}}", piece.isIsolator ? `⊘ Pin ${(piece.isolatedConnectorIndex ?? 0) + 1}` : (isDe ? "Nein" : "No"))
     .replace("{{CATENARY_LABEL}}", isDe ? "Oberleitung:" : "Catenary:")
     .replace("{{CATENARY_VALUE}}", piece.hasCatenary ? (isDe ? "⌁ Aktiv" : "⌁ Active") : (isDe ? "Nein" : "No"))
     .replace("{{SIGNAL_LABEL}}", isDe ? "Signal:" : "Signal:")
-    .replace("{{SIGNAL_VALUE}}", piece.hasSignal ? (isDe ? `🚦 Montiert (${piece.signalSide === "both" ? "beidseitig" : piece.signalSide === "left" ? "links" : "rechts"}, ${piece.signalDirection === "both" ? "beide Richtungen" : piece.signalDirection === "backward" ? "rückwärts" : "vorwärts"})` : `🚦 Mounted (${piece.signalSide ?? "right"}, ${piece.signalDirection ?? "forward"})`) : (isDe ? "Nein" : "No"))
+    .replace("{{SIGNAL_VALUE}}", piece.hasSignal ? `<span style="display:inline-flex;align-items:center;gap:4px;">${ICONS.signal} ${isDe ? `Montiert (${piece.signalSide === "both" ? "beidseitig" : piece.signalSide === "left" ? "links" : "rechts"}, ${piece.signalDirection === "both" ? "beide Richtungen" : piece.signalDirection === "backward" ? "rückwärts" : "vorwärts"})` : `Mounted (${piece.signalSide ?? "right"}, ${piece.signalDirection ?? "forward"})`}</span>` : (isDe ? "Nein" : "No"))
     .replace("{{BRIDGE_LABEL}}", isDe ? "Brücke / Viadukt:" : "Bridge / Viaduct:")
-    .replace("{{BRIDGE_VALUE}}", piece.hasBridge ? (isDe ? "🌉 Aktiv" : "🌉 Active") : (isDe ? "Nein" : "No"))
+    .replace("{{BRIDGE_VALUE}}", piece.hasBridge ? `<span style="display:inline-flex;align-items:center;gap:4px;">${ICONS.bridge} ${isDe ? "Aktiv" : "Active"}</span>` : (isDe ? "Nein" : "No"))
     .replace("{{GROUP_SECTION}}", groupSection)
     .replace("{{CLOSE_BTN}}", isDe ? "Schließen" : "Close");
 
@@ -587,6 +588,8 @@ export function openReplaceOrSplitDialog(
     : (isDe ? "Ersetzt das gerade Standardgleis durch zwei passende Halb-Gleise aus dem Katalog." : "Replaces this straight track with two matching half-tracks from the catalog.");
 
   modal.innerHTML = trackReplaceModalHtml
+    .replaceAll("{{ICON_SCISSORS}}", ICONS.scissors)
+    .replaceAll("{{ICON_REFRESH}}", ICONS.refresh)
     .replace("{{TITLE}}", isDe ? "Gleis teilen oder Typ ersetzen" : "Split Track or Replace Type")
     .replace("{{SPLIT_CARD_TITLE}}", isDe ? "Gleis in zwei Hälften teilen" : "Split Track into Halves")
     .replace("{{SPLIT_CARD_DESC}}", splitCardDesc)

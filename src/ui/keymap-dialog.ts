@@ -9,6 +9,7 @@ import {
 } from "@/settings/keymap-manager";
 import { getLanguage } from "@/i18n";
 import { showToast } from "./toast";
+import { ICONS } from "./icons";
 
 export function openKeymapDialog(): void {
   const isDe = getLanguage() === "de";
@@ -284,7 +285,7 @@ export function openKeymapDialog(): void {
         isDe
           ? `Kürzel "${shortcut}" von "${conflictAction.labelDe}" übernommen.`
           : `Shortcut "${shortcut}" moved from "${conflictAction.labelEn}".`,
-        "⚠️",
+        ICONS.alertTriangle,
       );
     }
 

@@ -1,4 +1,5 @@
 import type { EditorContext } from "./track-operations";
+import { ICONS } from "@/ui/icons";
 import type { SignalSide, SignalDirection, Transform } from "@/core/types";
 import { computeWorldConnectors } from "@/catalog/catalog";
 import {
@@ -238,13 +239,13 @@ export function applyAutoRamp(ctx: EditorContext, onFallbackToDialog?: () => voi
   const isDe = getLanguage() === "de";
 
   if (selectedIds.length === 0) {
-    ctx.showToast(isDe ? "Bitte zuerst Gleise für die Rampe auswählen" : "Please select tracks for the ramp first", "⚠️");
+    ctx.showToast(isDe ? "Bitte zuerst Gleise für die Rampe auswählen" : "Please select tracks for the ramp first", ICONS.alertTriangle);
     return false;
   }
 
   const selectedPieces = layout.pieces.filter((p) => selectedIds.includes(p.id));
   if (selectedPieces.length === 0) {
-    ctx.showToast(isDe ? "Keine Gleise ausgewählt" : "No tracks selected", "⚠️");
+    ctx.showToast(isDe ? "Keine Gleise ausgewählt" : "No tracks selected", ICONS.alertTriangle);
     return false;
   }
 
@@ -262,20 +263,20 @@ export function applyAutoRamp(ctx: EditorContext, onFallbackToDialog?: () => voi
         isDe
           ? "Gleise müssen eine zusammenhängende Strecke ohne Verzweigungen bilden"
           : "Selected tracks must form a continuous chain without branches",
-        "⚠️",
+        ICONS.alertTriangle,
       );
     } else if (result.reason === "same_height") {
       ctx.showToast(
         isDe
           ? `Start und Ende haben dieselbe Höhe (${result.startHeightMm ?? 0} mm). Bitte Höhen-Dialog (⤉) nutzen.`
           : `Start and end tracks have the same height (${result.startHeightMm ?? 0} mm). Please use Height Dialog (⤉).`,
-        "⚠️",
+        ICONS.alertTriangle,
       );
       if (onFallbackToDialog) {
         onFallbackToDialog();
       }
     } else {
-      ctx.showToast(isDe ? "Rampe konnte nicht berechnet werden" : "Could not calculate ramp", "⚠️");
+      ctx.showToast(isDe ? "Rampe konnte nicht berechnet werden" : "Could not calculate ramp", ICONS.alertTriangle);
     }
     return false;
   }
@@ -288,13 +289,13 @@ export function applyAutoRamp(ctx: EditorContext, onFallbackToDialog?: () => voi
     const eH = result.endHeightMm ?? 0;
     const lenCm = Math.round((result.totalLengthMm ?? 0) / 10);
     const grad = result.gradientPercent ?? 0;
-    const warnIcon = grad > 4.5 ? " ⚠️" : "";
+    const warnSuffix = grad > 4.5 ? (isDe ? " – steil!" : " – steep!") : "";
 
     const msg = isDe
-      ? `Rampe berechnet: ${sH} mm ➔ ${eH} mm (${lenCm} cm, ${grad.toFixed(1)}% Steigung${warnIcon})`
-      : `Ramp applied: ${sH} mm ➔ ${eH} mm (${lenCm} cm, slope ${grad.toFixed(1)}%${warnIcon})`;
+      ? `Rampe berechnet: ${sH} mm ➔ ${eH} mm (${lenCm} cm, ${grad.toFixed(1)}% Steigung${warnSuffix})`
+      : `Ramp applied: ${sH} mm ➔ ${eH} mm (${lenCm} cm, slope ${grad.toFixed(1)}%${warnSuffix})`;
 
-    ctx.showToast(msg, "📐");
+    ctx.showToast(msg, grad > 4.5 ? ICONS.alertTriangle : ICONS.slope);
     return true;
   }
   return false;

@@ -1,4 +1,4 @@
-import { Container, Graphics, Text, TextStyle } from "pixi.js";
+import { Container, Graphics } from "pixi.js";
 import * as THREE from "three";
 import type { CatalogEntry } from "@/catalog/catalog";
 import type { Layout, TrackPiece } from "@/core/types";
@@ -158,7 +158,7 @@ export function drawTunnel2D(
 
   container.addChild(g);
 
-  // Kleines Tunnel-Badge in der Mitte des Stücks
+  // Kleines monochromes Tunnel-Badge (analog zu ICONS.tunnel) in der Mitte des Stücks
   const center = getPieceLocalCenter(entry);
   const badge = new Container();
   badge.position.set(center.x, center.y);
@@ -166,18 +166,22 @@ export function drawTunnel2D(
 
   const bg = new Graphics();
   bg.roundRect(-9, -7, 18, 14, 4);
-  bg.fill({ color: 0x1e293b, alpha: 0.88 });
-  bg.stroke({ width: 1, color: 0x94a3b8, alpha: 0.8 });
+  bg.fill({ color: 0x1e293b, alpha: 0.9 });
+  bg.stroke({ width: 1, color: 0x94a3b8, alpha: 0.85 });
+
+  // Äußerer Tunnelbogen (M3 20 V11 A9 9 0 0 1 21 11 V20)
+  bg.moveTo(-4.5, 4.5).lineTo(-4.5, 0);
+  bg.arc(0, 0, 4.5, Math.PI, 0, false);
+  bg.lineTo(4.5, 4.5);
+  // Innerer Tunnelbogen (M7 20 V13 A5 5 0 0 1 17 13 V20)
+  bg.moveTo(-2.5, 4.5).lineTo(-2.5, 1.0);
+  bg.arc(0, 1.0, 2.5, Math.PI, 0, false);
+  bg.lineTo(2.5, 4.5);
+  // Bodenlinie
+  bg.moveTo(-5.5, 4.5).lineTo(5.5, 4.5);
+  bg.stroke({ width: 1.15, color: 0xf8fafc, cap: "round", join: "round" });
+
   badge.addChild(bg);
-
-const TUNNEL_BADGE_TEXT_STYLE = new TextStyle({ fontSize: 9, fill: 0xffffff });
-
-  const txt = new Text({
-    text: "🚇",
-    style: TUNNEL_BADGE_TEXT_STYLE,
-  });
-  txt.anchor.set(0.5);
-  badge.addChild(txt);
   container.addChild(badge);
 }
 

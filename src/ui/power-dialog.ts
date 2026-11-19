@@ -9,6 +9,7 @@ import {
 } from "@/core/simulation";
 import type { Catalog } from "@/catalog/catalog";
 import { getTranslations } from "@/i18n";
+import { ICONS } from "./icons";
 
 export interface PowerSettingsDialogOptions {
   layout: Layout;
@@ -106,7 +107,7 @@ export function openPowerSettingsDialog(options: PowerSettingsDialogOptions): vo
           shortCircuitRes.hasShortCircuit
             ? `
         <div class="power-dialog-short-circuit-banner" style="padding: 6px 10px; margin-bottom: 2px;">
-          <div class="sc-banner-icon">⚠️</div>
+          <div class="sc-banner-icon" style="display:inline-flex;align-items:center;">${ICONS.alertTriangle}</div>
           <div class="sc-banner-body">
             <strong>${t.shortCircuitHeader}</strong>
             <p style="font-size: 11px; margin: 2px 0 0 0;">${t.shortCircuitSub}</p>
@@ -271,8 +272,8 @@ export function openPowerSettingsDialog(options: PowerSettingsDialogOptions): vo
             totalTurnoutCount > 0
               ? `
           <details id="power-turnout-details" style="margin-top: 4px; font-size: 11px; border-top: 1px solid var(--border-main); padding-top: 4px;">
-            <summary style="cursor: pointer; color: var(--text-muted); font-weight: 600; user-select: none;">
-              ⚙️ ${t.turnoutHeader} (${totalTurnoutCount})
+            <summary style="cursor: pointer; color: var(--text-muted); font-weight: 600; user-select: none; display: inline-flex; align-items: center; gap: 5px;">
+              ${ICONS.settings} <span>${t.turnoutHeader} (${totalTurnoutCount})</span>
             </summary>
             <div style="margin-top: 6px; display: flex; flex-direction: column; gap: 6px;">
               <div style="display: flex; justify-content: space-between; align-items: center;">

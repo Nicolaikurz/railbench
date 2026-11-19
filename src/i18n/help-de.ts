@@ -192,8 +192,8 @@ export const helpDe: HelpDialogTranslations = {
         body: '• <strong>Freie Rundumsicht (auch von unten):</strong> Drehen Sie die Kamera per Linksklick in jede beliebige Perspektive – inklusive direktem Blick <strong>unter die Tischplatte (Unten / Bottom)</strong> zur Kontrolle von Unterbau und Schattenbahnhöfen.<br>• <strong>CAD-Ansichtswürfel:</strong> Klicken Sie unter dem Hintergrund-Umschalter direkt auf eine der 6 Würfelflächen (<code>Vorne</code>, <code>Hinten</code>, <code>Links</code>, <code>Rechts</code>, <code>Oben</code>, <code>Unten</code>), die 4 Isometrie-Ecken oder ziehen Sie direkt am Würfel.',
       },
       {
-        title: "Brücken, Tunnel & Ebenenplatten",
-        body: "Gleise in Höhenlagen werden vertikal akkurat dargestellt. Ab 15 mm Höhe werden automatisch Brückenpfeiler generiert; Gebirgsstrecken zeigen echte 3D-Tunneldurchfahrten mit Portalen.",
+        title: "Gelände-Pinsel, Untergrund & Tunnel",
+        body: "Nutzen Sie den kompakten <strong>Gelände</strong>-Reiter mit 3 Pinsel-Modi: <strong>▲ Berg</strong> (Klick für Einzelgipfel, Ziehen für Gebirgskämme inkl. automatischer Tunnelportale auf Gleishöhe), <strong>◠ Grund</strong> (adaptives <em>Wasser</em>, <em>Sand</em>, <em>Erde</em> oder <em>Hügel</em>, das unter Gebäuden, Gleisen und Straßen automatisch flach bleibt und sich drumherum sanft anhebt) sowie <strong>✕ Löschen</strong>. Das Gelände schließt sauber am Tisch- bzw. Plattenrand ab.",
       },
       {
         title: "Umgebungsmodi & 24h Tag/Nacht-Zyklus",

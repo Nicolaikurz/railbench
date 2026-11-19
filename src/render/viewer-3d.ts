@@ -8,6 +8,7 @@ import { catalogRegistry } from "@/catalog/catalog";
 import { parseModelScale, type ModelScale } from "@/core/model-scale";
 import type { ShortCircuitDetectionResult } from "@/core/simulation";
 import { getTranslations, getLanguage, onLanguageChange } from "@/i18n";
+import { ICONS } from "@/ui/icons";
 import { getEffectiveFlexEntry } from "@/core/flextrack";
 import { buildRealisticLandscape } from "./viewer-3d-landscape";
 import { buildTrainHall } from "./viewer-3d-trainhall";
@@ -69,6 +70,11 @@ export class Viewer3D {
   private lastFrameTime = performance.now();
   private lastDayNightRenderTime = 0;
   private lastLayoutSignature = "";
+  private lastTableSig = "";
+  private lastTracksSig = "";
+  private lastModelsSig = "";
+  private lastWoodPlatesSig = "";
+  private lastShortCircuitSig = "";
   private sceneCenter = new THREE.Vector3(0, 0, 0);
   private celestialGroup = new THREE.Group();
   private sunMesh: THREE.Mesh | null = null;
@@ -349,10 +355,10 @@ export class Viewer3D {
 
     if (iconEl && labelEl) {
       if (this.envMode === "minimal") {
-        iconEl.textContent = "📐";
+        iconEl.innerHTML = ICONS.slope;
         labelEl.textContent = isDe ? "CAD / Minimal" : "CAD / Minimal";
       } else {
-        iconEl.textContent = "🏛️";
+        iconEl.innerHTML = ICONS.building;
         labelEl.textContent = isDe ? "Halle" : "Hall";
       }
     }
@@ -424,21 +430,22 @@ export class Viewer3D {
     const overlay = document.createElement("div");
     overlay.className = "viewer-3d-overlay";  
     this.overlayEl = overlay;
+    const isDe = getLanguage() === "de";
 
     overlay.innerHTML = `
       <div class="viewer-3d-header" style="position: absolute; top: 16px; left: 16px; right: 16px; display: flex; align-items: center; justify-content: space-between; pointer-events: none; z-index: 25;">
         <div class="viewer-3d-left" style="pointer-events: auto; display: flex; align-items: center; gap: 8px;">
-          <button class="v3d-btn" id="v3d-toggle-env" title="3D-Hintergrund umschalten (Halle / Minimal)">
-            <span id="v3d-env-icon">🏛️</span>
-            <span id="v3d-env-label">Halle</span>
+          <button class="v3d-btn" id="v3d-toggle-env" title="${isDe ? "3D-Hintergrund umschalten (Halle / Minimal)" : "Toggle 3D background (Hall / Minimal)"}">
+            <span id="v3d-env-icon" style="display:inline-flex;align-items:center;">${ICONS.building}</span>
+            <span id="v3d-env-label">${isDe ? "Halle" : "Hall"}</span>
           </button>
 
-          <div class="v3d-daynight-bar" title="Tag/Nacht-Zyklus mit wandernder Sonne">
-            <button class="v3d-btn ${this.dayNightActive ? "active" : ""}" id="v3d-toggle-cycle" title="Tag/Nacht-Zyklus starten oder anhalten">
+          <div class="v3d-daynight-bar" title="${isDe ? "Tag/Nacht-Zyklus mit wandernder Sonne" : "Day/Night cycle with moving sun"}">
+            <button class="v3d-btn ${this.dayNightActive ? "active" : ""}" id="v3d-toggle-cycle" title="${isDe ? "Tag/Nacht-Zyklus starten oder anhalten" : "Start or pause Day/Night cycle"}">
               <span id="v3d-cycle-label">14:00</span>
             </button>
-            <input type="range" id="v3d-time-slider" class="v3d-time-slider" min="0" max="24" step="0.05" value="${this.timeOfDay.toFixed(2)}" title="Tageszeit einstellen (00:00 - 24:00 Uhr)">
-            <button class="v3d-btn" id="v3d-cycle-speed" title="Geschwindigkeit ändern (1x = 20 Min. pro Tag)">
+            <input type="range" id="v3d-time-slider" class="v3d-time-slider" min="0" max="24" step="0.05" value="${this.timeOfDay.toFixed(2)}" title="${isDe ? "Tageszeit einstellen (00:00 - 24:00 Uhr)" : "Set time of day (00:00 - 24:00)"}">
+            <button class="v3d-btn" id="v3d-cycle-speed" title="${isDe ? "Geschwindigkeit ändern (1x = 20 Min. pro Tag)" : "Change cycle speed (1x = 20 min per day)"}">
               <span id="v3d-speed-label">${this.cycleSpeed}x</span>
             </button>
           </div>
@@ -571,6 +578,11 @@ export class Viewer3D {
     this.builtHallKey = "";
     this.builtLandscapeKey = "";
     this.lastLayoutSignature = "";
+    this.lastTableSig = "";
+    this.lastTracksSig = "";
+    this.lastModelsSig = "";
+    this.lastWoodPlatesSig = "";
+    this.lastShortCircuitSig = "";
     this.currentLayout = undefined;
     this.lastCatalog = undefined;
     this.lastOptions = undefined;
@@ -949,11 +961,38 @@ export class Viewer3D {
     }
     this.lastLayoutSignature = nextSig;
 
-    this.clearGroup(this.tableGroup);
-    this.clearGroup(this.woodPlateGroup);
-    this.clearGroup(this.trackGroup);
-    this.clearGroup(this.modelsGroup);
-    this.clearGroup(this.shortCircuitGroup);
+    const colorMode: ColorMode = options?.colorMode ?? (options?.showColorCode === false ? "off" : "types");
+    const scPts = options?.shortCircuit?.hasShortCircuit
+      ? options.shortCircuit.shortCircuitPoints.map((p) => `${Math.round(p.x)}:${Math.round(p.y)}:${p.pieceId1}`).join(",")
+      : "";
+    const bbSig = getBaseboards(layout)
+      .map((b) => `${b.id ?? ""}:${b.enabled ? 1 : 0}:${b.width}:${b.depth}:${b.customX ?? 0}:${b.customY ?? 0}:${b.rotation ?? 0}:${b.shape ?? "rect"}:${b.style ?? "wood"}:${b.customPolygon?.length ?? 0}`)
+      .join("|");
+    const layerSig = (layout.layers ?? [])
+      .map((l) => `${l.id}:${l.visible ? 1 : 0}:${l.heightMm ?? 0}:${l.color ?? ""}:${l.woodPlateMode ?? ""}:${l.woodPlateThicknessMm ?? ""}:${l.woodPlateStyle ?? ""}:${l.plates?.map((pl) => `${pl.id}:${pl.width}:${pl.depth}:${pl.x ?? 0}:${pl.y ?? 0}:${pl.style ?? ""}:${pl.shape ?? ""}`).join(",") ?? ""}`)
+      .join("|");
+    const piecesSig = layout.pieces
+      .map((p) => `${p.id}:${p.catalogId}:${Math.round(p.transform.x * 10)}:${Math.round(p.transform.y * 10)}:${Math.round(p.transform.rotation * 10)}:${p.layerId ?? ""}:${p.elevation?.start ?? 0}:${p.elevation?.end ?? 0}:${p.hasBridge ? 1 : 0}:${p.hasTunnel ? 1 : 0}:${p.hasCatenary ? 1 : 0}:${p.hasSignal ? 1 : 0}:${p.signalSide ?? ""}:${p.signalDirection ?? ""}:${p.hasLantern ? 1 : 0}:${p.hasDecoder ? 1 : 0}:${p.customLength ?? ""}:${p.customRadius ?? ""}:${p.customAngle ?? ""}:${p.customOffsets?.join(",") ?? ""}`)
+      .join("|");
+    const modelsSig = (layout.models ?? [])
+      .map((m) => `${m.id}:${m.builtinId ?? m.fileName ?? ""}:${Math.round(m.transform.x * 10)}:${Math.round(m.transform.y * 10)}:${Math.round(m.transform.rotation * 10)}:${m.layerId ?? ""}:${m.elevation ?? 0}:${m.scale ?? 1}:${m.width}:${m.depth}:${m.height}:${m.mountainStyle ?? ""}:${m.groundTerrainType ?? ""}:${m.mountainPath?.length ?? 0}`)
+      .join("|");
+
+    const hasAdaptiveTerrain = (layout.models ?? []).some(
+      (m) => m.builtinId === "mountain" || m.builtinId === "ground-terrain",
+    );
+
+    const nextTableSig = `${bbSig}#${layerSig}#${piecesSig}`;
+    const nextTracksSig = `${catalog.system}:${layout.scale ?? ""}:${colorMode}#${layerSig}#${piecesSig}`;
+    const nextModelsSig = `${layout.scale ?? ""}#${layerSig}#${modelsSig}#${hasAdaptiveTerrain ? `${bbSig}#${piecesSig}` : ""}`;
+    const nextWoodPlatesSig = `${bbSig}#${layerSig}#${piecesSig}#${modelsSig}`;
+    const nextShortCircuitSig = `${scPts}#${layerSig}#${piecesSig}`;
+
+    const rebuildTable = nextTableSig !== this.lastTableSig;
+    const rebuildTracks = nextTracksSig !== this.lastTracksSig;
+    const rebuildModels = nextModelsSig !== this.lastModelsSig;
+    const rebuildWoodPlates = nextWoodPlatesSig !== this.lastWoodPlatesSig;
+    const rebuildShortCircuit = nextShortCircuitSig !== this.lastShortCircuitSig;
 
     this.woodPlateGroup.visible = this.showWoodPlate;
 
@@ -963,27 +1002,32 @@ export class Viewer3D {
     this.landscapeGroup.visible = this.envMode === "landscape";
     this.applyTimeOfDay();
 
-    // 1. 3D-Tisch / Grundplatte nach Profilform bauen
+    // 1. 3D-Tisch / Grundplatte nach Profilform bauen (nur bei Änderung)
     const baseboards = getBaseboards(layout);
-    const tableLayer = layout.layers?.find((l) => (l.heightMm ?? 0) === 0);
-    const tableVisible = tableLayer ? tableLayer.visible : true;
-    const tablePlateMode: LayerWoodPlateMode =
-      tableLayer?.woodPlateMode && tableLayer.woodPlateMode !== "none"
-        ? tableLayer.woodPlateMode
-        : "table";
-    const tableThickness: number | undefined = tableLayer?.woodPlateThicknessMm;
+    if (rebuildTable) {
+      this.clearGroup(this.tableGroup);
+      const tableLayer = layout.layers?.find((l) => (l.heightMm ?? 0) === 0);
+      const tableVisible = tableLayer ? tableLayer.visible : true;
+      const tablePlateMode: LayerWoodPlateMode =
+        tableLayer?.woodPlateMode && tableLayer.woodPlateMode !== "none"
+          ? tableLayer.woodPlateMode
+          : "table";
+      const tableThickness: number | undefined = tableLayer?.woodPlateThicknessMm;
 
-    if (tableVisible) {
-      for (const bb of baseboards) {
-        if (bb.enabled) {
-          const matchingPlate = tableLayer?.plates?.find(
-            (p) => (p.baseboardId || baseboards[0]?.id) === bb.id,
-          );
-          const effectiveStyle = matchingPlate?.style ?? tableLayer?.woodPlateStyle ?? bb.style ?? "wood";
-          const bbConfig = bb.style === effectiveStyle ? bb : { ...bb, style: effectiveStyle };
-          buildBaseboard3D(this.tableGroup, bbConfig, layout, catalog, tablePlateMode, tableThickness);
+      if (tableVisible) {
+        for (const bb of baseboards) {
+          if (bb.enabled) {
+            const matchingPlate = tableLayer?.plates?.find(
+              (p) => (p.baseboardId || baseboards[0]?.id) === bb.id,
+            );
+            const effectiveStyle = matchingPlate?.style ?? tableLayer?.woodPlateStyle ?? bb.style ?? "wood";
+            const bbConfig = bb.style === effectiveStyle ? bb : { ...bb, style: effectiveStyle };
+            buildBaseboard3D(this.tableGroup, bbConfig, layout, catalog, tablePlateMode, tableThickness);
+          }
         }
       }
+      freezeStaticTransforms(this.tableGroup);
+      this.lastTableSig = nextTableSig;
     }
 
     // 2. Ebenen vorbereiten
@@ -995,186 +1039,212 @@ export class Viewer3D {
     const entryMap = new Map<string, CatalogEntry>();
     for (const e of catalog.entries) entryMap.set(e.id, e);
 
-    const colorMode: ColorMode = options?.colorMode ?? (options?.showColorCode === false ? "off" : "types");
+    // 3. Gleise & Trassenbretter inkrementell neu bauen
+    if (rebuildTracks || rebuildWoodPlates) {
+      const trackItems: TrackBuildItem[] = [];
+      const woodPlateItems: WoodPlateBuildItem[] = [];
 
-    // 3. Gleise mit realer 3D-Höhe (Elevation) nach Ebene erzeugen
-    const trackItems: TrackBuildItem[] = [];
-    const woodPlateItems: WoodPlateBuildItem[] = [];
-
-    for (const piece of layout.pieces) {
-      const layer = piece.layerId ? layerMap.get(piece.layerId) : undefined;
-      if (layer && !layer.visible) continue;
-
-      const baseElevation = layer?.heightMm ?? 0;
-      const startElev = baseElevation + (piece.elevation?.start ?? 0);
-      const endElev = baseElevation + (piece.elevation?.end ?? 0);
-
-      const isRoadPiece = piece.catalogId.startsWith("ST-");
-      let entry: CatalogEntry | undefined = entryMap.get(piece.catalogId) ?? catalogRegistry.findEntry(piece.catalogId);
-      if (!entry) {
-        entry = {
-          id: piece.catalogId,
-          name: piece.catalogId,
-          kind: isRoadPiece && piece.catalogId.includes("-C") ? "curve" : "straight",
-          category: isRoadPiece ? "Straßen" : "Geraden",
-          description: "",
-          length: isRoadPiece ? 200 : 188.3,
-          isRoad: isRoadPiece,
-          roadWidth: isRoadPiece ? 60 : undefined,
-        };
-      } else if (isRoadPiece && !entry.isRoad) {
-        entry.isRoad = true;
-      }
-
-      entry = getEffectiveFlexEntry(entry, piece);
-
-      trackItems.push({
-        piece,
-        entry,
-        startElev,
-        endElev,
-        colorMode,
-        layerColor: layer?.color,
-      });
-
-      // Wood Plate (Trassenbrett)
-      const plateMode = layer?.woodPlateMode ?? (baseElevation !== 0 || Math.abs(endElev - startElev) > 0.01 ? "tight" : "none");
-      if (plateMode === "tight") {
-        const plateThickness = layer?.woodPlateThicknessMm ?? 8;
-        woodPlateItems.push({
-          piece,
-          entry,
-          startElev,
-          endElev,
-          thickness: plateThickness,
-        });
-      }
-    }
-
-    if (trackItems.length > 0) {
-      buildAllTracks3D(this.trackGroup, trackItems, layout);
-    }
-
-    if (woodPlateItems.length > 0) {
-      buildAllWoodPlates3D(this.woodPlateGroup, woodPlateItems);
-    }
-
-    // 4. 3D-Modelle & Scenery (mit Instanzierung identischer Modelle)
-    if (layout.models && layout.models.length > 0) {
-      const modelsWithElev: Array<{ model: Model3D; elev: number }> = [];
-      for (const model of layout.models) {
-        const layer = model.layerId ? layerMap.get(model.layerId) : undefined;
+      for (const piece of layout.pieces) {
+        const layer = piece.layerId ? layerMap.get(piece.layerId) : undefined;
         if (layer && !layer.visible) continue;
 
         const baseElevation = layer?.heightMm ?? 0;
-        const elev = baseElevation + (model.elevation ?? 0);
-        modelsWithElev.push({ model, elev });
+        const startElev = baseElevation + (piece.elevation?.start ?? 0);
+        const endElev = baseElevation + (piece.elevation?.end ?? 0);
 
-        const plateMode = layer?.woodPlateMode ?? (baseElevation !== 0 ? "tight" : "none");
-        if (plateMode === "tight" && model.builtinId !== "mountain" && model.builtinId !== "ground-terrain") {
-          const plateThickness = layer?.woodPlateThicknessMm ?? 8;
-          buildBuildingWoodPlate3D(this.woodPlateGroup, model, elev, plateThickness);
+        const isRoadPiece = piece.catalogId.startsWith("ST-");
+        let entry: CatalogEntry | undefined = entryMap.get(piece.catalogId) ?? catalogRegistry.findEntry(piece.catalogId);
+        if (!entry) {
+          entry = {
+            id: piece.catalogId,
+            name: piece.catalogId,
+            kind: isRoadPiece && piece.catalogId.includes("-C") ? "curve" : "straight",
+            category: isRoadPiece ? "Straßen" : "Geraden",
+            description: "",
+            length: isRoadPiece ? 200 : 188.3,
+            isRoad: isRoadPiece,
+            roadWidth: isRoadPiece ? 60 : undefined,
+          };
+        } else if (isRoadPiece && !entry.isRoad) {
+          entry.isRoad = true;
         }
-      }
 
-      buildAllModels3D(
-        this.modelsGroup,
-        this.gltfCache,
-        this.gltfLoader,
-        modelsWithElev,
-        this.layoutScale,
-        layout,
-        entryMap,
-      );
-    }
+        entry = getEffectiveFlexEntry(entry, piece);
 
-    // 4B. Vollflächige Holzplatten / Tisch-Zwischenebenen
-    if (layout.layers) {
-      for (const layer of layout.layers) {
-        if (!layer.visible) continue;
-        if (layer.plates && layer.plates.length > 0) {
-          for (const plate of layer.plates) {
-            const targetBoard = (plate.baseboardId ? baseboards.find((b) => b.id === plate.baseboardId) : undefined) || baseboards[0];
-            const isGroundMatchingBoard =
-              (layer.heightMm ?? 0) === 0 &&
-              targetBoard &&
-              targetBoard.enabled &&
-              (plate.baseboardId === targetBoard.id || !plate.baseboardId) &&
-              (!plate.x || plate.x === 0) &&
-              (!plate.y || plate.y === 0) &&
-              plate.width === targetBoard.width &&
-              plate.depth === targetBoard.depth &&
-              plate.shape !== "custom" &&
-              targetBoard.shape !== "custom" &&
-              (!plate.shape || plate.shape === (targetBoard.shape ?? "rect"));
+        if (rebuildTracks) {
+          trackItems.push({
+            piece,
+            entry,
+            startElev,
+            endElev,
+            colorMode,
+            layerColor: layer?.color,
+          });
+        }
 
-            if (isGroundMatchingBoard) {
-              continue;
-            }
-            buildCustomLayerPlate3D(this.woodPlateGroup, layer, plate, layout, catalog);
-          }
-        } else if (layer.woodPlateMode === "table" && (layer.heightMm ?? 0) !== 0) {
-          for (const bb of baseboards) {
-            if (bb.enabled) {
-              buildLayerDeckPlate3D(this.woodPlateGroup, layer, bb, layout, catalog);
-            }
+        if (rebuildWoodPlates) {
+          const plateMode = layer?.woodPlateMode ?? (baseElevation !== 0 || Math.abs(endElev - startElev) > 0.01 ? "tight" : "none");
+          if (plateMode === "tight") {
+            const plateThickness = layer?.woodPlateThicknessMm ?? 8;
+            woodPlateItems.push({
+              piece,
+              entry,
+              startElev,
+              endElev,
+              thickness: plateThickness,
+            });
           }
         }
       }
-    }
 
-    // 5. 3D-Kurzschluss-Markierungen
-    const scBtn = this.overlayEl?.querySelector("#v3d-short-circuit-btn") as HTMLElement | null;
-    if (options?.shortCircuit?.hasShortCircuit) {
-      if (scBtn) {
-        scBtn.style.display = "inline-flex";
-        const t = getTranslations().toolbar.status;
-        const count = options.shortCircuit.shortCircuitPoints.length;
-        scBtn.textContent = count > 1 ? `⚠️⚡ ${t.shortCircuitBadge3D} (${count})` : `⚠️⚡ ${t.shortCircuitBadge3D}`;
+      if (rebuildTracks) {
+        this.clearGroup(this.trackGroup);
+        if (trackItems.length > 0) {
+          buildAllTracks3D(this.trackGroup, trackItems, layout);
+        }
+        freezeStaticTransforms(this.trackGroup);
+        this.lastTracksSig = nextTracksSig;
       }
 
-      for (const pt of options.shortCircuit.shortCircuitPoints) {
-        const p1 = layout.pieces.find((p) => p.id === pt.pieceId1);
-        const layer1 = p1?.layerId ? layerMap.get(p1.layerId) : undefined;
-        const baseElevation = layer1?.heightMm ?? 0;
-        const elev = baseElevation + (p1?.elevation?.start ?? 0);
-
-        const beaconGeo = new THREE.OctahedronGeometry(14, 0);
-        const beaconMat = new THREE.MeshStandardMaterial({
-          color: 0xef4444,
-          emissive: 0xef4444,
-          emissiveIntensity: 1.2,
-          roughness: 0.1,
-          metalness: 0.2,
-        });
-        const beacon = new THREE.Mesh(beaconGeo, beaconMat);
-        beacon.position.set(pt.x, elev + 28, pt.y);
-        this.shortCircuitGroup.add(beacon);
-
-        const beamGeo = new THREE.CylinderGeometry(0.8, 0.8, 28, 6);
-        const beamMat = new THREE.MeshBasicMaterial({ color: 0xdc2626 });
-        const beam = new THREE.Mesh(beamGeo, beamMat);
-        beam.position.set(pt.x, elev + 14, pt.y);
-        this.shortCircuitGroup.add(beam);
-
-        const ringGeo = new THREE.RingGeometry(8, 14, 16);
-        ringGeo.rotateX(-Math.PI / 2);
-        const ringMat = new THREE.MeshBasicMaterial({ color: 0xef4444, side: THREE.DoubleSide });
-        const ring = new THREE.Mesh(ringGeo, ringMat);
-        ring.position.set(pt.x, elev + 2.5, pt.y);
-        this.shortCircuitGroup.add(ring);
-      }
-    } else {
-      if (scBtn) {
-        scBtn.style.display = "none";
+      if (rebuildWoodPlates) {
+        this.clearGroup(this.woodPlateGroup);
+        if (woodPlateItems.length > 0) {
+          buildAllWoodPlates3D(this.woodPlateGroup, woodPlateItems);
+        }
       }
     }
 
-    // Statische Objekt-Transformationen einfrieren (spart 1000e Matrix-Multiplikationen pro Frame)
-    freezeStaticTransforms(this.tableGroup);
-    freezeStaticTransforms(this.woodPlateGroup);
-    freezeStaticTransforms(this.trackGroup);
-    freezeStaticTransforms(this.modelsGroup);
+    // 4. 3D-Modelle & Scenery (nur bei Änderung neu bauen)
+    if (rebuildModels || rebuildWoodPlates) {
+      if (rebuildModels) {
+        this.clearGroup(this.modelsGroup);
+      }
+      if (layout.models && layout.models.length > 0) {
+        const modelsWithElev: Array<{ model: Model3D; elev: number }> = [];
+        for (const model of layout.models) {
+          const layer = model.layerId ? layerMap.get(model.layerId) : undefined;
+          if (layer && !layer.visible) continue;
+
+          const baseElevation = layer?.heightMm ?? 0;
+          const elev = baseElevation + (model.elevation ?? 0);
+          modelsWithElev.push({ model, elev });
+
+          if (rebuildWoodPlates) {
+            const plateMode = layer?.woodPlateMode ?? (baseElevation !== 0 ? "tight" : "none");
+            if (plateMode === "tight" && model.builtinId !== "mountain" && model.builtinId !== "ground-terrain") {
+              const plateThickness = layer?.woodPlateThicknessMm ?? 8;
+              buildBuildingWoodPlate3D(this.woodPlateGroup, model, elev, plateThickness);
+            }
+          }
+        }
+
+        if (rebuildModels) {
+          buildAllModels3D(
+            this.modelsGroup,
+            this.gltfCache,
+            this.gltfLoader,
+            modelsWithElev,
+            this.layoutScale,
+            layout,
+            entryMap,
+          );
+        }
+      }
+      if (rebuildModels) {
+        freezeStaticTransforms(this.modelsGroup);
+        this.lastModelsSig = nextModelsSig;
+      }
+    }
+
+    // 4B. Vollflächige Holzplatten / Tisch-Zwischenebenen (nur bei Änderung)
+    if (rebuildWoodPlates) {
+      if (layout.layers) {
+        for (const layer of layout.layers) {
+          if (!layer.visible) continue;
+          if (layer.plates && layer.plates.length > 0) {
+            for (const plate of layer.plates) {
+              const targetBoard = (plate.baseboardId ? baseboards.find((b) => b.id === plate.baseboardId) : undefined) || baseboards[0];
+              const isGroundMatchingBoard =
+                (layer.heightMm ?? 0) === 0 &&
+                targetBoard &&
+                targetBoard.enabled &&
+                (plate.baseboardId === targetBoard.id || !plate.baseboardId) &&
+                (!plate.x || plate.x === 0) &&
+                (!plate.y || plate.y === 0) &&
+                plate.width === targetBoard.width &&
+                plate.depth === targetBoard.depth &&
+                plate.shape !== "custom" &&
+                targetBoard.shape !== "custom" &&
+                (!plate.shape || plate.shape === (targetBoard.shape ?? "rect"));
+
+              if (isGroundMatchingBoard) {
+                continue;
+              }
+              buildCustomLayerPlate3D(this.woodPlateGroup, layer, plate, layout, catalog);
+            }
+          } else if (layer.woodPlateMode === "table" && (layer.heightMm ?? 0) !== 0) {
+            for (const bb of baseboards) {
+              if (bb.enabled) {
+                buildLayerDeckPlate3D(this.woodPlateGroup, layer, bb, layout, catalog);
+              }
+            }
+          }
+        }
+      }
+      freezeStaticTransforms(this.woodPlateGroup);
+      this.lastWoodPlatesSig = nextWoodPlatesSig;
+    }
+
+    // 5. 3D-Kurzschluss-Markierungen (nur bei Änderung)
+    if (rebuildShortCircuit) {
+      this.clearGroup(this.shortCircuitGroup);
+      const scBtn = this.overlayEl?.querySelector("#v3d-short-circuit-btn") as HTMLElement | null;
+      if (options?.shortCircuit?.hasShortCircuit) {
+        if (scBtn) {
+          scBtn.style.display = "inline-flex";
+          const t = getTranslations().toolbar.status;
+          const count = options.shortCircuit.shortCircuitPoints.length;
+          scBtn.innerHTML = `<span style="display:inline-flex;align-items:center;gap:4px;">${ICONS.alertTriangle}${ICONS.zap}<span>${count > 1 ? `${t.shortCircuitBadge3D} (${count})` : t.shortCircuitBadge3D}</span></span>`;
+        }
+
+        for (const pt of options.shortCircuit.shortCircuitPoints) {
+          const p1 = layout.pieces.find((p) => p.id === pt.pieceId1);
+          const layer1 = p1?.layerId ? layerMap.get(p1.layerId) : undefined;
+          const baseElevation = layer1?.heightMm ?? 0;
+          const elev = baseElevation + (p1?.elevation?.start ?? 0);
+
+          const beaconGeo = new THREE.OctahedronGeometry(14, 0);
+          const beaconMat = new THREE.MeshStandardMaterial({
+            color: 0xef4444,
+            emissive: 0xef4444,
+            emissiveIntensity: 1.2,
+            roughness: 0.1,
+            metalness: 0.2,
+          });
+          const beacon = new THREE.Mesh(beaconGeo, beaconMat);
+          beacon.position.set(pt.x, elev + 28, pt.y);
+          this.shortCircuitGroup.add(beacon);
+
+          const beamGeo = new THREE.CylinderGeometry(0.8, 0.8, 28, 6);
+          const beamMat = new THREE.MeshBasicMaterial({ color: 0xdc2626 });
+          const beam = new THREE.Mesh(beamGeo, beamMat);
+          beam.position.set(pt.x, elev + 14, pt.y);
+          this.shortCircuitGroup.add(beam);
+
+          const ringGeo = new THREE.RingGeometry(8, 14, 16);
+          ringGeo.rotateX(-Math.PI / 2);
+          const ringMat = new THREE.MeshBasicMaterial({ color: 0xef4444, side: THREE.DoubleSide });
+          const ring = new THREE.Mesh(ringGeo, ringMat);
+          ring.position.set(pt.x, elev + 2.5, pt.y);
+          this.shortCircuitGroup.add(ring);
+        }
+      } else {
+        if (scBtn) {
+          scBtn.style.display = "none";
+        }
+      }
+      this.lastShortCircuitSig = nextShortCircuitSig;
+    }
 
     this.requestShadowUpdate();
   }

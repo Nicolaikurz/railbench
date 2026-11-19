@@ -12,6 +12,7 @@ import {
   scaleDimensions,
 } from "@/core/model-scale";
 import { getLanguage, getTranslations } from "@/i18n";
+import { ICONS } from "@/ui/icons";
 import {
   createModelDragCanvas,
   createCustomModelDragCanvas,
@@ -71,7 +72,7 @@ export function renderModelsTab(sidebar: Sidebar, container: HTMLElement) {
   dropzone.setAttribute("role", "button");
   dropzone.title = isDe ? "3D-Modell (.glb / .gltf) importieren" : "Import a 3D model (.glb / .gltf)";
   dropzone.innerHTML = `
-    <div class="dropzone-icon">📂</div>
+    <div class="dropzone-icon">${ICONS.folderOpen}</div>
     <div class="dropzone-text">${
       isDe
         ? "<code>.glb</code> / <code>.gltf</code> hierher ziehen oder <strong>klicken</strong>"
@@ -343,13 +344,13 @@ export function renderModelsList(sidebar: Sidebar, container: HTMLElement) {
     card.innerHTML = `
       <div class="card-top">
         <div style="display: flex; align-items: center; gap: 6px;">
-          <span style="font-size: 16px;">📁</span>
+          <span style="display: inline-flex; align-items: center;">${ICONS.folder}</span>
           <span class="card-id" style="font-weight: 700;">${m.name}</span>
         </div>
         <span class="card-category-badge" style="background: #6366f1; color: #ffffff;">.${m.modelType}</span>
       </div>
       <div class="card-spec" style="margin-top: 4px; font-weight: 600; color: var(--text-main);">
-        Size: ${m.width} × ${m.depth} × ${m.height} mm
+        ${isDe ? "Größe" : "Size"}: ${m.width} × ${m.depth} × ${m.height} mm
       </div>
     `;
 
@@ -372,7 +373,7 @@ export function renderModelsList(sidebar: Sidebar, container: HTMLElement) {
 
     const delBtn = document.createElement("button");
     delBtn.className = "layer-action-btn btn-danger";
-    delBtn.innerHTML = "🗑";
+    delBtn.innerHTML = ICONS.trash;
     delBtn.title = isDe ? "Aus eigener Bibliothek entfernen" : "Remove from custom library";
     delBtn.addEventListener("click", (e) => {
       e.stopPropagation();

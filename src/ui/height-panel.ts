@@ -18,6 +18,7 @@ import {
 import { getPieceConnectorHeight } from "@/core/snapping";
 import { openLayerDialog } from "./layer-dialog";
 import { translateHeightPanelToEn } from "./height-panel-i18n";
+import { ICONS } from "./icons";
 
 export interface HeightPanelOptions {
   layout: Layout;
@@ -104,7 +105,11 @@ export function openHeightPanel(options: HeightPanelOptions): HTMLElement {
   const panel = document.createElement("div");
   panel.id = "height-panel-root";
   panel.className = "height-panel-card";
-  panel.innerHTML = heightPanelHtml;
+  panel.innerHTML = heightPanelHtml
+    .replaceAll("{{ICON_SLOPE}}", ICONS.slope)
+    .replaceAll("{{ICON_RULER}}", ICONS.ruler)
+    .replaceAll("{{ICON_ZAP}}", ICONS.zap)
+    .replaceAll("{{ICON_PIN}}", ICONS.pin);
   if (!isDe) translateHeightPanelToEn(panel);
 
   // Position below or next to #right-sidebar (or restore saved position)
@@ -606,8 +611,8 @@ export function openHeightPanel(options: HeightPanelOptions): HTMLElement {
 
       rampTargetWarning = {
         title: isDe
-          ? `⚠️ Gleisstrecke zu kurz für Zielebene (${targetH} mm)!`
-          : `⚠️ Track too short for target layer (${targetH} mm)!`,
+          ? `Gleisstrecke zu kurz für Zielebene (${targetH} mm)!`
+          : `Track too short for target layer (${targetH} mm)!`,
         desc: isDe
           ? `Gleislänge (${curLenCm} cm) reicht nicht für ${targetH} mm (benötigt: ${reqLenCm} cm bei max. ${rampTargetSteep}%). Endwert auf max. ${dirWord} (${maxAchievableH} mm, Δ ${maxRiseMm} mm) begrenzt.`
           : `Track length (${curLenCm} cm) cannot reach ${targetH} mm (needed: ${reqLenCm} cm at max ${rampTargetSteep}%). End value capped to max ${dirWord} (${maxAchievableH} mm, Δ ${maxRiseMm} mm).`,
@@ -703,7 +708,7 @@ export function openHeightPanel(options: HeightPanelOptions): HTMLElement {
 
     if (rampTargetWarning) {
       rampStatusBadge.className = "hp-status-box warn";
-      rampStatusTitle.textContent = rampTargetWarning.title;
+      rampStatusTitle.innerHTML = `<span style="display:inline-flex;align-items:center;gap:5px;">${ICONS.alertTriangle}<span>${rampTargetWarning.title}</span></span>`;
       rampStatusDesc.textContent = rampTargetWarning.desc;
     } else if (evalGrad <= 3.0) {
       rampStatusBadge.className = "hp-status-box ok";
@@ -711,11 +716,11 @@ export function openHeightPanel(options: HeightPanelOptions): HTMLElement {
       rampStatusDesc.textContent = isDe ? "Optimal befahrbar für alle Zuggarnituren." : "Safe for all train formations.";
     } else if (evalGrad <= 4.5) {
       rampStatusBadge.className = "hp-status-box warn";
-      rampStatusTitle.textContent = `⚠️ ${isDe ? "Mäßige Steigung" : "Moderate Slope"}: ${grad.toFixed(1)}% (Δ ${deltaH} mm)`;
+      rampStatusTitle.innerHTML = `<span style="display:inline-flex;align-items:center;gap:5px;">${ICONS.alertTriangle}<span>${isDe ? "Mäßige Steigung" : "Moderate Slope"}: ${grad.toFixed(1)}% (Δ ${deltaH} mm)</span></span>`;
       rampStatusDesc.textContent = isDe ? "Für kurze bis mittlere Züge mit Haftreifen geeignet." : "Suitable for short to medium trains.";
     } else {
       rampStatusBadge.className = "hp-status-box danger";
-      rampStatusTitle.textContent = `⚠️ ${isDe ? "Steile Rampe" : "Steep Ramp"}: ${grad.toFixed(1)}% (Δ ${deltaH} mm)`;
+      rampStatusTitle.innerHTML = `<span style="display:inline-flex;align-items:center;gap:5px;">${ICONS.alertTriangle}<span>${isDe ? "Steile Rampe" : "Steep Ramp"}: ${grad.toFixed(1)}% (Δ ${deltaH} mm)</span></span>`;
       rampStatusDesc.textContent = isDe ? "Gefahr von Durchdrehen oder Entkuppeln! Gleislänge vergrößern." : "Risk of slipping or uncoupling! Increase length.";
     }
 
@@ -1161,7 +1166,7 @@ export function openHeightPanel(options: HeightPanelOptions): HTMLElement {
 
     if (!res.success) {
       genStatusBox.className = "hp-status-box danger";
-      genStatusTitle.textContent = isDe ? "⚠️ Rampe kann nicht berechnet werden" : "⚠️ Cannot compute ramp";
+      genStatusTitle.innerHTML = `<span style="display:inline-flex;align-items:center;gap:5px;">${ICONS.alertTriangle}<span>${isDe ? "Rampe kann nicht berechnet werden" : "Cannot compute ramp"}</span></span>`;
       genStatusDesc.textContent = res.reason === "same_height"
         ? (isDe ? "Start- und Zielhöhe sind identisch." : "Start and target heights are identical.")
         : (isDe ? "Kein offener Anschluss oder ungültige Parameter." : "No open connector or invalid parameters.");
@@ -1194,9 +1199,17 @@ export function openHeightPanel(options: HeightPanelOptions): HTMLElement {
     }
 
     const gradLevel = grad <= 3.0 ? "ok" : grad <= 4.5 ? "warn" : "danger";
-    const gradPrefix = grad <= 3.0 ? (isDe ? "✓ Sichere Steigung" : "✓ Safe gradient") : grad <= 4.5 ? (isDe ? "⚠️ Mäßige Steigung" : "⚠️ Moderate gradient") : (isDe ? "⚠️ Steile Rampe" : "⚠️ Steep ramp");
+    const gradText = grad <= 3.0
+      ? (isDe ? "✓ Sichere Steigung" : "✓ Safe gradient")
+      : grad <= 4.5
+        ? (isDe ? "Mäßige Steigung" : "Moderate gradient")
+        : (isDe ? "Steile Rampe" : "Steep ramp");
     genStatusBox.className = `hp-status-box ${gradLevel}`;
-    genStatusTitle.textContent = `${gradPrefix}: ${grad.toFixed(1)}% (${count} ${isDe ? "Gleise" : "tracks"}${turnsText}, ${lenCm} cm)`;
+    if (grad <= 3.0) {
+      genStatusTitle.textContent = `${gradText}: ${grad.toFixed(1)}% (${count} ${isDe ? "Gleise" : "tracks"}${turnsText}, ${lenCm} cm)`;
+    } else {
+      genStatusTitle.innerHTML = `<span style="display:inline-flex;align-items:center;gap:5px;">${ICONS.alertTriangle}<span>${gradText}: ${grad.toFixed(1)}% (${count} ${isDe ? "Gleise" : "tracks"}${turnsText}, ${lenCm} cm)</span></span>`;
+    }
     genStatusDesc.textContent = `${Math.round(curH)} mm ➔ ${Math.round(tH)} mm (Δ ${deltaH > 0 ? "+" : ""}${deltaH} mm)`;
     } finally {
       isUpdatingGenerate = false;

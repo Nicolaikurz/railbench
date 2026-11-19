@@ -141,7 +141,7 @@ export class RightSidebar {
       alertBox.style.cssText =
         "margin: 6px 0; padding: 8px 10px; border-radius: 8px; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.35); font-size: 11px; display: flex; flex-direction: column; gap: 6px;";
       alertBox.innerHTML = `
-        <div style="color: #ef4444; font-weight: 600;">⚠️ ${t.orphanedItemsWarning.replace("{count}", String(totalOrphaned))}</div>
+        <div style="color: #ef4444; font-weight: 600; display: flex; align-items: center; gap: 5px;">${ICONS.alertTriangle} <span>${t.orphanedItemsWarning.replace("{count}", String(totalOrphaned))}</span></div>
         <button type="button" class="cl-pill is-primary" style="align-self: flex-start; cursor: pointer; padding: 3px 8px; font-size: 11px;">
           ${t.reassignOrphaned}
         </button>
@@ -173,7 +173,7 @@ export class RightSidebar {
         : "Set or generate track height and ramps";
       heightBtn.innerHTML = `
         <span style="display: flex; align-items: center; gap: 6px;">
-          <span class="cl-btn-icon">📐</span>
+          <span class="cl-btn-icon" style="display: inline-flex; align-items: center;">${ICONS.slope}</span>
           <span>${de ? "Höhe & Rampe..." : "Height & Ramp..."}</span>
         </span>
       `;
