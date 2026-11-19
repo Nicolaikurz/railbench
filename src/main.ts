@@ -88,6 +88,7 @@ async function main() {
   let activeBaseboard: BaseboardConfig | null = null;
   let activeBaseboardSnapGuides: BaseboardSnapGuide[] = [];
   let layoutResizer: any = null;
+  let lowGpuMode = savedSettings.lowGpuMode ?? true;
 
   if (rightSidebarCollapsed) {
     const app = document.getElementById("app");
@@ -121,6 +122,7 @@ async function main() {
       rulerVisible: ruler?.isVisible() ?? true,
       rightSidebarCollapsed,
       barsLocked: layoutResizer?.isLocked(),
+      lowGpuMode,
       selectedCatalogId: catalog?.id,
       activeSidebarTab: (sidebar?.getActiveTab() as any) ?? "catalog",
       camera: renderer?.world ? {
@@ -238,7 +240,7 @@ async function main() {
 
   const canvasHost = document.getElementById("canvas-host")!;
   const renderer = new Renderer();
-  await renderer.init(canvasHost);
+  await renderer.init(canvasHost, lowGpuMode);
   ruler = new Ruler({
     host: canvasHost,
     world: renderer.world,
@@ -623,6 +625,7 @@ async function main() {
       resolvedTheme: themeManager.getResolvedTheme(),
       rightSidebarCollapsed,
       barsLocked: layoutResizer?.isLocked(),
+      lowGpuMode,
       collabStatus: collabClient.getStatus(),
       collabUsersCount: collabClient.getUsers().length,
     });
@@ -766,6 +769,10 @@ async function main() {
   layoutResizer = initLayoutResizers();
   if (savedSettings.barsLocked !== undefined) {
     layoutResizer.setLocked(savedSettings.barsLocked);
+  }
+  if (lowGpuMode) {
+    renderer.setLowGpuMode(true);
+    viewer3D.setLowGpuMode(true);
   }
 
   // Toolbar initialisieren

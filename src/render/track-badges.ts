@@ -1,4 +1,4 @@
-import { Container, Graphics, Text, TextStyle } from "pixi.js";
+import { Container, Graphics, GraphicsContext, Sprite, Text, TextStyle, Texture } from "pixi.js";
 import type { CatalogEntry } from "@/catalog/catalog";
 import type { PiecePowerResult } from "@/core/simulation";
 import type { BlueprintColor } from "@/render/blueprint-colors";
@@ -77,6 +77,131 @@ function getTrackNumberStyle(fontSize: number): TextStyle {
     _trackNumberStyleCache.set(rounded, style);
   }
   return style;
+}
+
+// Shared Canvas2D-Textur-Cache für Gleisnummern-Labels:
+// 200x "24188" teilen sich 1 GPU-Textur pro Zoom-Stufe statt 200 separater Text-Canvas-Texturen.
+interface CachedLabelTexture {
+  texture: Texture;
+  cssWidth: number;
+  cssHeight: number;
+}
+const MAX_SHARED_LABEL_TEXTURES = 1024;
+const _sharedLabelTexCache = new Map<string, CachedLabelTexture>();
+let _labelMeasureCtx: CanvasRenderingContext2D | null | undefined = undefined;
+
+function getLabelMeasureCtx(): CanvasRenderingContext2D | null {
+  if (_labelMeasureCtx !== undefined) return _labelMeasureCtx;
+  if (typeof document === "undefined") {
+    _labelMeasureCtx = null;
+    return null;
+  }
+  try {
+    const c = document.createElement("canvas");
+    _labelMeasureCtx = c.getContext("2d");
+  } catch {
+    _labelMeasureCtx = null;
+  }
+  return _labelMeasureCtx;
+}
+
+function getSharedLabelTexture(
+  labelText: string,
+  fontSize: number,
+  resolution: number,
+): CachedLabelTexture | null {
+  const measureCtx = getLabelMeasureCtx();
+  if (!measureCtx) return null;
+
+  const roundedFont = Math.round(fontSize * 10) / 10;
+  const key = `${labelText}|${roundedFont}|${resolution}`;
+  const existing = _sharedLabelTexCache.get(key);
+  if (existing) return existing;
+
+  const font = `bold ${roundedFont}px Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif`;
+  const letterSpacingPx = Math.max(0.1, Math.round(roundedFont * 0.04 * 10) / 10);
+  measureCtx.font = font;
+  if ("letterSpacing" in measureCtx) {
+    (measureCtx as any).letterSpacing = `${letterSpacingPx}px`;
+  }
+  const metrics = measureCtx.measureText(labelText);
+  const cssWidth = Math.max(8, Math.ceil(metrics.width + 2));
+  const cssHeight = Math.max(6, Math.ceil(roundedFont * 1.24));
+
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(2, Math.ceil(cssWidth * resolution));
+  canvas.height = Math.max(2, Math.ceil(cssHeight * resolution));
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+
+  ctx.scale(resolution, resolution);
+  ctx.font = font;
+  if ("letterSpacing" in ctx) {
+    (ctx as any).letterSpacing = `${letterSpacingPx}px`;
+  }
+  ctx.fillStyle = "#ffffff";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(labelText, cssWidth / 2, cssHeight / 2 + roundedFont * 0.04);
+
+  const texture = Texture.from(canvas);
+  const entry: CachedLabelTexture = { texture, cssWidth, cssHeight };
+  if (_sharedLabelTexCache.size < MAX_SHARED_LABEL_TEXTURES) {
+    _sharedLabelTexCache.set(key, entry);
+  }
+  return entry;
+}
+
+/**
+ * Aktualisiert die Zoom-Auflösung eines gecachten Gleisnummern-Sprites
+ * durch Umschalten auf die passende geteilte Textur-Stufe (keine Einzel-Rasterisierung).
+ */
+export function updateSharedLabelSpriteResolution(sprite: Sprite, worldScale: number): void {
+  const labelText: string | undefined = (sprite as any)._sharedLabelText;
+  const baseFontSize: number | undefined = (sprite as any)._baseFontSize;
+  const targetTextH: number | undefined = (sprite as any)._targetTextH;
+  if (!labelText || typeof baseFontSize !== "number" || typeof targetTextH !== "number") return;
+
+  const targetRes = computeLabelTextResolution(baseFontSize, worldScale);
+  if ((sprite as any)._labelResolution === targetRes) return;
+
+  const next = getSharedLabelTexture(labelText, baseFontSize, targetRes);
+  if (!next) return;
+  const scaleRatio = targetTextH / next.cssHeight;
+  sprite.texture = next.texture;
+  sprite.width = next.cssWidth * scaleRatio;
+  sprite.height = targetTextH;
+  (sprite as any)._labelResolution = targetRes;
+}
+
+// Gemeinsamer GraphicsContext-Cache für die abgerundeten Gleisnummern-Badge-Hintergründe
+const MAX_SHARED_LABEL_BG_CTX = 512;
+const _sharedLabelBgCtxCache = new Map<string, GraphicsContext>();
+
+function getSharedLabelBgContext(
+  bgW: number,
+  bgH: number,
+  yOffset: number,
+  cornerR: number,
+  strokeW: number,
+  borderColor: number,
+): GraphicsContext {
+  const key = `${Math.round(bgW * 10)}|${Math.round(bgH * 10)}|${Math.round(yOffset * 10)}|${cornerR}|${strokeW}|${borderColor}`;
+  let ctx = _sharedLabelBgCtxCache.get(key);
+  if (!ctx) {
+    ctx = new GraphicsContext();
+    // Schatten
+    ctx.roundRect(-bgW / 2 + 0.5, -bgH / 2 + 1 + yOffset, bgW, bgH, cornerR);
+    ctx.fill({ color: 0x000000, alpha: 0.55 });
+    // Hintergrund-Badge mit Farbkontur passend zum Bauplan-Farbcode
+    ctx.roundRect(-bgW / 2, -bgH / 2 + yOffset, bgW, bgH, cornerR);
+    ctx.fill({ color: 0x0f172a, alpha: 0.95 });
+    ctx.stroke({ width: strokeW, color: borderColor, alpha: 1.0 });
+    if (_sharedLabelBgCtxCache.size < MAX_SHARED_LABEL_BG_CTX) {
+      _sharedLabelBgCtxCache.set(key, ctx);
+    }
+  }
+  return ctx;
 }
 
 const VOLT_STYLE_GOOD = new TextStyle({
@@ -170,39 +295,63 @@ export function drawTrackNumberLabel(
   text.anchor.set(0.5);
   text.position.set(0, yOffset);
 
+  let labelDisplayObj: Sprite | Text;
   let textW = Math.max(12, entry.id.length * fontSize * 0.65);
-  let textH = targetTextH;
-  try {
-    if (typeof document !== "undefined" && text.width > 0 && text.height > 0) {
-      textW = text.width;
-      textH = text.height;
-    }
-  } catch {
-    // fallback
-  }
 
-  // Skaliere den Text exakt auf targetTextH, damit die Badge-Höhe exakt zum Gleis passt
-  if (textH > 0 && Math.abs(textH - targetTextH) > 0.05) {
-    const scaleRatio = targetTextH / textH;
-    text.scale.set(scaleRatio);
-    textW *= scaleRatio;
-    textH = targetTextH;
+  if (sharedTex) {
+    const scaleRatio = targetTextH / sharedTex.cssHeight;
+    textW = sharedTex.cssWidth * scaleRatio;
+
+    const sprite = new Sprite(sharedTex.texture);
+    sprite.anchor.set(0.5);
+    sprite.position.set(0, yOffset);
+    sprite.width = textW;
+    sprite.height = targetTextH;
+    (sprite as any)._sharedTexture = true;
+    (sprite as any)._sharedLabelText = entry.id;
+    (sprite as any)._baseFontSize = fontSize;
+    (sprite as any)._targetTextH = targetTextH;
+    (sprite as any)._labelResolution = res;
+    labelDisplayObj = sprite;
+  } else {
+    const text = new Text({
+      text: entry.id,
+      style: getTrackNumberStyle(fontSize),
+      resolution: res,
+    });
+    (text as any)._baseFontSize = fontSize;
+    text.anchor.set(0.5);
+    text.position.set(0, yOffset);
+
+    let textH = targetTextH;
+    try {
+      if (typeof document !== "undefined" && text.width > 0 && text.height > 0) {
+        textW = text.width;
+        textH = text.height;
+      }
+    } catch {
+      // fallback
+    }
+
+    // Skaliere den Text exakt auf targetTextH, damit die Badge-Höhe exakt zum Gleis passt
+    if (textH > 0 && Math.abs(textH - targetTextH) > 0.05) {
+      const scaleRatio = targetTextH / textH;
+      text.scale.set(scaleRatio);
+      textW *= scaleRatio;
+      textH = targetTextH;
+    }
+    labelDisplayObj = text;
   }
 
   const bgW = textW + padX * 2;
   const bgH = targetBadgeH;
+  const borderColor = bpColor ? bpColor.hex : 0x38bdf8;
 
-  const bg = new Graphics();
-  // Schatten
-  bg.roundRect(-bgW / 2 + 0.5, -bgH / 2 + 1 + yOffset, bgW, bgH, cornerR);
-  bg.fill({ color: 0x000000, alpha: 0.55 });
-  // Hintergrund-Badge mit Farbkontur passend zum Bauplan-Farbcode
-  bg.roundRect(-bgW / 2, -bgH / 2 + yOffset, bgW, bgH, cornerR);
-  bg.fill({ color: 0x0f172a, alpha: 0.95 });
-  bg.stroke({ width: strokeW, color: bpColor ? bpColor.hex : 0x38bdf8, alpha: 1.0 });
+  const bg = new Graphics(getSharedLabelBgContext(bgW, bgH, yOffset, cornerR, strokeW, borderColor));
+  (bg as any)._sharedContext = true;
 
   labelCont.addChild(bg);
-  labelCont.addChild(text);
+  labelCont.addChild(labelDisplayObj);
   labelCont.label = "track-number-label";
   (labelCont as any).badgeWidth = bgW;
   (labelCont as any).badgeHeight = bgH;

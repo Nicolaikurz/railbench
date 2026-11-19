@@ -53,43 +53,158 @@ export interface RenderStateOptions {
 export class Renderer {
   app = new Application();
   world = new Container(); // wird für Pan/Zoom skaliert und verschoben
-  private grid = new Graphics();
+  private grid = new Container();
+  private fineGrid = new Graphics();
+  private coarseGrid = new Graphics();
   private baseboardLayer = new Container();
   private modelsLayer = new Container();
   private tracksLayer = new Container();
+  private previewTracksLayer = new Container();
+  private connectorsOverlay = new Graphics();
   private overlayLayer = new Container();
   private overlayGraphics = new Graphics();
   private currentTheme: "light" | "dark" = "light";
 
+  // On-Demand Rendering (0% GPU-Last im Leerlauf statt 60-144 FPS Dauer-Loop)
+  private isPaused = false;
+  private renderScheduled = false;
+  private rafId = 0;
+  private delayedRenderTimer: ReturnType<typeof setTimeout> | null = null;
+  private lowGpuMode = false;
+  private lastRenderTs = 0;
+  private resizeObserver: ResizeObserver | null = null;
+
+  // Per-Track Sprite-Cache: beim Verschieben/Auswählen einzelner Gleise wird nicht die ganze Anlage neu gebaut
+  private trackSpriteCache = new Map<string, { sig: string; sprite: Container }>();
+  private lastConnectorsSignature = "";
+
   getBaseboardContainer(): Container {
     return this.baseboardLayer;
+  }
+
+  /**
+   * Zerstört DisplayObjects rekursiv, ohne geteilte GPU-Ressourcen
+   * (_sharedContext für GraphicsContext, _sharedTexture für Label-Texturen) zu zerstören.
+   */
+  private destroyDisplayObject(obj: any) {
+    if (!obj || obj.destroyed) return;
+    if (obj.children && obj.children.length > 0) {
+      const kids = obj.children.slice();
+      obj.removeChildren();
+      for (const kid of kids) {
+        this.destroyDisplayObject(kid);
+      }
+    }
+    if (obj instanceof Graphics) {
+      obj.destroy({ context: !(obj as any)._sharedContext });
+    } else if (obj instanceof Sprite) {
+      const isShared = Boolean((obj as any)._sharedTexture);
+      obj.destroy({ texture: !isShared, textureSource: !isShared });
+    } else {
+      obj.destroy({ children: false, context: true, texture: true, textureSource: true });
+    }
   }
 
   private clearLayer(layer: Container) {
     while (layer.children.length > 0) {
       const child = layer.children[0]!;
       layer.removeChild(child);
-      if (child === this.overlayGraphics) {
-        this.overlayGraphics.clear();
+      if (child === this.overlayGraphics || child === this.connectorsOverlay) {
+        (child as Graphics).clear();
       } else {
-        child.destroy({ children: true, context: true, texture: true, textureSource: true });
+        this.destroyDisplayObject(child);
       }
     }
   }
 
+  private clearTrackCache() {
+    this.tracksLayer.removeChildren();
+    for (const entry of this.trackSpriteCache.values()) {
+      this.destroyDisplayObject(entry.sprite);
+    }
+    this.trackSpriteCache.clear();
+  }
+
+  /** Schaltet den Low-GPU-Modus um (30 FPS Limit + DPR 1.0 für geringere GPU-Last). */
+  setLowGpuMode(enabled: boolean) {
+    if (this.lowGpuMode === enabled) return;
+    this.lowGpuMode = enabled;
+    if (this.app?.renderer) {
+      const targetDpr = enabled
+        ? 1.0
+        : Math.min(typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1, 1.25);
+      if (this.app.renderer.resolution !== targetDpr) {
+        this.app.renderer.resolution = targetDpr;
+        this.app.resize();
+      }
+      this.requestRender();
+    }
+  }
+
+  /** Plant genau einen WebGL-Frame via requestAnimationFrame (On-Demand, im Low-GPU-Modus auf 30 FPS gedrosselt). */
+  requestRender() {
+    if (this.isPaused || this.renderScheduled) return;
+    if (!this.app?.renderer || !this.app?.stage) return;
+
+    const scheduleFrame = () => {
+      this.rafId = requestAnimationFrame(() => {
+        this.renderScheduled = false;
+        this.rafId = 0;
+        if (this.isPaused || !this.app?.renderer || !this.app?.stage) return;
+        this.lastRenderTs = performance.now();
+        this.app.renderer.render(this.app.stage);
+      });
+    };
+
+    this.renderScheduled = true;
+    if (this.lowGpuMode) {
+      const elapsed = performance.now() - this.lastRenderTs;
+      const minIntervalMs = 1000 / 30;
+      if (elapsed < minIntervalMs) {
+        this.delayedRenderTimer = setTimeout(() => {
+          this.delayedRenderTimer = null;
+          if (this.isPaused) {
+            this.renderScheduled = false;
+            return;
+          }
+          scheduleFrame();
+        }, Math.max(1, Math.ceil(minIntervalMs - elapsed)));
+        return;
+      }
+    }
+    scheduleFrame();
+  }
+
   pause() {
-    this.app.stop();
+    this.isPaused = true;
+    if (this.delayedRenderTimer !== null) {
+      clearTimeout(this.delayedRenderTimer);
+      this.delayedRenderTimer = null;
+    }
+    if (this.rafId) {
+      cancelAnimationFrame(this.rafId);
+      this.rafId = 0;
+    }
+    this.renderScheduled = false;
+    this.app.stop?.();
   }
 
   resume() {
-    this.app.start();
+    this.isPaused = false;
+    this.updateLabelResolutions();
+    this.requestRender();
   }
 
   destroy() {
+    this.pause();
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
     this.clearLayer(this.baseboardLayer);
     this.clearLayer(this.modelsLayer);
-    this.clearLayer(this.tracksLayer);
+    this.clearTrackCache();
+    this.clearLayer(this.previewTracksLayer);
     this.clearLayer(this.overlayLayer);
+    this.connectorsOverlay.clear();
     try {
       TexturePool.clear();
       if (this.app?.renderer && (this.app.renderer as any).textureGC) {
@@ -99,27 +214,49 @@ export class Renderer {
     this.app.destroy(true, { children: true });
   }
 
-  async init(host: HTMLElement) {
+  async init(host: HTMLElement, lowGpuMode = false) {
+    this.lowGpuMode = lowGpuMode;
     const isDark = document.documentElement.getAttribute("data-theme") === "dark";
     this.currentTheme = isDark ? "dark" : "light";
-    const dpr = Math.min(typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1, 1.25);
+    const dpr = lowGpuMode
+      ? 1.0
+      : Math.min(typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1, 1.25);
     await this.app.init({
       resizeTo: host,
       background: isDark ? "#131b2e" : "#e4dfd5",
-      antialias: true,
+      antialias: !lowGpuMode,
       autoDensity: true,
       resolution: dpr,
+      autoStart: false,
     });
+    this.app.ticker?.stop();
     host.appendChild(this.app.canvas);
 
+    this.grid.addChild(this.fineGrid);
+    this.grid.addChild(this.coarseGrid);
     this.world.addChild(this.grid);
     this.world.addChild(this.baseboardLayer);
     this.world.addChild(this.modelsLayer);
     this.world.addChild(this.tracksLayer);
+    this.world.addChild(this.previewTracksLayer);
+    this.world.addChild(this.connectorsOverlay);
     this.world.addChild(this.overlayLayer);
     this.app.stage.addChild(this.world);
 
     this.drawGrid();
+
+    if (typeof ResizeObserver !== "undefined") {
+      this.resizeObserver = new ResizeObserver(() => {
+        if (!this.isPaused && this.app?.renderer) {
+          this.app.resize();
+          this.updateLabelResolutions();
+          this.requestRender();
+        }
+      });
+      this.resizeObserver.observe(host);
+    }
+
+    this.requestRender();
   }
 
   setTheme(theme: "light" | "dark") {
@@ -128,6 +265,7 @@ export class Renderer {
     this.app.renderer.background.color = bgColor;
     this.drawGrid();
     this.invalidateCaches();
+    this.requestRender();
   }
 
   private lastBaseboardSignature = "";
@@ -149,7 +287,9 @@ export class Renderer {
     this.lastBaseboardSignature = "";
     this.lastModelsSignature = "";
     this.lastTracksSignature = "";
+    this.lastConnectorsSignature = "";
     this.lastVisibleTrackItems = [];
+    this.clearTrackCache();
     try {
       TexturePool.clear();
       if (this.app?.renderer && (this.app.renderer as any).textureGC) {
@@ -264,7 +404,8 @@ export class Renderer {
   }
 
   drawGrid(size = 50, extent = 6000) {
-    this.grid.clear();
+    this.fineGrid.clear();
+    this.coarseGrid.clear();
     const isDark = this.currentTheme === "dark";
 
     const fineColor = isDark ? 0x334155 : 0xffffff;
@@ -273,24 +414,24 @@ export class Renderer {
     const coarseAlpha = isDark ? 0.6 : 0.3;
     const axisColor = isDark ? 0x38bdf8 : 0x64748b;
 
-    // Feines Hilfsraster (50 mm)
+    // Feines Hilfsraster (50 mm) – wird beim Herauszoomen automatisch ausgeblendet
     for (let i = -extent; i <= extent; i += size) {
-      this.grid.moveTo(i, -extent).lineTo(i, extent);
-      this.grid.moveTo(-extent, i).lineTo(extent, i);
+      this.fineGrid.moveTo(i, -extent).lineTo(i, extent);
+      this.fineGrid.moveTo(-extent, i).lineTo(extent, i);
     }
-    this.grid.stroke({ width: 0.8, color: fineColor, alpha: fineAlpha });
+    this.fineGrid.stroke({ width: 0.8, color: fineColor, alpha: fineAlpha });
 
     // Grobes Hauptraster (200 mm)
     for (let i = -extent; i <= extent; i += size * 4) {
-      this.grid.moveTo(i, -extent).lineTo(i, extent);
-      this.grid.moveTo(-extent, i).lineTo(extent, i);
+      this.coarseGrid.moveTo(i, -extent).lineTo(i, extent);
+      this.coarseGrid.moveTo(-extent, i).lineTo(extent, i);
     }
-    this.grid.stroke({ width: 1.5, color: coarseColor, alpha: coarseAlpha });
+    this.coarseGrid.stroke({ width: 1.5, color: coarseColor, alpha: coarseAlpha });
 
     // Nullpunkt-Kreuz
-    this.grid.moveTo(-30, 0).lineTo(30, 0);
-    this.grid.moveTo(0, -30).lineTo(0, 30);
-    this.grid.stroke({ width: 2, color: axisColor, alpha: 0.7 });
+    this.coarseGrid.moveTo(-30, 0).lineTo(30, 0);
+    this.coarseGrid.moveTo(0, -30).lineTo(0, 30);
+    this.coarseGrid.stroke({ width: 2, color: axisColor, alpha: 0.7 });
   }
 
   render(layout: Layout, catalog?: Catalog, options: RenderStateOptions = {}) {
@@ -522,6 +663,10 @@ export class Renderer {
           }
 
           const modelSprite = createModel2DGraphics(model, isSelected);
+          (modelSprite as any)._cullRadius =
+            model.builtinId === "ground-terrain" || model.builtinId === "mountain"
+              ? Infinity
+              : Math.max(model.width || 200, model.depth || 200) * (model.scale ?? 1) * 0.65 + 250;
           if (isInactive && !isSelected) {
             modelSprite.alpha = 0.58;
           }
@@ -549,57 +694,146 @@ export class Renderer {
       this.lastModelsSignature = modelsSig;
     }
 
-    // 1. Tracks rendern (sortiert nach realer 3D-Höhe: tiefere Gleise unten, höhere Gleise darüber)
+    // 1. Tracks rendern (inkrementeller Per-Track-Cache, sortiert nach realer 3D-Höhe)
     const tracksSig = this.computeTracksSignature(layout, catalog, options);
     if (tracksSig !== this.lastTracksSignature) {
       this.clearLayer(this.tracksLayer);
       const catenaryMastCtx = new CatenaryMast2DContext();
 
       const showPowerDrop = options.showPowerDrop ?? false;
-    const powerSim = options.powerSimulation;
+      const powerSim = options.powerSimulation;
 
-    const visibleTrackItems = layout.pieces
-      .map((piece, index) => {
-        const layer = piece.layerId ? layerMap.get(piece.layerId) : undefined;
-        const baseElev = layer?.heightMm ?? 0;
+      const visibleTrackItems = layout.pieces
+        .map((piece, index) => {
+          const layer = piece.layerId ? layerMap.get(piece.layerId) : undefined;
+          const baseElev = layer?.heightMm ?? 0;
+          const prevElev = options.previewElevations?.get(piece.id);
+          const pStart = prevElev !== undefined ? prevElev.start : (piece.elevation?.start ?? 0);
+          const pEnd = prevElev !== undefined ? prevElev.end : (piece.elevation?.end ?? (piece.elevation?.start ?? 0));
+          const startElev = baseElev + pStart;
+          const endElev = baseElev + pEnd;
+          const minElev = Math.min(startElev, endElev);
+          const maxElev = Math.max(startElev, endElev);
+          const avgElev = (startElev + endElev) * 0.5;
+          const pieceLayerId = piece.layerId || defaultLayerId;
+          const isInactiveLayer = hasMultipleLayers && pieceLayerId !== activeLayerId;
+          const isSelected = selectedIds.has(piece.id);
+          return {
+            piece,
+            layer,
+            baseElev,
+            minElev,
+            maxElev,
+            avgElev,
+            isInactiveLayer,
+            isSelected,
+            index,
+          };
+        })
+        .filter((item) => !item.layer || item.layer.visible !== false);
+
+      let minLayoutElev = 0;
+      for (const item of visibleTrackItems) {
+        if (item.minElev < minLayoutElev) minLayoutElev = item.minElev;
+      }
+
+      visibleTrackItems.sort((a, b) => {
+        if (Math.abs(a.avgElev - b.avgElev) > 0.05) return a.avgElev - b.avgElev;
+        if (Math.abs(a.maxElev - b.maxElev) > 0.05) return a.maxElev - b.maxElev;
+        if (Math.abs(a.minElev - b.minElev) > 0.05) return a.minElev - b.minElev;
+        if (a.isInactiveLayer !== b.isInactiveLayer) return a.isInactiveLayer ? -1 : 1;
+        if (a.isSelected !== b.isSelected) return a.isSelected ? 1 : -1;
+        return a.index - b.index;
+      });
+
+      const activeIds = new Set<string>();
+      const orderedSprites: Container[] = [];
+      const pieceById = new Map<string, TrackPiece>();
+      for (const p of layout.pieces) pieceById.set(p.id, p);
+
+      for (const item of visibleTrackItems) {
+        const { piece, layer, baseElev, isInactiveLayer, isSelected } = item;
+        activeIds.add(piece.id);
+
+        const powerResult = powerSim?.results.get(piece.id);
+        const isShortCircuit = Boolean(options.shortCircuit?.shortCircuitPieces.has(piece.id));
+
+        // Nachbar-Flags für Tunnel/Brücken-Übergänge & Oberleitungsmasten berücksichtigen
+        let neighborMask = 0;
+        for (let ci = 0; ci < piece.connectors.length; ci++) {
+          const ct = piece.connectors[ci]?.connectedTo;
+          if (ct) {
+            const other = pieceById.get(ct.pieceId);
+            if (other?.hasTunnel) neighborMask |= 1 << (ci * 3);
+            if (other?.hasBridge) neighborMask |= 2 << (ci * 3);
+            if (other?.hasCatenary) neighborMask |= 4 << (ci * 3);
+          }
+        }
+
         const prevElev = options.previewElevations?.get(piece.id);
-        const pStart = prevElev !== undefined ? prevElev.start : (piece.elevation?.start ?? 0);
-        const pEnd = prevElev !== undefined ? prevElev.end : (piece.elevation?.end ?? (piece.elevation?.start ?? 0));
-        const startElev = baseElev + pStart;
-        const endElev = baseElev + pEnd;
-        const minElev = Math.min(startElev, endElev);
-        const maxElev = Math.max(startElev, endElev);
-        const avgElev = (startElev + endElev) * 0.5;
-        const pieceLayerId = piece.layerId || defaultLayerId;
-        const isInactiveLayer = hasMultipleLayers && pieceLayerId !== activeLayerId;
-        const isSelected = selectedIds.has(piece.id);
-        return {
-          piece,
-          layer,
-          baseElev,
-          minElev,
-          maxElev,
-          avgElev,
-          isInactiveLayer,
-          isSelected,
-          index,
-        };
-      })
-      .filter((item) => !item.layer || item.layer.visible !== false);
+        const eStart = prevElev !== undefined ? prevElev.start : (piece.elevation?.start ?? 0);
+        const eEnd = prevElev !== undefined ? prevElev.end : (piece.elevation?.end ?? eStart);
+        const flags =
+          (piece.powerFeed ? 1 : 0) |
+          (piece.isIsolator ? 2 : 0) |
+          (piece.hasCatenary ? 4 : 0) |
+          (piece.catenaryPowerFeed ? 8 : 0) |
+          (piece.catenaryIsolator ? 16 : 0) |
+          (piece.hasLantern ? 32 : 0) |
+          (piece.hasDecoder ? 64 : 0) |
+          (piece.hasSignal ? 128 : 0) |
+          (piece.hasBridge ? 256 : 0) |
+          (piece.hasTunnel ? 512 : 0);
+        const flexSig = piece.customOffsets
+          ? `${piece.customChordDist ?? ""}:${piece.customOffsets.join(",")}`
+          : `${piece.customLength ?? ""}:${piece.customRadius ?? ""}:${piece.customAngle ?? ""}`;
+        const pwrSig = showPowerDrop && powerResult
+          ? `${powerResult.status}:${powerResult.voltage.toFixed(2)}:${powerResult.catenaryVoltage?.toFixed(2) ?? ""}`
+          : "";
+        // Bei Oberleitung auf Nachbargleisen ändert sich die Mast-Deduplizierung bei Verschiebung
+        const catPosSig = piece.hasCatenary ? `${Math.round(piece.transform.x)}:${Math.round(piece.transform.y)}` : "";
 
-    let minLayoutElev = 0;
-    for (const item of visibleTrackItems) {
-      if (item.minElev < minLayoutElev) minLayoutElev = item.minElev;
-    }
+        const pieceSig =
+          `${piece.catalogId}|${Math.round(piece.transform.rotation * 100)}|${Math.round(eStart * 10)}|${Math.round(eEnd * 10)}|${baseElev}|${layer?.color ?? ""}|${flags}|${piece.isolatedConnectorIndex ?? 0}|${piece.catenaryIsolatedConnectorIndex ?? 0}|${piece.signalSide ?? ""}|${piece.signalDirection ?? ""}|${flexSig}|${isSelected ? 1 : 0}|${isInactiveLayer ? 1 : 0}|${options.colorMode ?? ""}|${options.showColorCode ? 1 : 0}|${options.showTrackLabels ? 1 : 0}|${options.showConnectors ? 1 : 0}|${showPowerDrop ? 1 : 0}|${isShortCircuit ? 1 : 0}|${pwrSig}|${neighborMask}|${catPosSig}`;
 
-    visibleTrackItems.sort((a, b) => {
-      if (Math.abs(a.avgElev - b.avgElev) > 0.05) return a.avgElev - b.avgElev;
-      if (Math.abs(a.maxElev - b.maxElev) > 0.05) return a.maxElev - b.maxElev;
-      if (Math.abs(a.minElev - b.minElev) > 0.05) return a.minElev - b.minElev;
-      if (a.isInactiveLayer !== b.isInactiveLayer) return a.isInactiveLayer ? -1 : 1;
-      if (a.isSelected !== b.isSelected) return a.isSelected ? 1 : -1;
-      return a.index - b.index;
-    });
+        const cached = this.trackSpriteCache.get(piece.id);
+        let sprite: Container;
+        if (cached && cached.sig === pieceSig) {
+          sprite = cached.sprite;
+          // Nur Position aktualisieren – kein GPU-Geometry-Rebuild beim Verschieben!
+          sprite.position.set(piece.transform.x, piece.transform.y);
+        } else {
+          if (cached) {
+            this.destroyDisplayObject(cached.sprite);
+          }
+          const entry: CatalogEntry = entryMap.get(piece.catalogId) ?? catalogRegistry.findEntry(piece.catalogId) ?? {
+            id: piece.catalogId,
+            name: `Gleis ${piece.catalogId}`,
+            kind: "straight",
+            category: "Geraden",
+            description: "",
+            length: 188.3,
+          };
+
+          sprite = createTrackGraphics(piece, entry, catalog, {
+            isSelected,
+            showConnectors: options.showConnectors,
+            showPowerDrop,
+            powerResult,
+            isShortCircuit,
+            showTrackLabels: options.showTrackLabels,
+            showColorCode: options.showColorCode,
+            colorMode: options.colorMode,
+            layerColor: layer?.color,
+            layerHeightMm: baseElev,
+            isInactiveLayer,
+            minLayoutElev,
+            allPieces: layout.pieces,
+            worldScale: this.world.scale.x || 1,
+            catenaryMastCtx,
+          });
+          this.trackSpriteCache.set(piece.id, { sig: pieceSig, sprite });
+        }
 
     for (const item of visibleTrackItems) {
       const { piece, layer, baseElev, isInactiveLayer, isSelected } = item;
@@ -634,163 +868,174 @@ export class Renderer {
         catenaryMastCtx,
       });
 
-      this.tracksLayer.addChild(sprite);
-    }
-
-    // Ghost / Live-Vorschau von Rampen-Gleisen (z.B. Rampengenerator)
-    if (options.previewPieces && options.previewPieces.length > 0) {
-      for (const piece of options.previewPieces) {
-        const entry: CatalogEntry = entryMap.get(piece.catalogId) ?? catalogRegistry.findEntry(piece.catalogId) ?? {
-          id: piece.catalogId,
-          name: `Gleis ${piece.catalogId}`,
-          kind: "straight",
-          category: "Geraden",
-          description: "",
-          length: 188.3,
-        };
-        const sprite = createTrackGraphics(piece, entry, catalog, {
-          isSelected: true,
-          showConnectors: true,
-        });
-        sprite.alpha = 0.82;
-        this.tracksLayer.addChild(sprite);
+      // Nicht mehr vorhandene oder ausgeblendete Gleise aus dem Cache entfernen
+      for (const [id, entry] of this.trackSpriteCache) {
+        if (!activeIds.has(id)) {
+          if (entry.sprite.parent === this.tracksLayer) {
+            this.tracksLayer.removeChild(entry.sprite);
+          }
+          this.destroyDisplayObject(entry.sprite);
+          this.trackSpriteCache.delete(id);
+        }
       }
-    }
+
+      // Exakte Z-Reihenfolge sicherstellen (ohne gecachte Sprites zu zerstören)
+      this.tracksLayer.removeChildren();
+      for (const sp of orderedSprites) {
+        this.tracksLayer.addChild(sp);
+      }
+
+      // Ghost / Live-Vorschau von Rampen-Gleisen (z.B. Rampengenerator) in separater Vorschau-Ebene
+      this.clearLayer(this.previewTracksLayer);
+      if (options.previewPieces && options.previewPieces.length > 0) {
+        for (const piece of options.previewPieces) {
+          const entry: CatalogEntry = entryMap.get(piece.catalogId) ?? catalogRegistry.findEntry(piece.catalogId) ?? {
+            id: piece.catalogId,
+            name: `Gleis ${piece.catalogId}`,
+            kind: "straight",
+            category: "Geraden",
+            description: "",
+            length: 188.3,
+          };
+          const sprite = createTrackGraphics(piece, entry, catalog, {
+            isSelected: true,
+            showConnectors: true,
+          });
+          sprite.alpha = 0.82;
+          this.previewTracksLayer.addChild(sprite);
+        }
+      }
       this.lastVisibleTrackItems = visibleTrackItems;
       this.lastTracksSignature = tracksSig;
     }
 
-    // 2. Overlays rendern (Connectors, Snap-Ziele)
+    // 2A. Statisches Connector-Overlay cachen (verhindert O(N^2)-Neuberechnung bei jeder Mausbewegung)
+    const hov = options.hoveredOpenConnector;
+    const connectorsSig = `${Boolean(options.showConnectors)}_${tracksSig}_${modelsSig}_${hov ? `${hov.pieceId}:${hov.connectorIndex}` : ""}`;
+    if (connectorsSig !== this.lastConnectorsSignature) {
+      const cov = this.connectorsOverlay;
+      cov.clear();
+
+      if (options.showConnectors) {
+        const drawnConnected = new Set<string>();
+        for (const { piece, isInactiveLayer } of this.lastVisibleTrackItems) {
+          const alphaMul = isInactiveLayer ? 0.5 : 1.0;
+          const pieceLayerKey = piece.layerId || defaultLayerId;
+          for (let cIdx = 0; cIdx < piece.connectors.length; cIdx++) {
+            const conn = piece.connectors[cIdx]!;
+            const isBuildingSnap = isConnectorConnectedToBuilding(conn, layout.models);
+            const info = getConnectorSnapStatus(piece, cIdx, layout.pieces, layout.layers);
+
+            if (isBuildingSnap) {
+              const key = `${pieceLayerKey}:${Math.round(conn.x * 2) / 2},${Math.round(conn.y * 2) / 2}`;
+              if (drawnConnected.has(key)) continue;
+              drawnConnected.add(key);
+
+              cov.circle(conn.x, conn.y, 4.5);
+              cov.fill({ color: 0x0284c7, alpha: 0.95 * alphaMul });
+              cov.circle(conn.x, conn.y, 2);
+              cov.fill({ color: 0x38bdf8, alpha: alphaMul });
+              cov.circle(conn.x, conn.y, 7);
+              cov.stroke({ width: 1.2, color: 0x0369a1, alpha: 0.7 * alphaMul });
+            } else if (info.status === "connected") {
+              const key = `${pieceLayerKey}:${Math.round(conn.x * 2) / 2},${Math.round(conn.y * 2) / 2}`;
+              if (drawnConnected.has(key)) continue;
+              drawnConnected.add(key);
+
+              cov.circle(conn.x, conn.y, 4);
+              cov.fill({ color: 0x64748b, alpha: 0.9 * alphaMul });
+              cov.circle(conn.x, conn.y, 2);
+              cov.fill({ color: 0x94a3b8, alpha: alphaMul });
+              cov.circle(conn.x, conn.y, 6.5);
+              cov.stroke({ width: 1, color: 0x475569, alpha: 0.6 * alphaMul });
+            } else if (info.status === "above") {
+              cov.circle(conn.x, conn.y, 5);
+              cov.fill({ color: 0xeab308, alpha: 0.95 * alphaMul });
+              cov.circle(conn.x, conn.y, 2.2);
+              cov.fill({ color: 0xfef08a, alpha: alphaMul });
+              cov.circle(conn.x, conn.y, 7.5);
+              cov.stroke({ width: 1.4, color: 0xfacc15, alpha: 0.8 * alphaMul });
+            } else {
+              cov.circle(conn.x, conn.y, 4.5);
+              cov.fill({ color: isInactiveLayer ? 0x4b7a5e : 0x16a34a, alpha: 0.9 * alphaMul });
+              cov.circle(conn.x, conn.y, 7);
+              cov.stroke({ width: 1.2, color: isInactiveLayer ? 0x648c74 : 0x22c55e, alpha: 0.5 * alphaMul });
+
+              const arm = 2.2;
+              cov.moveTo(conn.x - arm, conn.y).lineTo(conn.x + arm, conn.y);
+              cov.moveTo(conn.x, conn.y - arm).lineTo(conn.x, conn.y + arm);
+              cov.stroke({ width: 1.2, color: 0xffffff, alpha: 0.95 * alphaMul });
+
+              const isSelected = selectedIds.has(piece.id);
+              const isHovered = Boolean(
+                hov && hov.pieceId === piece.id && hov.connectorIndex === cIdx,
+              );
+
+              if ((isSelected || isHovered) && !isInactiveLayer) {
+                const rad = deg2rad(conn.angle);
+                const plusDist = 28;
+                const px = conn.x + Math.cos(rad) * plusDist;
+                const py = conn.y + Math.sin(rad) * plusDist;
+
+                cov.moveTo(conn.x + Math.cos(rad) * 6, conn.y + Math.sin(rad) * 6)
+                  .lineTo(px - Math.cos(rad) * 7.5, py - Math.sin(rad) * 7.5);
+                cov.stroke({ width: 1.2, color: 0x38bdf8, alpha: 0.75 });
+
+                cov.circle(px, py, 10);
+                cov.fill({ color: 0x0284c7, alpha: isHovered ? 0.35 : 0.2 });
+
+                cov.circle(px, py, 7.5);
+                cov.fill({ color: isHovered ? 0x0284c7 : 0x0ea5e9, alpha: 0.95 });
+                cov.stroke({ width: 1.5, color: 0xffffff, alpha: 1.0 });
+
+                const bArm = 3.6;
+                cov.moveTo(px - bArm, py).lineTo(px + bArm, py);
+                cov.moveTo(px, py - bArm).lineTo(px, py + bArm);
+                cov.stroke({ width: 1.8, color: 0xffffff, alpha: 1.0 });
+              }
+            }
+          }
+        }
+
+        // Snappoints für Gebäude (Lokschuppen, Ringlokschuppen etc.)
+        if (layout.models) {
+          for (const m of layout.models) {
+            const doors = getBuildingDoorConnectors(m);
+            for (const door of doors) {
+              const isConnected = layout.pieces.some((p) =>
+                p.connectors.some((c) => dist(c, door) <= 5.0),
+              );
+              const key = `${Math.round(door.x * 2) / 2},${Math.round(door.y * 2) / 2}`;
+              if (isConnected) {
+                if (drawnConnected.has(key)) continue;
+                drawnConnected.add(key);
+
+                cov.circle(door.x, door.y, 4.5);
+                cov.fill({ color: 0x0284c7, alpha: 0.95 });
+                cov.circle(door.x, door.y, 2);
+                cov.fill({ color: 0x38bdf8 });
+                cov.circle(door.x, door.y, 7);
+                cov.stroke({ width: 1.2, color: 0x0369a1, alpha: 0.7 });
+              } else {
+                cov.circle(door.x, door.y, 4.5);
+                cov.fill({ color: 0x16a34a, alpha: 0.9 });
+                cov.circle(door.x, door.y, 2);
+                cov.fill({ color: 0xffffff });
+                cov.circle(door.x, door.y, 7);
+                cov.stroke({ width: 1.2, color: 0x22c55e, alpha: 0.5 });
+              }
+            }
+          }
+        }
+      }
+      this.lastConnectorsSignature = connectorsSig;
+    }
+
+    // 2B. Transiente Overlays rendern (Snap-Ziele, Flexgleis-Griffe, Auswahlrahmen, Messwerkzeug)
     this.clearLayer(this.overlayLayer);
     const ov = this.overlayGraphics;
     ov.clear();
     this.overlayLayer.addChild(ov);
-
-    if (options.showConnectors) {
-      const drawnConnected = new Set<string>();
-      for (const { piece, isInactiveLayer } of this.lastVisibleTrackItems) {
-        const alphaMul = isInactiveLayer ? 0.5 : 1.0;
-        const pieceLayerKey = piece.layerId || defaultLayerId;
-        for (let cIdx = 0; cIdx < piece.connectors.length; cIdx++) {
-          const conn = piece.connectors[cIdx]!;
-          const isBuildingSnap = isConnectorConnectedToBuilding(conn, layout.models);
-          const info = getConnectorSnapStatus(piece, cIdx, layout.pieces, layout.layers);
-
-          if (isBuildingSnap) {
-            // "change the color to blue if an building is snappped"
-            const key = `${pieceLayerKey}:${Math.round(conn.x * 2) / 2},${Math.round(conn.y * 2) / 2}`;
-            if (drawnConnected.has(key)) continue;
-            drawnConnected.add(key);
-
-            ov.circle(conn.x, conn.y, 4.5);
-            ov.fill({ color: 0x0284c7, alpha: 0.95 * alphaMul });
-            ov.circle(conn.x, conn.y, 2);
-            ov.fill({ color: 0x38bdf8, alpha: alphaMul });
-            ov.circle(conn.x, conn.y, 7);
-            ov.stroke({ width: 1.2, color: 0x0369a1, alpha: 0.7 * alphaMul });
-          } else if (info.status === "connected") {
-            // "if two tracks are connected color it grey"
-            const key = `${pieceLayerKey}:${Math.round(conn.x * 2) / 2},${Math.round(conn.y * 2) / 2}`;
-            if (drawnConnected.has(key)) continue;
-            drawnConnected.add(key);
-
-            ov.circle(conn.x, conn.y, 4);
-            ov.fill({ color: 0x64748b, alpha: 0.9 * alphaMul });
-            ov.circle(conn.x, conn.y, 2);
-            ov.fill({ color: 0x94a3b8, alpha: alphaMul });
-            ov.circle(conn.x, conn.y, 6.5);
-            ov.stroke({ width: 1, color: 0x475569, alpha: 0.6 * alphaMul });
-          } else if (info.status === "above") {
-            // "add yellow snap point if the track is above an snap point"
-            ov.circle(conn.x, conn.y, 5);
-            ov.fill({ color: 0xeab308, alpha: 0.95 * alphaMul });
-            ov.circle(conn.x, conn.y, 2.2);
-            ov.fill({ color: 0xfef08a, alpha: alphaMul });
-            ov.circle(conn.x, conn.y, 7.5);
-            ov.stroke({ width: 1.4, color: 0xfacc15, alpha: 0.8 * alphaMul });
-          } else {
-            // Freier Andockpunkt: leuchtend grün mit sichtbarem Plus-Symbol
-            ov.circle(conn.x, conn.y, 4.5);
-            ov.fill({ color: isInactiveLayer ? 0x4b7a5e : 0x16a34a, alpha: 0.9 * alphaMul });
-            ov.circle(conn.x, conn.y, 7);
-            ov.stroke({ width: 1.2, color: isInactiveLayer ? 0x648c74 : 0x22c55e, alpha: 0.5 * alphaMul });
-
-            // Kleines weißes "+" Kreuz im freien Andockpunkt
-            const arm = 2.2;
-            ov.moveTo(conn.x - arm, conn.y).lineTo(conn.x + arm, conn.y);
-            ov.moveTo(conn.x, conn.y - arm).lineTo(conn.x, conn.y + arm);
-            ov.stroke({ width: 1.2, color: 0xffffff, alpha: 0.95 * alphaMul });
-
-            // Prominenter Plus-Aktions-Button für markierte Gleise oder gehoverte Anschlüsse
-            const isSelected = selectedIds.has(piece.id);
-            const isHovered = Boolean(
-              options.hoveredOpenConnector &&
-              options.hoveredOpenConnector.pieceId === piece.id &&
-              options.hoveredOpenConnector.connectorIndex === cIdx
-            );
-
-            if ((isSelected || isHovered) && !isInactiveLayer) {
-              const rad = deg2rad(conn.angle);
-              const plusDist = 28;
-              const px = conn.x + Math.cos(rad) * plusDist;
-              const py = conn.y + Math.sin(rad) * plusDist;
-
-              // Verbindungs-Linie vom Gleisende zum Plus-Button
-              ov.moveTo(conn.x + Math.cos(rad) * 6, conn.y + Math.sin(rad) * 6)
-                .lineTo(px - Math.cos(rad) * 7.5, py - Math.sin(rad) * 7.5);
-              ov.stroke({ width: 1.2, color: 0x38bdf8, alpha: 0.75 });
-
-              // Äußerer Schein / Halo
-              ov.circle(px, py, 10);
-              ov.fill({ color: 0x0284c7, alpha: isHovered ? 0.35 : 0.2 });
-
-              // Button-Körper
-              ov.circle(px, py, 7.5);
-              ov.fill({ color: isHovered ? 0x0284c7 : 0x0ea5e9, alpha: 0.95 });
-              ov.stroke({ width: 1.5, color: 0xffffff, alpha: 1.0 });
-
-              // Weißes "+" Symbol
-              const bArm = 3.6;
-              ov.moveTo(px - bArm, py).lineTo(px + bArm, py);
-              ov.moveTo(px, py - bArm).lineTo(px, py + bArm);
-              ov.stroke({ width: 1.8, color: 0xffffff, alpha: 1.0 });
-            }
-          }
-        }
-      }
-
-      // Snappoints für Gebäude (Lokschuppen, Ringlokschuppen etc.)
-      if (layout.models) {
-        for (const m of layout.models) {
-          const doors = getBuildingDoorConnectors(m);
-          for (const door of doors) {
-            const isConnected = layout.pieces.some((p) =>
-              p.connectors.some((c) => dist(c, door) <= 5.0),
-            );
-            const key = `${Math.round(door.x * 2) / 2},${Math.round(door.y * 2) / 2}`;
-            if (isConnected) {
-              if (drawnConnected.has(key)) continue;
-              drawnConnected.add(key);
-
-              // "change the color to blue if an building is snappped"
-              ov.circle(door.x, door.y, 4.5);
-              ov.fill({ color: 0x0284c7, alpha: 0.95 });
-              ov.circle(door.x, door.y, 2);
-              ov.fill({ color: 0x38bdf8 });
-              ov.circle(door.x, door.y, 7);
-              ov.stroke({ width: 1.2, color: 0x0369a1, alpha: 0.7 });
-            } else {
-              ov.circle(door.x, door.y, 4.5);
-              ov.fill({ color: 0x16a34a, alpha: 0.9 });
-              ov.circle(door.x, door.y, 2);
-              ov.fill({ color: 0xffffff });
-              ov.circle(door.x, door.y, 7);
-              ov.stroke({ width: 1.2, color: 0x22c55e, alpha: 0.5 });
-            }
-          }
-        }
-      }
-    }
 
     // Falls gerade ein Snap-Ziel aktiv ist:
     if (options.snapPreviewTarget) {
@@ -845,6 +1090,8 @@ export class Renderer {
     }
 
     renderSceneOverlays(this.overlayLayer, ov, options);
+    this.updateLabelResolutions();
+    this.requestRender();
   }
 
   /** Wandelt Bildschirmkoordinaten (Canvas) in Weltkoordinaten um. */

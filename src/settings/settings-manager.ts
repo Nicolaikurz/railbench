@@ -15,6 +15,8 @@ export interface AppSettings {
   rightSidebarCollapsed?: boolean;
   /** Leistengrößen fixieren / sperren (Toolbar & Sidebars) */
   barsLocked?: boolean;
+  /** Low-GPU-Modus (30 FPS Limit, reduzierte Auflösung, 3D-Schatten aus) */
+  lowGpuMode?: boolean;
   /** Auswahlsperre aufgehoben (alle Ebenen & gelöschte Ebenen auswählbar) */
   selectionLockDisabled?: boolean;
   /** Drehungswinkel-Schrittweite in Grad (z.B. 5.7, 30, 90) */

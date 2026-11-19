@@ -40,6 +40,7 @@ export interface ToolbarFactoryDeps {
   toggleRightSidebar: () => void;
   onResetUiSizes?: () => void;
   onToggleLockBars?: () => void;
+  onToggleLowGpuMode?: () => void;
   saveSettingsState: () => void;
   sync: (dirty?: boolean, transient?: boolean) => void;
   isSnappingEnabled: () => boolean;
@@ -271,6 +272,7 @@ export function buildToolbarEvents(deps: ToolbarFactoryDeps): ToolbarEvents {
     onTogglePerfMonitor: () => deps.getPerfMonitor().toggle(),
     onResetUiSizes: () => deps.onResetUiSizes?.(),
     onToggleLockBars: () => deps.onToggleLockBars?.(),
+    onToggleLowGpuMode: () => deps.onToggleLowGpuMode?.(),
     onAutoSelectLanguage: () => {
       const lang = autoSelectLanguage();
       deps.showToast(
