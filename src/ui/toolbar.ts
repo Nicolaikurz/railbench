@@ -48,6 +48,7 @@ export interface ToolbarEvents {
   onToggleMeasureTool?: () => void;
   onToggleWoodPlate?: () => void;
   onToggleLockBars?: () => void;
+  onToggleLowGpuMode?: () => void;
   onResetUiSizes?: () => void;
   onToggleSnapping: () => void;
   onToggleSelectionLock?: () => void;
@@ -95,6 +96,7 @@ export interface ToolbarState {
   resolvedTheme?: "light" | "dark";
   rightSidebarCollapsed?: boolean;
   barsLocked?: boolean;
+  lowGpuMode?: boolean;
   collabStatus?: "disconnected" | "connecting" | "connected";
   collabUsersCount?: number;
 }
@@ -594,6 +596,12 @@ function createSettingsMenu(t: any, events: ToolbarEvents): HTMLElement {
       { label: t.colorsMenu.off, onClick: () => events.onSetColorMode?.("off") },
       { isDivider: true },
       {
+        label: getLanguage() === "de" ? "Low-GPU-Modus (30 FPS)" : "Low-GPU Mode (30 FPS)",
+        id: "item-low-gpu-mode",
+        onClick: () => events.onToggleLowGpuMode?.(),
+      },
+      { isDivider: true },
+      {
         label: getLanguage() === "de" ? "Sprache automatisch wählen (System)" : "Auto-select language (System)",
         onClick: () => events.onAutoSelectLanguage?.(),
       },
@@ -938,6 +946,15 @@ export function updateToolbarState(state: ToolbarState) {
     const span = elLockBars.querySelector(".dropdown-item-left span:last-child");
     if (span) {
       span.textContent = `${state.barsLocked ? "✓ " : ""}${t.viewMenu.lockBars}`;
+    }
+  }
+
+  const elLowGpu = document.getElementById("item-low-gpu-mode");
+  if (elLowGpu && state.lowGpuMode !== undefined) {
+    const span = elLowGpu.querySelector(".dropdown-item-left span:last-child");
+    if (span) {
+      const lbl = getLanguage() === "de" ? "Low-GPU-Modus (30 FPS)" : "Low-GPU Mode (30 FPS)";
+      span.textContent = `${state.lowGpuMode ? "✓ " : ""}${lbl}`;
     }
   }
 

@@ -21,23 +21,34 @@ package_target() {
     if [ "$TARGET_ARCH" = "arm64" ]; then
         UNPACKED_DIR="release/win-arm64-unpacked"
     fi
-    local ZIP_OUTPUT="release/${PRODUCT_NAME}-${APP_VERSION}-portable-${TARGET_ARCH}.zip"
+    local FOLDER_NAME="${PRODUCT_NAME}-${APP_VERSION}-win-${TARGET_ARCH}"
+    local STAGED_DIR="release/${FOLDER_NAME}"
+    local ZIP_OUTPUT="release/${FOLDER_NAME}.zip"
 
     echo ""
     echo "• Packaging Windows Portable Directory for ${TARGET_ARCH}..."
     npx electron-builder --win dir --${TARGET_ARCH}
 
     if [ -d "$UNPACKED_DIR" ]; then
-        echo "• Creating standalone portable ZIP from $UNPACKED_DIR..."
-        rm -f "$ZIP_OUTPUT"
+        echo "• Staging folder with architecture badge: $STAGED_DIR"
+        rm -rf "$STAGED_DIR" "$ZIP_OUTPUT"
+        mv "$UNPACKED_DIR" "$STAGED_DIR"
+
+        echo "• Creating standalone portable ZIP: $ZIP_OUTPUT"
         if command -v zip &> /dev/null; then
-            (cd "$UNPACKED_DIR" && zip -qry "../../$ZIP_OUTPUT" .)
-            local SIZE
-            SIZE=$(du -h "$ZIP_OUTPUT" | awk '{print $1}')
-            echo "✓ Created Portable ZIP: $ZIP_OUTPUT ($SIZE)"
+            (cd release && zip -qry "${FOLDER_NAME}.zip" "${FOLDER_NAME}")
+        elif command -v python3 &> /dev/null; then
+            python3 -c "import shutil; shutil.make_archive('release/${FOLDER_NAME}', 'zip', 'release', '${FOLDER_NAME}')"
+        elif command -v powershell.exe &> /dev/null; then
+            powershell.exe -NoProfile -Command "Compress-Archive -Path 'release/${FOLDER_NAME}' -DestinationPath 'release/${FOLDER_NAME}.zip' -Force"
         else
-            echo "⚠️  'zip' command not found. Unpacked directory is ready in $UNPACKED_DIR"
+            echo "⚠️  No zip tool found (zip, python3, or powershell.exe). Staged directory is ready in $STAGED_DIR"
+            return
         fi
+
+        local SIZE
+        SIZE=$(du -h "$ZIP_OUTPUT" | awk '{print $1}')
+        echo "✓ Created Portable ZIP: $ZIP_OUTPUT ($SIZE)"
     else
         echo "⚠️  Directory $UNPACKED_DIR was not generated."
     fi
@@ -58,8 +69,10 @@ fi
 echo ""
 echo "==========================================="
 echo " Windows Portable build complete!"
-echo "Directories:"
-echo "  • x64:   release/win-unpacked/railbench.exe"
-echo "  • arm64: release/win-arm64-unpacked/railbench.exe"
-echo "ZIP Archives: release/${PRODUCT_NAME}-${APP_VERSION}-portable-*.zip"
+echo "Folders:"
+echo "  • x64:   release/${PRODUCT_NAME}-${APP_VERSION}-win-x64/${PRODUCT_NAME}.exe"
+echo "  • arm64: release/${PRODUCT_NAME}-${APP_VERSION}-win-arm64/${PRODUCT_NAME}.exe"
+echo "ZIP Archives:"
+echo "  • x64:   release/${PRODUCT_NAME}-${APP_VERSION}-win-x64.zip"
+echo "  • arm64: release/${PRODUCT_NAME}-${APP_VERSION}-win-arm64.zip"
 echo "==========================================="

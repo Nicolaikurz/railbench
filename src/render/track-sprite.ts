@@ -1,4 +1,4 @@
-import { Container, Graphics, Text, TextStyle } from "pixi.js";
+import { Container, Graphics, GraphicsContext, Text, TextStyle } from "pixi.js";
 import type { TrackPiece, ColorMode } from "@/core/types";
 import { Catalog, isFeederEntry, isIsolatingEntry, type CatalogEntry } from "@/catalog/catalog";
 import type { PiecePowerResult } from "@/core/simulation";
@@ -38,6 +38,73 @@ const ROTATION_GIZMO_TEXT_STYLE = new TextStyle({
   fill: 0xffffff,
   fontWeight: "bold",
 });
+
+/** Zoom-Schwelle, unterhalb derer einzelne Schwellen im 2D-Viewport ausgeblendet werden (Sub-Pixel-LOD). */
+export const TRACK_TIES_LOD_MIN_SCALE = 0.4;
+
+// Gemeinsame GPU-Geometrie-Caches (PixiJS v8 GraphicsContext):
+// Identische Katalog-Gleise (z. B. 200x 24188) teilen sich je 1 triangulierten GPU-Puffer für Schotter, Schwellen & Schienen.
+const MAX_SHARED_TRACK_CTX = 512;
+const _sharedBallastCtxCache = new Map<string, GraphicsContext>();
+const _sharedTiesCtxCache = new Map<string, GraphicsContext>();
+const _sharedRailsCtxCache = new Map<string, GraphicsContext>();
+
+function buildTrackEntryCacheKey(entry: CatalogEntry): string {
+  return `${entry.id}|${entry.kind}|${entry.length ?? ""}|${entry.radius ?? ""}|${entry.angle ?? ""}|${entry.gauge ?? ""}|${entry.hasRoadbed ?? ""}`;
+}
+
+function getSharedBallastContext(
+  entry: CatalogEntry,
+  ballastColor: number,
+  ballastWidth: number,
+): GraphicsContext {
+  const key = `${buildTrackEntryCacheKey(entry)}|${ballastColor}|${ballastWidth}`;
+  let ctx = _sharedBallastCtxCache.get(key);
+  if (!ctx) {
+    ctx = new GraphicsContext();
+    drawBallast(ctx as unknown as Graphics, entry, ballastColor, ballastWidth);
+    if (_sharedBallastCtxCache.size < MAX_SHARED_TRACK_CTX) {
+      _sharedBallastCtxCache.set(key, ctx);
+    }
+  }
+  return ctx;
+}
+
+function getSharedTiesContext(
+  entry: CatalogEntry,
+  tieColor: number,
+  tieLenHalf: number,
+  tieWidth: number,
+  tieSpacing: number,
+): GraphicsContext {
+  const key = `${buildTrackEntryCacheKey(entry)}|${tieColor}|${tieLenHalf}|${tieWidth}|${tieSpacing}`;
+  let ctx = _sharedTiesCtxCache.get(key);
+  if (!ctx) {
+    ctx = new GraphicsContext();
+    drawTies(ctx as unknown as Graphics, entry, tieColor, tieLenHalf, tieWidth, tieSpacing);
+    if (_sharedTiesCtxCache.size < MAX_SHARED_TRACK_CTX) {
+      _sharedTiesCtxCache.set(key, ctx);
+    }
+  }
+  return ctx;
+}
+
+function getSharedRailsContext(
+  entry: CatalogEntry,
+  railColor: number,
+  gaugeHalf: number,
+): GraphicsContext {
+  const key = `${buildTrackEntryCacheKey(entry)}|${railColor}|${gaugeHalf}`;
+  let ctx = _sharedRailsCtxCache.get(key);
+  if (!ctx) {
+    ctx = new GraphicsContext();
+    drawRails(ctx as unknown as Graphics, entry, railColor, gaugeHalf);
+    if (_sharedRailsCtxCache.size < MAX_SHARED_TRACK_CTX) {
+      _sharedRailsCtxCache.set(key, ctx);
+    }
+  }
+  return ctx;
+}
 
 export interface RenderOptions {
   isSelected?: boolean;
@@ -82,9 +149,6 @@ export function createTrackGraphics(
   container.label = `track-${piece.id}`;
   container.position.set(piece.transform.x, piece.transform.y);
   container.rotation = deg2rad(piece.transform.rotation);
-
-  const g = new Graphics();
-  container.addChild(g);
 
   const isSelected = options.isSelected ?? false;
   const showPowerDrop = options.showPowerDrop ?? false;
@@ -194,6 +258,8 @@ export function createTrackGraphics(
 
   // --- STRAßEN-SPEZIFISCHES RENDERING (Asphalt, Fahrbahnmarkierungen & Kontur) ---
   if (entry.isRoad) {
+    const g = new Graphics();
+    container.addChild(g);
     const roadWidth = entry.roadWidth ?? 60;
     if (isElevated) {
       drawRoadElevationShadow(g, entry, roadWidth, shadowElev);
@@ -235,35 +301,81 @@ export function createTrackGraphics(
     return container;
   }
 
-  // --- ELEVATION TIEFEN-SCHATTEN (Wenn Gleis über Grundplatte oder tieferen Gleisen liegt) ---
-  if (isElevated) {
-    drawElevationShadow(g, entry, ballastWidth, shadowElev);
+  // --- ELEVATION TIEFEN-SCHATTEN & SELECTION GLOW (unter dem Gleiskörper) ---
+  if (isElevated || isSelected) {
+    const underlayG = new Graphics();
+    if (isElevated) {
+      drawElevationShadow(underlayG, entry, ballastWidth, shadowElev);
+    }
+    if (isSelected) {
+      drawSelectionContour(underlayG, entry, ballastWidth + 8);
+    }
+    container.addChild(underlayG);
   }
 
-  // --- SELECTION GLOW (Präzise Kontur um den gesamten Gleiskörper) ---
-  if (isSelected) {
-    drawSelectionContour(g, entry, ballastWidth + 8);
-  }
+  // Standard-Katalog-Gleise (ohne individuelle Flex-Parameter) teilen sich GPU-GraphicsContexts
+  const canShareGeometry =
+    !entry.customOffsets &&
+    !piece.customOffsets &&
+    piece.customLength === undefined &&
+    piece.customRadius === undefined &&
+    piece.customAngle === undefined;
 
   // --- 1. SCHOTTERBETT ---
-  drawBallast(g, entry, ballastColor, ballastWidth);
-
-  // --- 2. SCHWELLEN ---
-  drawTies(g, entry, tieColor, tieLenHalf, tieWidth, tieSpacing);
-
-  // --- 3. SCHIENEN ---
-  drawRails(g, entry, railColor, gaugeHalf);
-
-  // --- 4. POWER-DROP HEATMAP & KURZSCHLUSS ---
-  const isShortCircuit = Boolean(options.isShortCircuit || powerResult?.isShortCircuit);
-
-  if (isShortCircuit && !showPowerDrop) {
-    // Rotes Warn-Glühen bei Kurzschluss (2-Leiter-System)
-    drawTrackCenterline(g, entry, 0xef4444, ballastWidth * 0.76, 0.45);
-    drawTrackCenterline(g, entry, 0xdc2626, 4, 0.95);
+  if (canShareGeometry) {
+    const ballastG = new Graphics(getSharedBallastContext(entry, ballastColor, ballastWidth));
+    (ballastG as any)._sharedContext = true;
+    container.addChild(ballastG);
+  } else {
+    const ballastG = new Graphics();
+    drawBallast(ballastG, entry, ballastColor, ballastWidth);
+    container.addChild(ballastG);
   }
 
-  if (showPowerDrop && powerResult) {
+  // --- 2. SCHWELLEN (mit Zoom-Out-LOD: unterhalb 0.4x ausgeblendet) ---
+  let tiesG: Graphics;
+  if (canShareGeometry) {
+    tiesG = new Graphics(getSharedTiesContext(entry, tieColor, tieLenHalf, tieWidth, tieSpacing));
+    (tiesG as any)._sharedContext = true;
+  } else {
+    tiesG = new Graphics();
+    drawTies(tiesG, entry, tieColor, tieLenHalf, tieWidth, tieSpacing);
+  }
+  tiesG.label = "track-ties";
+  tiesG.visible = worldScale >= TRACK_TIES_LOD_MIN_SCALE;
+  container.addChild(tiesG);
+
+  // --- 3. SCHIENEN ---
+  if (canShareGeometry) {
+    const railsG = new Graphics(getSharedRailsContext(entry, railColor, gaugeHalf));
+    (railsG as any)._sharedContext = true;
+    container.addChild(railsG);
+  } else {
+    const railsG = new Graphics();
+    drawRails(railsG, entry, railColor, gaugeHalf);
+    container.addChild(railsG);
+  }
+
+  // Dynamisches Overlay-Graphics nur bei Bedarf anlegen – direkt über den Schienen (unter Zubehör & Labels)
+  const isShortCircuit = Boolean(options.isShortCircuit || powerResult?.isShortCircuit);
+  const needsOverlayG =
+    (isShortCircuit && !showPowerDrop) ||
+    (showPowerDrop && Boolean(powerResult)) ||
+    isRamp ||
+    Boolean(options.showConnectors);
+  const overlayG = needsOverlayG ? new Graphics() : null;
+  if (overlayG) {
+    container.addChild(overlayG);
+  }
+
+  // --- 4. POWER-DROP HEATMAP & KURZSCHLUSS ---
+  if (isShortCircuit && !showPowerDrop && overlayG) {
+    // Rotes Warn-Glühen bei Kurzschluss (2-Leiter-System)
+    drawTrackCenterline(overlayG, entry, 0xef4444, ballastWidth * 0.76, 0.45);
+    drawTrackCenterline(overlayG, entry, 0xdc2626, 4, 0.95);
+  }
+
+  if (showPowerDrop && powerResult && overlayG) {
     let powerColor = 0x10b981; // Grün: optimal (> 15V)
     let powerAlpha = 0.35;
     let coreWidth = 6;
@@ -278,9 +390,9 @@ export function createTrackGraphics(
     }
 
     // Breites Glühen auf dem Schotterbett
-    drawTrackCenterline(g, entry, powerColor, ballastWidth * 0.72, powerAlpha);
+    drawTrackCenterline(overlayG, entry, powerColor, ballastWidth * 0.72, powerAlpha);
     // Deutliche Stromlinie im Zentrum
-    drawTrackCenterline(g, entry, powerColor, coreWidth, 0.95);
+    drawTrackCenterline(overlayG, entry, powerColor, coreWidth, 0.95);
 
     // Deutliche Spannungs-Plakette auf dem Gleis
     drawVoltageBadge(container, entry, piece.transform.rotation, powerResult, isNumberLabeled, worldScale);
@@ -336,7 +448,9 @@ export function createTrackGraphics(
 
   // --- 6B. RAMPEN-VISUALISIERUNG (Chevrons & Steigungs-Plakette) ---
   if (isRamp) {
-    drawRampChevrons(g, entry, heightDiff, gradPercent);
+    if (overlayG) {
+      drawRampChevrons(overlayG, entry, heightDiff, gradPercent);
+    }
     drawRampBadge(
       container,
       entry,
@@ -351,8 +465,8 @@ export function createTrackGraphics(
   }
 
   // --- 7. CONNECTORS ---
-  if (options.showConnectors) {
-    drawConnectors(g, piece, entry);
+  if (options.showConnectors && overlayG) {
+    drawConnectors(overlayG, piece, entry);
   }
 
   // --- 8. DREHGRIFF (ROTATION HANDLE GIZMO) WENN SELEKTIERT ---

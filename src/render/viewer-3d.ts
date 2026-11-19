@@ -783,12 +783,24 @@ export class Viewer3D {
     }
   }
 
+  private lowGpuMode = false;
+  private lastRenderTs = 0;
+
+  setLowGpuMode(enabled: boolean) {
+    if (this.lowGpuMode === enabled) return;
+    this.lowGpuMode = enabled;
+    this.requestRender();
+  }
+
   private startLoop() {
     if (this.animId !== null) return;
     this.lastFrameTime = performance.now();
     const animate = () => {
       this.animId = requestAnimationFrame(animate);
       const now = performance.now();
+      if (this.lowGpuMode && now - this.lastRenderTs < 1000 / 30) {
+        return;
+      }
       const dt = Math.min((now - this.lastFrameTime) / 1000, 0.1);
       this.lastFrameTime = now;
 
@@ -803,6 +815,7 @@ export class Viewer3D {
       }
 
       if (this.needsRender) {
+        this.lastRenderTs = now;
         if (this.envMode !== "minimal") {
           if (this.sunCorona) this.sunCorona.quaternion.copy(this.camera.quaternion);
           if (this.moonGlow) this.moonGlow.quaternion.copy(this.camera.quaternion);
