@@ -90,14 +90,14 @@ Because what works well for my personal layout planning might not always fit eve
   * **Vertex & Edge Editor (`Ecken & Kanten`)**: Drag existing vertices (`●`) to reshape, drag edge midpoints (`+`) to insert new vertices, or right-click / <kbd>Alt</kbd>-click a vertex to remove it.
 * **Standard Parametric Table Shapes**: Rectangular, L-Shape, U-Shape, and T-Shape presets with configurable dimensions, corner radii, surface styles (Birch, Dark Walnut, Plywood, Slate, Grass, White), and automatic **"Fit Table to Tracks"**.
 
-### 3. Dedicated Terrain & Mountain Editor with Tunnels
-* **Dedicated Terrain Menu (`Gelände / Terrain`)**: Streamlined monochrome-icon sidebar tab for sculpting 3D mountains, hills, valleys, and rock formations.
-* **Interactive 2D/3D Sculpting Brushes**:
-  * **Raise (`Hebepinsel`)**, **Smooth (`Glätten`)**, **Flatten (`Plateau`)**, and **Erase (`Radierer`)** brushes with adjustable brush radius and intensity.
-  * **Freehand Contour Pen (`Freihand-Kontur`)**: Draw custom mountain footprints directly on the canvas.
-  * **5 Mountain Presets**: Alpine Peak (*Alpengipfel*), Mountain Ridge (*Gebirgskamm*), Twin Peaks (*Doppelgipfel*), Valley Gorge (*Talschlucht*), and Gentle Hill (*Sanfter Hügel*).
+### 3. Streamlined Terrain & Ground Editor with Tunnels
+* **Unified Terrain Brush (`Gelände / Terrain`)**: Clean 3-mode brush toolbar with contextual controls:
+  * **Mountain (`▲ Berg / Mountain`)**: Click for a single peak or drag to paint custom mountain ridges with adjustable radius, height, and biome (*Alpine*, *Rocky*, *Forest*, *Meadow*).
+  * **Ground (`◠ Grund / Ground`)**: Paint adaptive **Water**, **Sand**, **Dirt**, or **Rolling Hills** directly on the 2D canvas. Ground terrain automatically stays **flat under buildings, tracks, streets, and turntable pits** while rising gently around them.
+  * **Erase (`✕ Löschen / Erase`)**: Drag to erase mountain nodes, whole peaks, or ground terrain strokes.
+* **Automatic Table & Plate Clipping**: Both mountains and ground terrain automatically clip strictly to the active baseboard or layer plate polygon in 2D and 3D—never overhanging off the table edge.
 * **Automatic & Manual Mountain Tunnels**:
-  * One-click automatic detection (`Tunnel für Gleise & Straßen im Berg automatisch erzeugen`) cuts realistic 3D tunnel tubes with masonry portals and dark inner walls through mountains along track and road paths.
+  * Automatic tunnel detection cuts realistic 3D tunnel tubes with stone portals starting flush at exact track elevation.
   * Individual tracks and roads can also toggle tunnel rendering manually via the `🚇` button in the floating selection bar.
 
 ### 4. Full-Perspective 3D Viewer & Interactive CAD ViewCube
@@ -111,8 +111,8 @@ Because what works well for my personal layout planning might not always fit eve
   * Dynamic 24-hour Day/Night cycle with moving sun and moon, atmospheric sky gradients, and automatic night illumination for signals, buildings, and platform lamps.
 * **25 Built-in Procedural 3D Scenery & Depot Models (`.glb` / `.gltf` Import Supported)**:
   * **Steam & Diesel Locomotive Depot**: **Coaling Station (*Bekohlungsanlage für Dampfloks*)** with elevated bunker, slewing crane, grab bucket, and coal piles; **Diesel Fueling Station (*Dieseltankstelle für Dieselloks*)** with storage tank, bund wall, canopy, and fuel dispensers; **3-Stall Roundhouse (*Ringlokschuppen*)**; **Single-Stall Engine Shed (*Lokschuppen*)**; **Water Tower (*Wasserturm*)**.
-  * **Stations, Buildings & Infrastructure**: Passenger Station (*Bahnhof Neustadt*), Station Platform (*Bahnsteig*), Goods Shed (*Güterschuppen*), Signal Tower (*Stellwerk W1*), Town Church (*Stadtkirche*), Half-Timbered Houses (*Fachwerkhaus* & *Eckhaus*), Level Crossing (*Bahnübergang*), Steel Truss & Stone Arch Bridges, Tunnel Portals, Signals, Buffer Stops, Trees, and Platform Lamps.
-  * All 25 built-in models are 100% procedural TypeScript/Three.js geometry (`src/render/models-3d/`), royalty-free under GPLv3. Users can also import custom `.glb` / `.gltf` models.
+  * **Stations, Buildings & Infrastructure**: Localized English & German names for Passenger Station (*Bahnhof Neustadt*), Passenger Platform (*Bahnsteig*), Signal Box (*Stellwerk W1*), Half-Timbered House (*Fachwerkhaus*), Skyscraper (*Hochhaus*), Industrial Hall (*Industriehalle*), Steel Truss & Stone Arch Bridges, Flush Tunnel Portals, Signals, Realistic DB Sh 2 Steel-Rail Buffer Stops (*Prellbock*), Illuminated DB Wn 1/Wn 2 Turnout Lanterns (*Weichenlaterne*), Collision-Free Catenary Masts, Trees, and Platform Lamps.
+  * Built-in procedural models are automatically sub-mesh merged and instanced for smooth 3D performance, 100% open-source TypeScript/Three.js geometry (`src/render/models-3d/`). Users can also import custom `.glb` / `.gltf` models.
 
 ### 5. Multi-Deck Layers & Height Management
 * **Floating Layers Menu (<kbd>Shift+B</kbd>)**: Manage multiple elevation decks sorted by height with visibility toggles (`👁️`), lock protection (`🔒`), inline renaming (`✏️`), and elevation badges.

@@ -1,4 +1,6 @@
-export function showToast(msg: string, icon = "ℹ️") {
+import { ICONS } from "./icons";
+
+export function showToast(msg: string, icon: string = ICONS.info) {
   const existing = document.getElementById("app-global-toast");
   if (existing) existing.remove();
   const toast = document.createElement("div");
@@ -22,7 +24,7 @@ export function showToast(msg: string, icon = "ℹ️") {
   toast.style.alignItems = "center";
   toast.style.gap = "8px";
   toast.style.transition = "opacity 0.2s ease, transform 0.2s ease";
-  toast.innerHTML = `<span>${icon}</span> <span>${msg}</span>`;
+  toast.innerHTML = `<span style="display:inline-flex;align-items:center;">${icon}</span> <span>${msg}</span>`;
 
   document.body.appendChild(toast);
   setTimeout(() => {
@@ -33,5 +35,5 @@ export function showToast(msg: string, icon = "ℹ️") {
 }
 
 export function showCollabToast(msg: string) {
-  showToast(msg, "👥");
+  showToast(msg, ICONS.users);
 }

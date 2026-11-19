@@ -1,6 +1,7 @@
 import type { Renderer } from "@/render/renderer";
 import type { Layout } from "@/core/types";
 import { getLanguage, onLanguageChange } from "@/i18n";
+import { ICONS } from "./icons";
 
 export interface PerfMonitorOptions {
   host: HTMLElement;
@@ -124,7 +125,7 @@ export class PerfMonitor {
     this.headerEl.innerHTML = `
       <span style="font-weight: 700; color: #38bdf8; display: flex; align-items: center; gap: 6px; pointer-events: none;">
         <span style="color: #64748b; font-size: 13px; line-height: 1;">⠿</span>
-        <span>⚡</span>
+        <span style="display:inline-flex;align-items:center;">${ICONS.zap}</span>
         <span>HARDWARE MONITOR</span>
       </span>
       <button id="perf-close-btn" style="background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 13px; padding: 2px 5px; border-radius: 4px; line-height: 1; transition: all 0.15s;" title="${isDe ? "Schließen (F3)" : "Close (F3)"}">✕</button>

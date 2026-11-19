@@ -1,6 +1,7 @@
 import type { CollabClient } from "@/collab/collab-client";
 import type { Layout } from "@/core/types";
-import { getTranslations } from "@/i18n";
+import { getLanguage, getTranslations } from "@/i18n";
+import { ICONS } from "./icons";
 
 const COLOR_PALETTE = [
   "#3b82f6",
@@ -71,12 +72,15 @@ export function openCollabDialog(options: CollabDialogOptions): void {
 
   function renderDialog() {
     isConnected = client.getStatus() === "connected";
+    const isDe = getLanguage() === "de";
+    const togglePwdTitle = isDe ? "Passwort anzeigen / verbergen" : "Show / hide password";
+    const pwActiveLabel = isDe ? "PW aktiv" : "PW active";
 
     modal.innerHTML = `
       <div class="rb-modal-card collab-dialog-card">
         <div class="rb-modal-header" style="display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--border-main);">
           <div class="rb-modal-title" style="display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px;">
-            <span>👥</span>
+            <span style="display:inline-flex;align-items:center;">${ICONS.users}</span>
             <span>${t.title}</span>
             ${isConnected ? `<span class="collab-badge-live">● ${t.statusConnected}</span>` : ""}
           </div>
@@ -89,7 +93,7 @@ export function openCollabDialog(options: CollabDialogOptions): void {
           ${
             errorMessage
               ? `<div style="background: rgba(239, 68, 68, 0.12); border: 1px solid #ef4444; color: #ef4444; padding: 10px 14px; border-radius: 8px; font-size: 12.5px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
-                  <span>⚠️</span>
+                  <span style="display:inline-flex;align-items:center;">${ICONS.alertTriangle}</span>
                   <span>${errorMessage}</span>
                 </div>`
               : ""
@@ -99,7 +103,7 @@ export function openCollabDialog(options: CollabDialogOptions): void {
           <div class="collab-toggle-hero">
             <div class="collab-toggle-info">
               <div class="collab-hero-title">
-                <span>🌐</span>
+                <span style="display:inline-flex;align-items:center;">${ICONS.globe}</span>
                 <span>${t.serverToggleLabel}</span>
               </div>
               <div class="collab-hero-sub">
@@ -120,10 +124,10 @@ export function openCollabDialog(options: CollabDialogOptions): void {
           <!-- TAB SWITCHER: HOST (EIGENER SERVER) vs BEITRETEN (CLIENT) -->
           <div class="collab-tabs">
             <button type="button" class="collab-tab-btn ${activeTab === "host" ? "active" : ""}" id="collab-tab-host">
-              <span>🚀</span> <span>${t.modeHost}</span>
+              <span style="display:inline-flex;align-items:center;">${ICONS.rocket}</span> <span>${t.modeHost}</span>
             </button>
             <button type="button" class="collab-tab-btn ${activeTab === "join" ? "active" : ""}" id="collab-tab-join">
-              <span>🔗</span> <span>${t.modeJoin}</span>
+              <span style="display:inline-flex;align-items:center;">${ICONS.link}</span> <span>${t.modeJoin}</span>
             </button>
           </div>
 
@@ -135,14 +139,14 @@ export function openCollabDialog(options: CollabDialogOptions): void {
               <!-- PASSWORD FIELD -->
               <div>
                 <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
-                  <label for="collab-input-password" style="font-size: 12px; font-weight: 700; color: var(--text-main);">
-                    ${t.passwordLabel}
+                  <label for="collab-input-password" style="font-size: 12px; font-weight: 700; color: var(--text-main); display: inline-flex; align-items: center; gap: 5px;">
+                    ${ICONS.lock} <span>${t.passwordLabel}</span>
                   </label>
                   <span style="font-size: 10.5px; color: var(--text-muted);">${t.passwordHint}</span>
                 </div>
                 <div class="collab-password-box">
                   <input type="password" id="collab-input-password" class="rb-input" value="${escapeHtml(savedPassword)}" placeholder="${t.passwordPlaceholder}" style="font-size: 13px;" />
-                  <button type="button" id="collab-btn-toggle-pwd" class="collab-pwd-eye-btn" title="Passwort anzeigen / verbergen">👁️</button>
+                  <button type="button" id="collab-btn-toggle-pwd" class="collab-pwd-eye-btn" title="${togglePwdTitle}">${ICONS.eye}</button>
                 </div>
               </div>
 
@@ -154,7 +158,7 @@ export function openCollabDialog(options: CollabDialogOptions): void {
                 </div>
                 <div>
                   <label style="font-size: 12px; font-weight: 700; color: var(--text-sub); display: block; margin-bottom: 4px;">${t.nameLabel}</label>
-                  <input type="text" id="collab-input-name" class="rb-input" value="${escapeHtml(user.name)}" placeholder="Planer" style="font-size: 13px;" />
+                  <input type="text" id="collab-input-name" class="rb-input" value="${escapeHtml(user.name)}" placeholder="${isDe ? "Planer" : "Planner"}" style="font-size: 13px;" />
                 </div>
               </div>
 
@@ -177,17 +181,17 @@ export function openCollabDialog(options: CollabDialogOptions): void {
                 ? `
               <div class="collab-share-card">
                 <div style="display: flex; align-items: center; justify-content: space-between;">
-                  <span style="font-weight: 700; font-size: 12px; color: var(--text-main);">
-                    <span>🔗</span> <span>${t.networkShareTitle}</span>
+                  <span style="font-weight: 700; font-size: 12px; color: var(--text-main); display: inline-flex; align-items: center; gap: 5px;">
+                    ${ICONS.link} <span>${t.networkShareTitle}</span>
                   </span>
                   <button id="collab-btn-copy-link" class="rb-btn rb-btn-primary" style="font-size: 11.5px; padding: 4px 10px; display: flex; align-items: center; gap: 5px;">
-                    <span>📋</span>
+                    <span style="display:inline-flex;align-items:center;">${ICONS.clipboard}</span>
                     <span>${t.copyLinkBtn}</span>
                   </button>
                 </div>
                 <div id="collab-url-display" class="collab-url-chip">
                   <span id="collab-text-share-url" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${getShareUrl()}</span>
-                  ${savedPassword ? `<span style="font-size: 10px; background: rgba(59, 130, 246, 0.15); color: #3b82f6; padding: 2px 6px; border-radius: 4px; font-weight: 700; margin-left: 8px;">🔒 PW aktiv</span>` : ""}
+                  ${savedPassword ? `<span style="font-size: 10px; background: rgba(59, 130, 246, 0.15); color: #3b82f6; padding: 2px 6px; border-radius: 4px; font-weight: 700; margin-left: 8px; display: inline-flex; align-items: center; gap: 3px;">${ICONS.lock} ${pwActiveLabel}</span>` : ""}
                 </div>
               </div>
             `
@@ -209,17 +213,17 @@ export function openCollabDialog(options: CollabDialogOptions): void {
                 </div>
                 <div>
                   <label style="font-size: 12px; font-weight: 700; color: var(--text-sub); display: block; margin-bottom: 4px;">${t.nameLabel}</label>
-                  <input type="text" id="collab-join-name" class="rb-input" value="${escapeHtml(user.name)}" placeholder="Planer" style="font-size: 13px;" />
+                  <input type="text" id="collab-join-name" class="rb-input" value="${escapeHtml(user.name)}" placeholder="${isDe ? "Planer" : "Planner"}" style="font-size: 13px;" />
                 </div>
               </div>
 
               <div>
-                <label for="collab-join-password" style="font-size: 12px; font-weight: 700; color: var(--text-main); display: block; margin-bottom: 4px;">
-                  ${t.passwordLabel}
+                <label for="collab-join-password" style="font-size: 12px; font-weight: 700; color: var(--text-main); display: inline-flex; align-items: center; gap: 5px; margin-bottom: 4px;">
+                  ${ICONS.lock} <span>${t.passwordLabel}</span>
                 </label>
                 <div class="collab-password-box">
                   <input type="password" id="collab-join-password" class="rb-input" value="${escapeHtml(savedPassword)}" placeholder="${t.passwordPlaceholder}" style="font-size: 13px;" />
-                  <button type="button" id="collab-btn-toggle-pwd-join" class="collab-pwd-eye-btn" title="Passwort anzeigen / verbergen">👁️</button>
+                  <button type="button" id="collab-btn-toggle-pwd-join" class="collab-pwd-eye-btn" title="${togglePwdTitle}">${ICONS.eye}</button>
                 </div>
               </div>
 
@@ -314,10 +318,10 @@ export function openCollabDialog(options: CollabDialogOptions): void {
       if (!pwdInput) return;
       if (pwdInput.type === "password") {
         pwdInput.type = "text";
-        togglePwdBtn.textContent = "🙈";
+        togglePwdBtn.innerHTML = ICONS.eyeOff;
       } else {
         pwdInput.type = "password";
-        togglePwdBtn.textContent = "👁️";
+        togglePwdBtn.innerHTML = ICONS.eye;
       }
     });
 
@@ -340,10 +344,10 @@ export function openCollabDialog(options: CollabDialogOptions): void {
       if (!pwdJoinInput) return;
       if (pwdJoinInput.type === "password") {
         pwdJoinInput.type = "text";
-        togglePwdJoinBtn.textContent = "🙈";
+        togglePwdJoinBtn.innerHTML = ICONS.eyeOff;
       } else {
         pwdJoinInput.type = "password";
-        togglePwdJoinBtn.textContent = "👁️";
+        togglePwdJoinBtn.innerHTML = ICONS.eye;
       }
     });
 

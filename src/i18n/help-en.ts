@@ -192,8 +192,8 @@ export const helpEn: HelpDialogTranslations = {
         body: '• <strong>Inspect from Every Perspective (Including Underneath):</strong> Left-click and drag to orbit anywhere—including straight underneath the table (<code>Bottom</code>) to inspect benchwork framing and staging yards.<br>• <strong>Interactive CAD ViewCube:</strong> Click any of the 6 cube faces (<code>Front</code>, <code>Back</code>, <code>Left</code>, <code>Right</code>, <code>Top</code>, <code>Bottom</code>), the 4 isometric corner buttons, or drag the cube directly beneath the background toggle button.',
       },
       {
-        title: "Bridges, Tunnels & Layer Plates",
-        body: "Tracks on elevated layers or ramps are rendered at their true vertical heights with automatic bridge pillars (&gt; 15 mm) and realistic 3D mountain tunnel tubes.",
+        title: "Terrain Brush, Ground Surfaces & Tunnels",
+        body: "Use the streamlined <strong>Terrain</strong> tab with 3 brush modes: <strong>▲ Mountain</strong> (click for peaks, drag for ridges with automatic track-level tunnel portals), <strong>◠ Ground</strong> (paint adaptive <em>Water</em>, <em>Sand</em>, <em>Dirt</em>, or <em>Rolling Hills</em> that automatically stay flat under buildings, tracks, and streets while rising around them), and <strong>✕ Erase</strong>. All terrain clips cleanly to your table and layer plate borders.",
       },
       {
         title: "Environment Modes & 24h Day/Night Cycle",

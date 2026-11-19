@@ -194,8 +194,9 @@ export function drawRails(g: Graphics, entry: CatalogEntry, color: number, gauge
 
   if (isStraightTrackEntry(entry)) {
     const l = entry.length ?? 188.3;
-    g.moveTo(0, -gaugeHalf).lineTo(l, -gaugeHalf);
-    g.moveTo(0, gaugeHalf).lineTo(l, gaugeHalf);
+    const endPad = isBufferStopPiece(entry) ? 0 : 0.25;
+    g.moveTo(-0.25, -gaugeHalf).lineTo(l + endPad, -gaugeHalf);
+    g.moveTo(-0.25, gaugeHalf).lineTo(l + endPad, gaugeHalf);
     g.stroke({ width: railWidth, color, cap: "butt", join: "miter" });
 
     // Prellbock-Gleis: Pufferbohle und Puffer am Gleisende (x = l)

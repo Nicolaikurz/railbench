@@ -30,12 +30,16 @@
   <url type="help">https://github.com/Nicolaikurz/railbench/blob/main/docs/BUILD_GUIDE.md</url>
   <screenshots>
     <screenshot type="default">
-      <image>https://raw.githubusercontent.com/Nicolaikurz/railbench/main/docs/assets/screenshot-2d.png</image>
+      <image>https://raw.githubusercontent.com/Nicolaikurz/railbench/main/docs/assets/screenshot-1.png</image>
       <caption>2D CAD Track Planning with exact turnout geometry and electrical simulation</caption>
     </screenshot>
     <screenshot>
-      <image>https://raw.githubusercontent.com/Nicolaikurz/railbench/main/docs/assets/screenshot-3d.png</image>
+      <image>https://raw.githubusercontent.com/Nicolaikurz/railbench/main/docs/assets/screenshot-2.png</image>
       <caption>Interactive 3D elevation view with terrain, realistic lighting, and CAD ViewCube</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/Nicolaikurz/railbench/main/docs/assets/screenshot-3.png</image>
+      <caption>Dedicated Terrain and Mountain Editor with automated tunnels and custom layout sketcher</caption>
     </screenshot>
   </screenshots>
   <categories>

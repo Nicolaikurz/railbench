@@ -46,8 +46,8 @@ User guide (<kbd>F1</kbd>) · Keyboard shortcuts (<kbd>?</kbd>) · Welcome scree
 |---|---|
 | **Tracks** | Track systems by manufacturer and scale, with search and categories (Favorites, Straights, Curves, Turnouts, Crossings, Accessories). Click to add or drag onto the canvas |
 | **Streets** | Generic street pieces for H0, TT, N, Z, 0, 1 and G |
-| **3D** | Imported and built-in 3D models (buildings, scenery) |
-| **Terrain** | Mountain and terrain editor: sculpting brushes, peak and ridge height, automatic tunnels |
+| **3D** | Imported (`.glb`/`.gltf`) and built-in 3D models (buildings, depot, scenery) with English & German names |
+| **Terrain** | Streamlined **Terrain Brush** with 3 modes: **Mountain** (click for peak / drag for ridge, auto-tunnels), **Ground** (paint adaptive **Water**, **Sand**, **Dirt**, or **Hill** that stays flat under buildings, tracks, and streets), and **Erase**. All terrain automatically clips to the table or layer plate borders |
 | **Table** | Baseboard / table benchwork and the 2D sketcher for freeform plates |
 | **Parts List** | Bill of materials for the layout; exportable as CSV |
 

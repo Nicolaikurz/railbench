@@ -237,8 +237,10 @@ export function buildPlatform3D(group: THREE.Group): void {
   // 5. BAHNSTEIGDACH (Stahl-Glas-Konstruktion)
   // -------------------------------------------------------------------------
   const canopyLen = 210; // X: -105 bis +105
-  const canopyWidth = 50; // Z: -25 bis +25
   const roofBaseY = 40;
+  const slopeAngle = 0.12; // ~6.9° Schmetterlingsdach-Steigung nach außen
+  const slopeTan = Math.tan(slopeAngle);
+  const yRidge = roofBaseY + 0.6; // Dach-Mittelebene am First (Z = 0)
 
   // Stützen an 4 Positionen entlang der Mittelachse Z = 0
   const pillarX = [-80, -32, 32, 80];
@@ -249,57 +251,81 @@ export function buildPlatform3D(group: THREE.Group): void {
     pBase.position.set(px, 10.75, 0);
     group.add(pBase);
 
-    // Hauptstütze (Doppel-T-Form)
+    // Hauptstütze (Doppel-T-Form, reicht von Bahnsteigoberkante y=10 bis Firstträger y=40)
     const pMast = new THREE.Mesh(new THREE.BoxGeometry(3.5, 30, 3.5), steelMat);
     pMast.position.set(px, 10 + 15, 0);
     group.add(pMast);
 
-    // Y-Ausleger / Kragträger nach links und rechts
+    // Y-Ausleger / Kragträger nach links (-Z) und rechts (+Z), ansteigend zum Dachrand
     for (const zDir of [-1, 1]) {
-      const arm = new THREE.Mesh(new THREE.BoxGeometry(2.5, 2.5, 22), steelMat);
-      arm.position.set(px, roofBaseY - 1.2, zDir * 11);
-      arm.rotation.x = zDir * 0.12;
+      const armSpanZ = 24;
+      const armLen = armSpanZ / Math.cos(slopeAngle);
+      const armMidZ = zDir * (armSpanZ / 2);
+      const armBaseY = roofBaseY - 0.8;
+      const armMidY = armBaseY + (armSpanZ / 2) * slopeTan;
+
+      const arm = new THREE.Mesh(new THREE.BoxGeometry(2.5, 2.2, armLen), steelMat);
+      arm.position.set(px, armMidY, armMidZ);
+      arm.rotation.x = -zDir * slopeAngle;
       group.add(arm);
 
-      // Schrägstrebe (Kopfwinkel)
-      const strut = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, 12, 6), steelMat);
-      strut.position.set(px, roofBaseY - 5.5, zDir * 7);
-      strut.rotation.x = -zDir * 0.65;
+      // Schrägstrebe (Kopfwinkel): verbindet Hauptstütze (Z=0, Y=31) exakt mit Kragträger (Z=±11)
+      const strutStartY = 31.0;
+      const strutEndZ = zDir * 11.0;
+      const strutEndY = armBaseY + 11.0 * slopeTan;
+      const dy = strutEndY - strutStartY;
+      const dz = strutEndZ;
+      const strutLen = Math.hypot(dz, dy);
+
+      const strut = new THREE.Mesh(new THREE.CylinderGeometry(0.85, 0.85, strutLen, 8), steelMat);
+      strut.position.set(px, (strutStartY + strutEndY) / 2, strutEndZ / 2);
+      strut.rotation.x = Math.atan2(dz, dy);
       group.add(strut);
     }
   }
 
   // Längsträger (First & Außenränder)
-  const ridgeBeam = new THREE.Mesh(new THREE.BoxGeometry(canopyLen, 3, 3), steelMat);
+  const ridgeBeam = new THREE.Mesh(new THREE.BoxGeometry(canopyLen, 3, 3.2), steelMat);
   ridgeBeam.position.set(0, roofBaseY, 0);
   group.add(ridgeBeam);
 
-  for (const zSide of [-24, 24]) {
-    const edgeBeam = new THREE.Mesh(new THREE.BoxGeometry(canopyLen, 2.5, 2), steelMat);
-    edgeBeam.position.set(0, roofBaseY + 2.5, zSide);
+  const edgeZ = 24.2;
+  const edgeY = yRidge + edgeZ * slopeTan - 0.6;
+  for (const zSide of [-edgeZ, edgeZ]) {
+    const edgeBeam = new THREE.Mesh(new THREE.BoxGeometry(canopyLen, 2.6, 2), steelMat);
+    edgeBeam.position.set(0, edgeY, zSide);
     group.add(edgeBeam);
   }
 
-  // Dachflügel (Leichtes Schmetterlings-Gefälle nach innen zur Firstrinne)
+  // Dachflügel (Schmetterlingsdach: steigt von Z=0 nach Z=±24.5 gleichmäßig an)
   for (const zDir of [-1, 1]) {
-    // Dunkle Zink-/Stahldachfläche
-    const roofPanel = new THREE.Mesh(new THREE.BoxGeometry(canopyLen, 1.5, 16), roofSheetMat);
-    roofPanel.position.set(0, roofBaseY + 1.2, zDir * 16);
-    roofPanel.rotation.x = zDir * 0.12;
-    group.add(roofPanel);
-
-    // Längs-Glasstreifen (Lichtband für Tageslichteinfall)
-    const glassStrip = new THREE.Mesh(new THREE.BoxGeometry(canopyLen - 10, 1.2, 7), glassRoofMat);
-    glassStrip.position.set(0, roofBaseY + 0.6, zDir * 4.5);
-    glassStrip.rotation.x = zDir * 0.12;
+    // Längs-Glasstreifen (Lichtband von |Z|=1.5 bis |Z|=8.5)
+    const glassMidZ = 5.0;
+    const glassWidth = 7.2 / Math.cos(slopeAngle);
+    const glassStrip = new THREE.Mesh(new THREE.BoxGeometry(canopyLen - 4, 1.2, glassWidth), glassRoofMat);
+    glassStrip.position.set(0, yRidge + glassMidZ * slopeTan, zDir * glassMidZ);
+    glassStrip.rotation.x = -zDir * slopeAngle;
     group.add(glassStrip);
+
+    // Dunkle Zink-/Stahldachfläche (von |Z|=8.5 bis |Z|=24.5)
+    const panelMidZ = 16.5;
+    const panelWidth = 16.4 / Math.cos(slopeAngle);
+    const roofPanel = new THREE.Mesh(new THREE.BoxGeometry(canopyLen, 1.5, panelWidth), roofSheetMat);
+    roofPanel.position.set(0, yRidge + panelMidZ * slopeTan, zDir * panelMidZ);
+    roofPanel.rotation.x = -zDir * slopeAngle;
+    group.add(roofPanel);
   }
 
-  // Dachabschluss-Blenden an den Enden (X = -105 und X = +105)
+  // Dachabschluss-Blenden an den Enden (X = -105 und X = +105), folgen der V-Dachneigung
   for (const xEnd of [-canopyLen / 2, canopyLen / 2]) {
-    const fascia = new THREE.Mesh(new THREE.BoxGeometry(1.5, 4, canopyWidth), steelMat);
-    fascia.position.set(xEnd, roofBaseY + 1.5, 0);
-    group.add(fascia);
+    for (const zDir of [-1, 1]) {
+      const fasciaMidZ = 12.25;
+      const fasciaW = 25.0 / Math.cos(slopeAngle);
+      const fascia = new THREE.Mesh(new THREE.BoxGeometry(1.5, 2.8, fasciaW), steelMat);
+      fascia.position.set(xEnd, yRidge + fasciaMidZ * slopeTan - 0.3, zDir * fasciaMidZ);
+      fascia.rotation.x = -zDir * slopeAngle;
+      group.add(fascia);
+    }
   }
 
   // -------------------------------------------------------------------------

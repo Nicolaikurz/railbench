@@ -1,6 +1,7 @@
 import { getLanguage } from "@/i18n";
 import { getAppVersionTag } from "@/version";
 import { openHelpDialog } from "./help-dialog";
+import { ICONS } from "./icons";
 
 export type StartupAction = "recent" | "new" | "demo" | "open" | "ask";
 
@@ -19,7 +20,7 @@ export function showWelcomeDialog(
     const recentBtnHtml = hasRecent
       ? `
         <button type="button" class="welcome-btn primary" id="welcome-btn-recent" autofocus>
-          <span class="welcome-btn-icon">⏱️</span>
+          <span class="welcome-btn-icon">${ICONS.clock}</span>
           <span class="welcome-btn-text">
             <strong>${isDe ? "Letzten Plan fortsetzen" : "Continue Last Plan"}</strong>
             <small>${recentName || (isDe ? "Zuletzt bearbeitetes Layout" : "Last edited layout")}</small>
@@ -35,7 +36,7 @@ export function showWelcomeDialog(
       <div class="welcome-card" role="dialog" aria-modal="true" aria-labelledby="welcome-title">
         <div class="welcome-header">
           <h2 id="welcome-title">
-            <span>🚆</span>
+            <span style="display:inline-flex;align-items:center;">${ICONS.train}</span>
             <span>Railbench</span>
             <span class="welcome-version">${getAppVersionTag()}</span>
           </h2>
@@ -48,7 +49,7 @@ export function showWelcomeDialog(
         <div class="welcome-actions">
           ${recentBtnHtml}
           <button type="button" class="welcome-btn ${!hasRecent ? "primary" : ""}" id="welcome-btn-new" ${!hasRecent ? "autofocus" : ""}>
-            <span class="welcome-btn-icon">✨</span>
+            <span class="welcome-btn-icon">${ICONS.sparkles}</span>
             <span class="welcome-btn-text">
               <strong>${isDe ? "Neuer Plan" : "New Plan"}</strong>
               <small>${isDe ? "Leere Platte mit Standard-Ebenen" : "Empty baseboard with default layers"}</small>
@@ -57,7 +58,7 @@ export function showWelcomeDialog(
           </button>
 
           <button type="button" class="welcome-btn" id="welcome-btn-demo">
-            <span class="welcome-btn-icon">🏔️</span>
+            <span class="welcome-btn-icon">${ICONS.mountain}</span>
             <span class="welcome-btn-text">
               <strong>${isDe ? "Demo-Layout" : "Demo Layout"}</strong>
               <small>${isDe ? "Musterstrecke zum Testen & Planen" : "Sample layout for testing & planning"}</small>
@@ -66,7 +67,7 @@ export function showWelcomeDialog(
           </button>
 
           <button type="button" class="welcome-btn" id="welcome-btn-open">
-            <span class="welcome-btn-icon">📂</span>
+            <span class="welcome-btn-icon">${ICONS.folderOpen}</span>
             <span class="welcome-btn-text">
               <strong>${isDe ? "Plan öffnen…" : "Open Plan…"}</strong>
               <small>${isDe ? ".railbench Datei von Festplatte laden" : "Load .railbench file from disk"}</small>

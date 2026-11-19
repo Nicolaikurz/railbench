@@ -13,6 +13,7 @@ import {
   getTrackDisplayDescription,
 } from "@/i18n";
 import { getTrackBlueprintColor } from "@/render/blueprint-colors";
+import { ICONS } from "@/ui/icons";
 import {
   createCatalogThumbnail,
   attachDragImage,
@@ -443,7 +444,7 @@ export function renderTrackList(sidebar: Sidebar, container: HTMLElement) {
           </button>
           ${
             isFeeder
-              ? `<button type="button" class="track-feeder-toggle-btn ${powerEnabled ? "active" : "disabled"}" title="${powerTitle}" aria-label="${powerTitle}">⚡</button>`
+              ? `<button type="button" class="track-feeder-toggle-btn ${powerEnabled ? "active" : "disabled"}" title="${powerTitle}" aria-label="${powerTitle}">${ICONS.zap}</button>`
               : ""
           }
           ${
@@ -451,7 +452,7 @@ export function renderTrackList(sidebar: Sidebar, container: HTMLElement) {
               ? `<button type="button" class="track-isolator-toggle-btn ${isoEnabled ? "active" : "disabled"}" title="${isoTitle}" aria-label="${isoTitle}">⊘</button>`
               : ""
           }
-          <span class="card-color-dot" style="background: ${bp.css};" title="Blueprint Color"></span>
+          <span class="card-color-dot" style="background: ${bp.css};" title="${currentLang === "de" ? "Farbcode" : "Blueprint Color"}"></span>
           <span class="card-id">${entry.id}</span>
         </div>
         <span class="card-category-badge">${categoryBadge}</span>

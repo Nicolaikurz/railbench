@@ -23,6 +23,7 @@ import { buildToolbarEvents } from "@/ui/toolbar-events-factory";
 import { getTranslations, onLanguageChange, getLanguage, setLanguage } from "@/i18n";
 import { Sidebar } from "@/ui/sidebar";
 import { RightSidebar } from "@/ui/right-sidebar";
+import { ICONS } from "@/ui/icons";
 import { PlanManager } from "@/io/plan-manager";
 import { openPrintDialog } from "@/io/print";
 import { openHelpDialog } from "@/ui/help-dialog";
@@ -147,7 +148,7 @@ async function main() {
       rotationSnapLocked
         ? (isDe ? "Drehwinkelsperre aktiviert (Einrasten)" : "Rotation angle lock enabled (Snapping)")
         : (isDe ? "Drehwinkelsperre aufgehoben (Freie Drehung)" : "Rotation angle lock disabled (Free rotation)"),
-      rotationSnapLocked ? "🔒" : "🔓"
+      rotationSnapLocked ? ICONS.lock : ICONS.unlock
     );
     sync();
   }
@@ -179,7 +180,7 @@ async function main() {
       selectionLockDisabled
         ? (isDe ? "Auswahlsperre aufgehoben (alle Ebenen wählbar)" : "Selection lock disabled (all layers selectable)")
         : (isDe ? "Auswahlsperre aktiviert (nur aktive Ebene)" : "Selection lock enabled (active layer only)"),
-      selectionLockDisabled ? "🔓" : "🔒",
+      selectionLockDisabled ? ICONS.unlock : ICONS.lock,
     );
     saveSettingsState();
     sync();
@@ -295,7 +296,7 @@ async function main() {
   };
 
   collabClient.onChat = (msg) => {
-    showCollabToast(`💬 ${msg.userName}: ${msg.text}`);
+    showToast(`${msg.userName}: ${msg.text}`, ICONS.message);
   };
 
   function triggerCollabDialog() {
@@ -335,6 +336,7 @@ async function main() {
   });
 
   attachCamera(renderer.app.canvas, renderer.world, () => {
+    renderer.updateLabelResolutions();
     ruler.update();
     collabOverlay.update();
     debouncedSaveSettings();
@@ -344,6 +346,7 @@ async function main() {
     renderer.world.x = savedSettings.camera.x;
     renderer.world.y = savedSettings.camera.y;
     renderer.world.scale.set(savedSettings.camera.zoom);
+    renderer.updateLabelResolutions();
     ruler.update();
   } else {
     renderer.resetView();
@@ -368,6 +371,7 @@ async function main() {
     renderer.world.scale.set(newScale);
     renderer.world.x = mx - wx * newScale;
     renderer.world.y = my - wy * newScale;
+    renderer.updateLabelResolutions();
     ruler?.update();
     collabOverlay.update();
     debouncedSaveSettings();
@@ -380,6 +384,7 @@ async function main() {
     }
     renderer.world.x += dx;
     renderer.world.y += dy;
+    renderer.updateLabelResolutions();
     ruler?.update();
     collabOverlay.update();
     debouncedSaveSettings();
@@ -397,7 +402,7 @@ async function main() {
       const msg = getLanguage() === "de"
         ? "3D-Ansicht nicht verfügbar (WebGL-Kontext erforderlich)"
         : "3D view unavailable (WebGL context required)";
-      showToast(msg, "⚠️");
+      showToast(msg, ICONS.alertTriangle);
       return;
     }
     is3DMode = force !== undefined ? force : !is3DMode;
@@ -709,7 +714,7 @@ async function main() {
     const active = !viewer3D?.isWoodPlateEnabled();
     viewer3D?.setWoodPlate(active);
     const isDe = getLanguage() === "de";
-    showToast(active ? (isDe ? "Woodplatte (Trassenbrett) platziert" : "Wood plate placed under tracks & roads") : (isDe ? "Woodplatte entfernt" : "Wood plate removed"), "🪵");
+    showToast(active ? (isDe ? "Woodplatte (Trassenbrett) platziert" : "Wood plate placed under tracks & roads") : (isDe ? "Woodplatte entfernt" : "Wood plate removed"), ICONS.wood);
     sync();
   }
 
@@ -777,7 +782,7 @@ async function main() {
       saveSettingsState();
       sync();
       const isDe = getLanguage() === "de";
-      showToast(locked ? (isDe ? "Leistengrößen fixiert" : "Panels locked") : (isDe ? "Leistengrößen freigegeben" : "Panels unlocked"), locked ? "🔒" : "🔓");
+      showToast(locked ? (isDe ? "Leistengrößen fixiert" : "Panels locked") : (isDe ? "Leistengrößen freigegeben" : "Panels unlocked"), locked ? ICONS.lock : ICONS.unlock);
     },
     isSnappingEnabled: () => snappingEnabled,
     setSnappingEnabled: (val) => { snappingEnabled = val; },
@@ -830,7 +835,7 @@ async function main() {
           isDe
             ? `Multi-User Server aktiv (Port ${config.port}, Raum: ${config.defaultRoom})`
             : `Multi-User Server active (Port ${config.port}, Room: ${config.defaultRoom})`,
-          "🚆"
+          ICONS.train
         );
         if (config.autoConnect && collabClient.getStatus() !== "connected") {
           collabClient.connect(

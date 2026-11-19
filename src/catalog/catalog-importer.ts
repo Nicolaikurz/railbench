@@ -2,6 +2,7 @@ import { catalogRegistry } from "./registry";
 import type { Catalog } from "./types";
 import { openFileDialog } from "@/io/export";
 import { getLanguage } from "@/i18n";
+import { ICONS } from "@/ui/icons";
 
 export interface CatalogImportOptions {
   onSuccess: (catalog: Catalog) => void;
@@ -32,7 +33,7 @@ export async function openCatalogImportDialog(options: {
         isDe
           ? `Gleiskatalog „${imported.name}“ (${imported.entries.length} Gleise) erfolgreich geladen.`
           : `Track catalog "${imported.name}" (${imported.entries.length} tracks) loaded successfully.`,
-        "✅",
+        ICONS.checkCircle,
       );
     } catch (err) {
       console.error(`Fehler beim Import von ${filename}:`, err);
@@ -40,7 +41,7 @@ export async function openCatalogImportDialog(options: {
         isDe
           ? `Fehler beim Import von ${filename}: ${(err as Error).message}`
           : `Error importing ${filename}: ${(err as Error).message}`,
-        "⚠️",
+        ICONS.alertTriangle,
       );
     }
   };

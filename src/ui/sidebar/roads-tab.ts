@@ -233,7 +233,7 @@ export function renderRoadsList(sidebar: Sidebar, container: HTMLElement) {
     if (entry.length) spec += `L: ${entry.length} mm `;
     if (entry.radius) spec += `R: ${entry.radius} mm `;
     if (entry.angle) spec += `/ ${entry.angle}° `;
-    if (entry.branchAngle) spec += `Branch: ${entry.branchAngle}°`;
+    if (entry.branchAngle) spec += `${currentLang === "de" ? "Abzweig" : "Branch"}: ${entry.branchAngle}°`;
 
     const displayName = getTrackDisplayName(entry, currentLang);
     const displayCategory = getTrackDisplayCategory(entry.category, currentLang);
@@ -243,7 +243,7 @@ export function renderRoadsList(sidebar: Sidebar, container: HTMLElement) {
     card.innerHTML = `
       <div class="card-top">
         <div style="display: flex; align-items: center; gap: 4px;">
-          <span class="card-color-dot" style="background: #475569;" title="Road"></span>
+          <span class="card-color-dot" style="background: #475569;" title="${currentLang === "de" ? "Straße" : "Road"}"></span>
           <span class="card-id">${entry.id}</span>
         </div>
         <span class="card-category-badge">${displayCategory}</span>

@@ -246,7 +246,7 @@ export function computeTableTrackCutouts(
   catalog: Catalog,
   baseboard: BaseboardConfig,
   deckElevation = 0,
-  deckThickness = 35,
+  deckThickness = 15,
   previewElevations?: Map<string, { start: number; end: number }>,
 ): TrackCutoutPolygon[] {
   if (!baseboard.enabled || !layout.pieces || layout.pieces.length === 0) {

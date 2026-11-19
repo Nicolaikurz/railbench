@@ -149,12 +149,14 @@ export function buildModel3D(
         layout.layers,
       );
       const allMountains = (layout.models ?? []).filter((m) => m.builtinId === "mountain");
-      extraData = { collisions, allMountains };
+      extraData = { collisions, allMountains, layout };
+    } else if (model.builtinId === "ground-terrain" && layout) {
+      extraData = { layout, entryMap };
     }
     const mesh = createBuiltinModel3DMesh(model.builtinId || "station", model, "H0", extraData);
     mesh.position.set(model.transform.x, elevation, model.transform.y);
     mesh.rotation.y = -deg2rad(model.transform.rotation);
-    if (model.builtinId === "mountain") {
+    if (model.builtinId === "mountain" || model.builtinId === "ground-terrain") {
       mesh.scale.set(model.scale || 1, model.scale || 1, model.scale || 1);
     } else {
       mesh.scale.setScalar(getBuiltinScaleFactor(model, layoutScale) * (model.scale || 1));
@@ -263,7 +265,12 @@ export function buildAllModels3D(
 
   for (const item of modelsWithElev) {
     const { model } = item;
-    if (model.modelType === "builtin" && model.builtinId && model.builtinId !== "mountain") {
+    if (
+      model.modelType === "builtin" &&
+      model.builtinId &&
+      model.builtinId !== "mountain" &&
+      model.builtinId !== "ground-terrain"
+    ) {
       let list = builtinGroups.get(model.builtinId);
       if (!list) {
         list = [];

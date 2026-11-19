@@ -2,6 +2,7 @@ import type { Layout, TrackPiece, Model3D } from "@/core/types";
 import type { Catalog, CatalogEntry } from "@/catalog/catalog";
 import { getTranslations, onLanguageChange, getLanguage } from "@/i18n";
 import { isFlexTrack } from "@/core/flextrack";
+import { ICONS } from "./icons";
 
 export interface SelectionBarCallbacks {
   onApplyHeight: (targetHeightMm: number) => void;
@@ -319,7 +320,7 @@ export class SelectionBar {
       <!-- Flex track controls (only shown when a single flex track is selected) -->
       <span class="sel-bar-divider" id="sel-bar-div-flex" style="display:none"></span>
       <div class="sel-bar-angle-group" id="sel-bar-flex-group" style="display:none">
-        <span class="sel-bar-angle-label" title="${isDe ? "Flexgleis Länge in mm zuschneiden" : "Cut flex track length in mm"}">✂ L:</span>
+        <span class="sel-bar-angle-label" title="${isDe ? "Flexgleis Länge in mm zuschneiden" : "Cut flex track length in mm"}" style="display:inline-flex;align-items:center;gap:3px;">${ICONS.scissors} L:</span>
         <input type="number" id="sel-bar-flex-len" class="sel-bar-angle-input" step="any" placeholder="900" style="width:58px !important" title="${isDe ? "Länge in mm zuschneiden" : "Cut length in mm"}" />
         <span class="sel-bar-unit">mm</span>
         <span class="sel-bar-angle-label" title="${isDe ? "Bogenradius in mm (leer = gerade)" : "Curve radius in mm (empty = straight)"}">R:</span>
@@ -334,21 +335,21 @@ export class SelectionBar {
       <span class="sel-bar-divider" id="sel-bar-div-power"></span>
 
       <!-- State toggles: Power feeder, Isolator gap, Catenary, Catenary feeder, Catenary isolator -->
-      <button id="sel-bar-btn-feeder" class="sel-bar-btn" title="Gleis-Einspeisung (F)">⚡</button>
+      <button id="sel-bar-btn-feeder" class="sel-bar-btn" title="${isDe ? "Gleis-Einspeisung (F)" : "Track power feeder (F)"}">${ICONS.zap}</button>
       <button id="sel-bar-btn-isolator" class="sel-bar-btn" title="${initialSelT.isolatorInactiveTitle}">⊘</button>
       <button id="sel-bar-btn-catenary" class="sel-bar-btn" title="${initialSelT.catenaryInactiveTitle}">⌁</button>
-      <button id="sel-bar-btn-catenary-feed" class="sel-bar-btn" title="${initialSelT.catenaryFeederInactiveTitle}">⌁⚡</button>
+      <button id="sel-bar-btn-catenary-feed" class="sel-bar-btn" title="${initialSelT.catenaryFeederInactiveTitle}">⌁${ICONS.zap}</button>
       <button id="sel-bar-btn-catenary-iso" class="sel-bar-btn" title="${initialSelT.catenaryIsolatorInactiveTitle}">⌁⊘</button>
-      <button id="sel-bar-btn-signal" class="sel-bar-btn" title="${isDe ? "Signal aufstellen (Shift+S)" : "Place Signal (Shift+S)"}">🚦</button>
-      <button id="sel-bar-btn-bridge" class="sel-bar-btn" title="${isDe ? "Als Brücke definieren (B)" : "Define as Bridge (B)"}">🌉</button>
-      <button id="sel-bar-btn-tunnel" class="sel-bar-btn" title="${isDe ? "Als Tunnel definieren (T)" : "Define as Tunnel (T)"}">🚇</button>
+      <button id="sel-bar-btn-signal" class="sel-bar-btn" title="${isDe ? "Signal aufstellen (Shift+S)" : "Place Signal (Shift+S)"}">${ICONS.signal}</button>
+      <button id="sel-bar-btn-bridge" class="sel-bar-btn" title="${isDe ? "Als Brücke definieren (B)" : "Define as Bridge (B)"}">${ICONS.bridge}</button>
+      <button id="sel-bar-btn-tunnel" class="sel-bar-btn" title="${isDe ? "Als Tunnel definieren (T)" : "Define as Tunnel (T)"}">${ICONS.tunnel}</button>
 
       <span class="sel-bar-divider" id="sel-bar-div-quick"></span>
 
       <!-- Quick actions: Rotate CCW, Rotate CW, Delete -->
       <button id="sel-bar-btn-rotate-ccw" class="sel-bar-btn" title="${isDe ? "Gegen Uhrzeigersinn drehen (-30°, Shift+R)" : "Rotate Counter-Clockwise (-30°, Shift+R)"}">↺</button>
       <button id="sel-bar-btn-rotate" class="sel-bar-btn" title="${isDe ? "Im Uhrzeigersinn drehen (+30°, R)" : "Rotate Clockwise (+30°, R)"}">↻ 30°</button>
-      <button id="sel-bar-btn-delete" class="sel-bar-btn sel-bar-btn-danger" title="${initialSelT.deleteBtn} (Del)">🗑</button>
+      <button id="sel-bar-btn-delete" class="sel-bar-btn sel-bar-btn-danger" title="${initialSelT.deleteBtn} (Del)">${ICONS.trash}</button>
     `;
 
     host.appendChild(this.container);
@@ -627,7 +628,8 @@ export class SelectionBar {
 
     if (firstModel && selectedPieces.length === 0) {
       this.selBarCount.textContent = `1 ${isDe ? "Objekt" : "object"}`;
-      this.selBarType.textContent = `📦 ${firstModel.name}`;
+      this.selBarType.innerHTML = `<span style="display:inline-flex;align-items:center;gap:4px;">${ICONS.box}</span>`;
+      this.selBarType.appendChild(document.createTextNode(` ${firstModel.name}`));
       this.selBarType.classList.remove("mixed");
       this.selBarElevGroup.style.display = "none";
       if (this.selBarDivElev) this.selBarDivElev.style.display = "none";
@@ -651,7 +653,7 @@ export class SelectionBar {
       if (!modelLayerExists) {
         this.selBarLayerSelect.insertAdjacentHTML(
           "afterbegin",
-          `<option value="" selected disabled>⚠️ ${isDe ? "Gelöschte Ebene (Zuweisen)" : "Deleted layer (Assign)"}</option>`,
+          `<option value="" selected disabled>(!) ${isDe ? "Gelöschte Ebene (Zuweisen)" : "Deleted layer (Assign)"}</option>`,
         );
       }
       if (document.activeElement !== this.selBarAngleInput) {
@@ -708,7 +710,7 @@ export class SelectionBar {
     const mixedFeeder = feederCount > 0 && feederCount < selectedPieces.length;
     this.selBarBtnFeeder.classList.toggle("active", allFeeder);
     this.selBarBtnFeeder.classList.toggle("mixed", mixedFeeder);
-    this.selBarBtnFeeder.textContent = "⚡";
+    this.selBarBtnFeeder.innerHTML = ICONS.zap;
     this.selBarBtnFeeder.title = allFeeder
       ? (isDe ? "Gleis-Einspeisung: aktiv (Klicken zum Entfernen, F)" : "Power feeder: active (Click to remove, F)")
       : mixedFeeder
@@ -754,7 +756,7 @@ export class SelectionBar {
     const mixedCatFeed = catFeedCount > 0 && catFeedCount < selectedPieces.length;
     this.selBarBtnCatenaryFeed.classList.toggle("active", allCatFeed);
     this.selBarBtnCatenaryFeed.classList.toggle("mixed", mixedCatFeed);
-    this.selBarBtnCatenaryFeed.textContent = "⌁⚡";
+    this.selBarBtnCatenaryFeed.innerHTML = `⌁${ICONS.zap}`;
     this.selBarBtnCatenaryFeed.title = allCatFeed
       ? (isDe ? "Oberleitungs-Einspeisung: aktiv (Klicken zum Entfernen, Shift+F)" : "Catenary feeder: active (Click to remove, Shift+F)")
       : mixedCatFeed
@@ -790,7 +792,7 @@ export class SelectionBar {
     const dirBadge = firstSig?.signalDirection === "both" ? "⇄" : firstSig?.signalDirection === "backward" ? "◀" : "▶";
     this.selBarBtnSignal.classList.toggle("active", allSignal);
     this.selBarBtnSignal.classList.toggle("mixed", mixedSignal);
-    this.selBarBtnSignal.textContent = allSignal && (firstSig?.signalSide || firstSig?.signalDirection) ? `🚦${dirBadge}` : "🚦";
+    this.selBarBtnSignal.innerHTML = allSignal && (firstSig?.signalSide || firstSig?.signalDirection) ? `${ICONS.signal}<span style="margin-left:2px;">${dirBadge}</span>` : ICONS.signal;
     this.selBarBtnSignal.title = allSignal
       ? (isDe ? `Signal: montiert (${sideBadge}, ${dirBadge}) – Klicken zum Entfernen (Shift+S)` : `Signal: placed (${sideBadge}, ${dirBadge}) – Click to remove (Shift+S)`)
       : mixedSignal
@@ -803,7 +805,7 @@ export class SelectionBar {
     const mixedBridge = bridgeCount > 0 && bridgeCount < selectedPieces.length;
     this.selBarBtnBridge.classList.toggle("active", allBridge);
     this.selBarBtnBridge.classList.toggle("mixed", mixedBridge);
-    this.selBarBtnBridge.textContent = "🌉";
+    this.selBarBtnBridge.innerHTML = ICONS.bridge;
     this.selBarBtnBridge.title = allBridge
       ? (isDe ? "Brücke: aktiv (Klicken zum Entfernen, B)" : "Bridge: active (Click to remove, B)")
       : mixedBridge
@@ -816,7 +818,7 @@ export class SelectionBar {
     const mixedTunnel = tunnelCount > 0 && tunnelCount < selectedPieces.length;
     this.selBarBtnTunnel.classList.toggle("active", allTunnel);
     this.selBarBtnTunnel.classList.toggle("mixed", mixedTunnel);
-    this.selBarBtnTunnel.textContent = "🚇";
+    this.selBarBtnTunnel.innerHTML = ICONS.tunnel;
     this.selBarBtnTunnel.title = allTunnel
       ? (isDe ? "Tunnel: aktiv (Klicken zum Entfernen, T)" : "Tunnel: active (Click to remove, T)")
       : mixedTunnel
@@ -843,7 +845,7 @@ export class SelectionBar {
     if (!layerExists) {
       this.selBarLayerSelect.insertAdjacentHTML(
         "afterbegin",
-        `<option value="" selected disabled>⚠️ ${getLanguage() === "de" ? "Gelöschte Ebene (Zuweisen)" : "Deleted layer (Assign)"}</option>`,
+        `<option value="" selected disabled>(!) ${getLanguage() === "de" ? "Gelöschte Ebene (Zuweisen)" : "Deleted layer (Assign)"}</option>`,
       );
     } else if (!allSameLayer) {
       this.selBarLayerSelect.insertAdjacentHTML("afterbegin", `<option value="" selected disabled>${tSel.multipleLayers}</option>`);

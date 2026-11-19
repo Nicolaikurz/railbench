@@ -6,9 +6,14 @@ import type { ColorMode, Layout, TrackPiece } from "@/core/types";
 import { deg2rad, isCurvedTrackEntry, isStraightTrackEntry, evaluateFlexSpline, computeFlexSplineLength } from "@/core/geometry";
 import { getTrackBlueprintColor } from "@/render/blueprint-colors";
 import { buildBufferStop3D } from "@/render/builtin-models-3d";
-import { applyCurveElevation, buildRoadPiece3D } from "./viewer-3d-roads";
+import { applyCurveElevation, applyStraightElevation, buildRoadPiece3D } from "./viewer-3d-roads";
 import { buildTransferTable3D, buildTurntable3D } from "./viewer-3d-turntables";
-import { buildCatenary3D, buildTransferTableCatenary3D, buildTurntableCatenary3D } from "./viewer-3d-catenary";
+import {
+  buildCatenary3D,
+  buildTransferTableCatenary3D,
+  buildTurntableCatenary3D,
+  CatenaryMastContext,
+} from "./viewer-3d-catenary";
 import { buildTrackBridge3D, buildTrackSignal3D, buildTurnoutAccessories3D } from "./viewer-3d-bridges";
 import { buildPieceTunnel3D } from "./track-tunnel";
 
@@ -101,6 +106,15 @@ function getSharedStraightDualRailGeometry(len: number, h: number, w: number, ga
 const _curvedBallastGeoCache = new Map<string, THREE.BufferGeometry>();
 const _curvedDualRailGeoCache = new Map<string, THREE.BufferGeometry>();
 
+/** Kleiner Winkel-Überlapp (~0,75 mm pro Ende), um Haarrisse/Lücken zwischen gebogenen Gleisstücken in 3D zu schließen. */
+function getCurvedArcOverlap(r: number): number {
+  return Math.min(0.004, 0.75 / Math.max(r, 80));
+}
+
+function getCurvedExtrudeSegments(rad: number): number {
+  return Math.max(18, Math.ceil(rad / deg2rad(1.5)));
+}
+
 export function getSharedCurvedBallastGeometry(
   r: number,
   rad: number,
@@ -109,23 +123,25 @@ export function getSharedCurvedBallastGeometry(
   ballastW: number,
   leadX = 0,
 ): THREE.BufferGeometry {
-  const curveCacheKey = `${Math.round(r * 10)}:${Math.round(rad * 1000)}:${dir}:${leadX}:${ballastH}:${ballastW}`;
+  const curveCacheKey = `${Math.round(r * 10)}:${Math.round(rad * 10000)}:${dir}:${leadX}:${ballastH}:${ballastW}`;
   let curveGeo = _curvedBallastGeoCache.get(curveCacheKey);
   if (!curveGeo) {
     const rIn = r - ballastW / 2;
     const rOut = r + ballastW / 2;
+    const eps = getCurvedArcOverlap(r);
+    const curveSegments = getCurvedExtrudeSegments(rad);
 
     const curveShape = new THREE.Shape();
     if (dir === 1) {
-      curveShape.absarc(0, 0, rOut, -Math.PI / 2, -Math.PI / 2 + rad, false);
-      curveShape.absarc(0, 0, rIn, -Math.PI / 2 + rad, -Math.PI / 2, true);
+      curveShape.absarc(0, 0, rOut, -Math.PI / 2 - eps, -Math.PI / 2 + rad + eps, false);
+      curveShape.absarc(0, 0, rIn, -Math.PI / 2 + rad + eps, -Math.PI / 2 - eps, true);
     } else {
-      curveShape.absarc(0, 0, rOut, Math.PI / 2, Math.PI / 2 - rad, true);
-      curveShape.absarc(0, 0, rIn, Math.PI / 2 - rad, Math.PI / 2, false);
+      curveShape.absarc(0, 0, rOut, Math.PI / 2 + eps, Math.PI / 2 - rad - eps, true);
+      curveShape.absarc(0, 0, rIn, Math.PI / 2 - rad - eps, Math.PI / 2 + eps, false);
     }
     curveShape.closePath();
 
-    curveGeo = new THREE.ExtrudeGeometry(curveShape, { depth: ballastH, bevelEnabled: false });
+    curveGeo = new THREE.ExtrudeGeometry(curveShape, { depth: ballastH, bevelEnabled: false, curveSegments });
     curveGeo.rotateX(Math.PI / 2);
     curveGeo.translate(leadX, ballastH, dir * r);
     setBoundedGeoCache(_curvedBallastGeoCache, curveCacheKey, curveGeo);
@@ -143,25 +159,29 @@ export function getSharedCurvedDualRailGeometry(
   railY: number,
   leadX = 0,
 ): THREE.BufferGeometry {
-  const railCacheKey = `${Math.round(r * 10)}:${Math.round(gaugeHalf * 100)}:${Math.round(rad * 1000)}:${dir}:${leadX}:${railH}:${railW}`;
+  const railCacheKey = `${Math.round(r * 10)}:${Math.round(gaugeHalf * 100)}:${Math.round(rad * 10000)}:${dir}:${leadX}:${railH}:${railW}`;
   let dualCurvedGeo = _curvedDualRailGeoCache.get(railCacheKey);
   if (!dualCurvedGeo) {
+    const eps = getCurvedArcOverlap(r);
+    const curveSegments = getCurvedExtrudeSegments(rad);
     const railGeos: THREE.BufferGeometry[] = [];
     for (const offset of [-gaugeHalf, gaugeHalf]) {
       const railShape = new THREE.Shape();
       const rr = r + offset;
       if (dir === 1) {
-        railShape.absarc(0, 0, rr + railW / 2, -Math.PI / 2, -Math.PI / 2 + rad, false);
-        railShape.absarc(0, 0, rr - railW / 2, -Math.PI / 2 + rad, -Math.PI / 2, true);
+        railShape.absarc(0, 0, rr + railW / 2, -Math.PI / 2 - eps, -Math.PI / 2 + rad + eps, false);
+        railShape.absarc(0, 0, rr - railW / 2, -Math.PI / 2 + rad + eps, -Math.PI / 2 - eps, true);
       } else {
-        railShape.absarc(0, 0, rr + railW / 2, Math.PI / 2, Math.PI / 2 - rad, true);
-        railShape.absarc(0, 0, rr - railW / 2, Math.PI / 2 - rad, Math.PI / 2, false);
+        railShape.absarc(0, 0, rr + railW / 2, Math.PI / 2 + eps, Math.PI / 2 - rad - eps, true);
+        railShape.absarc(0, 0, rr - railW / 2, Math.PI / 2 - rad - eps, Math.PI / 2 + eps, false);
       }
       railShape.closePath();
 
-      const bRailGeo = new THREE.ExtrudeGeometry(railShape, { depth: railH, bevelEnabled: false });
+      const bRailGeo = new THREE.ExtrudeGeometry(railShape, { depth: railH, bevelEnabled: false, curveSegments });
       bRailGeo.rotateX(Math.PI / 2);
-      bRailGeo.translate(leadX, railY, dir * r);
+      // ExtrudeGeometry nach rotateX(PI/2) reicht von -railH bis 0; mit railY + railH/2
+      // liegen die Kurvenschienen exakt auf derselben Höhe wie gerade Schienen (oberhalb der Holzschwellen)
+      bRailGeo.translate(leadX, railY + railH / 2, dir * r);
       railGeos.push(bRailGeo);
     }
     dualCurvedGeo = BufferGeometryUtils.mergeGeometries(railGeos);
@@ -203,6 +223,7 @@ export function buildTrackPiece3D(
   colorMode: ColorMode,
   layerColor?: string,
   layout?: Layout,
+  mastCtx?: CatenaryMastContext,
 ) {
   const group = new THREE.Group();
   group.position.set(piece.transform.x, startElev, piece.transform.y);
@@ -226,7 +247,7 @@ export function buildTrackPiece3D(
   if (kind === "turntable") {
     buildTurntable3D(group, piece, entry, ballastColor);
     if (piece.hasCatenary) {
-      buildTurntableCatenary3D(group, piece, entry, layout);
+      buildTurntableCatenary3D(group, piece, entry, layout, mastCtx, startElev);
     }
     trackGroup.add(group);
     return;
@@ -234,7 +255,7 @@ export function buildTrackPiece3D(
   if (kind === "transfer-table") {
     buildTransferTable3D(group, piece, entry, ballastColor);
     if (piece.hasCatenary) {
-      buildTransferTableCatenary3D(group, piece, entry, layout);
+      buildTransferTableCatenary3D(group, piece, entry, layout, mastCtx, startElev);
     }
     trackGroup.add(group);
     return;
@@ -260,22 +281,37 @@ export function buildTrackPiece3D(
     len: number,
     startX = 0,
     isAccessory = false,
+    customHDiff = 0,
   ) => {
-    const ballastGeo = getSharedStraightBallastGeometry(len, ballastH, ballastW);
-    const ballastMesh = new THREE.Mesh(ballastGeo, ballastMat);
-    ballastMesh.position.set(startX + len / 2, ballastH / 2, 0);
+    const isSloped = Math.abs(customHDiff) > 0.01;
+    const pad = isSloped ? 0.4 : 0;
+
+    let ballastMesh: THREE.Mesh;
+    if (isSloped) {
+      const ballastGeo = new THREE.BoxGeometry(len + pad * 2, ballastH, ballastW);
+      ballastGeo.translate(startX + len / 2, ballastH / 2, 0);
+      applyStraightElevation(ballastGeo, len, customHDiff, startX);
+      ballastMesh = new THREE.Mesh(ballastGeo, ballastMat);
+    } else {
+      const ballastGeo = getSharedStraightBallastGeometry(len, ballastH, ballastW);
+      ballastMesh = new THREE.Mesh(ballastGeo, ballastMat);
+      ballastMesh.position.set(startX + len / 2, ballastH / 2, 0);
+    }
     ballastMesh.receiveShadow = true;
     ballastMesh.castShadow = true;
     targetGroup.add(ballastMesh);
 
     const tieStep = Math.max(3.5, (gauge / 16.5) * 6.5);
     const tieCount = Math.floor(len / tieStep);
+    const slopePitch = isSloped && len > 0.1 ? Math.atan2(customHDiff, len) : 0;
     if (tieCount > 0) {
       const tiesInstanced = new THREE.InstancedMesh(tieGeo, tieMat, tieCount);
       tiesInstanced.castShadow = false;
-      _tieDummy.rotation.set(0, 0, 0);
+      _tieDummy.rotation.set(0, 0, slopePitch);
       for (let i = 0; i < tieCount; i++) {
-        _tieDummy.position.set(startX + i * tieStep + tieStep / 2, ballastH + 1.1, 0);
+        const tx = startX + i * tieStep + tieStep / 2;
+        const u = len > 0 ? (tx - startX) / len : 0;
+        _tieDummy.position.set(tx, ballastH + 1.1 + (isSloped ? u * customHDiff : 0), 0);
         _tieDummy.updateMatrix();
         tiesInstanced.setMatrixAt(i, _tieDummy.matrix);
       }
@@ -283,9 +319,22 @@ export function buildTrackPiece3D(
       targetGroup.add(tiesInstanced);
     }
 
-    const dualRailGeo = getSharedStraightDualRailGeometry(len, railH, railW, gaugeHalf);
-    const railsMesh = new THREE.Mesh(dualRailGeo, railMat);
-    railsMesh.position.set(startX + len / 2, railY, 0);
+    let railsMesh: THREE.Mesh;
+    if (isSloped) {
+      const rL = new THREE.BoxGeometry(len + pad * 2, railH, railW);
+      rL.translate(startX + len / 2, railY, -gaugeHalf);
+      const rR = new THREE.BoxGeometry(len + pad * 2, railH, railW);
+      rR.translate(startX + len / 2, railY, gaugeHalf);
+      const dualRailGeo = BufferGeometryUtils.mergeGeometries([rL, rR]);
+      rL.dispose();
+      rR.dispose();
+      applyStraightElevation(dualRailGeo, len, customHDiff, startX);
+      railsMesh = new THREE.Mesh(dualRailGeo, railMat);
+    } else {
+      const dualRailGeo = getSharedStraightDualRailGeometry(len, railH, railW, gaugeHalf);
+      railsMesh = new THREE.Mesh(dualRailGeo, railMat);
+      railsMesh.position.set(startX + len / 2, railY, 0);
+    }
     targetGroup.add(railsMesh);
 
     if (isAccessory) {
@@ -298,14 +347,16 @@ export function buildTrackPiece3D(
 
       const endX = startX + len;
       const backOffset = 15 * scale;
-      bufferGroup.position.set(endX - backOffset, ballastH + 2.2, 0);
+      const bx = endX - backOffset;
+      const bu = len > 0 ? (bx - startX) / len : 1;
+      bufferGroup.position.set(bx, ballastH + 2.2 + (isSloped ? bu * customHDiff : 0), 0);
 
       const isIlluminated =
         /beleuchtet|illuminat/i.test(entry.name || "") ||
         /beleuchtet|illuminat/i.test(entry.description || "");
       if (isIlluminated) {
         bufferGroup.traverse((obj) => {
-          if (obj instanceof THREE.Mesh && obj.geometry instanceof THREE.CylinderGeometry) {
+          if (obj instanceof THREE.Mesh && obj.userData.isBufferSignal) {
             obj.material = SHARED_BUFFER_LAMP_MAT;
           }
         });
@@ -339,18 +390,20 @@ export function buildTrackPiece3D(
     } else {
       const rIn = r - ballastW / 2;
       const rOut = r + ballastW / 2;
+      const eps = getCurvedArcOverlap(r);
+      const curveSegments = getCurvedExtrudeSegments(rad);
 
       const curveShape = new THREE.Shape();
       if (dir === 1) {
-        curveShape.absarc(0, 0, rOut, -Math.PI / 2, -Math.PI / 2 + rad, false);
-        curveShape.absarc(0, 0, rIn, -Math.PI / 2 + rad, -Math.PI / 2, true);
+        curveShape.absarc(0, 0, rOut, -Math.PI / 2 - eps, -Math.PI / 2 + rad + eps, false);
+        curveShape.absarc(0, 0, rIn, -Math.PI / 2 + rad + eps, -Math.PI / 2 - eps, true);
       } else {
-        curveShape.absarc(0, 0, rOut, Math.PI / 2, Math.PI / 2 - rad, true);
-        curveShape.absarc(0, 0, rIn, Math.PI / 2 - rad, Math.PI / 2, false);
+        curveShape.absarc(0, 0, rOut, Math.PI / 2 + eps, Math.PI / 2 - rad - eps, true);
+        curveShape.absarc(0, 0, rIn, Math.PI / 2 - rad - eps, Math.PI / 2 + eps, false);
       }
       curveShape.closePath();
 
-      curveGeo = new THREE.ExtrudeGeometry(curveShape, { depth: ballastH, bevelEnabled: false });
+      curveGeo = new THREE.ExtrudeGeometry(curveShape, { depth: ballastH, bevelEnabled: false, curveSegments });
       curveGeo.rotateX(Math.PI / 2);
       curveGeo.translate(leadX, ballastH, dir * r);
       applyCurveElevation(curveGeo, r, rad, customHDiff, dir, leadX);
@@ -365,22 +418,24 @@ export function buildTrackPiece3D(
     if (isFlat) {
       dualCurvedGeo = getSharedCurvedDualRailGeometry(r, rad, dir, gaugeHalf, railH, railW, railY, leadX);
     } else {
+      const eps = getCurvedArcOverlap(r);
+      const curveSegments = getCurvedExtrudeSegments(rad);
       const railGeos: THREE.BufferGeometry[] = [];
       for (const offset of [-gaugeHalf, gaugeHalf]) {
         const railShape = new THREE.Shape();
         const rr = r + offset;
         if (dir === 1) {
-          railShape.absarc(0, 0, rr + railW / 2, -Math.PI / 2, -Math.PI / 2 + rad, false);
-          railShape.absarc(0, 0, rr - railW / 2, -Math.PI / 2 + rad, -Math.PI / 2, true);
+          railShape.absarc(0, 0, rr + railW / 2, -Math.PI / 2 - eps, -Math.PI / 2 + rad + eps, false);
+          railShape.absarc(0, 0, rr - railW / 2, -Math.PI / 2 + rad + eps, -Math.PI / 2 - eps, true);
         } else {
-          railShape.absarc(0, 0, rr + railW / 2, Math.PI / 2, Math.PI / 2 - rad, true);
-          railShape.absarc(0, 0, rr - railW / 2, Math.PI / 2 - rad, Math.PI / 2, false);
+          railShape.absarc(0, 0, rr + railW / 2, Math.PI / 2 + eps, Math.PI / 2 - rad - eps, true);
+          railShape.absarc(0, 0, rr - railW / 2, Math.PI / 2 - rad - eps, Math.PI / 2 + eps, false);
         }
         railShape.closePath();
 
-        const bRailGeo = new THREE.ExtrudeGeometry(railShape, { depth: railH, bevelEnabled: false });
+        const bRailGeo = new THREE.ExtrudeGeometry(railShape, { depth: railH, bevelEnabled: false, curveSegments });
         bRailGeo.rotateX(Math.PI / 2);
-        bRailGeo.translate(leadX, railY, dir * r);
+        bRailGeo.translate(leadX, railY + railH / 2, dir * r);
         applyCurveElevation(bRailGeo, r, rad, customHDiff, dir, leadX);
         railGeos.push(bRailGeo);
       }
@@ -394,8 +449,10 @@ export function buildTrackPiece3D(
     const arcLen = r * rad;
     const tieStep = Math.max(3.5, (gauge / 16.5) * 6.5);
     const tieCount = Math.max(3, Math.floor(arcLen / tieStep));
+    const slopePitch = Math.abs(customHDiff) > 0.01 && arcLen > 0.1 ? Math.atan2(customHDiff, arcLen) : 0;
     const tiesInstanced = new THREE.InstancedMesh(tieGeo, tieMat, tieCount);
     tiesInstanced.castShadow = false;
+    _tieDummy.rotation.order = "YXZ";
     for (let i = 0; i < tieCount; i++) {
       const u = (i + 0.5) / tieCount;
       const phi = u * rad;
@@ -404,10 +461,11 @@ export function buildTrackPiece3D(
       const ty = ballastH + 1.1 + u * customHDiff;
 
       _tieDummy.position.set(tx, ty, tz);
-      _tieDummy.rotation.set(0, -dir * phi, 0);
+      _tieDummy.rotation.set(0, -dir * phi, slopePitch);
       _tieDummy.updateMatrix();
       tiesInstanced.setMatrixAt(i, _tieDummy.matrix);
     }
+    _tieDummy.rotation.order = "XYZ";
     tiesInstanced.instanceMatrix.needsUpdate = true;
     targetGroup.add(tiesInstanced);
   };
@@ -488,12 +546,7 @@ export function buildTrackPiece3D(
     addSplineSection(group, entry.customOffsets, heightDiff);
   } else if (isStraightTrackEntry(entry)) {
     const len = entry.length ?? (kind === "flex" ? 900 : 188.3);
-    const straightGroup = new THREE.Group();
-    if (Math.abs(heightDiff) > 0.01) {
-      straightGroup.rotation.z = Math.atan2(heightDiff, len);
-    }
-    addStraightSection(straightGroup, len, 0, isBufferStop);
-    group.add(straightGroup);
+    addStraightSection(group, len, 0, isBufferStop, heightDiff);
   } else if (isCurvedTrackEntry(entry)) {
     const r = entry.radius ?? 437.5;
     const a = entry.angle ?? 30;
@@ -527,28 +580,16 @@ export function buildTrackPiece3D(
     const ba = entry.branchAngle ?? 24.3;
     const dir: 1 | -1 = kind === "turnout-left" ? -1 : 1;
 
-    const turnoutGroup = new THREE.Group();
-    if (Math.abs(heightDiff) > 0.01) {
-      turnoutGroup.rotation.z = Math.atan2(heightDiff, len);
-    }
-
-    addStraightSection(turnoutGroup, len, 0, false);
-    addCurvedSection(turnoutGroup, br, ba, dir, 0, heightDiff);
-    group.add(turnoutGroup);
+    addStraightSection(group, len, 0, false, heightDiff);
+    addCurvedSection(group, br, ba, dir, 0, heightDiff);
   } else if (kind === "three-way") {
     const len = entry.length ?? 188.3;
     const br = entry.branchRadius ?? 437.5;
     const ba = entry.branchAngle ?? 24.3;
 
-    const threeWayGroup = new THREE.Group();
-    if (Math.abs(heightDiff) > 0.01) {
-      threeWayGroup.rotation.z = Math.atan2(heightDiff, len);
-    }
-
-    addStraightSection(threeWayGroup, len, 0, false);
-    addCurvedSection(threeWayGroup, br, ba, -1, 0, heightDiff);
-    addCurvedSection(threeWayGroup, br, ba, 1, 0, heightDiff);
-    group.add(threeWayGroup);
+    addStraightSection(group, len, 0, false, heightDiff);
+    addCurvedSection(group, br, ba, -1, 0, heightDiff);
+    addCurvedSection(group, br, ba, 1, 0, heightDiff);
   } else if (kind === "crossing") {
     const len = entry.length ?? 188.3;
     const a = entry.angle ?? 24.3;
@@ -611,7 +652,7 @@ export function buildTrackPiece3D(
   }
 
   if (piece.hasCatenary) {
-    buildCatenary3D(group, entry, startElev, endElev, piece);
+    buildCatenary3D(group, entry, startElev, endElev, piece, mastCtx);
   }
 
   if (piece.hasLantern || piece.hasDecoder) {
@@ -652,6 +693,9 @@ export function buildAllTracks3D(
   layout?: Layout,
 ) {
   if (items.length === 0) return;
+
+  // Globaler Mast-Kontext zur Vermeidung doppelter Masten & Mastkollisionen auf Weichen/Nebengleisen
+  const mastCtx = items.some((it) => it.piece.hasCatenary) ? new CatenaryMastContext(items) : undefined;
 
   const straightGroups = new Map<string, TrackBuildItem[]>();
   const curvedGroups = new Map<string, TrackBuildItem[]>();
@@ -780,7 +824,7 @@ export function buildAllTracks3D(
         accGroup.position.set(it.piece.transform.x, it.startElev, it.piece.transform.y);
         accGroup.rotation.y = -deg2rad(it.piece.transform.rotation);
         if (it.piece.hasCatenary) {
-          buildCatenary3D(accGroup, it.entry, it.startElev, it.endElev, it.piece);
+          buildCatenary3D(accGroup, it.entry, it.startElev, it.endElev, it.piece, mastCtx);
         }
         if (it.piece.hasLantern || it.piece.hasDecoder) {
           buildTurnoutAccessories3D(accGroup, it.entry, it.piece);
@@ -877,7 +921,7 @@ export function buildAllTracks3D(
         accGroup.position.set(it.piece.transform.x, it.startElev, it.piece.transform.y);
         accGroup.rotation.y = -deg2rad(it.piece.transform.rotation);
         if (it.piece.hasCatenary) {
-          buildCatenary3D(accGroup, it.entry, it.startElev, it.endElev, it.piece);
+          buildCatenary3D(accGroup, it.entry, it.startElev, it.endElev, it.piece, mastCtx);
         }
         if (it.piece.hasLantern || it.piece.hasDecoder) {
           buildTurnoutAccessories3D(accGroup, it.entry, it.piece);
@@ -912,8 +956,12 @@ export function buildAllTracks3D(
       item.colorMode,
       item.layerColor,
       layout,
+      mastCtx,
     );
   }
+
+  // 4. Alle Oberleitungen (Drähte, Hänger, Masten) als ~7-9 globale InstancedMeshes ausgeben
+  mastCtx?.flush(trackGroup);
 }
 
 /**

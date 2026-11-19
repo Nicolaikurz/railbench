@@ -1,5 +1,7 @@
 import * as THREE from "three";
-import { Model3D } from "@/core/types";
+import { Layout, Model3D } from "@/core/types";
+import { deg2rad } from "@/core/geometry";
+import { collectTerrainSupportPolygons, isPointInAnyPolygon } from "./ground-terrain";
 import {
   TunnelProfile,
   MountainTrackCollision,
@@ -270,13 +272,16 @@ interface PreparedCollisionCorridor {
 export function buildMountain3D(
   group: THREE.Group,
   model?: Model3D,
-  collisionsOrData?: MountainTrackCollision[] | { collisions?: MountainTrackCollision[]; allMountains?: Model3D[] },
+  collisionsOrData?:
+    | MountainTrackCollision[]
+    | { collisions?: MountainTrackCollision[]; allMountains?: Model3D[]; layout?: Layout },
   allMountainsArg?: Model3D[],
 ): void {
   const collisions = Array.isArray(collisionsOrData)
     ? collisionsOrData
     : collisionsOrData?.collisions;
   const allMountains = allMountainsArg ?? (!Array.isArray(collisionsOrData) ? collisionsOrData?.allMountains : undefined);
+  const layout = !Array.isArray(collisionsOrData) ? collisionsOrData?.layout : undefined;
   const width = model?.width ?? 600;
   const depth = model?.depth ?? 450;
   const height = model?.height ?? 220;
@@ -350,12 +355,32 @@ export function buildMountain3D(
   const positions: number[] = [];
   const colors: number[] = [];
   const indices: number[] = [];
+  const insideSupport: boolean[] = [];
+
+  const supportPolys = collectTerrainSupportPolygons(layout, model?.layerId);
+  const clipToSupport = supportPolys.length > 0 && !!model;
+  const mRotRad = deg2rad(model?.transform.rotation ?? 0);
+  const mCos = Math.cos(mRotRad);
+  const mSin = Math.sin(mRotRad);
+  const mOriginX = model?.transform.x ?? 0;
+  const mOriginZ = model?.transform.y ?? 0;
 
   for (let iz = 0; iz <= segsZ; iz++) {
     const lz = (iz / segsZ - 0.5) * depth;
 
     for (let ix = 0; ix <= segsX; ix++) {
       const lx = (ix / segsX - 0.5) * width;
+
+      const wx = mOriginX + (lx * mCos - lz * mSin);
+      const wz = mOriginZ + (lx * mSin + lz * mCos);
+      const inBounds = !clipToSupport || isPointInAnyPolygon(wx, wz, supportPolys);
+      insideSupport.push(inBounds);
+
+      if (!inBounds) {
+        positions.push(lx, 0, lz);
+        pushMountainVertexColor(colors, 0, model?.mountainStyle);
+        continue;
+      }
 
       const evalRes = evaluateMountainLocal(lx, lz, model);
       const rDist = evalRes.normR;
@@ -461,18 +486,45 @@ export function buildMountain3D(
       const i2 = (iz + 1) * (segsX + 1) + ix;
       const i3 = i2 + 1;
 
+      const y0 = positions[i0 * 3 + 1]!;
+      const y1 = positions[i1 * 3 + 1]!;
+      const y2 = positions[i2 * 3 + 1]!;
+      const y3 = positions[i3 * 3 + 1]!;
+
+      // Flache grüne Bodenplatten-Quads außerhalb des Bergfußes (y ≈ 0 an allen 4 Ecken)
+      // vollständig auslassen, damit keine ebene Platte über Drehscheiben-Gruben o. ä. liegt
+      if (y0 <= 0.1 && y1 <= 0.1 && y2 <= 0.1 && y3 <= 0.1) {
+        continue;
+      }
+
       if (
         isEntranceCurtainQuad(
-          positions[i0 * 3]!, positions[i0 * 3 + 2]!, positions[i0 * 3 + 1]!,
-          positions[i1 * 3]!, positions[i1 * 3 + 2]!, positions[i1 * 3 + 1]!,
-          positions[i2 * 3]!, positions[i2 * 3 + 2]!, positions[i2 * 3 + 1]!,
-          positions[i3 * 3]!, positions[i3 * 3 + 2]!, positions[i3 * 3 + 1]!,
+          positions[i0 * 3]!, positions[i0 * 3 + 2]!, y0,
+          positions[i1 * 3]!, positions[i1 * 3 + 2]!, y1,
+          positions[i2 * 3]!, positions[i2 * 3 + 2]!, y2,
+          positions[i3 * 3]!, positions[i3 * 3 + 2]!, y3,
         )
       ) {
         continue;
       }
 
-      indices.push(i0, i2, i1, i1, i2, i3);
+      // Nur Dreiecke mit tatsächlicher Berghöhe innerhalb der Tisch-/Plattenfläche ausgeben
+      if (
+        (y0 > 0.1 || y2 > 0.1 || y1 > 0.1) &&
+        insideSupport[i0] &&
+        insideSupport[i2] &&
+        insideSupport[i1]
+      ) {
+        indices.push(i0, i2, i1);
+      }
+      if (
+        (y1 > 0.1 || y2 > 0.1 || y3 > 0.1) &&
+        insideSupport[i1] &&
+        insideSupport[i2] &&
+        insideSupport[i3]
+      ) {
+        indices.push(i1, i2, i3);
+      }
     }
   }
 
@@ -487,13 +539,20 @@ export function buildMountain3D(
   mountainMesh.receiveShadow = true;
   mountainGroup.add(mountainMesh);
 
-  // 2. Portale (nur nicht-überlappte Portale am echten Gebirgsrand zeichnen)
+  // 2. Portale (nur nicht-überlappte Portale am echten Gebirgsrand zeichnen, exakt auf Gleishöhe)
+  const mountainYOffset = mountainGroup.position.y;
   for (const po of allPortals) {
     if (po.suppressedByOverlap) continue;
-    buildPortal(mountainGroup, po.prof, po.at, po.dir, stonePortalMat);
+    buildPortal(
+      mountainGroup,
+      po.prof,
+      { lx: po.at.lx, lz: po.at.lz, elev: po.at.elev - mountainYOffset },
+      po.dir,
+      stonePortalMat,
+    );
   }
 
-  // 3. Tunnelröhren
+  // 3. Tunnelröhren (exakt auf Gleishöhe)
   for (const tr of tunnelRuns) {
     let pts = tr.pts;
     // Bei unterdrücktem Portal an einer Berg-Überlappung Röhre leicht verlängern, damit kein Spalt entsteht
@@ -507,7 +566,7 @@ export function buildMountain3D(
       const d = tr.endPortal.dir;
       pts = [...pts, { lx: pN.lx - d.x * 35, lz: pN.lz - d.z * 35, elev: pN.elev, normR: pN.normR }];
     }
-    const path = pts.map((p) => new THREE.Vector3(p.lx, p.elev + PORTAL_LIFT, p.lz));
+    const path = pts.map((p) => new THREE.Vector3(p.lx, p.elev - mountainYOffset + PORTAL_LIFT, p.lz));
     const tube = buildTunnelSweep(path, tr.prof, tunnelLiningMat);
     if (tube) mountainGroup.add(tube);
   }

@@ -1,5 +1,6 @@
 import type { Layout, TrackPiece, Model3D, Transform, SignalSide, SignalDirection } from "@/core/types";
 import { createLayout } from "@/core/layout";
+import { ICONS } from "@/ui/icons";
 import {
   computeWorldConnectors,
   getLocalConnectors,
@@ -385,7 +386,7 @@ export class TrackOperations {
     const isDe = getLanguage() === "de";
     this.ctx.showToast(
       isDe ? `Gleis ${entry.name || entry.id} hinzugefügt` : `Added track ${entry.name || entry.id}`,
-      "➕"
+      ICONS.plus
     );
 
     return piece;

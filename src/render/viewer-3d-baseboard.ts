@@ -36,9 +36,12 @@ export function buildBaseboard3D(
   const polygon = getBaseboardPolygon(config);
   if (polygon.length < 3) return;
 
-  // 1. Zargenrahmen / Unterbau um den Umfang des Tisches
-  const frameH = 45;
-  const frameThick = 20;
+  const bevelThickness = 1.5;
+  const depth = plateThickness ?? 15;
+
+  // 1. Zargenrahmen / Unterbau um den Umfang des Tisches (kompakt für volle H0-Oberleitungs-Durchfahrtshöhe unter 120 mm)
+  const frameH = Math.max(depth + bevelThickness * 2 + 4, 22);
+  const frameThick = 16;
   const frameMat = new THREE.MeshStandardMaterial({
     color: 0x8c6d48,
     roughness: 0.78,
@@ -55,7 +58,7 @@ export function buildBaseboard3D(
 
     const frameGeo = new THREE.BoxGeometry(len, frameH, frameThick);
     const frameMesh = new THREE.Mesh(frameGeo, frameMat);
-    frameMesh.position.set((p1.x + p2.x) / 2, -frameH / 2, (p1.y + p2.y) / 2);
+    frameMesh.position.set((p1.x + p2.x) / 2, -frameH / 2 - 2, (p1.y + p2.y) / 2);
     frameMesh.rotation.y = -Math.atan2(dy, dx);
     frameMesh.castShadow = true;
     frameMesh.receiveShadow = true;
@@ -67,14 +70,14 @@ export function buildBaseboard3D(
   const legGeo = new THREE.CylinderGeometry(legRadius, legRadius, 720, 16);
   const legMat = new THREE.MeshStandardMaterial({ color: 0x27272a, roughness: 0.4, metalness: 0.7 });
 
-  const trackCutouts = layout && catalog ? computeTableTrackCutouts(layout, catalog, config) : [];
+  const trackCutouts = layout && catalog ? computeTableTrackCutouts(layout, catalog, config, 0, depth) : [];
   const legPositions = computeBaseboardLegPositions(config, legRadius, 45);
   for (const pt of legPositions) {
     if (trackCutouts.length > 0 && isPointInsideCutout(pt, trackCutouts, legRadius + 15)) {
       continue;
     }
     const leg = new THREE.Mesh(legGeo, legMat);
-    leg.position.set(pt.x, -360 - 35 - 2.5, pt.y);
+    leg.position.set(pt.x, -360 - depth - bevelThickness, pt.y);
     leg.castShadow = true;
     leg.receiveShadow = true;
     tableGroup.add(leg);
@@ -172,14 +175,12 @@ export function buildBaseboard3D(
     shape.holes.push(holePath);
   }
 
-  const bevelThickness = 2.0;
-  const depth = plateThickness ?? 35;
   const extrudeSettings: THREE.ExtrudeGeometryOptions = {
     depth,
     bevelEnabled: true,
     bevelSegments: 2,
     steps: 1,
-    bevelSize: 2.0,
+    bevelSize: 1.5,
     bevelThickness,
   };
 
@@ -273,14 +274,17 @@ export function buildLayerDeckPlate3D(
   if (Math.abs(layerH) >= 20) {
     const riserRadius = 12;
     const riserPositions = computeBaseboardLegPositions(config, riserRadius, 55);
-    const riserHeight = Math.abs(layerH);
+    // Stützen leicht verkürzen, damit sie sauber unter der Tisch-/Plattenoberseite enden (kein Z-Fighting)
+    const topY = layerH > 0 ? layerH - depth - 2 : -10;
+    const botY = layerH > 0 ? -2 : layerH - 2;
+    const riserHeight = Math.max(4, topY - botY);
+    const midY = (topY + botY) / 2;
     const riserGeo = new THREE.CylinderGeometry(riserRadius, riserRadius, riserHeight, 12);
     const riserMat = new THREE.MeshStandardMaterial({ color: 0x8c6d48, roughness: 0.8, metalness: 0.05 });
 
     for (const pt of riserPositions) {
       if (cutouts.length > 0 && isPointInsideCutout(pt, cutouts, riserRadius + 15)) continue;
       const riser = new THREE.Mesh(riserGeo, riserMat);
-      const midY = layerH > 0 ? layerH / 2 - depth / 2 : layerH / 2;
       riser.position.set(pt.x, midY, pt.y);
       riser.castShadow = true;
       riser.receiveShadow = true;
@@ -392,14 +396,17 @@ export function buildCustomLayerPlate3D(
   if (Math.abs(layerH) >= 20) {
     const riserRadius = 12;
     const riserPositions = computeBaseboardLegPositions(dummyConfig, riserRadius, 55);
-    const riserHeight = Math.abs(layerH);
+    // Stützen leicht verkürzen, damit sie sauber unter der Tisch-/Plattenoberseite enden (kein Z-Fighting)
+    const topY = layerH > 0 ? layerH - thickness - 2 : -10;
+    const botY = layerH > 0 ? -2 : layerH - 2;
+    const riserHeight = Math.max(4, topY - botY);
+    const midY = (topY + botY) / 2;
     const riserGeo = new THREE.CylinderGeometry(riserRadius, riserRadius, riserHeight, 12);
     const riserMat = new THREE.MeshStandardMaterial({ color: 0x8c6d48, roughness: 0.8, metalness: 0.05 });
 
     for (const pt of riserPositions) {
       if (cutouts.length > 0 && isPointInsideCutout(pt, cutouts, riserRadius + 15)) continue;
       const riser = new THREE.Mesh(riserGeo, riserMat);
-      const midY = layerH > 0 ? layerH / 2 - thickness / 2 : layerH / 2;
       riser.position.set(pt.x, midY, pt.y);
       riser.castShadow = true;
       riser.receiveShadow = true;

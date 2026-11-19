@@ -6,6 +6,7 @@ import { isFlexTrack } from "@/core/flextrack";
 import { AddPieceCommand, AddPiecesCommand } from "@/editor/commands";
 import { deg2rad } from "@/core/geometry";
 import { getLanguage } from "@/i18n";
+import { ICONS } from "@/ui/icons";
 
 interface TrackClipboardData {
   pieces: TrackPiece[];
@@ -56,7 +57,7 @@ export function copySelected(ctx: EditorContext): boolean {
     const itemLabel = isDe
       ? `${total} Element${total === 1 ? "" : "e"}`
       : `${total} item${total === 1 ? "" : "s"}`;
-    ctx.showToast(isDe ? `${itemLabel} in Zwischenablage kopiert (Strg+C)` : `${itemLabel} copied to clipboard (Ctrl+C)`, "📋");
+    ctx.showToast(isDe ? `${itemLabel} in Zwischenablage kopiert (Strg+C)` : `${itemLabel} copied to clipboard (Ctrl+C)`, ICONS.clipboard);
     return true;
   }
   return false;
@@ -81,7 +82,7 @@ export function pasteClipboard(
 
   if (!trackClipboard || (trackClipboard.pieces.length === 0 && trackClipboard.models.length === 0)) {
     const isDe = getLanguage() === "de";
-    ctx.showToast(isDe ? "Zwischenablage ist leer" : "Clipboard is empty", "⚠️");
+    ctx.showToast(isDe ? "Zwischenablage ist leer" : "Clipboard is empty", ICONS.alertTriangle);
     return false;
   }
 
@@ -152,7 +153,7 @@ export function pasteClipboard(
     const itemLabel = isDe
       ? `${total} Element${total === 1 ? "" : "e"}`
       : `${total} item${total === 1 ? "" : "s"}`;
-    ctx.showToast(isDe ? `${itemLabel} eingefügt (Strg+V)` : `${itemLabel} pasted (Ctrl+V)`, "📥");
+    ctx.showToast(isDe ? `${itemLabel} eingefügt (Strg+V)` : `${itemLabel} pasted (Ctrl+V)`, ICONS.paste);
     return true;
   }
   return false;
@@ -166,7 +167,7 @@ export function duplicateSelected(
   const selectedIds = selection.all();
   if (selectedIds.length === 0) {
     const isDe = getLanguage() === "de";
-    ctx.showToast(isDe ? "Keine Gleise zum Duplizieren markiert" : "No tracks selected to duplicate", "⚠️");
+    ctx.showToast(isDe ? "Keine Gleise zum Duplizieren markiert" : "No tracks selected to duplicate", ICONS.alertTriangle);
     return;
   }
   copySelected(ctx);
@@ -203,7 +204,7 @@ export function selectConnectedTracks(ctx: EditorContext, startPieceId?: string)
   }
   ctx.sync();
   const isDe = getLanguage() === "de";
-  ctx.showToast(isDe ? `${visited.size} verbundene Gleise ausgewählt` : `Selected ${visited.size} connected tracks`, "🔗");
+  ctx.showToast(isDe ? `${visited.size} verbundene Gleise ausgewählt` : `Selected ${visited.size} connected tracks`, ICONS.link);
 }
 
 export function selectLayerTracks(ctx: EditorContext, layerId?: string): void {
@@ -231,7 +232,7 @@ export function selectLayerTracks(ctx: EditorContext, layerId?: string): void {
   const layer = layout.layers?.find((l) => l.id === targetLayerId);
   const layerName = layer?.name || targetLayerId;
   const isDe = getLanguage() === "de";
-  ctx.showToast(isDe ? `${count} Gleise auf Ebene "${layerName}" ausgewählt` : `Selected ${count} tracks on layer "${layerName}"`, "📑");
+  ctx.showToast(isDe ? `${count} Gleise auf Ebene "${layerName}" ausgewählt` : `Selected ${count} tracks on layer "${layerName}"`, ICONS.list);
 }
 
 export function toggleGroupSelected(ctx: EditorContext): void {
@@ -240,7 +241,7 @@ export function toggleGroupSelected(ctx: EditorContext): void {
   const selectedIds = selection.all();
   if (selectedIds.length < 2) {
     const isDe = getLanguage() === "de";
-    ctx.showToast(isDe ? "Mindestens 2 Gleise zum Gruppieren markieren" : "Select at least 2 tracks to group", "⚠️");
+    ctx.showToast(isDe ? "Mindestens 2 Gleise zum Gruppieren markieren" : "Select at least 2 tracks to group", ICONS.alertTriangle);
     return;
   }
 
@@ -253,13 +254,13 @@ export function toggleGroupSelected(ctx: EditorContext): void {
     for (const p of selectedPieces) {
       delete p.groupId;
     }
-    ctx.showToast(isDe ? "Gruppierung aufgehoben" : "Tracks ungrouped", "🗂");
+    ctx.showToast(isDe ? "Gruppierung aufgehoben" : "Tracks ungrouped", ICONS.group);
   } else {
     const newGroupId = `group-${Date.now()}`;
     for (const p of selectedPieces) {
       p.groupId = newGroupId;
     }
-    ctx.showToast(isDe ? `${selectedPieces.length} Gleise gruppiert` : `Grouped ${selectedPieces.length} tracks`, "🗂");
+    ctx.showToast(isDe ? `${selectedPieces.length} Gleise gruppiert` : `Grouped ${selectedPieces.length} tracks`, ICONS.group);
   }
   ctx.sync(true);
 }
@@ -283,7 +284,7 @@ export function splitTrack(
     const curLen = piece.customLength ?? entry.length ?? 900;
     const half = Math.round(curLen / 2);
     adjustFlexTrack(pieceId, half);
-    ctx.showToast(isDe ? `Flexgleis bei ${half} mm geteilt` : `Flex track split at ${half} mm`, "✂");
+    ctx.showToast(isDe ? `Flexgleis bei ${half} mm geteilt` : `Flex track split at ${half} mm`, ICONS.scissors);
     return true;
   }
 
@@ -320,13 +321,13 @@ export function splitTrack(
       isDe
         ? `Gleis geteilt in 2× #${halfCandidate.id} (${halfCandidate.length} mm)`
         : `Split track into 2× #${halfCandidate.id} (${halfCandidate.length} mm)`,
-      "✂",
+      ICONS.scissors,
     );
     return true;
   } else {
     ctx.showToast(
       isDe ? "Kein passendes Teilgleis im Katalog gefunden" : "No matching half-track found in catalog",
-      "⚠️",
+      ICONS.alertTriangle,
     );
     return false;
   }
@@ -344,6 +345,6 @@ export function replaceTrack(ctx: EditorContext, pieceId: string, newCatalogId: 
   updatePieceConnections(layout.pieces, layout.layers);
   ctx.sync(true);
   const isDe = getLanguage() === "de";
-  ctx.showToast(isDe ? `Gleis ersetzt durch #${newCatalogId}` : `Replaced track with #${newCatalogId}`, "✂");
+  ctx.showToast(isDe ? `Gleis ersetzt durch #${newCatalogId}` : `Replaced track with #${newCatalogId}`, ICONS.refresh);
   return true;
 }

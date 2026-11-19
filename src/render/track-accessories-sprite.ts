@@ -14,7 +14,6 @@ import { drawTrackCenterline } from "./track-rails-draw";
 
 const FEEDER_MARKER_TEXT_ACTIVE = new TextStyle({ fontSize: 13, fill: 0x1e293b, fontWeight: "bold" });
 const FEEDER_MARKER_TEXT_GREY = new TextStyle({ fontSize: 13, fill: 0xe2e8f0, fontWeight: "bold" });
-const BRIDGE_ICON_TEXT_STYLE = new TextStyle({ fontSize: 7, fill: 0xffffff });
 const SIGNAL_TEXT_STYLE = new TextStyle({
   fontSize: 4,
   fontWeight: "bold",
@@ -148,12 +147,57 @@ export function drawIsolatorMarker(parent: Container, entry: CatalogEntry, isoId
   parent.addChild(marker);
 }
 
+/**
+ * Verhindert doppelte Oberleitungsmasten in der 2D-Ansicht an derselben Weltposition
+ * (z. B. an verbundenen Gleisübergängen, Weichen oder Drehscheiben-Anschlüssen).
+ */
+export class CatenaryMast2DContext {
+  private static readonly CELL = 60;
+  private placedGrid = new Map<string, Array<{ x: number; y: number }>>();
+
+  tryClaimMast(piece: TrackPiece, localX: number, localY: number, tol = 35): boolean {
+    const rad = deg2rad(piece.transform.rotation);
+    const cos = Math.cos(rad);
+    const sin = Math.sin(rad);
+    const wx = piece.transform.x + localX * cos - localY * sin;
+    const wy = piece.transform.y + localX * sin + localY * cos;
+
+    const cx = Math.floor(wx / CatenaryMast2DContext.CELL);
+    const cy = Math.floor(wy / CatenaryMast2DContext.CELL);
+    const tolSq = tol * tol;
+
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        const list = this.placedGrid.get(`${cx + dx}:${cy + dy}`);
+        if (!list) continue;
+        for (const p of list) {
+          const ddx = p.x - wx;
+          const ddy = p.y - wy;
+          if (ddx * ddx + ddy * ddy <= tolSq) {
+            return false;
+          }
+        }
+      }
+    }
+
+    const key = `${cx}:${cy}`;
+    let bucket = this.placedGrid.get(key);
+    if (!bucket) {
+      bucket = [];
+      this.placedGrid.set(key, bucket);
+    }
+    bucket.push({ x: wx, y: wy });
+    return true;
+  }
+}
+
 export function drawCatenary2D(
   parent: Container,
   entry: CatalogEntry,
   powerResult?: PiecePowerResult,
   piece?: TrackPiece,
   allPieces?: TrackPiece[],
+  mastCtx?: CatenaryMast2DContext,
 ): void {
   const g = new Graphics();
   let wireColor = 0x0ea5e9; // Leuchtendes Cyan / Fahrdraht-Blau
@@ -181,7 +225,11 @@ export function drawCatenary2D(
   const insulatorColor = 0xb45309; // Bernstein / Keramik-Isolator
 
   // Streckenmasten mit Auslegern
-  const drawMast = (x: number, y: number, angleRad: number, side: 1 | -1 = 1) => {
+  const drawMast = (x: number, y: number, angleRad: number, side: 1 | -1 = 1, deduplicate = true) => {
+    if (deduplicate && mastCtx && piece && !mastCtx.tryClaimMast(piece, x, y)) {
+      return;
+    }
+
     const mastDist = Math.max(22, (entry.gauge ?? 16.5) * 1.15) * side;
     const sin = Math.sin(angleRad);
     const cos = Math.cos(angleRad);
@@ -213,39 +261,65 @@ export function drawCatenary2D(
 
   const kind = entry.kind;
 
-  // 1. DREHSCHEIBE: Fahrdraht über die Bühne + NUR an den Snappoints mit angeschlossenem Oberleitungsgleis
+  // 1. DREHSCHEIBE: Zentrale Oberleitungsspinne (analog zur 3D-Ansicht)
+  // Keine Oberleitung auf der drehenden Bühne, sondern zentraler Ring + alle 30 radialen Fahrdrähte & Außenrand-Halter
   if (kind === "turntable") {
-    const bridgeHalf = 131.5;
-    // Fahrdraht über die Drehscheibenbühne
-    g.moveTo(-bridgeHalf, 0).lineTo(bridgeHalf, 0);
+    const outerR = entry.radius ?? 189;
+    const outerHolderR = outerR - 4;
+    const spiderRingR = 18;
+    const postOffset = 13.0;
+
+    const localConns = entry.localConnectors || [];
+    const slotAngles: number[] =
+      localConns.length > 0
+        ? localConns.map((c) => c.angle)
+        : Array.from({ length: 30 }, (_, i) => i * 12);
+
+    // 1. Alle 30 radialen Fahrdrähte vom zentralen Spinnenring bis zum Außenende der Drehscheibe
+    for (const angleDeg of slotAngles) {
+      const rad = deg2rad(angleDeg);
+      const cos = Math.cos(rad);
+      const sin = Math.sin(rad);
+      g.moveTo(spiderRingR * cos, spiderRingR * sin).lineTo(outerR * cos, outerR * sin);
+    }
     g.stroke({ width: wireWidth, color: wireColor, alpha: wireAlpha });
 
-    // Masten an den beiden Bühnenenden
-    drawMast(-bridgeHalf, 0, Math.PI, 1);
-    drawMast(bridgeHalf, 0, 0, 1);
+    // 2. Außenrand-Halter (Portale bei r = outerR - 4) für alle 30 Anschlüsse
+    for (const angleDeg of slotAngles) {
+      const rad = deg2rad(angleDeg);
+      const cos = Math.cos(rad);
+      const sin = Math.sin(rad);
+      const nx = -sin;
+      const ny = cos;
+      const hx = outerHolderR * cos;
+      const hy = outerHolderR * sin;
 
-    // Snappoints am Grubenrand: NUR rendern, wenn ein Gleis mit Oberleitung angeschlossen ist!
-    if (piece?.connectors && allPieces) {
-      const localConns = entry.localConnectors || [];
-      piece.connectors.forEach((conn, idx) => {
-        if (!conn.connectedTo) return;
-        const other = allPieces.find((p) => p.id === conn.connectedTo!.pieceId);
-        if (!other || !other.hasCatenary) return;
-
-        const localConn = localConns[idx];
-        const angleDeg = localConn ? localConn.angle : idx * 12;
-        const rad = deg2rad(angleDeg);
-        const cos = Math.cos(rad);
-        const sin = Math.sin(rad);
-
-        // Fahrdrahtstück über den Anschlussstutzen vom Grubenrand (142 mm) zum Außenrand (189 mm)
-        g.moveTo(142 * cos, 142 * sin).lineTo(189 * cos, 189 * sin);
-        g.stroke({ width: wireWidth, color: wireColor, alpha: wireAlpha });
-
-        // Catenary-Mast am Außenrand
-        drawMast(189 * cos, 189 * sin, rad, 1);
-      });
+      // Querträger des Portals
+      g.moveTo(hx - nx * postOffset, hy - ny * postOffset).lineTo(hx + nx * postOffset, hy + ny * postOffset);
     }
+    g.stroke({ width: 1.5, color: mastColor, alpha: 0.9 });
+
+    for (const angleDeg of slotAngles) {
+      const rad = deg2rad(angleDeg);
+      const cos = Math.cos(rad);
+      const sin = Math.sin(rad);
+      const nx = -sin;
+      const ny = cos;
+      const hx = outerHolderR * cos;
+      const hy = outerHolderR * sin;
+
+      // Zwei Portal-Pfosten am Rand jedes Stutzens
+      g.circle(hx - nx * postOffset, hy - ny * postOffset, 1.9);
+      g.circle(hx + nx * postOffset, hy + ny * postOffset, 1.9);
+    }
+    g.fill({ color: mastColor });
+
+    // 3. Zentraler Spinnenring (Tragring + Fahrdrahtring)
+    g.circle(0, 0, spiderRingR);
+    g.stroke({ width: 2.6, color: mastColor, alpha: 0.92 });
+    g.circle(0, 0, spiderRingR);
+    g.stroke({ width: wireWidth, color: wireColor, alpha: wireAlpha });
+
     parent.addChild(g);
     return;
   }
@@ -259,8 +333,8 @@ export function drawCatenary2D(
     g.moveTo(36, bridgeY).lineTo(l - 36, bridgeY);
     g.stroke({ width: wireWidth, color: wireColor, alpha: wireAlpha });
 
-    drawMast(36, bridgeY, Math.PI, 1);
-    drawMast(l - 36, bridgeY, 0, 1);
+    drawMast(36, bridgeY, Math.PI, 1, false);
+    drawMast(l - 36, bridgeY, 0, 1, false);
 
     // Snappoints: NUR rendern, wenn ein Gleis mit Oberleitung angeschlossen ist!
     if (piece?.connectors && allPieces) {
@@ -358,12 +432,10 @@ export function drawCatenary2D(
     const endY = br * (1 - Math.cos(rad));
     drawMast(endX, endY, rad, 1);
   } else if (kind === "three-way") {
-    const l = entry.length ?? 188.3;
     const br = entry.branchRadius ?? 437.5;
     const ba = entry.branchAngle ?? 24.3;
     const rad = deg2rad(ba);
     drawMast(0, 0, 0, 1);
-    if (l >= 120) drawMast(l, 0, 0, 1);
     const endXL = br * Math.sin(rad);
     const endYL = -br * (1 - Math.cos(rad));
     drawMast(endXL, endYL, -rad, -1);
@@ -521,12 +593,20 @@ export function drawTurnoutAccessories2D(container: Container, entry: CatalogEnt
     lanternBox.fill({ color: 0x1e293b });
     lanternBox.stroke({ width: 1, color: 0x94a3b8 });
 
-    // Leuchtendes Weichensignal / Milchglas-Laternenfenster (warmgelb/weiß leuchtend)
-    lanternBox.circle(lanternX, lanternY, 2.2);
-    lanternBox.fill({ color: 0xfef08a, alpha: 0.95 });
+    // Leuchtendes Weichensignal (Abzweigpfeil links/rechts bzw. gerader Balken)
+    const isRight = kind === "turnout-right" || kind === "curved-turnout-right";
+    if (isLeft || isRight) {
+      const dirY = isLeft ? -1 : 1;
+      lanternBox.moveTo(lanternX - 2.2, lanternY + dirY * 1.4);
+      lanternBox.lineTo(lanternX + 2.2, lanternY - dirY * 1.4);
+      lanternBox.stroke({ width: 1.8, color: 0xfef9c3, alpha: 0.98 });
+    } else {
+      lanternBox.rect(lanternX - 0.9, lanternY - 2.4, 1.8, 4.8);
+      lanternBox.fill({ color: 0xfef9c3, alpha: 0.98 });
+    }
     // Strahlender Halo / Glüh-Effekt
     lanternBox.circle(lanternX, lanternY, 4.2);
-    lanternBox.stroke({ width: 1.2, color: 0xfef08a, alpha: 0.5 });
+    lanternBox.stroke({ width: 1.1, color: 0xfef08a, alpha: 0.45 });
 
     accGroup.addChild(lanternBox);
   }
@@ -573,39 +653,91 @@ export function drawTurnoutAccessories2D(container: Container, entry: CatalogEnt
   container.addChild(accGroup);
 }
 
-export function drawBridge2D(container: Container, rawEntry: CatalogEntry, piece: TrackPiece): void {
+export function drawBridge2D(
+  container: Container,
+  rawEntry: CatalogEntry,
+  piece: TrackPiece,
+  allPieces?: TrackPiece[],
+): void {
   const entry = getEffectiveFlexEntry(rawEntry, piece);
   const bridgeG = new Graphics();
+  const isRoad = !!entry.isRoad;
   const gauge = entry.gauge ?? 16.5;
-  const bridgeHalfW = Math.max(18, gauge * 1.05);
-  const girderColor = 0x334155; // Anthrazit / Stahlblau
-  const strutColor = 0x64748b;  // Helles Stahlgrau
-  const deckColor = 0x1e293b;   // Dunkler Brückendeck-Untergrund
+  const bridgeHalfW = isRoad
+    ? (entry.roadWidth ?? 60) / 2 + 6
+    : Math.max(20, gauge * 1.25);
+
+  const girderOuterColor = 0x334155; // Anthrazit / Stahlträger außen
+  const girderInnerColor = 0x94a3b8; // Heller Stahlflansch / Geländer
+  const strutColor = 0x64748b;       // Fachwerk-Streben / Pfosten
+  const deckColor = 0x1e293b;        // Abgedunkeltes Brückendeck
+
+  const neighborHasBridgeOrTunnel = (connIdx: number): boolean => {
+    const conn = piece.connectors[connIdx];
+    if (!conn?.connectedTo || !allPieces) return false;
+    const other = allPieces.find((p) => p.id === conn.connectedTo!.pieceId);
+    return !!(other?.hasBridge || other?.hasTunnel);
+  };
+
+  const hasStartAbutment = !neighborHasBridgeOrTunnel(0);
+  const hasEndAbutment = !neighborHasBridgeOrTunnel(1);
+
+  // Widerlager-Flügelmauern nur seitlich an offenen Brückenenden (kreuzen niemals die Gleise)
+  const drawAbutmentBracket2D = (px: number, py: number, inwardAngleRad: number) => {
+    const cos = Math.cos(inwardAngleRad);
+    const sin = Math.sin(inwardAngleRad);
+    const nx = -sin;
+    const ny = cos;
+
+    const wingLen = 9;
+    const w = bridgeHalfW + 1.5;
+
+    const lxOut = px + nx * (w + 5) - cos * wingLen;
+    const lyOut = py + ny * (w + 5) - sin * wingLen;
+    const lxIn = px + nx * w;
+    const lyIn = py + ny * w;
+    const rxIn = px - nx * w;
+    const ryIn = py - ny * w;
+    const rxOut = px - nx * (w + 5) - cos * wingLen;
+    const ryOut = py - ny * (w + 5) - sin * wingLen;
+
+    // Linke und rechte Flügelmauer separat zeichnen (keine Querlinie über das Gleis)
+    bridgeG.moveTo(lxOut, lyOut).lineTo(lxIn, lyIn);
+    bridgeG.moveTo(rxOut, ryOut).lineTo(rxIn, ryIn);
+    bridgeG.stroke({ width: 4.5, color: 0x334155, alpha: 0.95, cap: "round" });
+
+    bridgeG.moveTo(lxOut, lyOut).lineTo(lxIn, lyIn);
+    bridgeG.moveTo(rxOut, ryOut).lineTo(rxIn, ryIn);
+    bridgeG.stroke({ width: 2.0, color: 0xcbd5e1, alpha: 0.95, cap: "round" });
+  };
 
   if (isStraightTrackEntry(entry)) {
     const l = entry.length ?? 188.3;
+
     // 1. Brückendeckplatte
     bridgeG.rect(0, -bridgeHalfW, l, bridgeHalfW * 2);
-    bridgeG.fill({ color: deckColor, alpha: 0.25 });
+    bridgeG.fill({ color: deckColor, alpha: 0.24 });
 
-    // 2. Seitliche Hauptträger / Geländer
+    // 2. Seitliche Hauptträger (außen dunkel + innen heller Stahlflansch)
     bridgeG.moveTo(0, -bridgeHalfW).lineTo(l, -bridgeHalfW);
     bridgeG.moveTo(0, bridgeHalfW).lineTo(l, bridgeHalfW);
-    bridgeG.stroke({ width: 2.4, color: girderColor });
+    bridgeG.stroke({ width: 3.6, color: girderOuterColor, alpha: 0.92 });
 
-    // 3. Geländerpfosten / Fachwerkstreben
-    const postStep = 18;
-    for (let x = 4; x <= l - 4; x += postStep) {
-      bridgeG.moveTo(x, -bridgeHalfW).lineTo(x, -bridgeHalfW + 3.5);
-      bridgeG.moveTo(x, bridgeHalfW).lineTo(x, bridgeHalfW - 3.5);
-      bridgeG.stroke({ width: 1.4, color: strutColor, alpha: 0.85 });
+    bridgeG.moveTo(0, -bridgeHalfW).lineTo(l, -bridgeHalfW);
+    bridgeG.moveTo(0, bridgeHalfW).lineTo(l, bridgeHalfW);
+    bridgeG.stroke({ width: 1.4, color: girderInnerColor, alpha: 0.95 });
+
+    // 3. Fachwerk-Pfosten / Knotenbleche entlang beider Geländer
+    const postStep = 16;
+    for (let x = 6; x <= l - 6; x += postStep) {
+      bridgeG.moveTo(x, -bridgeHalfW - 1.5).lineTo(x, -bridgeHalfW + 3.5);
+      bridgeG.moveTo(x, bridgeHalfW + 1.5).lineTo(x, bridgeHalfW - 3.5);
     }
+    bridgeG.stroke({ width: 1.6, color: strutColor, alpha: 0.9 });
 
-    // 4. Widerlager (Start & Ende)
-    bridgeG.rect(-2, -bridgeHalfW - 2, 4, bridgeHalfW * 2 + 4);
-    bridgeG.rect(l - 2, -bridgeHalfW - 2, 4, bridgeHalfW * 2 + 4);
-    bridgeG.fill({ color: 0x475569 });
-    bridgeG.stroke({ width: 1.2, color: 0x1e293b });
+    // 4. Widerlager nur an freien Brückenenden
+    if (hasStartAbutment) drawAbutmentBracket2D(0, 0, 0);
+    if (hasEndAbutment) drawAbutmentBracket2D(l, 0, Math.PI);
 
     container.addChild(bridgeG);
   } else if (isCurvedTrackEntry(entry)) {
@@ -615,35 +747,64 @@ export function drawBridge2D(container: Container, rawEntry: CatalogEntry, piece
     const rad = deg2rad(absA);
     const sign = a < 0 ? -1 : 1;
 
-    const rInner = r - bridgeHalfW;
+    const rInner = Math.max(10, r - bridgeHalfW);
     const rOuter = r + bridgeHalfW;
+    const steps = Math.max(14, Math.ceil(absA / 2));
 
-    // Seitliche Bogen-Hauptträger
-    const arcPoints = Math.max(12, Math.ceil(absA / 2.5));
-    bridgeG.moveTo(rInner * Math.sin(0), sign * rInner * (1 - Math.cos(0)));
-    for (let i = 1; i <= arcPoints; i++) {
-      const curA = (rad * i) / arcPoints;
-      bridgeG.lineTo(rInner * Math.sin(curA), sign * rInner * (1 - Math.cos(curA)));
+    // 1. Gebogenes Brückendeck
+    bridgeG.moveTo(0, sign * (r - rOuter));
+    for (let i = 1; i <= steps; i++) {
+      const curA = (rad * i) / steps;
+      bridgeG.lineTo(rOuter * Math.sin(curA), sign * (r - rOuter * Math.cos(curA)));
     }
-    bridgeG.stroke({ width: 2.4, color: girderColor });
-
-    bridgeG.moveTo(rOuter * Math.sin(0), sign * rOuter * (1 - Math.cos(0)));
-    for (let i = 1; i <= arcPoints; i++) {
-      const curA = (rad * i) / arcPoints;
-      bridgeG.lineTo(rOuter * Math.sin(curA), sign * rOuter * (1 - Math.cos(curA)));
+    for (let i = steps; i >= 0; i--) {
+      const curA = (rad * i) / steps;
+      bridgeG.lineTo(rInner * Math.sin(curA), sign * (r - rInner * Math.cos(curA)));
     }
-    bridgeG.stroke({ width: 2.4, color: girderColor });
+    bridgeG.closePath();
+    bridgeG.fill({ color: deckColor, alpha: 0.24 });
 
-    // Geländerpfosten entlang des Bogens
-    const stepCount = Math.max(3, Math.floor(absA / 7.5));
-    for (let i = 0; i <= stepCount; i++) {
-      const curA = (rad * i) / stepCount;
-      const xIn = rInner * Math.sin(curA);
-      const yIn = sign * rInner * (1 - Math.cos(curA));
-      const xOut = rOuter * Math.sin(curA);
-      const yOut = sign * rOuter * (1 - Math.cos(curA));
-      bridgeG.moveTo(xIn, yIn).lineTo(xOut, yOut);
-      bridgeG.stroke({ width: 1.4, color: strutColor, alpha: 0.75 });
+    // 2. Seitliche Bogen-Hauptträger (korrekt zentriert um (0, sign * r))
+    for (const radiusWall of [rInner, rOuter]) {
+      bridgeG.moveTo(0, sign * (r - radiusWall));
+      for (let i = 1; i <= steps; i++) {
+        const curA = (rad * i) / steps;
+        bridgeG.lineTo(radiusWall * Math.sin(curA), sign * (r - radiusWall * Math.cos(curA)));
+      }
+      bridgeG.stroke({ width: 3.6, color: girderOuterColor, alpha: 0.92 });
+
+      bridgeG.moveTo(0, sign * (r - radiusWall));
+      for (let i = 1; i <= steps; i++) {
+        const curA = (rad * i) / steps;
+        bridgeG.lineTo(radiusWall * Math.sin(curA), sign * (r - radiusWall * Math.cos(curA)));
+      }
+      bridgeG.stroke({ width: 1.4, color: girderInnerColor, alpha: 0.95 });
+    }
+
+    // 3. Geländerpfosten / Knotenbleche entlang beider Bogenränder
+    const postCount = Math.max(3, Math.floor((r * rad) / 18));
+    for (let i = 1; i < postCount; i++) {
+      const curA = (rad * i) / postCount;
+      const sinA = Math.sin(curA);
+      const cosA = Math.cos(curA);
+      // Innenrand-Pfosten
+      bridgeG
+        .moveTo((rInner - 1.5) * sinA, sign * (r - (rInner - 1.5) * cosA))
+        .lineTo((rInner + 3.5) * sinA, sign * (r - (rInner + 3.5) * cosA));
+      // Außenrand-Pfosten
+      bridgeG
+        .moveTo((rOuter + 1.5) * sinA, sign * (r - (rOuter + 1.5) * cosA))
+        .lineTo((rOuter - 3.5) * sinA, sign * (r - (rOuter - 3.5) * cosA));
+    }
+    bridgeG.stroke({ width: 1.6, color: strutColor, alpha: 0.9 });
+
+    // 4. Widerlager nur an freien Brückenenden
+    if (hasStartAbutment) drawAbutmentBracket2D(0, 0, 0);
+    if (hasEndAbutment) {
+      const endX = r * Math.sin(rad);
+      const endY = sign * r * (1 - Math.cos(rad));
+      const endTangent = sign * rad;
+      drawAbutmentBracket2D(endX, endY, endTangent + Math.PI);
     }
 
     container.addChild(bridgeG);
@@ -651,28 +812,43 @@ export function drawBridge2D(container: Container, rawEntry: CatalogEntry, piece
     // Fallback für Weichen oder sonstige Gleise
     const l = entry.length ?? 188.3;
     bridgeG.rect(0, -bridgeHalfW, l, bridgeHalfW * 2);
-    bridgeG.fill({ color: deckColor, alpha: 0.2 });
+    bridgeG.fill({ color: deckColor, alpha: 0.24 });
     bridgeG.moveTo(0, -bridgeHalfW).lineTo(l, -bridgeHalfW);
     bridgeG.moveTo(0, bridgeHalfW).lineTo(l, bridgeHalfW);
-    bridgeG.stroke({ width: 2.4, color: girderColor });
+    bridgeG.stroke({ width: 3.4, color: girderOuterColor, alpha: 0.92 });
+    bridgeG.moveTo(0, -bridgeHalfW).lineTo(l, -bridgeHalfW);
+    bridgeG.moveTo(0, bridgeHalfW).lineTo(l, bridgeHalfW);
+    bridgeG.stroke({ width: 1.4, color: girderInnerColor, alpha: 0.95 });
     container.addChild(bridgeG);
   }
 
-  // Kleines Brücken-Symbol (🌉) als Orientierung
+  // Kleines monochromes Brücken-Badge (analog zu ICONS.bridge) als Orientierung
   const center = getPieceLocalCenter(entry);
-  const badgeG = new Graphics();
-  badgeG.circle(center.x, center.y - bridgeHalfW - 7, 5.5);
-  badgeG.fill({ color: 0x0f172a, alpha: 0.95 });
-  badgeG.stroke({ width: 1.2, color: 0x38bdf8 });
+  const badge = new Container();
+  badge.position.set(center.x, center.y - bridgeHalfW - 8);
+  badge.rotation = -deg2rad(piece.transform.rotation);
 
-  const bridgeIcon = new Text({
-    text: "🌉",
-    style: BRIDGE_ICON_TEXT_STYLE,
-  });
-  bridgeIcon.anchor.set(0.5);
-  bridgeIcon.position.set(center.x, center.y - bridgeHalfW - 7);
-  container.addChild(badgeG);
-  container.addChild(bridgeIcon);
+  const badgeG = new Graphics();
+  badgeG.roundRect(-9, -7, 18, 14, 4);
+  badgeG.fill({ color: 0x0f172a, alpha: 0.92 });
+  badgeG.stroke({ width: 1, color: 0x94a3b8, alpha: 0.85 });
+
+  // Fahrbahn / Deck
+  badgeG.moveTo(-5.5, -1.8).lineTo(5.5, -1.8);
+  // Linker & rechter Pfeiler
+  badgeG.moveTo(-4.2, -1.8).lineTo(-4.2, 3.6);
+  badgeG.moveTo(4.2, -1.8).lineTo(4.2, 3.6);
+  // Brückenbogen
+  badgeG.moveTo(-4.2, 3.4);
+  badgeG.arc(0, 3.4, 4.2, Math.PI, 0, false);
+  // Stützstreben zwischen Deck und Bogen
+  badgeG.moveTo(-2.1, -1.8).lineTo(-2.1, -0.2);
+  badgeG.moveTo(0, -1.8).lineTo(0, -0.8);
+  badgeG.moveTo(2.1, -1.8).lineTo(2.1, -0.2);
+  badgeG.stroke({ width: 1.15, color: 0xf8fafc, cap: "round", join: "round" });
+
+  badge.addChild(badgeG);
+  container.addChild(badge);
 }
 
 export function drawTrackSignal2D(container: Container, rawEntry: CatalogEntry, piece: TrackPiece): void {
@@ -734,9 +910,10 @@ function drawSingleSignal2D(
   sigContainer.position.set(sigX, sigY);
   sigContainer.rotation = sigAngle;
 
-  // 1. Ausleger / Verbindung zum Schotterbett
+  // 1. Ausleger / Verbindung zum Schotterbett (zeigt immer Richtung Gleis)
+  const localTrackDir = isForward ? -side : side;
   const mastArm = new Graphics();
-  mastArm.moveTo(0, -side * 5).lineTo(0, 0);
+  mastArm.moveTo(0, localTrackDir * 7).lineTo(0, 0);
   mastArm.stroke({ width: 1.5, color: 0x334155, alpha: 0.85 });
   sigContainer.addChild(mastArm);
 
@@ -747,34 +924,37 @@ function drawSingleSignal2D(
   baseG.stroke({ width: 1, color: 0x1e293b });
   sigContainer.addChild(baseG);
 
-  // 3. Signalschirm (Schwarzer, abgerundeter Schirm)
+  // 3. Signalschirm (parallel zum Gleis entlang +X, Rot in Fahrtrichtung)
   const shieldG = new Graphics();
-  shieldG.roundRect(-4.5, -9, 9, 18, 3.5);
+  shieldG.roundRect(-9, -4.5, 18, 9, 3.5);
   shieldG.fill({ color: 0x09090b });
   shieldG.stroke({ width: 1.2, color: 0x475569 });
 
-  // 4. Rote Optik (Hp0 - Halt) oben
-  shieldG.circle(0, -4.5, 2.4);
+  // 4. Rote Optik (Hp0 - Halt) in Fahrtrichtung (+X)
+  shieldG.circle(4.5, 0, 2.4);
   shieldG.fill({ color: 0xef4444 });
-  shieldG.circle(0, -4.5, 3.6);
+  shieldG.circle(4.5, 0, 3.6);
   shieldG.stroke({ width: 0.8, color: 0xef4444, alpha: 0.5 });
 
-  // 5. Grüne Optik (Hp1 - Fahrt) unten
-  shieldG.circle(0, 4.5, 2.4);
+  // 5. Grüne Optik (Hp1 - Fahrt) dahinter (-X)
+  shieldG.circle(-4.5, 0, 2.4);
   shieldG.fill({ color: 0x22c55e });
-  shieldG.circle(0, 4.5, 3.6);
+  shieldG.circle(-4.5, 0, 3.6);
   shieldG.stroke({ width: 0.8, color: 0x22c55e, alpha: 0.5 });
 
   sigContainer.addChild(shieldG);
 
-  // 6. Mini-Label "SIG" mit Pfeil
+  // 6. Mini-Label "SIG" mit Pfeil auf der gleisabgewandten Seite
   const labelText = isForward ? "SIG▶" : "◀SIG";
   const sigTxt = new Text({
     text: labelText,
     style: SIGNAL_TEXT_STYLE,
   });
   sigTxt.anchor.set(0.5);
-  sigTxt.position.set(0, 12);
+  sigTxt.position.set(0, -localTrackDir * 8.5);
+  if (!isForward) {
+    sigTxt.rotation = Math.PI;
+  }
   sigContainer.addChild(sigTxt);
 
   container.addChild(sigContainer);

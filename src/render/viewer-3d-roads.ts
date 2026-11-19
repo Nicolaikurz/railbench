@@ -28,7 +28,32 @@ export function applyCurveElevation(
       dir === 1
         ? Math.atan2(vz - centerZ, vx) + Math.PI / 2
         : Math.PI / 2 - Math.atan2(vz - centerZ, vx);
+    // Klemmt u auf [0, 1], damit Überlappungs-Zungen an Start/Ende exakt auf Höhe
+    // angeschlossener flacher Gleise liegen und nahtlos ohne Stufe/Spalt anschließen
     const u = Math.max(0, Math.min(1, theta / rad));
+    pos.setY(i, vy + u * heightDiff);
+  }
+  geo.computeVertexNormals();
+}
+
+/**
+ * Schert eine gerade 3D-Geometrie (entlang +X) vertikal um `heightDiff`,
+ * sodass die Stirnflächen bei x = startX und x = startX + len exakt vertikal bleiben
+ * und nahtlos ohne Keilspalt an flache Gleise, Straßen und Trassenbretter anschließen.
+ */
+export function applyStraightElevation(
+  geo: THREE.BufferGeometry,
+  len: number,
+  heightDiff: number,
+  startX = 0,
+) {
+  if (Math.abs(heightDiff) < 0.01 || len <= 0.01) return;
+  const pos = geo.attributes.position;
+  if (!pos) return;
+  for (let i = 0; i < pos.count; i++) {
+    const vx = pos.getX(i);
+    const vy = pos.getY(i);
+    const u = (vx - startX) / len;
     pos.setY(i, vy + u * heightDiff);
   }
   geo.computeVertexNormals();
@@ -117,31 +142,46 @@ export function buildRoadPiece3D(
   const plankMat = SHARED_PLANK_MAT;
   const railMat = SHARED_ROAD_RAIL_MAT;
 
-  const addStraightRoad = (target: THREE.Group, len: number, startX = 0, customZ = 0) => {
-    const roadGeo = new THREE.BoxGeometry(len, roadH, roadW);
+  const addStraightRoad = (target: THREE.Group, len: number, startX = 0, customZ = 0, customHDiff = 0) => {
+    const isSloped = Math.abs(customHDiff) > 0.01;
+    const pad = isSloped ? 0.4 : 0;
+    const roadGeo = new THREE.BoxGeometry(len + pad * 2, roadH, roadW);
+    if (isSloped) {
+      roadGeo.translate(startX + len / 2, roadBaseY + roadH / 2, customZ);
+      applyStraightElevation(roadGeo, len, customHDiff, startX);
+    }
     const roadMesh = new THREE.Mesh(roadGeo, asphaltMat);
-    roadMesh.position.set(startX + len / 2, roadBaseY + roadH / 2, customZ);
+    if (!isSloped) {
+      roadMesh.position.set(startX + len / 2, roadBaseY + roadH / 2, customZ);
+    }
     roadMesh.receiveShadow = true;
     roadMesh.castShadow = true;
     target.add(roadMesh);
 
-    const edgeLineGeo = new THREE.BoxGeometry(len, 0.12, 1.4);
     const edgeZ1 = customZ - roadW / 2 + 2.5;
     const edgeZ2 = customZ + roadW / 2 - 2.5;
-
-    const edgeL = new THREE.Mesh(edgeLineGeo, lineMat);
-    edgeL.position.set(startX + len / 2, roadBaseY + roadH + 0.06, edgeZ1);
-    target.add(edgeL);
-
-    const edgeR = new THREE.Mesh(edgeLineGeo, lineMat);
-    edgeR.position.set(startX + len / 2, roadBaseY + roadH + 0.06, edgeZ2);
-    target.add(edgeR);
+    for (const ez of [edgeZ1, edgeZ2]) {
+      const edgeLineGeo = new THREE.BoxGeometry(len + pad * 2, 0.12, 1.4);
+      if (isSloped) {
+        edgeLineGeo.translate(startX + len / 2, roadBaseY + roadH + 0.06, ez);
+        applyStraightElevation(edgeLineGeo, len, customHDiff, startX);
+      }
+      const edgeMesh = new THREE.Mesh(edgeLineGeo, lineMat);
+      if (!isSloped) {
+        edgeMesh.position.set(startX + len / 2, roadBaseY + roadH + 0.06, ez);
+      }
+      target.add(edgeMesh);
+    }
 
     const dashGeo = new THREE.BoxGeometry(8, 0.12, 1.4);
     const period = 14;
+    const slopePitch = isSloped ? Math.atan2(customHDiff, len) : 0;
     for (let x = startX + 4; x + 8 <= startX + len - 2; x += period) {
+      const cx = x + 4;
+      const u = len > 0 ? (cx - startX) / len : 0;
       const dash = new THREE.Mesh(dashGeo, lineMat);
-      dash.position.set(x + 4, roadBaseY + roadH + 0.06, customZ);
+      dash.position.set(cx, roadBaseY + roadH + 0.06 + (isSloped ? u * customHDiff : 0), customZ);
+      if (isSloped) dash.rotation.z = slopePitch;
       target.add(dash);
     }
   };
@@ -218,8 +258,9 @@ export function buildRoadPiece3D(
 
   if (kind === "straight" || kind === "accessory" || kind === "flex" || kind === "buffer-stop" || isBufferStopPiece(entry)) {
     const len = entry.length ?? 200;
+    const isSloped = Math.abs(heightDiff) > 0.01;
     const straightGroup = new THREE.Group();
-    if (Math.abs(heightDiff) > 0.01) {
+    if (isSloped && (entry.id === "ST-LOOP" || entry.id === "ST-BUS" || entry.id === "ST-CROSS")) {
       straightGroup.rotation.z = Math.atan2(heightDiff, len);
     }
 
@@ -304,7 +345,7 @@ export function buildRoadPiece3D(
       return;
     }
 
-    addStraightRoad(straightGroup, len);
+    addStraightRoad(straightGroup, len, 0, 0, heightDiff);
     group.add(straightGroup);
     return;
   }
@@ -421,6 +462,10 @@ export function buildWoodPlatePiece3D(
   heightDiff: number,
   customThickness?: number,
 ) {
+  if (entry.kind === "turntable" || entry.kind === "transfer-table") {
+    return;
+  }
+
   const isRoad = entry.isRoad === true || entry.id.startsWith("ST-");
   const roadW = entry.roadWidth ?? 60;
   const plateWidth = isRoad ? roadW + 8 : (entry.gauge ?? 16.5) * 2.4;
@@ -429,11 +474,18 @@ export function buildWoodPlatePiece3D(
 
   if (isStraightTrackEntry(entry)) {
     const len = entry.length ?? (entry.kind === "flex" ? 900 : isRoad ? 200 : 180);
-    const geo = getSharedStraightWoodPlateGeo(len, thickness, plateWidth);
-    const mesh = new THREE.Mesh(geo, woodPlateMat);
-    mesh.position.set(len / 2, -thickness / 2, 0);
-    if (Math.abs(heightDiff) > 0.01) {
-      mesh.rotation.z = Math.atan2(heightDiff, len);
+    const isSloped = Math.abs(heightDiff) > 0.01;
+    let mesh: THREE.Mesh;
+    if (isSloped) {
+      const pad = 0.4;
+      const geo = new THREE.BoxGeometry(len + pad * 2, thickness, plateWidth);
+      geo.translate(len / 2, -thickness / 2, 0);
+      applyStraightElevation(geo, len, heightDiff, 0);
+      mesh = new THREE.Mesh(geo, woodPlateMat);
+    } else {
+      const geo = getSharedStraightWoodPlateGeo(len, thickness, plateWidth);
+      mesh = new THREE.Mesh(geo, woodPlateMat);
+      mesh.position.set(len / 2, -thickness / 2, 0);
     }
     mesh.castShadow = true;
     mesh.receiveShadow = true;
@@ -451,15 +503,16 @@ export function buildWoodPlatePiece3D(
     if (!geo) {
       const innerR = Math.max(10, r - plateWidth / 2);
       const outerR = r + plateWidth / 2;
-      const segments = Math.max(8, Math.round(deg / 3));
+      const eps = Math.min(0.004, 0.75 / Math.max(r, 80));
+      const segments = Math.max(16, Math.ceil(deg / 1.5));
 
       const curveShape = new THREE.Shape();
       if (dir === 1) {
-        curveShape.absarc(0, 0, outerR, -Math.PI / 2, -Math.PI / 2 + rad, false);
-        curveShape.absarc(0, 0, innerR, -Math.PI / 2 + rad, -Math.PI / 2, true);
+        curveShape.absarc(0, 0, outerR, -Math.PI / 2 - eps, -Math.PI / 2 + rad + eps, false);
+        curveShape.absarc(0, 0, innerR, -Math.PI / 2 + rad + eps, -Math.PI / 2 - eps, true);
       } else {
-        curveShape.absarc(0, 0, outerR, Math.PI / 2, Math.PI / 2 - rad, true);
-        curveShape.absarc(0, 0, innerR, Math.PI / 2 - rad, Math.PI / 2, false);
+        curveShape.absarc(0, 0, outerR, Math.PI / 2 + eps, Math.PI / 2 - rad - eps, true);
+        curveShape.absarc(0, 0, innerR, Math.PI / 2 - rad - eps, Math.PI / 2 + eps, false);
       }
       curveShape.closePath();
 
@@ -475,15 +528,25 @@ export function buildWoodPlatePiece3D(
     }
 
     const mesh = new THREE.Mesh(geo, woodPlateMat);
-    mesh.position.set(0, -thickness, 0);
+    mesh.position.set(0, 0, 0);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     group.add(mesh);
   } else {
     const len = entry.length ?? 180;
-    const geo = getSharedStraightWoodPlateGeo(len, thickness, plateWidth);
-    const mesh = new THREE.Mesh(geo, woodPlateMat);
-    mesh.position.set(len / 2, -thickness / 2, 0);
+    const isSloped = Math.abs(heightDiff) > 0.01;
+    let mesh: THREE.Mesh;
+    if (isSloped) {
+      const pad = 0.4;
+      const geo = new THREE.BoxGeometry(len + pad * 2, thickness, plateWidth);
+      geo.translate(len / 2, -thickness / 2, 0);
+      applyStraightElevation(geo, len, heightDiff, 0);
+      mesh = new THREE.Mesh(geo, woodPlateMat);
+    } else {
+      const geo = getSharedStraightWoodPlateGeo(len, thickness, plateWidth);
+      mesh = new THREE.Mesh(geo, woodPlateMat);
+      mesh.position.set(len / 2, -thickness / 2, 0);
+    }
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     group.add(mesh);
@@ -563,14 +626,15 @@ export function buildAllWoodPlates3D(woodPlateGroup: THREE.Group, items: WoodPla
         if (!geo) {
           const innerR = Math.max(10, r - plateWidth / 2);
           const outerR = r + plateWidth / 2;
-          const segments = Math.max(8, Math.round(deg / 3));
+          const eps = Math.min(0.004, 0.75 / Math.max(r, 80));
+          const segments = Math.max(16, Math.ceil(deg / 1.5));
           const curveShape = new THREE.Shape();
           if (dir === 1) {
-            curveShape.absarc(0, 0, outerR, -Math.PI / 2, -Math.PI / 2 + rad, false);
-            curveShape.absarc(0, 0, innerR, -Math.PI / 2 + rad, -Math.PI / 2, true);
+            curveShape.absarc(0, 0, outerR, -Math.PI / 2 - eps, -Math.PI / 2 + rad + eps, false);
+            curveShape.absarc(0, 0, innerR, -Math.PI / 2 + rad + eps, -Math.PI / 2 - eps, true);
           } else {
-            curveShape.absarc(0, 0, outerR, Math.PI / 2, Math.PI / 2 - rad, true);
-            curveShape.absarc(0, 0, innerR, Math.PI / 2 - rad, Math.PI / 2, false);
+            curveShape.absarc(0, 0, outerR, Math.PI / 2 + eps, Math.PI / 2 - rad - eps, true);
+            curveShape.absarc(0, 0, innerR, Math.PI / 2 - rad - eps, Math.PI / 2 + eps, false);
           }
           curveShape.closePath();
           geo = new THREE.ExtrudeGeometry(curveShape, { depth: thickness, bevelEnabled: false, curveSegments: segments });
@@ -582,7 +646,7 @@ export function buildAllWoodPlates3D(woodPlateGroup: THREE.Group, items: WoodPla
         const instMesh = new THREE.InstancedMesh(geo, SHARED_WOOD_PLATE_MAT, list.length);
         instMesh.castShadow = true;
         instMesh.receiveShadow = true;
-        localMat.makeTranslation(0, -thickness, 0);
+        localMat.makeTranslation(0, 0, 0);
 
         for (let i = 0; i < list.length; i++) {
           const it = list[i]!;

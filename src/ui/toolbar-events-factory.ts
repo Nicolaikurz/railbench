@@ -19,6 +19,7 @@ import { getTranslations, getLanguage, autoSelectLanguage } from "@/i18n";
 import { getBaseboards } from "@/core/layout";
 import { isTurnoutEntry, type ShortCircuitDetectionResult } from "@/core/simulation";
 import { resetPersonalConfig } from "@/settings/settings-manager";
+import { ICONS } from "@/ui/icons";
 
 export interface ToolbarFactoryDeps {
   getLayout: () => Layout;
@@ -220,7 +221,7 @@ export function buildToolbarEvents(deps: ToolbarFactoryDeps): ToolbarEvents {
         active
           ? (isDe ? "Woodplatte (Trassenbrett) platziert" : "Wood plate placed under tracks & roads")
           : (isDe ? "Woodplatte entfernt" : "Wood plate removed"),
-        "🪵"
+        ICONS.wood
       );
       deps.sync();
     },
@@ -274,7 +275,7 @@ export function buildToolbarEvents(deps: ToolbarFactoryDeps): ToolbarEvents {
       const lang = autoSelectLanguage();
       deps.showToast(
         lang === "de" ? "Sprache automatisch auf Deutsch gesetzt" : "Language automatically set to English",
-        "🌐"
+        ICONS.globe
       );
       deps.sync();
     },
@@ -285,7 +286,7 @@ export function buildToolbarEvents(deps: ToolbarFactoryDeps): ToolbarEvents {
       const t = getTranslations();
       if (confirm(t.dialogs.confirmResetConfig)) {
         resetPersonalConfig();
-        deps.showToast(t.dialogs.configResetSuccess, "🧹");
+        deps.showToast(t.dialogs.configResetSuccess, ICONS.broom);
         if (typeof window !== "undefined" && typeof window.location?.reload === "function") {
           setTimeout(() => {
             window.location.reload();

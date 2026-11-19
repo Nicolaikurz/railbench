@@ -254,10 +254,17 @@ export function renderSceneOverlays(
   // 1. Gelände-Pinsel / Stift Vorschau (Cursor-Radius & aktiver Pfad)
   if (terrainBrush.isActive) {
     const r = terrainBrush.brushRadius;
+    const groundColorMap = {
+      water: 0x0ea5e9,
+      sand: 0xd6b97c,
+      dirt: 0x85603e,
+      hill: 0x65a30d,
+    } as const;
     const modeColorMap = {
       paint: 0x22c55e,
       extend: 0x0ea5e9,
       stamp: 0xf59e0b,
+      ground: groundColorMap[terrainBrush.groundType] ?? 0x65a30d,
       erase: 0xef4444,
     } as const;
     const strokeColor = modeColorMap[terrainBrush.mode] ?? 0x22c55e;
@@ -266,7 +273,13 @@ export function renderSceneOverlays(
       for (let i = 1; i < terrainBrush.strokePoints.length; i++) {
         ov.lineTo(terrainBrush.strokePoints[i]!.x, terrainBrush.strokePoints[i]!.y);
       }
-      ov.stroke({ width: r * 2, color: 0x44403c, alpha: 0.48, cap: "round", join: "round" });
+      ov.stroke({
+        width: r * 2,
+        color: terrainBrush.mode === "ground" ? strokeColor : 0x44403c,
+        alpha: 0.45,
+        cap: "round",
+        join: "round",
+      });
       ov.moveTo(terrainBrush.strokePoints[0]!.x, terrainBrush.strokePoints[0]!.y);
       for (let i = 1; i < terrainBrush.strokePoints.length; i++) {
         ov.lineTo(terrainBrush.strokePoints[i]!.x, terrainBrush.strokePoints[i]!.y);

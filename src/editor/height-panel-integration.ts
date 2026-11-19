@@ -6,6 +6,7 @@ import { TrackOperations } from "@/editor/track-operations";
 import { openHeightPanel } from "@/ui/height-panel";
 import { getLanguage } from "@/i18n";
 import { showToast } from "@/ui/toast";
+import { ICONS } from "@/ui/icons";
 
 export interface HeightPanelDeps {
   getLayout: () => Layout;
@@ -84,7 +85,7 @@ export function openHeightPanelUnified(
       const isDe = getLanguage() === "de";
       showToast(
         isDe ? `${generatedPieces.length} Rampengleise erstellt` : `Created ${generatedPieces.length} ramp tracks`,
-        "📐",
+        ICONS.slope,
       );
     },
     onPreviewRamp: (elevations) => {

@@ -1,7 +1,7 @@
   <div class="hp-header" title="Ziehen zum Verschieben (Doppelklick zum Zurücksetzen)">
     <div class="hp-title" style="pointer-events: none;">
       <span style="color: #64748b; font-size: 13px; line-height: 1;">⠿</span>
-      <span class="hp-title-icon">📐</span>
+      <span class="hp-title-icon" style="display:inline-flex;align-items:center;">{{ICON_SLOPE}}</span>
       <span id="hp-header-title">Höhe & Rampe</span>
     </div>
     <button type="button" class="hp-close-btn" id="hp-close-btn" title="Schließen (Esc)">✕</button>
@@ -10,15 +10,15 @@
   <!-- Navigation Tabs -->
   <div class="hp-nav-tabs">
     <button type="button" class="hp-nav-tab active" data-tab="flat" id="hp-tab-btn-flat">
-      <span>📏</span>
+      <span style="display:inline-flex;align-items:center;">{{ICON_RULER}}</span>
       <span class="hp-tab-label">Höhe / Ebene</span>
     </button>
     <button type="button" class="hp-nav-tab" data-tab="ramp" id="hp-tab-btn-ramp">
-      <span>📐</span>
+      <span style="display:inline-flex;align-items:center;">{{ICON_SLOPE}}</span>
       <span class="hp-tab-label">Steigung</span>
     </button>
     <button type="button" class="hp-nav-tab" data-tab="generate" id="hp-tab-btn-generate">
-      <span>⚡</span>
+      <span style="display:inline-flex;align-items:center;">{{ICON_ZAP}}</span>
       <span class="hp-tab-label">Automatisch</span>
     </button>
   </div>
@@ -80,7 +80,7 @@
             <span>Start</span>
           </div>
           <button type="button" class="hp-pick-btn" id="hp-ramp-pick-a" title="Gleis im Gleisplan anklicken">
-            <span class="hp-pick-icon">📍</span>
+            <span class="hp-pick-icon" style="display:inline-flex;align-items:center;">{{ICON_PIN}}</span>
             <span id="hp-ramp-label-a">Gleis wählen...</span>
           </button>
           <div class="hp-endpoint-input">
@@ -102,7 +102,7 @@
             <span>Ende</span>
           </div>
           <button type="button" class="hp-pick-btn" id="hp-ramp-pick-b" title="Gleis im Gleisplan anklicken">
-            <span class="hp-pick-icon">📍</span>
+            <span class="hp-pick-icon" style="display:inline-flex;align-items:center;">{{ICON_PIN}}</span>
             <span id="hp-ramp-label-b">Gleis wählen...</span>
           </button>
           <div class="hp-endpoint-input">
@@ -166,8 +166,9 @@
       <div class="hp-field">
         <div class="hp-field-header">
           <label class="hp-field-label">Start-Gleis & Anschluss</label>
-          <button type="button" class="hp-pick-btn-compact" id="hp-gen-pick-canvas-btn" title="Anschluss im Gleisplan anklicken">
-            <span>📍 Im Plan wählen</span>
+          <button type="button" class="hp-pick-btn-compact" id="hp-gen-pick-canvas-btn" title="Anschluss im Gleisplan anklicken" style="display:inline-flex;align-items:center;gap:4px;">
+            <span style="display:inline-flex;align-items:center;">{{ICON_PIN}}</span>
+            <span>Im Plan wählen</span>
           </button>
         </div>
         <select id="hp-gen-start-select" class="hp-select"></select>

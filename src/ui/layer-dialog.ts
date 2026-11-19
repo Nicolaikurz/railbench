@@ -1,6 +1,7 @@
 import layerDialogHtml from "./templates/layer-dialog.html?raw";
 import type { Layout, Layer, LayerWoodPlateMode } from "@/core/types";
 import { getTranslations } from "@/i18n";
+import { ICONS } from "./icons";
 
 export interface LayerDialogOptions {
   layout: Layout;
@@ -80,6 +81,7 @@ export function openLayerDialog(options: LayerDialogOptions): void {
   ).join("");
 
   modal.innerHTML = layerDialogHtml
+    .replace("{{ICON_PALETTE}}", ICONS.palette)
     .replace("{{TITLE}}", isEdit ? t.editTitle : t.addTitle)
     .replace("{{NAME_LABEL}}", t.nameLabel)
     .replace("{{CURRENT_NAME}}", escapeHtml(currentName))

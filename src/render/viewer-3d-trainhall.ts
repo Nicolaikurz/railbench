@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import type { Layout } from "@/core/types";
 import { getBaseboardBounds, getBaseboards } from "@/core/layout";
+import { mergeStaticModelGroup } from "./builtin-models-3d";
 import { buildTrainHallForest, buildTrainHallLake } from "./viewer-3d-trainhall-scenery";
 
 export interface TrainHallBuildResult {
@@ -130,26 +131,43 @@ export function buildTrainHall(
     metalness: 0.4,
   });
 
+  // Statische Hallen-Geometrie in separater Gruppe aufbauen und anschließend pro Material-Klasse mergen
+  // (reduziert ~200 einzelne Hallen-Meshes auf ~6-8 Draw-Calls)
+  const hallStaticGroup = new THREE.Group();
+
   // 1. Hallenboden, Sicherheitsmarkierungen & Bodengleise
-  buildTrainHallFloor(trainHallGroup, cx, cz, wHall, lHall, floorY, minX, maxX, minZ, maxZ, floorMat, yellowLineMat);
+  buildTrainHallFloor(hallStaticGroup, cx, cz, wHall, lHall, floorY, minX, maxX, minZ, maxZ, floorMat, yellowLineMat);
 
   // 2. Stahl-Fachwerkbogen & Stützen (Hallenbogen)
-  buildTrainHallArches(trainHallGroup, cx, cz, wHall, lHall, floorY, wallH, apexH, steelMat);
+  buildTrainHallArches(hallStaticGroup, cx, cz, wHall, lHall, floorY, wallH, apexH, steelMat);
 
   // 3. Glas-Oberlicht & Zinkdach
-  buildTrainHallRoof(trainHallGroup, cx, cz, wHall, lHall, wallH, apexH, skylightGlassMat, roofMat, steelMat);
+  buildTrainHallRoof(hallStaticGroup, cx, cz, wHall, lHall, wallH, apexH, skylightGlassMat, roofMat, steelMat);
 
   // 4. Giebelwände mit Rundbogenfenstern, Hallentoren & Bahnhofsuhr
-  buildTrainHallEndWalls(trainHallGroup, cx, cz, wHall, lHall, floorY, wallH, apexH, brickMat, windowGlassMat, steelMat, nightLampMats);
+  buildTrainHallEndWalls(hallStaticGroup, cx, cz, wHall, lHall, floorY, wallH, apexH, brickMat, windowGlassMat, steelMat, nightLampMats);
 
   // 5. Seitenwände mit Industriefenstern
-  buildTrainHallSideWalls(trainHallGroup, cx, cz, wHall, lHall, floorY, wallH, brickMat, windowGlassMat, steelMat);
+  buildTrainHallSideWalls(hallStaticGroup, cx, cz, wHall, lHall, floorY, wallH, brickMat, windowGlassMat, steelMat);
 
   // 6. Decken-Brückenkran (Laufkran mit Haken)
-  buildTrainHallCrane(trainHallGroup, cx, cz, wHall, lHall, floorY, craneYellowMat, steelMat);
+  buildTrainHallCrane(hallStaticGroup, cx, cz, wHall, lHall, floorY, craneYellowMat, steelMat);
 
   // 7. Industrie-Pendelleuchten mit warmem Schein
-  buildTrainHallLamps(trainHallGroup, cx, cz, wHall, lHall, floorY, apexH, steelMat, nightLampMats);
+  buildTrainHallLamps(hallStaticGroup, cx, cz, wHall, lHall, floorY, apexH, steelMat, nightLampMats);
+
+  mergeStaticModelGroup(hallStaticGroup);
+  // Hallen-Geometrien sind nicht global gecacht -> beim Umgebungswechsel sauber freigeben
+  hallStaticGroup.traverse((obj) => {
+    if (obj instanceof THREE.Mesh) {
+      if (obj.geometry) obj.geometry.userData.shared = false;
+      const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+      for (const m of mats) {
+        if (m) m.userData.shared = false;
+      }
+    }
+  });
+  trainHallGroup.add(hallStaticGroup);
 
   // 8. Dichter Wald rund um die Lokhalle
   buildTrainHallForest(trainHallGroup, cx, cz, wHall, lHall, floorY, isDark);

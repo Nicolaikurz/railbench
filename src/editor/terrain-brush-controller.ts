@@ -1,9 +1,9 @@
-import type { Layout, Model3D, MountainBrushNode, MountainStyle } from "@/core/types";
+import type { GroundTerrainType, Layout, Model3D, MountainBrushNode, MountainStyle } from "@/core/types";
 import { isPointInsideModel } from "@/core/models-3d";
 import { evaluateMountainLocal, worldToMountainLocal, mountainLocalToWorld } from "@/render/models-3d/mountain-tunnel";
 import { getLanguage } from "@/i18n";
 
-export type TerrainBrushMode = "paint" | "extend" | "stamp" | "erase";
+export type TerrainBrushMode = "paint" | "extend" | "stamp" | "ground" | "erase";
 export type TerrainRidgeProfile = "uniform" | "peak-center" | "varied";
 
 /**
@@ -146,6 +146,8 @@ export class TerrainBrushController {
   public brushRadius = 220;
   public brushHeight = 220;
   public brushStyle: MountainStyle = "alpine";
+  public groundType: GroundTerrainType = "hill";
+  public groundHeight = 26;
   public ridgeProfile: TerrainRidgeProfile = "uniform";
   public autoTunnel = true;
   public targetMountainId?: string;
@@ -203,7 +205,7 @@ export class TerrainBrushController {
     const remainingModels: Model3D[] = [];
 
     for (const m of layout.models) {
-      if (m.builtinId !== "mountain") {
+      if (m.builtinId !== "mountain" && m.builtinId !== "ground-terrain") {
         remainingModels.push(m);
         continue;
       }
@@ -336,6 +338,55 @@ export class TerrainBrushController {
     const r = Math.max(60, Math.round(this.brushRadius));
     const h = Math.max(40, Math.round(this.brushHeight));
     if (!layout.models) layout.models = [];
+
+    // Modus "ground": Adaptiven Untergrund (Wasser, Sand, Erde, Hügel) per Pinsel malen
+    if (this.mode === "ground") {
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      for (const p of pts) {
+        if (p.x < minX) minX = p.x;
+        if (p.x > maxX) maxX = p.x;
+        if (p.y < minY) minY = p.y;
+        if (p.y > maxY) maxY = p.y;
+      }
+      const cx = Math.round((minX + maxX) / 2);
+      const cy = Math.round((minY + maxY) / 2);
+      const gH = Math.max(2, Math.round(this.groundHeight));
+      const width = pts.length >= 2 ? Math.round(Math.max(r * 2, maxX - minX + r * 2.15)) : r * 2;
+      const depth = pts.length >= 2 ? Math.round(Math.max(r * 2, maxY - minY + r * 2.15)) : Math.round(r * 1.75);
+      const pathNodes: MountainBrushNode[] | undefined =
+        pts.length >= 2
+          ? pts.map((p) => ({
+              x: Math.round(p.x - cx),
+              y: Math.round(p.y - cy),
+              radius: r,
+              height: gH,
+            }))
+          : undefined;
+
+      const isDe = getLanguage() === "de";
+      const typeNames: Record<GroundTerrainType, string> = isDe
+        ? { water: "Wasser", sand: "Sand", dirt: "Erde", hill: "Hügel" }
+        : { water: "Water", sand: "Sand", dirt: "Dirt", hill: "Hill" };
+      const existingGround = layout.models.filter((m) => m.builtinId === "ground-terrain").length;
+
+      const newGround: Model3D = {
+        id: `model-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        name: `${typeNames[this.groundType]} ${existingGround + 1}`,
+        category: "nature",
+        modelType: "builtin",
+        builtinId: "ground-terrain",
+        groundTerrainType: this.groundType,
+        transform: { x: cx, y: cy, rotation: 0 },
+        width,
+        depth,
+        height: gH,
+        mountainPath: pathNodes,
+        layerId: activeLayerId || layout.activeLayerId || layout.layers?.[0]?.id,
+      };
+      layout.models.push(newGround);
+      this.notify();
+      return newGround;
+    }
 
     // Modus "extend": Bestehenden Berg um die neuen Pinsel-Knoten erweitern
     if (this.mode === "extend") {

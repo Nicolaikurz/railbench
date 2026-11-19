@@ -1,4 +1,5 @@
-import { getTranslations } from "@/i18n";
+import { getLanguage, getTranslations } from "@/i18n";
+import { ICONS } from "./icons";
 
 export interface MeasureState {
   isActive: boolean;
@@ -38,6 +39,7 @@ export class MeasureHud {
   private element: HTMLDivElement;
   private callbacks: MeasureHudCallbacks;
 
+  private titleEl: HTMLElement | null;
   private snapBtn: HTMLButtonElement | null;
   private resetBtn: HTMLButtonElement | null;
   private closeBtn: HTMLButtonElement | null;
@@ -57,14 +59,15 @@ export class MeasureHud {
     this.element.id = "measure-hud";
     this.element.className = "measure-hud";
     this.element.style.display = "none";
+    const isDe = getLanguage() === "de";
     this.element.innerHTML = `
       <div class="measure-hud-header">
-        <span class="measure-hud-title">Distanzmessung</span>
+        <span class="measure-hud-title" id="measure-hud-title">${isDe ? "Distanzmessung" : "Distance Measure"}</span>
         <span class="measure-hud-status" id="measure-hud-status"></span>
         <div class="measure-hud-actions">
-          <button type="button" class="measure-hud-btn active" id="measure-hud-snap" title="Objektfang an/aus (Alt)">Fang: AN</button>
-          <button type="button" class="measure-hud-btn" id="measure-hud-reset" title="Neu messen (Esc)">Neu</button>
-          <button type="button" class="measure-hud-close" id="measure-hud-close" title="Messen beenden (Esc)">✕</button>
+          <button type="button" class="measure-hud-btn active" id="measure-hud-snap" title="${isDe ? "Objektfang an/aus (Alt)" : "Toggle object snap (Alt)"}">${isDe ? "Fang: AN" : "Snap: ON"}</button>
+          <button type="button" class="measure-hud-btn" id="measure-hud-reset" title="${isDe ? "Neu messen (Esc)" : "Measure again (Esc)"}">${isDe ? "Neu" : "New"}</button>
+          <button type="button" class="measure-hud-close" id="measure-hud-close" title="${isDe ? "Messen beenden (Esc)" : "Exit measure tool (Esc)"}">${ICONS.close}</button>
         </div>
       </div>
       <div class="measure-hud-body">
@@ -91,6 +94,7 @@ export class MeasureHud {
     `;
     document.body.appendChild(this.element);
 
+    this.titleEl = this.element.querySelector("#measure-hud-title");
     this.snapBtn = this.element.querySelector("#measure-hud-snap");
     this.resetBtn = this.element.querySelector("#measure-hud-reset");
     this.closeBtn = this.element.querySelector("#measure-hud-close");
@@ -151,13 +155,22 @@ export class MeasureHud {
     this.element.style.display = "flex";
 
     const t = getTranslations().toolbar.toggles;
+    const isDe = getLanguage() === "de";
 
+    if (this.titleEl) {
+      this.titleEl.textContent = isDe ? "Distanzmessung" : "Distance Measure";
+    }
     if (this.snapBtn) {
       this.snapBtn.textContent = state.snapEnabled ? t.measureSnapOn : t.measureSnapOff;
+      this.snapBtn.title = isDe ? "Objektfang an/aus (Alt)" : "Toggle object snap (Alt)";
       this.snapBtn.classList.toggle("active", state.snapEnabled);
     }
     if (this.resetBtn) {
       this.resetBtn.textContent = t.measureReset;
+      this.resetBtn.title = isDe ? "Neu messen (Esc)" : "Measure again (Esc)";
+    }
+    if (this.closeBtn) {
+      this.closeBtn.title = isDe ? "Messen beenden (Esc)" : "Exit measure tool (Esc)";
     }
 
     if (!state.start) {

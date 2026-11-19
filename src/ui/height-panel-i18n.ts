@@ -32,7 +32,7 @@ const DE_TO_EN: Record<string, string> = {
   "▸ Gleis-Details anzeigen": "▸ Show track details",
   "Start-Gleis & Anschluss": "Start track & connector",
   "Anschluss im Gleisplan anklicken": "Click a connector in the layout",
-  "📍 Im Plan wählen": "📍 Pick in layout",
+  "Im Plan wählen": "Pick in layout",
   "Zielhöhe": "Target height",
   "Steigung nach oben": "Slope up",
   "↑ Steigung": "↑ Slope up",

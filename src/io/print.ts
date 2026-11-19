@@ -5,6 +5,7 @@ import type { Renderer } from "@/render/renderer";
 import { createTrackGraphics } from "@/render/track-sprite";
 import { getPieceListSummary, getLayerPieceListSummary } from "@/io/export";
 import { getTranslations } from "@/i18n";
+import { ICONS } from "@/ui/icons";
 import { getBaseboards, getBaseboardBounds } from "@/core/layout";
 import {
   renderFullPageToCanvas,
@@ -361,7 +362,7 @@ export async function openPrintDialog(
       <div class="rb-modal-footer">
         <button class="rb-btn rb-btn-secondary" id="print-btn-cancel">${t.closeBtn}</button>
         <button class="rb-btn rb-btn-primary" id="print-btn-export-pdf" title="${t.exportPdfTooltip}">
-          <span>📄</span>
+          <span style="display:inline-flex;align-items:center;">${ICONS.fileText}</span>
           <span>${t.exportPdfBtn}</span>
         </button>
       </div>
@@ -631,7 +632,7 @@ export async function openPrintDialog(
     } catch (err: any) {
       alert("Error generating PDF: " + (err?.message ?? err));
       exportPdfBtn.disabled = false;
-      exportPdfBtn.innerHTML = `<span>📄</span><span>Direct Export as PDF</span>`;
+      exportPdfBtn.innerHTML = `<span style="display:inline-flex;align-items:center;">${ICONS.fileText}</span><span>${t.exportPdfBtn}</span>`;
     }
   });
 

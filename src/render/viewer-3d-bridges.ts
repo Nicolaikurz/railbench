@@ -56,8 +56,85 @@ SHARED_TURNOUT_BASE_GEO.userData.shared = true;
 const SHARED_TURNOUT_HOUSING_GEO = new THREE.BoxGeometry(5.5, 6, 5.5);
 SHARED_TURNOUT_HOUSING_GEO.userData.shared = true;
 
-const SHARED_TURNOUT_LENS_GEO = new THREE.BoxGeometry(4.5, 4.5, 5.8);
-SHARED_TURNOUT_LENS_GEO.userData.shared = true;
+const SHARED_TURNOUT_CAP_GEO = new THREE.ConeGeometry(4.2, 2.0, 4);
+SHARED_TURNOUT_CAP_GEO.rotateY(Math.PI / 4);
+SHARED_TURNOUT_CAP_GEO.userData.shared = true;
+
+type LanternSymbol = "straight" | "round" | "left" | "right";
+const _lanternFaceMatCache = new Map<LanternSymbol, THREE.MeshStandardMaterial>();
+
+/**
+ * Erzeugt eine gecachte Weichenlaternen-Textur nach DB-Weichensignal (Wn 1 / Wn 2):
+ * - "straight": senkrechter weißer Balken (Geradeaus)
+ * - "round":    weißer Kreis / Punkt (Abzweig Fersenansicht)
+ * - "left":     weißer Pfeil nach links (Abzweig links)
+ * - "right":    weißer Pfeil nach rechts (Abzweig rechts)
+ */
+function getLanternFaceMaterial(symbol: LanternSymbol): THREE.MeshStandardMaterial {
+  let mat = _lanternFaceMatCache.get(symbol);
+  if (mat) return mat;
+
+  let tex: THREE.CanvasTexture | null = null;
+  if (typeof document !== "undefined") {
+    const canvas = document.createElement("canvas");
+    canvas.width = 64;
+    canvas.height = 64;
+    const ctx = canvas.getContext("2d");
+    if (ctx) {
+      // Schwarzes Laternengehäuse
+      ctx.fillStyle = "#0b1120";
+      ctx.fillRect(0, 0, 64, 64);
+
+      // Feiner Metallrahmen
+      ctx.strokeStyle = "#334155";
+      ctx.lineWidth = 4;
+      ctx.strokeRect(2, 2, 60, 60);
+
+      // Leuchtendes Milchglas-Weichensignal (warmweiß)
+      ctx.fillStyle = "#fef9c3";
+      if (symbol === "straight") {
+        // Wn 1: Senkrechter Balken
+        ctx.fillRect(25, 10, 14, 44);
+      } else if (symbol === "round") {
+        // Wn 2b: Weißer Kreis (Fersenansicht)
+        ctx.beginPath();
+        ctx.arc(32, 32, 16, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (symbol === "left") {
+        // Wn 2a: Nach links geneigter/fallender weißer Balken (\)
+        ctx.save();
+        ctx.translate(32, 32);
+        ctx.rotate(-Math.PI / 4);
+        ctx.fillRect(-7, -23, 14, 46);
+        ctx.restore();
+      } else if (symbol === "right") {
+        // Wn 2a: Nach rechts geneigter/fallender weißer Balken (/)
+        ctx.save();
+        ctx.translate(32, 32);
+        ctx.rotate(Math.PI / 4);
+        ctx.fillRect(-7, -23, 14, 46);
+        ctx.restore();
+      }
+
+      tex = new THREE.CanvasTexture(canvas);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.needsUpdate = true;
+    }
+  }
+
+  mat = tex
+    ? new THREE.MeshStandardMaterial({
+        map: tex,
+        emissiveMap: tex,
+        emissive: 0xfffbeb,
+        emissiveIntensity: 0.95,
+        roughness: 0.35,
+      })
+    : SHARED_TURNOUT_LENS_MAT;
+  mat.userData.shared = true;
+  _lanternFaceMatCache.set(symbol, mat);
+  return mat;
+}
 
 const SHARED_TURNOUT_DEC_GEO = new THREE.BoxGeometry(9, 3, 12);
 SHARED_TURNOUT_DEC_GEO.userData.shared = true;
@@ -68,7 +145,9 @@ SHARED_TURNOUT_LED_GEO.userData.shared = true;
 export function buildTurnoutAccessories3D(group: THREE.Group, entry: CatalogEntry, piece: TrackPiece) {
   const kind = entry.kind;
   const isLeft = kind === "turnout-left" || kind === "curved-turnout-left";
-  const lanternZ = isLeft ? 22 : -22;
+  const isRight = kind === "turnout-right" || kind === "curved-turnout-right";
+  // Auf der Abzweigseite (Turn-Side) platzieren: in 3D ist links = -Z, rechts = +Z
+  const lanternZ = isLeft ? -22 : 22;
   const lanternX = 26;
 
   const accGroup = new THREE.Group();
@@ -80,22 +159,34 @@ export function buildTurnoutAccessories3D(group: THREE.Group, entry: CatalogEntr
   accGroup.add(rod);
 
   if (piece.hasLantern) {
-    // 2. Sockel & Gehäuse
+    // 2. Sockel & Laternengehäuse mit authentischen Weichensignal-Bildern
     const base = new THREE.Mesh(SHARED_TURNOUT_BASE_GEO, SHARED_TURNOUT_BASE_MAT);
     base.position.set(lanternX, 2.5, lanternZ);
     base.castShadow = true;
     accGroup.add(base);
 
-    // Laternengehäuse (schwarzer Würfel)
-    const housing = new THREE.Mesh(SHARED_TURNOUT_HOUSING_GEO, SHARED_TURNOUT_HOUSING_MAT);
-    housing.position.set(lanternX, 6.5, lanternZ);
+    // 6 Flächen der BoxGeometry: [+X (Ferse), -X (Spitze), +Y (Dach), -Y (Boden), +Z (Seite), -Z (Seite)]
+    const matStraight = getLanternFaceMaterial("straight");
+    const matRound = getLanternFaceMaterial("round");
+    const matLeft = getLanternFaceMaterial("left");
+    const matRight = getLanternFaceMaterial("right");
+
+    const faceMats: THREE.Material[] = isLeft
+      ? [matRound, matLeft, SHARED_TURNOUT_HOUSING_MAT, SHARED_TURNOUT_HOUSING_MAT, matStraight, matStraight]
+      : isRight
+        ? [matRound, matRight, SHARED_TURNOUT_HOUSING_MAT, SHARED_TURNOUT_HOUSING_MAT, matStraight, matStraight]
+        : [matStraight, matStraight, SHARED_TURNOUT_HOUSING_MAT, SHARED_TURNOUT_HOUSING_MAT, matRight, matLeft];
+
+    const housing = new THREE.Mesh(SHARED_TURNOUT_HOUSING_GEO, faceMats);
+    housing.position.set(lanternX, 6.8, lanternZ);
     housing.castShadow = true;
     accGroup.add(housing);
 
-    // Beleuchtetes Weichensignal / Laternenoptik
-    const lens = new THREE.Mesh(SHARED_TURNOUT_LENS_GEO, SHARED_TURNOUT_LENS_MAT);
-    lens.position.set(lanternX, 6.5, lanternZ);
-    accGroup.add(lens);
+    // Dachhaube der Weichenlaterne
+    const cap = new THREE.Mesh(SHARED_TURNOUT_CAP_GEO, SHARED_TURNOUT_HOUSING_MAT);
+    cap.position.set(lanternX, 10.6, lanternZ);
+    cap.castShadow = true;
+    accGroup.add(cap);
   }
 
   if (piece.hasDecoder) {
