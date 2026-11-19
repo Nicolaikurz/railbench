@@ -306,6 +306,7 @@ describe("Drag Preview Generator", () => {
     const def: BuiltinModelDef = {
       id: "station",
       name: "Bahnhof Neustadt",
+      nameEn: "Neustadt Station",
       category: "buildings",
       icon: "🏢",
       description: "Classic passenger station",
