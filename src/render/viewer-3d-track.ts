@@ -757,6 +757,17 @@ export function buildAllTracks3D(
 
   const tiePos = new THREE.Vector3();
   const tieQuat = new THREE.Quaternion();
+  // Alle Schwellen derselben Spurweite global in einem einzigen InstancedMesh bündeln
+  const globalTiesByGauge = new Map<number, number[]>();
+  const pushGlobalTie = (gaugeKey: number, mat: THREE.Matrix4) => {
+    let arr = globalTiesByGauge.get(gaugeKey);
+    if (!arr) {
+      arr = [];
+      globalTiesByGauge.set(gaugeKey, arr);
+    }
+    const e = mat.elements;
+    for (let k = 0; k < 16; k++) arr.push(e[k]!);
+  };
 
   // 1. Gerade Gleise stapeln
   for (const [, list] of straightGroups) {
@@ -788,14 +799,8 @@ export function buildAllTracks3D(
 
     const dualRailGeo = getSharedStraightDualRailGeometry(len, railH, railW, gaugeHalf);
     const railsInst = new THREE.InstancedMesh(dualRailGeo, SHARED_RAIL_MAT, list.length);
-    railsInst.castShadow = true;
+    railsInst.castShadow = false;
 
-    const tiesInst = tieCount > 0 ? new THREE.InstancedMesh(getSharedTieGeometry(gauge), SHARED_TIE_MAT, list.length * tieCount) : null;
-    if (tiesInst) {
-      tiesInst.castShadow = false;
-    }
-
-    let tieGlobalIdx = 0;
     const localBallastMat = new THREE.Matrix4().makeTranslation(len / 2, ballastH / 2, 0);
     const localRailMat = new THREE.Matrix4().makeTranslation(len / 2, railY, 0);
 
@@ -811,11 +816,11 @@ export function buildAllTracks3D(
       finalMat.multiplyMatrices(worldMat, localRailMat);
       railsInst.setMatrixAt(pIdx, finalMat);
 
-      if (tiesInst) {
+      if (tieCount > 0) {
         for (let i = 0; i < tieCount; i++) {
           localMat.makeTranslation(i * tieStep + tieStep / 2, ballastH + 1.1, 0);
           finalMat.multiplyMatrices(worldMat, localMat);
-          tiesInst.setMatrixAt(tieGlobalIdx++, finalMat);
+          pushGlobalTie(gauge, finalMat);
         }
       }
 
@@ -842,12 +847,6 @@ export function buildAllTracks3D(
     railsInst.computeBoundingSphere?.();
     trackGroup.add(ballastInst);
     trackGroup.add(railsInst);
-
-    if (tiesInst) {
-      tiesInst.instanceMatrix.needsUpdate = true;
-      tiesInst.computeBoundingSphere?.();
-      trackGroup.add(tiesInst);
-    }
   }
 
   // 2. Kurvige Gleise stapeln
@@ -886,12 +885,7 @@ export function buildAllTracks3D(
     ballastInst.castShadow = true;
 
     const railsInst = new THREE.InstancedMesh(dualRailGeo, SHARED_RAIL_MAT, list.length);
-    railsInst.castShadow = true;
-
-    const tiesInst = new THREE.InstancedMesh(getSharedTieGeometry(gauge), SHARED_TIE_MAT, list.length * tieCount);
-    tiesInst.castShadow = false;
-
-    let tieGlobalIdx = 0;
+    railsInst.castShadow = false;
 
     for (let pIdx = 0; pIdx < list.length; pIdx++) {
       const it = list[pIdx]!;
@@ -913,7 +907,7 @@ export function buildAllTracks3D(
         tieQuat.setFromAxisAngle(upAxis, -dir * phi);
         localMat.compose(tiePos, tieQuat, scale);
         finalMat.multiplyMatrices(worldMat, localMat);
-        tiesInst.setMatrixAt(tieGlobalIdx++, finalMat);
+        pushGlobalTie(gauge, finalMat);
       }
 
       if (it.piece.hasCatenary || it.piece.hasSignal || it.piece.hasLantern || it.piece.hasDecoder) {
@@ -935,13 +929,22 @@ export function buildAllTracks3D(
 
     ballastInst.instanceMatrix.needsUpdate = true;
     railsInst.instanceMatrix.needsUpdate = true;
-    tiesInst.instanceMatrix.needsUpdate = true;
     ballastInst.computeBoundingSphere?.();
     railsInst.computeBoundingSphere?.();
-    tiesInst.computeBoundingSphere?.();
 
     trackGroup.add(ballastInst);
     trackGroup.add(railsInst);
+  }
+
+  // 2B. Globales Schwellen-InstancedMesh je Spurweite (reduziert Dutzende Draw-Calls auf 1 pro Spurweite)
+  for (const [gaugeKey, flatMats] of globalTiesByGauge) {
+    const count = flatMats.length / 16;
+    if (count <= 0) continue;
+    const tiesInst = new THREE.InstancedMesh(getSharedTieGeometry(gaugeKey), SHARED_TIE_MAT, count);
+    tiesInst.castShadow = false;
+    tiesInst.instanceMatrix.array.set(flatMats);
+    tiesInst.instanceMatrix.needsUpdate = true;
+    tiesInst.computeBoundingSphere?.();
     trackGroup.add(tiesInst);
   }
 

@@ -13,6 +13,7 @@
     "collab": "node server.mjs",
     "benchmark": "node scripts/benchmark-resources.mjs",
     "build": "tsc && vite build",
+    "build:wasm": "bash scripts/build-wasm.sh",
     "preview": "vite preview",
     "test": "vitest",
     "build:electron": "tsc -p tsconfig.electron.json && node -e \"fs.writeFileSync('dist-electron/package.json', '{\\\"type\\\": \\\"commonjs\\\"}')\"",

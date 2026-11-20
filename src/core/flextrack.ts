@@ -11,6 +11,7 @@ import {
   computeFlexSplineLength,
 } from "./geometry";
 import { getPieceConnectorHeight, updatePieceConnections } from "./snapping";
+import { isWasmReady, sampleFlexSplinePointsKernel } from "./wasm-bridge";
 
 export { evaluateFlexSpline, computeFlexSplineLength, isSplineTrackEntry } from "./geometry";
 
@@ -30,6 +31,29 @@ export function sampleFlexSplinePoints(
   offsets: number[],
   numSamples = 60,
 ): FlexSplineSample[] {
+  if (isWasmReady()) {
+    const flat = sampleFlexSplinePointsKernel(
+      chordDist,
+      offsets[0] ?? 0,
+      offsets[1] ?? 0,
+      offsets[2] ?? 0,
+      numSamples,
+    );
+    if (flat) {
+      const samples: FlexSplineSample[] = [];
+      for (let i = 0; i + 4 < flat.length; i += 5) {
+        samples.push({
+          x: flat[i]!,
+          y: flat[i + 1]!,
+          nx: flat[i + 2]!,
+          ny: flat[i + 3]!,
+          tangentAngleRad: flat[i + 4]!,
+        });
+      }
+      return samples;
+    }
+  }
+
   const samples: FlexSplineSample[] = [];
   for (let i = 0; i <= numSamples; i++) {
     const t = i / numSamples;

@@ -39,8 +39,8 @@ const ROTATION_GIZMO_TEXT_STYLE = new TextStyle({
   fontWeight: "bold",
 });
 
-/** Zoom-Schwelle, unterhalb derer einzelne Schwellen im 2D-Viewport ausgeblendet werden (Sub-Pixel-LOD). */
-export const TRACK_TIES_LOD_MIN_SCALE = 0.4;
+/** Schwellen bleiben bei jedem Zoom sichtbar (kein Qualitätsabfall beim Herauszoomen). */
+export const TRACK_TIES_LOD_MIN_SCALE = 0;
 
 // Gemeinsame GPU-Geometrie-Caches (PixiJS v8 GraphicsContext):
 // Identische Katalog-Gleise (z. B. 200x 24188) teilen sich je 1 triangulierten GPU-Puffer für Schotter, Schwellen & Schienen.

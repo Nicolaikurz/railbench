@@ -2,6 +2,7 @@ import type { Connector, TrackPiece, Transform, Layer, Vec2 } from "./types";
 import type { CatalogEntry } from "@/catalog/catalog";
 import { getLocalConnectors, catalogRegistry } from "@/catalog/catalog";
 import { dist, normAngle, rotate, transformPoint, distanceToTrackPiece } from "./geometry";
+import { isWasmReady, matchConnectorsSpatialKernel } from "./wasm-bridge";
 
 export interface SnapResult {
   pieceId: string;
@@ -185,6 +186,46 @@ export function updatePieceConnections(
   angleTolerance = 35.0,
   heightTolerance = 1.0,
 ): void {
+  // Rust-WASM-Schnellpfad für große Anlagen (flaches TypedArray -> Spatial-Hash in WASM)
+  if (isWasmReady() && pieces.length > 30) {
+    let totalConns = 0;
+    for (let i = 0; i < pieces.length; i++) totalConns += pieces[i]!.connectors.length;
+    const flat = new Float64Array(totalConns * 6);
+    let cursor = 0;
+    for (let i = 0; i < pieces.length; i++) {
+      const p = pieces[i]!;
+      for (let c = 0; c < p.connectors.length; c++) {
+        const conn = p.connectors[c]!;
+        const base = cursor * 6;
+        flat[base] = conn.x;
+        flat[base + 1] = conn.y;
+        flat[base + 2] = conn.angle;
+        flat[base + 3] = getPieceConnectorHeight(p, c, layers);
+        flat[base + 4] = i;
+        flat[base + 5] = c;
+        cursor++;
+      }
+    }
+    const matched = matchConnectorsSpatialKernel(flat, distTolerance, angleTolerance, heightTolerance);
+    if (matched) {
+      let idx = 0;
+      for (let i = 0; i < pieces.length; i++) {
+        const p = pieces[i]!;
+        for (let c = 0; c < p.connectors.length; c++) {
+          const mp = matched[idx * 2]!;
+          const mc = matched[idx * 2 + 1]!;
+          if (mp >= 0 && mp < pieces.length) {
+            p.connectors[c]!.connectedTo = { pieceId: pieces[mp]!.id, connectorIndex: mc };
+          } else {
+            p.connectors[c]!.connectedTo = undefined;
+          }
+          idx++;
+        }
+      }
+      return;
+    }
+  }
+
   const maxReach = 1200;
   const pieceMap = new Map<string, TrackPiece>();
   for (let i = 0; i < pieces.length; i++) {

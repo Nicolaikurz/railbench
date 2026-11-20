@@ -17,6 +17,7 @@ import {
   getDefaultLocoCurrentMa,
 } from "@/core/simulation";
 import { Selection } from "@/editor/selection";
+import { initWasmKernel } from "@/core/wasm-bridge";
 import { History } from "@/editor/commands";
 import { createToolbar, updateToolbarState, type ToolbarEvents } from "@/ui/toolbar";
 import { buildToolbarEvents } from "@/ui/toolbar-events-factory";
@@ -59,6 +60,8 @@ import { getEffectiveFlexEntry } from "@/core/flextrack";
 import { initLayoutResizers } from "@/ui/layout-resizer";
 
 async function main() {
+  // Optionalen Rust-WASM-Kernel asynchron im Hintergrund laden (fällt transparent auf JS zurück)
+  void initWasmKernel();
   document.title = `${getFullAppTitle()} – Model Railway Track Planner`;
   const savedSettings = loadAppSettings();
 
@@ -357,7 +360,7 @@ async function main() {
     ruler.update();
   }
 
-  viewer3D = new Viewer3D(canvasHost, useDiscreteGpu3D);
+  viewer3D = new Viewer3D(canvasHost, useDiscreteGpu3D, lowGpuMode);
   let is3DMode = false;
 
   function zoomView(factor: number) {

@@ -1,0 +1,16 @@
+{
+  "name": "railbench-wasm",
+  "type": "module",
+  "description": "High-performance WebAssembly math kernels (power simulation & 3D terrain) for RAILbench",
+  "version": "0.1.0",
+  "files": [
+    "railbench_wasm_bg.wasm",
+    "railbench_wasm.js",
+    "railbench_wasm.d.ts"
+  ],
+  "main": "railbench_wasm.js",
+  "types": "railbench_wasm.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
