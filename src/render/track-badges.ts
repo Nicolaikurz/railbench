@@ -286,14 +286,8 @@ export function drawTrackNumberLabel(
   const voltOffset = targetBadgeH / 2 + Math.max(1.5, 2.5 * (gauge / 16.5));
   const yOffset = entry.kind === "turntable" ? -55 : entry.kind === "transfer-table" ? -70 : hasVoltageLabel ? -voltOffset : 0;
 
-  const text = new Text({
-    text: entry.id,
-    style: getTrackNumberStyle(fontSize),
-    resolution: computeLabelTextResolution(fontSize, worldScale),
-  });
-  (text as any)._baseFontSize = fontSize;
-  text.anchor.set(0.5);
-  text.position.set(0, yOffset);
+  const res = computeLabelTextResolution(fontSize, worldScale);
+  const sharedTex = getSharedLabelTexture(entry.id, fontSize, res);
 
   let labelDisplayObj: Sprite | Text;
   let textW = Math.max(12, entry.id.length * fontSize * 0.65);

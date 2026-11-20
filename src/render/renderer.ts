@@ -1,4 +1,4 @@
-import { Application, Container, Graphics, Text, TexturePool } from "pixi.js";
+import { Application, Container, Graphics, Sprite, Text, TexturePool } from "pixi.js";
 import type { Layout, ColorMode, TrackPiece, BaseboardConfig } from "@/core/types";
 import { catalogRegistry, type Catalog, type CatalogEntry } from "@/catalog/catalog";
 import type { SimulationSummary, ShortCircuitDetectionResult } from "@/core/simulation";
@@ -139,6 +139,41 @@ export class Renderer {
       }
       this.requestRender();
     }
+  }
+
+  /** Plant genau einen WebGL-Frame via requestAnimationFrame (On-Demand, im Low-GPU-Modus auf 30 FPS gedrosselt). */
+  requestRender() {
+    if (this.isPaused || this.renderScheduled) return;
+    if (!this.app?.renderer || !this.app?.stage) return;
+
+    const scheduleFrame = () => {
+      this.rafId = requestAnimationFrame(() => {
+        this.renderScheduled = false;
+        this.rafId = 0;
+        if (this.isPaused || !this.app?.renderer || !this.app?.stage) return;
+        this.lastRenderTs = performance.now();
+        this.app.renderer.render(this.app.stage);
+      });
+    };
+
+    this.renderScheduled = true;
+    if (this.lowGpuMode) {
+      const elapsed = performance.now() - this.lastRenderTs;
+      const minIntervalMs = 1000 / 30;
+      if (elapsed < minIntervalMs) {
+        this.delayedRenderTimer = setTimeout(() => {
+          this.delayedRenderTimer = null;
+          if (this.isPaused) {
+            this.renderScheduled = false;
+            return;
+          }
+          scheduleFrame();
+        }, Math.max(1, Math.ceil(minIntervalMs - elapsed)));
+        return;
+      }
+      this.requestRender();
+    }
+    scheduleFrame();
   }
 
   /** Plant genau einen WebGL-Frame via requestAnimationFrame (On-Demand, im Low-GPU-Modus auf 30 FPS gedrosselt). */
@@ -697,7 +732,6 @@ export class Renderer {
     // 1. Tracks rendern (inkrementeller Per-Track-Cache, sortiert nach realer 3D-Höhe)
     const tracksSig = this.computeTracksSignature(layout, catalog, options);
     if (tracksSig !== this.lastTracksSignature) {
-      this.clearLayer(this.tracksLayer);
       const catenaryMastCtx = new CatenaryMast2DContext();
 
       const showPowerDrop = options.showPowerDrop ?? false;
@@ -835,38 +869,16 @@ export class Renderer {
           this.trackSpriteCache.set(piece.id, { sig: pieceSig, sprite });
         }
 
-    for (const item of visibleTrackItems) {
-      const { piece, layer, baseElev, isInactiveLayer, isSelected } = item;
-
-      const entry: CatalogEntry = entryMap.get(piece.catalogId) ?? catalogRegistry.findEntry(piece.catalogId) ?? {
-        id: piece.catalogId,
-        name: `Gleis ${piece.catalogId}`,
-        kind: "straight",
-        category: "Geraden",
-        description: "",
-        length: 188.3,
-      };
-
-      const powerResult = powerSim?.results.get(piece.id);
-      const isShortCircuit = Boolean(options.shortCircuit?.shortCircuitPieces.has(piece.id));
-
-      const sprite = createTrackGraphics(piece, entry, catalog, {
-        isSelected,
-        showConnectors: options.showConnectors,
-        showPowerDrop,
-        powerResult,
-        isShortCircuit,
-        showTrackLabels: options.showTrackLabels,
-        showColorCode: options.showColorCode,
-        colorMode: options.colorMode,
-        layerColor: layer?.color,
-        layerHeightMm: baseElev,
-        isInactiveLayer,
-        minLayoutElev,
-        allPieces: layout.pieces,
-        worldScale: this.world.scale.x || 1,
-        catenaryMastCtx,
-      });
+      // Nicht mehr vorhandene oder ausgeblendete Gleise aus dem Cache entfernen
+      for (const [id, entry] of this.trackSpriteCache) {
+        if (!activeIds.has(id)) {
+          if (entry.sprite.parent === this.tracksLayer) {
+            this.tracksLayer.removeChild(entry.sprite);
+          }
+          this.destroyDisplayObject(entry.sprite);
+          this.trackSpriteCache.delete(id);
+        }
+      }
 
       // Nicht mehr vorhandene oder ausgeblendete Gleise aus dem Cache entfernen
       for (const [id, entry] of this.trackSpriteCache) {
