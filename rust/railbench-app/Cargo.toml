@@ -8,5 +8,7 @@ description = "Native Rust desktop application for RAILbench (egui + wgpu)"
 [dependencies]
 railbench-core = { path = "../railbench-core" }
 eframe = { version = "0.31", default-features = true, features = ["wgpu"] }
+bytemuck = { version = "1", features = ["derive"] }
 rfd = "0.15"
 serde_json = "1.0"
+tungstenite = "0.26"

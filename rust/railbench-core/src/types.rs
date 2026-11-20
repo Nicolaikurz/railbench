@@ -279,12 +279,23 @@ pub struct Layout {
     pub baseboards: Option<Vec<BaseboardConfig>>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalConnector {
+    pub x: f64,
+    pub y: f64,
+    pub angle: f64,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CatalogEntry {
     pub id: String,
     pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name_en: Option<String>,
     pub kind: String,
+    #[serde(default)]
     pub category: String,
     #[serde(default)]
     pub description: String,
@@ -306,6 +317,8 @@ pub struct CatalogEntry {
     pub is_road: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub road_width: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub local_connectors: Option<Vec<LocalConnector>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -313,6 +326,15 @@ pub struct CatalogEntry {
 pub struct Catalog {
     pub id: String,
     pub name: String,
+    #[serde(default)]
     pub scale: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub manufacturer: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub system: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gauge: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub is_road: Option<bool>,
     pub entries: Vec<CatalogEntry>,
 }

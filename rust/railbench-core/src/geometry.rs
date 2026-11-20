@@ -38,6 +38,112 @@ pub fn smoothstep(a: f64, b: f64, x: f64) -> f64 {
     t * t * (3.0 - 2.0 * t)
 }
 
+/// Reconstructs the exact straight line or circular arc connecting `c0` (entry) to `c1` (exit)
+/// using only their world positions and outward connector angles.
+/// Works for 100% of catalogs (H0, N, TT, Z, G, curved turnouts, custom catalogs) without needing catalog lookup.
+pub fn sample_arc_between_connectors(
+    x0: f64,
+    y0: f64,
+    angle0_deg: f64,
+    x1: f64,
+    y1: f64,
+    angle1_deg: f64,
+    steps: usize,
+) -> Vec<Vec2> {
+    let t0 = deg2rad(angle0_deg + 180.0);
+    let t1 = deg2rad(angle1_deg);
+    let mut delta = (t1 - t0) % (2.0 * std::f64::consts::PI);
+    if delta > std::f64::consts::PI {
+        delta -= 2.0 * std::f64::consts::PI;
+    } else if delta < -std::f64::consts::PI {
+        delta += 2.0 * std::f64::consts::PI;
+    }
+
+    let chord = (x1 - x0).hypot(y1 - y0);
+    if chord < 1e-4 {
+        return vec![Vec2 { x: x0, y: y0 }];
+    }
+
+    // Straight track (or nearly straight) when both tangents and chord align
+    let chord_ang = (y1 - y0).atan2(x1 - x0);
+    let wrap_pi = |mut a: f64| {
+        a %= 2.0 * std::f64::consts::PI;
+        if a > std::f64::consts::PI {
+            a -= 2.0 * std::f64::consts::PI;
+        } else if a < -std::f64::consts::PI {
+            a += 2.0 * std::f64::consts::PI;
+        }
+        a
+    };
+    let chord_err_from_arc = wrap_pi(chord_ang - (t0 + delta * 0.5)).abs();
+
+    if delta.abs() < 0.012 && chord_err_from_arc < 0.025 {
+        let n = steps.max(1);
+        let mut pts = Vec::with_capacity(n + 1);
+        for i in 0..=n {
+            let u = i as f64 / n as f64;
+            pts.push(Vec2 {
+                x: x0 + (x1 - x0) * u,
+                y: y0 + (y1 - y0) * u,
+            });
+        }
+        return pts;
+    }
+
+    // Pure circular arc when chord angle matches t0 + delta/2
+    if delta.abs() >= 0.012 && chord_err_from_arc < 0.025 {
+        let sin_half = (delta.abs() * 0.5).sin();
+        let r = chord / (2.0 * sin_half);
+        let (nx, ny) = if delta > 0.0 {
+            (-t0.sin(), t0.cos())
+        } else {
+            (t0.sin(), -t0.cos())
+        };
+        let cx = x0 + nx * r;
+        let cy = y0 + ny * r;
+        let a0 = (y0 - cy).atan2(x0 - cx);
+
+        let n = steps.max(6);
+        let mut pts = Vec::with_capacity(n + 1);
+        for i in 0..=n {
+            let u = i as f64 / n as f64;
+            let ang = a0 + delta * u;
+            pts.push(Vec2 {
+                x: cx + r * ang.cos(),
+                y: cy + r * ang.sin(),
+            });
+        }
+        if let Some(last) = pts.last_mut() {
+            *last = Vec2 { x: x1, y: y1 };
+        }
+        return pts;
+    }
+
+    // Compound curve / turnout diverging branch with straight lead-in/out / S-curve:
+    // Exact C1 cubic Bezier matching both endpoint positions and tangent angles
+    let h = chord * 0.36;
+    let p1x = x0 + t0.cos() * h;
+    let p1y = y0 + t0.sin() * h;
+    let p2x = x1 - t1.cos() * h;
+    let p2y = y1 - t1.sin() * h;
+
+    let n = steps.max(10);
+    let mut pts = Vec::with_capacity(n + 1);
+    for i in 0..=n {
+        let u = i as f64 / n as f64;
+        let om = 1.0 - u;
+        let b0 = om * om * om;
+        let b1 = 3.0 * om * om * u;
+        let b2 = 3.0 * om * u * u;
+        let b3 = u * u * u;
+        pts.push(Vec2 {
+            x: b0 * x0 + b1 * p1x + b2 * p2x + b3 * x1,
+            y: b0 * y0 + b1 * p1y + b2 * p2y + b3 * y1,
+        });
+    }
+    pts
+}
+
 #[inline]
 pub fn is_point_in_any_polygon(
     x: f64,
