@@ -1,10 +1,6 @@
 /* @ts-self-types="./railbench_wasm.d.ts" */
 
 /**
- * Sweeps a 2D tunnel cross-section along a 3D centerline path into a flat `Float32Array` of vertex positions.
- *
- * - `path_xyz`: stride 3 (`[x, y, z, ...]`)
- * - `section_xy`: stride 2 (`[x, y, ...]`)
  * @param {Float32Array | number[]} path_xyz
  * @param {Float32Array | number[]} section_xy
  * @returns {Float32Array}
@@ -28,10 +24,6 @@ export function build_tunnel_sweep_positions(path_xyz, section_xy) {
 }
 
 /**
- * Evaluates the full 3D ground-terrain vertex grid: support-polygon clipping,
- * organic height noise, building box-SDF flattening, and track/road corridor carving.
- *
- * Returns flat `Vec<f32>` of stride 4 per vertex: `[height, in_bounds (0/1), is_water (0/1), flatten_weight]`.
  * @param {number} segs_x
  * @param {number} segs_z
  * @param {number} width
@@ -95,10 +87,60 @@ export function carve_ground_terrain_grid(segs_x, segs_z, width, depth, max_heig
 }
 
 /**
- * Evaluates a 2D procedural mountain heightfield on a `(nx_steps + 1) x (nz_steps + 1)` grid.
- *
- * `strokes` is an optional flat array of `[lx, lz, radius, stroke_height, ...]` (stride 4)
- * for sculpted brush-path mountains. When empty, evaluates the standard elliptical mountain profile.
+ * @param {Float32Array | number[]} track_samples
+ * @param {Float32Array | number[]} candidates
+ * @param {number} vertical_tol
+ * @returns {Uint8Array}
+ */
+export function check_catenary_mast_clearances(track_samples, candidates, vertical_tol) {
+    const val3 = +vertical_tol;
+    let ptr0, len0, ptr1, len1;
+    try {
+        ptr0 = passArrayF32ToWasm0(track_samples, wasm.__wbindgen_malloc);
+        len0 = WASM_VECTOR_LEN;
+        ptr1 = passArrayF32ToWasm0(candidates, wasm.__wbindgen_malloc);
+        len1 = WASM_VECTOR_LEN;
+    } catch (e) {
+        if (ptr1) { wasm.__wbindgen_free(ptr1, len1 * 4, 4); }
+        if (ptr0) { wasm.__wbindgen_free(ptr0, len0 * 4, 4); }
+        throw e;
+    }
+    const ret = wasm.check_catenary_mast_clearances(ptr0, len0, ptr1, len1, val3);
+    var v4 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+    return v4;
+}
+
+/**
+ * @param {Float64Array | number[]} piece_lengths
+ * @param {Uint8Array | number[]} is_curve_left
+ * @param {number} h_start
+ * @param {number} total_rise
+ * @param {number} target_layer_base_h
+ * @returns {Float64Array}
+ */
+export function compute_ramp_chain_elevations(piece_lengths, is_curve_left, h_start, total_rise, target_layer_base_h) {
+    const val3 = +h_start;
+    const val4 = +total_rise;
+    const val5 = +target_layer_base_h;
+    let ptr0, len0, ptr1, len1;
+    try {
+        ptr0 = passArrayF64ToWasm0(piece_lengths, wasm.__wbindgen_malloc);
+        len0 = WASM_VECTOR_LEN;
+        ptr1 = passArray8ToWasm0(is_curve_left, wasm.__wbindgen_malloc);
+        len1 = WASM_VECTOR_LEN;
+    } catch (e) {
+        if (ptr1) { wasm.__wbindgen_free(ptr1, len1 * 1, 1); }
+        if (ptr0) { wasm.__wbindgen_free(ptr0, len0 * 8, 8); }
+        throw e;
+    }
+    const ret = wasm.compute_ramp_chain_elevations(ptr0, len0, ptr1, len1, val3, val4, val5);
+    var v6 = getArrayF64FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 8, 8);
+    return v6;
+}
+
+/**
  * @param {number} nx_steps
  * @param {number} nz_steps
  * @param {number} half_w
@@ -122,11 +164,33 @@ export function evaluate_mountain_heightfield(nx_steps, nz_steps, half_w, half_d
 }
 
 /**
- * Spatial-hashed connector matcher for `updatePieceConnections`.
- *
- * `connectors` has stride 6 per connector: `[x, y, angle_deg, height, piece_idx, conn_idx]`.
- * Returns `Vec<i32>` of length `2 * count`: `[matched_piece_idx, matched_conn_idx, ...]`
- * (`-1, -1` when unmatched).
+ * @param {Float32Array | number[]} pts_xye
+ * @param {number} m_x
+ * @param {number} m_z
+ * @param {number} cos_inv
+ * @param {number} sin_inv
+ * @param {number} half_w
+ * @param {number} half_d
+ * @param {number} height
+ * @returns {Float32Array}
+ */
+export function evaluate_mountain_track_samples(pts_xye, m_x, m_z, cos_inv, sin_inv, half_w, half_d, height) {
+    const val2 = +m_x;
+    const val3 = +m_z;
+    const val4 = +cos_inv;
+    const val5 = +sin_inv;
+    const val6 = +half_w;
+    const val7 = +half_d;
+    const val8 = +height;
+    const ptr0 = passArrayF32ToWasm0(pts_xye, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.evaluate_mountain_track_samples(ptr0, len0, val2, val3, val4, val5, val6, val7, val8);
+    var v9 = getArrayF32FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
+    return v9;
+}
+
+/**
  * @param {Float64Array | number[]} connectors
  * @param {number} dist_tolerance
  * @param {number} angle_tolerance
@@ -146,8 +210,21 @@ export function match_connectors_spatial(connectors, dist_tolerance, angle_toler
 }
 
 /**
- * Clamps, rounds (0.1 mm), deduplicates micro-segments, and removes collinear points
- * from a 2D table-cutout polygon (`raw_xy` stride 2).
+ * @param {number} chord_dist
+ * @param {number} h1
+ * @param {number} h2
+ * @param {number} h3
+ * @param {number} num_samples
+ * @returns {Float64Array}
+ */
+export function sample_flex_spline_points(chord_dist, h1, h2, h3, num_samples) {
+    const ret = wasm.sample_flex_spline_points(chord_dist, h1, h2, h3, num_samples);
+    var v1 = getArrayF64FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 8, 8);
+    return v1;
+}
+
+/**
  * @param {Float64Array | number[]} raw_xy
  * @param {number} min_x
  * @param {number} max_x
@@ -173,21 +250,6 @@ export function simplify_cutout_polygon(raw_xy, min_x, max_x, min_y, max_y, dedu
 }
 
 /**
- * Multi-source Dijkstra solver for electrical rail / catenary resistance networks.
- *
- * Inputs are flat CSR arrays (zero JSON overhead):
- * - `adj_offsets`: length `node_count + 1`, CSR row offsets
- * - `adj_neighbors`: flat neighbor node indices
- * - `piece_len_m`: length `node_count`, physical length of each piece in meters
- * - `feeder_indices`: node indices that act as power feeders
- * - `rail_ohm_per_meter`: resistance per meter
- * - `joint_resistance_ohm`: resistance per rail joint
- *
- * Returns a flat `Vec<f64>` of length `4 * node_count`:
- * - `[0 .. n)`: `min_resistance` (`f64::INFINITY` if unreachable)
- * - `[n .. 2*n)`: `min_distance` (`f64::INFINITY` if unreachable)
- * - `[2*n .. 3*n)`: `parent_index` (`-1.0` for feeder or unreachable)
- * - `[3*n .. 4*n)`: `edge_res_to_parent` (`0.0` if unreachable)
  * @param {number} node_count
  * @param {Uint32Array | number[]} adj_offsets
  * @param {Uint32Array | number[]} adj_neighbors
@@ -225,14 +287,6 @@ export function solve_power_dijkstra(node_count, adj_offsets, adj_neighbors, pie
 }
 
 /**
- * Union-Find (DSU) short-circuit solver for 2-wire railway polarity checks.
- *
- * - `edges`: stride 4 (`[n1L, n1R, n2L, n2R]`) per electrical joint
- * - `rail_pairs`: stride 2 (`[railA, railB]`) per piece/crossing check
- *
- * Returns `Vec<u8>` of length `edge_count + pair_count`:
- * - first `edge_count` bytes: `1` if the joint triggers a short circuit
- * - next `pair_count` bytes: `1` if the rail pair ends up shorted
  * @param {number} terminal_count
  * @param {Uint32Array | number[]} edges
  * @param {Uint32Array | number[]} rail_pairs
@@ -337,6 +391,13 @@ function getUint8ArrayMemory0() {
 function passArray32ToWasm0(arg, malloc) {
     const ptr = malloc(arg.length * 4, 4) >>> 0;
     getUint32ArrayMemory0().set(arg, ptr / 4);
+    WASM_VECTOR_LEN = arg.length;
+    return ptr;
+}
+
+function passArray8ToWasm0(arg, malloc) {
+    const ptr = malloc(arg.length * 1, 1) >>> 0;
+    getUint8ArrayMemory0().set(arg, ptr / 1);
     WASM_VECTOR_LEN = arg.length;
     return ptr;
 }

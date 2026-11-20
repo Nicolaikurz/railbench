@@ -1,17 +1,13 @@
 [package]
 name = "railbench-wasm"
-version = "0.1.0"
-edition = "2021"
-description = "High-performance WebAssembly math kernels (power simulation & 3D terrain) for RAILbench"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "WebAssembly bindings exposing railbench-core math kernels to the Electron/Web frontend"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+railbench-core = { path = "../railbench-core" }
 wasm-bindgen = "0.2"
-
-[profile.release]
-opt-level = 3
-lto = true
-codegen-units = 1
-panic = "abort"

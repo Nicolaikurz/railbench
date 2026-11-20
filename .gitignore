@@ -3,4 +3,5 @@ dist
 dist-electron
 release/*
 !release/*.md
+rust/target
 rust/railbench-wasm/target

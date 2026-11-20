@@ -1,0 +1,10 @@
+[package]
+name = "railbench-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Pure Rust core engine for RAILbench (data model, geometry, snapping, electrical simulation, terrain, ramps, JSON I/O)"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"

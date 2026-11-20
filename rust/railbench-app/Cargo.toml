@@ -1,0 +1,12 @@
+[package]
+name = "railbench-app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Native Rust desktop application for RAILbench (egui + wgpu)"
+
+[dependencies]
+railbench-core = { path = "../railbench-core" }
+eframe = { version = "0.31", default-features = true, features = ["wgpu"] }
+rfd = "0.15"
+serde_json = "1.0"
