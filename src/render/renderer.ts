@@ -171,6 +171,41 @@ export class Renderer {
         }, Math.max(1, Math.ceil(minIntervalMs - elapsed)));
         return;
       }
+      this.requestRender();
+    }
+    scheduleFrame();
+  }
+
+  /** Plant genau einen WebGL-Frame via requestAnimationFrame (On-Demand, im Low-GPU-Modus auf 30 FPS gedrosselt). */
+  requestRender() {
+    if (this.isPaused || this.renderScheduled) return;
+    if (!this.app?.renderer || !this.app?.stage) return;
+
+    const scheduleFrame = () => {
+      this.rafId = requestAnimationFrame(() => {
+        this.renderScheduled = false;
+        this.rafId = 0;
+        if (this.isPaused || !this.app?.renderer || !this.app?.stage) return;
+        this.lastRenderTs = performance.now();
+        this.app.renderer.render(this.app.stage);
+      });
+    };
+
+    this.renderScheduled = true;
+    if (this.lowGpuMode) {
+      const elapsed = performance.now() - this.lastRenderTs;
+      const minIntervalMs = 1000 / 30;
+      if (elapsed < minIntervalMs) {
+        this.delayedRenderTimer = setTimeout(() => {
+          this.delayedRenderTimer = null;
+          if (this.isPaused) {
+            this.renderScheduled = false;
+            return;
+          }
+          scheduleFrame();
+        }, Math.max(1, Math.ceil(minIntervalMs - elapsed)));
+        return;
+      }
     }
     scheduleFrame();
   }
@@ -834,7 +869,15 @@ export class Renderer {
           this.trackSpriteCache.set(piece.id, { sig: pieceSig, sprite });
         }
 
-        orderedSprites.push(sprite);
+      // Nicht mehr vorhandene oder ausgeblendete Gleise aus dem Cache entfernen
+      for (const [id, entry] of this.trackSpriteCache) {
+        if (!activeIds.has(id)) {
+          if (entry.sprite.parent === this.tracksLayer) {
+            this.tracksLayer.removeChild(entry.sprite);
+          }
+          this.destroyDisplayObject(entry.sprite);
+          this.trackSpriteCache.delete(id);
+        }
       }
 
       // Nicht mehr vorhandene oder ausgeblendete Gleise aus dem Cache entfernen
