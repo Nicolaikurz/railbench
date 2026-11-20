@@ -3,9 +3,13 @@ use std::sync::Arc;
 use bytemuck::{Pod, Zeroable};
 use eframe::egui::{self, Color32, CornerRadius, Frame, Margin, RichText, Sense, Stroke};
 use eframe::egui_wgpu::{self, wgpu};
-use railbench_core::geometry::{rotate, sample_arc_between_connectors, sample_flex_spline_points};
-use railbench_core::terrain::evaluate_mountain_heightfield;
-use railbench_core::types::{Catalog, CatalogEntry, Layout, Model3D, TrackPiece, Vec2};
+use railbench_core::geometry::{
+    build_tunnel_sweep_positions, rotate, sample_arc_between_connectors, sample_flex_spline_points, smoothstep,
+};
+use railbench_core::terrain::{
+    carve_ground_terrain_grid, evaluate_mountain_heightfield, evaluate_mountain_track_samples, mountain_noise,
+};
+use railbench_core::types::{BaseboardConfig, Catalog, CatalogEntry, Layout, Model3D, TrackPiece, Vec2};
 
 use crate::catalog::{find_entry, is_road_id};
 
@@ -689,12 +693,80 @@ fn baseboard_origin(b: &railbench_core::types::BaseboardConfig) -> (f64, f64) {
     }
 }
 
+struct CorridorBranch {
+    pts_xze: Vec<[f32; 3]>, // [world_x, world_z, world_elev]
+    half_w: f32,
+    is_road: bool,
+    has_catenary: bool,
+    gauge: f32,
+    is_turntable: bool,
+}
+
+fn collect_visible_corridors(
+    layout: &Layout,
+    catalogs: &[Catalog],
+    layer_info: &std::collections::HashMap<&str, (f64, bool)>,
+) -> Vec<CorridorBranch> {
+    let mut out = Vec::new();
+    for piece in &layout.pieces {
+        let lid = piece.layer_id.as_deref().unwrap_or("layer-1");
+        let (lh, vis) = layer_info.get(lid).copied().unwrap_or((0.0, true));
+        if !vis {
+            continue;
+        }
+        let e0 = lh + piece.elevation.map(|e| e.start).unwrap_or(0.0);
+        let e1 = lh + piece.elevation.map(|e| e.end).unwrap_or(0.0);
+        let entry = find_entry(catalogs, &piece.catalog_id);
+        let is_road = is_road_id(catalogs, &piece.catalog_id);
+        let gauge = entry.and_then(|e| e.gauge).unwrap_or(16.5) as f32;
+        let half_w = if is_road {
+            entry.and_then(|e| e.road_width).unwrap_or(60.0) as f32 * 0.5
+        } else {
+            (gauge / 16.5) * 20.0
+        };
+        let has_catenary = piece.has_catenary == Some(true);
+        let is_turntable = piece.connectors.len() >= 6;
+
+        for branch in sample_track_branches_3d(piece, e0, e1) {
+            if branch.len() < 2 {
+                continue;
+            }
+            // Subdivide dense points every ~15 mm for accurate tunnel portal intersection & terrain carving
+            let mut dense = Vec::new();
+            for (si, w) in branch.windows(2).enumerate() {
+                let a = w[0];
+                let b = w[1];
+                let seg_len = (b[0] - a[0]).hypot(b[2] - a[2]);
+                let sub = ((seg_len / 15.0).ceil() as usize).max(1);
+                let start_k = if si == 0 { 0 } else { 1 };
+                for k in start_k..=sub {
+                    let u = k as f32 / sub as f32;
+                    dense.push([
+                        a[0] + (b[0] - a[0]) * u,
+                        a[2] + (b[2] - a[2]) * u,
+                        a[1] + (b[1] - a[1]) * u,
+                    ]);
+                }
+            }
+            out.push(CorridorBranch {
+                pts_xze: dense,
+                half_w,
+                is_road,
+                has_catenary,
+                gauge,
+                is_turntable,
+            });
+        }
+    }
+    out
+}
+
 pub fn build_scene_mesh_3d(layout: &Layout, catalogs: &[Catalog]) -> SceneMesh3D {
     let mut verts = Vec::new();
     let mut idxs = Vec::new();
 
     // 1. Baseboards with wood skirt & 4 legs
-    let mut boards = Vec::new();
+    let mut boards: Vec<&BaseboardConfig> = Vec::new();
     if let Some(list) = &layout.baseboards {
         boards.extend(list.iter().filter(|b| b.enabled));
     } else if let Some(b) = &layout.baseboard {
@@ -702,7 +774,7 @@ pub fn build_scene_mesh_3d(layout: &Layout, catalogs: &[Catalog]) -> SceneMesh3D
             boards.push(b);
         }
     }
-    for b in boards {
+    for b in &boards {
         let (x0, y0) = baseboard_origin(b);
         let cx = (x0 + b.width * 0.5) as f32;
         let cz = (y0 + b.depth * 0.5) as f32;
@@ -716,11 +788,8 @@ pub fn build_scene_mesh_3d(layout: &Layout, catalogs: &[Catalog]) -> SceneMesh3D
             _ => [0.68, 0.54, 0.36],
         };
         let frame_col = [0.42, 0.29, 0.18];
-        // Main top plate (top at y = 0.0)
         push_box(&mut verts, &mut idxs, [cx, -10.0, cz], [w, 20.0, d], top_col);
-        // Under-table wooden frame skirt
         push_box(&mut verts, &mut idxs, [cx, -32.0, cz], [w - 28.0, 26.0, d - 28.0], frame_col);
-        // 4 sturdy table legs
         let leg_col = [0.35, 0.24, 0.15];
         for sx in [-1.0_f32, 1.0] {
             for sz in [-1.0_f32, 1.0] {
@@ -743,7 +812,9 @@ pub fn build_scene_mesh_3d(layout: &Layout, catalogs: &[Catalog]) -> SceneMesh3D
         }
     }
 
-    // 2. Mountains & Detailed 3D Models
+    let corridors = collect_visible_corridors(layout, catalogs, &layer_info);
+
+    // 2. Mountains (with Tunnel Carving, Portals & Swept Tube), Carved Ground Terrain & 3D Models
     if let Some(models) = &layout.models {
         for m in models {
             let lid = m.layer_id.as_deref().unwrap_or("layer-1");
@@ -751,7 +822,14 @@ pub fn build_scene_mesh_3d(layout: &Layout, catalogs: &[Catalog]) -> SceneMesh3D
             if !vis {
                 continue;
             }
-            push_model_3d(&mut verts, &mut idxs, m, (lh + m.elevation.unwrap_or(0.0)) as f32);
+            let y0 = (lh + m.elevation.unwrap_or(0.0)) as f32;
+            match m.builtin_id.as_deref() {
+                Some("mountain") => push_mountain_with_tunnels_3d(&mut verts, &mut idxs, m, y0, &corridors),
+                Some("ground-terrain") => {
+                    push_ground_terrain_3d(&mut verts, &mut idxs, m, y0, layout, &layer_info, &boards, &corridors);
+                }
+                _ => push_model_3d(&mut verts, &mut idxs, m, y0),
+            }
         }
     }
 
@@ -1007,6 +1085,550 @@ fn sample_track_branches_3d(piece: &TrackPiece, e0: f64, e1: f64) -> Vec<Vec<[f3
 //  Detailed 3D Buildings, Trees, Signals & Smooth-Normal Alpine Mountains
 // ============================================================================
 
+fn eval_brush_local(lx: f64, lz: f64, m: &Model3D) -> (f64, f64) {
+    let nodes = match &m.mountain_path {
+        Some(p) if !p.is_empty() => p,
+        _ => return (2.0, 0.0),
+    };
+    let mut best_norm_r = f64::INFINITY;
+    let mut best_h = 0.0_f64;
+    for n in nodes {
+        let r = n.radius.max(20.0);
+        let nr = (lx - n.x).hypot(lz - n.y) / r;
+        if nr < best_norm_r {
+            best_norm_r = nr;
+        }
+        if nr < 1.0 {
+            let prof = (nr * std::f64::consts::FRAC_PI_2).cos().powf(1.35);
+            let noise = mountain_noise(lx / r, lz / r);
+            let ch = (n.height * prof * (0.88 + 0.16 * noise)).max(0.0);
+            if ch > best_h {
+                best_h = ch;
+            }
+        }
+    }
+    (best_norm_r, best_h)
+}
+
+fn push_mountain_with_tunnels_3d(
+    verts: &mut Vec<Vertex3D>,
+    idxs: &mut Vec<u32>,
+    m: &Model3D,
+    y0: f32,
+    corridors: &[CorridorBranch],
+) {
+    let scale = m.scale.unwrap_or(1.0) as f32;
+    let w = (m.width as f32 * scale).max(60.0);
+    let d = (m.depth as f32 * scale).max(60.0);
+    let h = (m.height as f32 * scale).max(20.0);
+    let cx = m.transform.x as f32;
+    let cz = m.transform.y as f32;
+    let rot_rad = (m.transform.rotation as f32).to_radians();
+    let cos_inv = (-rot_rad as f64).cos();
+    let sin_inv = (-rot_rad as f64).sin();
+
+    let mut strokes: Vec<f32> = Vec::new();
+    if let Some(nodes) = &m.mountain_path {
+        for n in nodes {
+            strokes.push((n.x as f32) * scale);
+            strokes.push((n.y as f32) * scale);
+            strokes.push((n.radius as f32) * scale);
+            strokes.push((n.height as f32) * scale);
+        }
+    }
+
+    let nx = 34usize;
+    let nz = 34usize;
+    let mut heights = evaluate_mountain_heightfield(nx, nz, (w * 0.5) as f64, (d * 0.5) as f64, h as f64, &strokes);
+    let cols = nx + 1;
+    let rows = nz + 1;
+    let mut suppress_vertex = vec![false; cols * rows];
+
+    // Check track & road corridors passing through or cutting this mountain
+    let bound_r = w.max(d) * 0.65;
+    struct HitSample {
+        wx: f32,
+        wz: f32,
+        rel_elev: f32,
+        half_w: f32,
+        total_h: f32,
+        norm_r: f32,
+    }
+    let mut underground_hits: Vec<HitSample> = Vec::new();
+
+    for br in corridors {
+        let near = br
+            .pts_xze
+            .iter()
+            .any(|p| (p[0] - cx).hypot(p[1] - cz) <= bound_r + 120.0);
+        if !near {
+            continue;
+        }
+        let g_scale = (br.gauge / 16.5).clamp(0.4, 3.0);
+        let tunnel_half_w = if br.is_road {
+            40.0
+        } else if br.has_catenary {
+            35.0 * g_scale
+        } else {
+            30.0 * g_scale
+        };
+        let tunnel_total_h = if br.is_road {
+            72.0
+        } else if br.has_catenary {
+            104.0 * g_scale
+        } else {
+            84.0 * g_scale
+        };
+
+        let mut flat_xze = Vec::with_capacity(br.pts_xze.len() * 3);
+        for p in &br.pts_xze {
+            flat_xze.push(p[0]);
+            flat_xze.push(p[1]);
+            flat_xze.push(p[2] - y0);
+        }
+
+        let eval = if strokes.is_empty() {
+            evaluate_mountain_track_samples(
+                &flat_xze,
+                cx as f64,
+                cz as f64,
+                cos_inv,
+                sin_inv,
+                (w * 0.5) as f64,
+                (d * 0.5) as f64,
+                h as f64,
+            )
+        } else {
+            let mut out = vec![0.0_f32; br.pts_xze.len() * 2];
+            for (k, p) in br.pts_xze.iter().enumerate() {
+                let dx = p[0] as f64 - cx as f64;
+                let dz = p[1] as f64 - cz as f64;
+                let lx = dx * cos_inv - dz * sin_inv;
+                let lz = dx * sin_inv + dz * cos_inv;
+                let (nr, sh) = eval_brush_local(lx / scale as f64, lz / scale as f64, m);
+                out[k * 2] = nr as f32;
+                out[k * 2 + 1] = (sh as f32) * scale;
+            }
+            out
+        };
+
+        let mut is_tunnel_pt = vec![false; br.pts_xze.len()];
+        for k in 0..br.pts_xze.len() {
+            let nr = eval[k * 2];
+            let sh = eval[k * 2 + 1];
+            let rel_elev = flat_xze[k * 3 + 2];
+            if rel_elev >= -35.0 && rel_elev <= h - 10.0 && nr < 1.05 {
+                if sh > rel_elev + 16.0 && nr < 0.90 {
+                    is_tunnel_pt[k] = true;
+                }
+                underground_hits.push(HitSample {
+                    wx: br.pts_xze[k][0],
+                    wz: br.pts_xze[k][1],
+                    rel_elev,
+                    half_w: tunnel_half_w,
+                    total_h: tunnel_total_h,
+                    norm_r: nr,
+                });
+            }
+        }
+
+        // Find contiguous tunnel spans [start..=end] -> emit 3D stone portals & swept dark tunnel interior!
+        let mut idx = 0;
+        while idx < is_tunnel_pt.len() {
+            if !is_tunnel_pt[idx] {
+                idx += 1;
+                continue;
+            }
+            let start = idx;
+            while idx + 1 < is_tunnel_pt.len() && is_tunnel_pt[idx + 1] {
+                idx += 1;
+            }
+            let end = idx;
+            idx += 1;
+            if end <= start {
+                continue;
+            }
+
+            // Entry portal
+            let entry_pt = br.pts_xze[start];
+            let next_pt = br.pts_xze[(start + 1).min(end)];
+            let (fdx, fdz) = (next_pt[0] - entry_pt[0], next_pt[1] - entry_pt[1]);
+            if fdx.hypot(fdz) > 1e-3 {
+                push_tunnel_portal_3d(
+                    verts,
+                    idxs,
+                    [entry_pt[0], entry_pt[2], entry_pt[1]],
+                    [-fdx, -fdz],
+                    tunnel_half_w,
+                    tunnel_total_h,
+                );
+            }
+
+            // Exit portal
+            let exit_pt = br.pts_xze[end];
+            let prev_pt = br.pts_xze[end.saturating_sub(1)];
+            let (bdx, bdz) = (exit_pt[0] - prev_pt[0], exit_pt[1] - prev_pt[1]);
+            if bdx.hypot(bdz) > 1e-3 {
+                push_tunnel_portal_3d(
+                    verts,
+                    idxs,
+                    [exit_pt[0], exit_pt[2], exit_pt[1]],
+                    [bdx, bdz],
+                    tunnel_half_w,
+                    tunnel_total_h,
+                );
+            }
+
+            // Swept interior tunnel lining via railbench_core::geometry::build_tunnel_sweep_positions
+            let mut path_xyz = Vec::with_capacity((end - start + 1) * 3);
+            for k in start..=end {
+                let p = br.pts_xze[k];
+                path_xyz.push(p[0]);
+                path_xyz.push(p[2]);
+                path_xyz.push(p[1]);
+            }
+            let hw = tunnel_half_w;
+            let wall_h = tunnel_total_h * 0.68;
+            let arch_r = tunnel_total_h - wall_h;
+            let mut section_xy = Vec::new();
+            section_xy.extend_from_slice(&[-hw, 0.0, -hw, wall_h]);
+            for a_step in 1..6 {
+                let ang = std::f32::consts::PI - (a_step as f32 / 6.0) * std::f32::consts::PI;
+                section_xy.push(hw * ang.cos());
+                section_xy.push(wall_h + arch_r * ang.sin());
+            }
+            section_xy.extend_from_slice(&[hw, wall_h, hw, 0.0]);
+
+            let swept = build_tunnel_sweep_positions(&path_xyz, &section_xy);
+            let n_sec = section_xy.len() / 2;
+            let n_ring = swept.len() / (n_sec * 3);
+            let tube_col = [0.11, 0.12, 0.14];
+            let inner_n = [0.0, -1.0, 0.0];
+            for r_i in 0..n_ring.saturating_sub(1) {
+                for s_j in 0..(n_sec - 1) {
+                    let b0 = (r_i * n_sec + s_j) * 3;
+                    let b1 = (r_i * n_sec + s_j + 1) * 3;
+                    let b2 = ((r_i + 1) * n_sec + s_j + 1) * 3;
+                    let b3 = ((r_i + 1) * n_sec + s_j) * 3;
+                    let p0 = [swept[b0], swept[b0 + 1], swept[b0 + 2]];
+                    let p1 = [swept[b1], swept[b1 + 1], swept[b1 + 2]];
+                    let p2 = [swept[b2], swept[b2 + 1], swept[b2 + 2]];
+                    let p3 = [swept[b3], swept[b3 + 1], swept[b3 + 2]];
+                    push_quad(verts, idxs, p0, p1, p2, p3, inner_n, tube_col);
+                }
+            }
+        }
+    }
+
+    // Carve mountain approach slopes & clear tunnel portal openings in heightfield
+    if !underground_hits.is_empty() {
+        for iz in 0..rows {
+            let lz = (iz as f32 / nz as f32 - 0.5) * d;
+            for ix in 0..cols {
+                let lx = (ix as f32 / nx as f32 - 0.5) * w;
+                let (rx, rz) = rot_xz(lx, lz, rot_rad);
+                let wx = cx + rx;
+                let wz = cz + rz;
+                let v_idx = iz * cols + ix;
+                let mh = heights[v_idx];
+
+                for hit in &underground_hits {
+                    let dist = (wx - hit.wx).hypot(wz - hit.wz);
+                    if dist <= hit.half_w + 34.0 {
+                        if hit.norm_r >= 0.78 && hit.norm_r <= 1.04 && dist <= hit.half_w + 8.0 {
+                            // Clear vertices blocking portal opening
+                            suppress_vertex[v_idx] = true;
+                        } else if hit.norm_r >= 0.80 {
+                            // Carve gentle approach cutting outside portal
+                            let t = 1.0 - smoothstep(hit.half_w as f64, (hit.half_w + 34.0) as f64, dist as f64) as f32;
+                            heights[v_idx] = mh * (1.0 - t) + (hit.rel_elev - 2.0).max(0.0) * t;
+                        } else if dist <= hit.half_w + 10.0 && mh > hit.rel_elev + 10.0 {
+                            // Guarantee headroom above internal tunnel crown
+                            heights[v_idx] = mh.max(hit.rel_elev + hit.total_h + 10.0);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    let step_x = w / nx as f32;
+    let step_z = d / nz as f32;
+    let base_v = verts.len() as u32;
+
+    for iz in 0..rows {
+        let lz = (iz as f32 / nz as f32 - 0.5) * d;
+        for ix in 0..cols {
+            let lx = (ix as f32 / nx as f32 - 0.5) * w;
+            let mh = heights[iz * cols + ix];
+            let hl = heights[iz * cols + ix.saturating_sub(1)];
+            let hr = heights[iz * cols + (ix + 1).min(nx)];
+            let hd = heights[iz.saturating_sub(1) * cols + ix];
+            let hu = heights[(iz + 1).min(nz) * cols + ix];
+            let normal = normalize3([(hl - hr) / (2.0 * step_x), 1.0, (hd - hu) / (2.0 * step_z)]);
+
+            let ratio = (mh / h.max(1.0)).clamp(0.0, 1.0);
+            let col = if ratio > 0.76 {
+                [0.93, 0.95, 0.98]
+            } else if ratio > 0.42 {
+                [0.46, 0.45, 0.44]
+            } else {
+                [0.22, 0.44, 0.18]
+            };
+            let (rx, rz) = rot_xz(lx, lz, rot_rad);
+            let (rnx, rnz) = rot_xz(normal[0], normal[2], rot_rad);
+            verts.push(Vertex3D {
+                pos: [cx + rx, y0 + mh, cz + rz],
+                normal: [rnx, normal[1], rnz],
+                color: col,
+            });
+        }
+    }
+    for iz in 0..nz {
+        for ix in 0..nx {
+            let i_a = iz * cols + ix;
+            let i_b = i_a + 1;
+            let i_c = (iz + 1) * cols + ix;
+            let i_d = i_c + 1;
+            if suppress_vertex[i_a] || suppress_vertex[i_b] || suppress_vertex[i_c] || suppress_vertex[i_d] {
+                continue;
+            }
+            if heights[i_a] > 0.2 || heights[i_b] > 0.2 || heights[i_c] > 0.2 || heights[i_d] > 0.2 {
+                let a = base_v + i_a as u32;
+                let b = base_v + i_b as u32;
+                let c = base_v + i_c as u32;
+                let d_i = base_v + i_d as u32;
+                idxs.extend_from_slice(&[a, c, b, b, c, d_i]);
+            }
+        }
+    }
+}
+
+fn push_tunnel_portal_3d(
+    verts: &mut Vec<Vertex3D>,
+    idxs: &mut Vec<u32>,
+    pos: [f32; 3],
+    outward_xz: [f32; 2],
+    half_w: f32,
+    total_h: f32,
+) {
+    let yaw = outward_xz[0].atan2(outward_xz[1]);
+    let stone = [0.46, 0.45, 0.42];
+    let capstone = [0.56, 0.55, 0.51];
+    let void_col = [0.06, 0.07, 0.09];
+    let pier_w = (half_w * 0.45).clamp(12.0, 24.0);
+    let wall_h = total_h * 0.72;
+    let lintel_h = (total_h - wall_h).max(16.0);
+    let portal_thick = 18.0_f32;
+
+    // Left & right stone piers + crown lintel + capstone parapet + dark portal throat
+    push_rotated_box(verts, idxs, pos, yaw, [-(half_w + pier_w * 0.5), wall_h * 0.5, 0.0], [pier_w, wall_h, portal_thick], stone);
+    push_rotated_box(verts, idxs, pos, yaw, [half_w + pier_w * 0.5, wall_h * 0.5, 0.0], [pier_w, wall_h, portal_thick], stone);
+    push_rotated_box(verts, idxs, pos, yaw, [0.0, wall_h + lintel_h * 0.5, 0.0], [(half_w + pier_w) * 2.0, lintel_h, portal_thick], stone);
+    push_rotated_box(verts, idxs, pos, yaw, [0.0, wall_h + lintel_h + 4.0, 0.0], [(half_w + pier_w) * 2.1, 8.0, portal_thick + 5.0], capstone);
+    push_rotated_box(verts, idxs, pos, yaw, [-(half_w + pier_w * 0.8), wall_h * 0.35, 14.0], [8.0, wall_h * 0.7, 22.0], stone);
+    push_rotated_box(verts, idxs, pos, yaw, [half_w + pier_w * 0.8, wall_h * 0.35, 14.0], [8.0, wall_h * 0.7, 22.0], stone);
+    push_rotated_box(verts, idxs, pos, yaw, [0.0, wall_h * 0.5, -10.0], [half_w * 1.9, wall_h, 6.0], void_col);
+}
+
+#[allow(clippy::too_many_arguments)]
+fn push_ground_terrain_3d(
+    verts: &mut Vec<Vertex3D>,
+    idxs: &mut Vec<u32>,
+    m: &Model3D,
+    y0: f32,
+    layout: &Layout,
+    layer_info: &std::collections::HashMap<&str, (f64, bool)>,
+    boards: &[&BaseboardConfig],
+    corridors: &[CorridorBranch],
+) {
+    let scale = m.scale.unwrap_or(1.0) as f64;
+    let width = (m.width * scale).max(60.0);
+    let depth = (m.depth * scale).max(60.0);
+    let ttype = m.ground_terrain_type.as_deref().unwrap_or("hill");
+    let is_water = ttype == "water";
+    let max_height = m.height.max(2.0) * scale;
+    let mx = m.transform.x;
+    let mz = m.transform.y;
+    let rot_rad = m.transform.rotation.to_radians();
+    let cos_m = rot_rad.cos();
+    let sin_m = rot_rad.sin();
+
+    let segs_x = 28usize;
+    let segs_z = 28usize;
+    let cols = segs_x + 1;
+    let rows = segs_z + 1;
+    let mut r_dist_grid = Vec::with_capacity(cols * rows);
+    for iz in 0..rows {
+        let lz = (iz as f64 / segs_z as f64 - 0.5) * depth;
+        let nz = lz / (depth * 0.5);
+        for ix in 0..cols {
+            let lx = (ix as f64 / segs_x as f64 - 0.5) * width;
+            let nx = lx / (width * 0.5);
+            r_dist_grid.push(nx.hypot(nz) as f32);
+        }
+    }
+
+    // Support polygon from enabled baseboards
+    let mut poly_offsets: Vec<u32> = Vec::new();
+    let mut poly_coords: Vec<f32> = Vec::new();
+    if !boards.is_empty() {
+        poly_offsets.push(0);
+        for b in boards {
+            let (x0, y_b) = baseboard_origin(b);
+            for (px, py) in [
+                (x0, y_b),
+                (x0 + b.width, y_b),
+                (x0 + b.width, y_b + b.depth),
+                (x0, y_b + b.depth),
+            ] {
+                poly_coords.push(px as f32);
+                poly_coords.push(py as f32);
+            }
+            poly_offsets.push((poly_coords.len() / 2) as u32);
+        }
+    }
+
+    // Buildings to flatten ground underneath
+    let mut buildings: Vec<f32> = Vec::new();
+    if let Some(models) = &layout.models {
+        for other in models {
+            if other.id == m.id {
+                continue;
+            }
+            if matches!(other.builtin_id.as_deref(), Some("mountain") | Some("ground-terrain")) {
+                continue;
+            }
+            let lid = other.layer_id.as_deref().unwrap_or("layer-1");
+            if !layer_info.get(lid).map_or(true, |x| x.1) {
+                continue;
+            }
+            let bscale = other.scale.unwrap_or(1.0);
+            let brot = (-other.transform.rotation).to_radians();
+            buildings.push(other.transform.x as f32);
+            buildings.push(other.transform.y as f32);
+            buildings.push(brot.cos() as f32);
+            buildings.push(brot.sin() as f32);
+            buildings.push((other.width * bscale * 0.5 + 10.0) as f32);
+            buildings.push((other.depth * bscale * 0.5 + 10.0) as f32);
+        }
+    }
+
+    // Corridors metadata + flattened points
+    let mut corridor_meta: Vec<f32> = Vec::with_capacity(corridors.len() * 8);
+    let mut corridor_pts: Vec<f32> = Vec::new();
+    for br in corridors {
+        if br.pts_xze.is_empty() {
+            continue;
+        }
+        let (mut min_x, mut max_x, mut min_z, mut max_z) =
+            (f32::INFINITY, f32::NEG_INFINITY, f32::INFINITY, f32::NEG_INFINITY);
+        let pad = br.half_w + 48.0;
+        let pt_start = (corridor_pts.len() / 3) as f32;
+        for p in &br.pts_xze {
+            min_x = min_x.min(p[0] - pad);
+            max_x = max_x.max(p[0] + pad);
+            min_z = min_z.min(p[1] - pad);
+            max_z = max_z.max(p[1] + pad);
+            corridor_pts.push(p[0]);
+            corridor_pts.push(p[1]);
+            corridor_pts.push(p[2]);
+        }
+        corridor_meta.extend_from_slice(&[
+            min_x,
+            max_x,
+            min_z,
+            max_z,
+            br.half_w,
+            if br.is_turntable { 1.0 } else { 0.0 },
+            pt_start,
+            br.pts_xze.len() as f32,
+        ]);
+    }
+
+    let grid = carve_ground_terrain_grid(
+        segs_x,
+        segs_z,
+        width,
+        depth,
+        max_height,
+        y0 as f64,
+        mx,
+        mz,
+        cos_m,
+        sin_m,
+        46.0,
+        is_water,
+        &r_dist_grid,
+        &poly_offsets,
+        &poly_coords,
+        &buildings,
+        &corridor_meta,
+        &corridor_pts,
+    );
+
+    let step_x = (width / segs_x as f64) as f32;
+    let step_z = (depth / segs_z as f64) as f32;
+    let base_v = verts.len() as u32;
+
+    for iz in 0..rows {
+        let lz = (iz as f64 / segs_z as f64 - 0.5) * depth;
+        for ix in 0..cols {
+            let lx = (ix as f64 / segs_x as f64 - 0.5) * width;
+            let v_idx = iz * cols + ix;
+            let gh = grid[v_idx * 4];
+            let is_w = grid[v_idx * 4 + 2] > 0.5;
+            let flat = grid[v_idx * 4 + 3];
+
+            let hl = grid[(iz * cols + ix.saturating_sub(1)) * 4];
+            let hr = grid[(iz * cols + (ix + 1).min(segs_x)) * 4];
+            let hd = grid[(iz.saturating_sub(1) * cols + ix) * 4];
+            let hu = grid[((iz + 1).min(segs_z) * cols + ix) * 4];
+            let norm = normalize3([(hl - hr) / (2.0 * step_x), 1.0, (hd - hu) / (2.0 * step_z)]);
+            let (rnx, rnz) = rot_xz(norm[0], norm[2], rot_rad as f32);
+
+            let h_ratio = (gh / max_height.max(1.0) as f32).clamp(0.0, 1.0);
+            let col = if is_water {
+                if is_w {
+                    [0.14, 0.38, 0.56]
+                } else {
+                    [0.72, 0.65, 0.48]
+                }
+            } else {
+                [0.24 + h_ratio * 0.08 - flat * 0.03, 0.44 + h_ratio * 0.11, 0.16 + h_ratio * 0.04]
+            };
+
+            let wx = mx + (lx * cos_m - lz * sin_m);
+            let wz = mz + (lx * sin_m + lz * cos_m);
+            verts.push(Vertex3D {
+                pos: [wx as f32, y0 + gh + 0.3, wz as f32],
+                normal: [rnx, norm[1], rnz],
+                color: col,
+            });
+        }
+    }
+
+    for iz in 0..segs_z {
+        for ix in 0..segs_x {
+            let i_a = iz * cols + ix;
+            let i_b = i_a + 1;
+            let i_c = (iz + 1) * cols + ix;
+            let i_d = i_c + 1;
+            let in_poly = |vi: usize| grid[vi * 4 + 1] > 0.5;
+            let edge_vis = |vi: usize| r_dist_grid[vi] <= 1.02;
+            if (in_poly(i_a) && in_poly(i_b) && in_poly(i_c) && in_poly(i_d))
+                && (edge_vis(i_a) || edge_vis(i_b) || edge_vis(i_c) || edge_vis(i_d))
+            {
+                let a = base_v + i_a as u32;
+                let b = base_v + i_b as u32;
+                let c = base_v + i_c as u32;
+                let d_i = base_v + i_d as u32;
+                idxs.extend_from_slice(&[a, c, b, b, c, d_i]);
+            }
+        }
+    }
+}
+
 fn push_model_3d(verts: &mut Vec<Vertex3D>, idxs: &mut Vec<u32>, m: &Model3D, y0: f32) {
     let scale = m.scale.unwrap_or(1.0) as f32;
     let w = m.width as f32 * scale;
@@ -1015,62 +1637,6 @@ fn push_model_3d(verts: &mut Vec<Vertex3D>, idxs: &mut Vec<u32>, m: &Model3D, y0
     let cx = m.transform.x as f32;
     let cz = m.transform.y as f32;
     let rot_rad = (m.transform.rotation as f32).to_radians();
-
-    if m.builtin_id.as_deref() == Some("mountain") {
-        let nx = 34usize;
-        let nz = 34usize;
-        let heights = evaluate_mountain_heightfield(nx, nz, (w * 0.5) as f64, (d * 0.5) as f64, h as f64, &[]);
-        let cols = nx + 1;
-        let step_x = w / nx as f32;
-        let step_z = d / nz as f32;
-        let base_v = verts.len() as u32;
-
-        for iz in 0..=nz {
-            let lz = (iz as f32 / nz as f32 - 0.5) * d;
-            for ix in 0..=nx {
-                let lx = (ix as f32 / nx as f32 - 0.5) * w;
-                let mh = heights[iz * cols + ix];
-                // Compute smooth terrain surface normal from central finite differences
-                let hl = heights[iz * cols + ix.saturating_sub(1)];
-                let hr = heights[iz * cols + (ix + 1).min(nx)];
-                let hd = heights[iz.saturating_sub(1) * cols + ix];
-                let hu = heights[(iz + 1).min(nz) * cols + ix];
-                let normal = normalize3([(hl - hr) / (2.0 * step_x), 1.0, (hd - hu) / (2.0 * step_z)]);
-
-                let ratio = (mh / h.max(1.0)).clamp(0.0, 1.0);
-                let col = if ratio > 0.76 {
-                    [0.93, 0.95, 0.98] // Alpine snow peak
-                } else if ratio > 0.42 {
-                    [0.46, 0.45, 0.44] // Granitic rock slope
-                } else {
-                    [0.22, 0.44, 0.18] // Lush green meadow
-                };
-                let (rx, rz) = rot_xz(lx, lz, rot_rad);
-                let (rnx, rnz) = rot_xz(normal[0], normal[2], rot_rad);
-                verts.push(Vertex3D {
-                    pos: [cx + rx, y0 + mh, cz + rz],
-                    normal: [rnx, normal[1], rnz],
-                    color: col,
-                });
-            }
-        }
-        for iz in 0..nz {
-            for ix in 0..nx {
-                let a = base_v + (iz * cols + ix) as u32;
-                let b = a + 1;
-                let c = base_v + ((iz + 1) * cols + ix) as u32;
-                let d_i = c + 1;
-                if heights[iz * cols + ix] > 0.2
-                    || heights[iz * cols + ix + 1] > 0.2
-                    || heights[(iz + 1) * cols + ix] > 0.2
-                    || heights[(iz + 1) * cols + ix + 1] > 0.2
-                {
-                    idxs.extend_from_slice(&[a, c, b, b, c, d_i]);
-                }
-            }
-        }
-        return;
-    }
 
     struct ModelCtx<'a> {
         verts: &'a mut Vec<Vertex3D>,
@@ -1419,4 +1985,64 @@ fn cross3(a: [f32; 3], b: [f32; 3]) -> [f32; 3] {
 fn normalize3(v: [f32; 3]) -> [f32; 3] {
     let len = dot3(v, v).sqrt().max(1e-6);
     [v[0] / len, v[1] / len, v[2] / len]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::catalog::{builtin_catalogs, create_piece, find_entry};
+    use railbench_core::types::Transform;
+
+    #[test]
+    fn mountain_with_intersecting_track_generates_tunnel_geometry() {
+        let catalogs = builtin_catalogs();
+        let entry = find_entry(&catalogs, "24360").unwrap(); // 360 mm straight
+        let p0 = create_piece("t0".into(), entry, Transform { x: -360.0, y: 0.0, rotation: 0.0 }, None);
+        let p1 = create_piece("t1".into(), entry, Transform { x: 0.0, y: 0.0, rotation: 0.0 }, None);
+        let mtn = Model3D {
+            id: "m1".into(),
+            name: "Alpine".into(),
+            category: "terrain".into(),
+            transform: Transform { x: 0.0, y: 0.0, rotation: 0.0 },
+            elevation: Some(0.0),
+            scale: Some(1.0),
+            layer_id: None,
+            width: 600.0,
+            depth: 500.0,
+            height: 260.0,
+            model_type: "builtin".into(),
+            builtin_id: Some("mountain".into()),
+            mountain_style: None,
+            mountain_path: None,
+            ground_terrain_type: None,
+            file_data: None,
+            file_name: None,
+        };
+
+        let layout_only_mtn = Layout {
+            name: "T".into(),
+            scale: "H0".into(),
+            pieces: vec![],
+            models: Some(vec![mtn.clone()]),
+            feed_voltage: None,
+            catenary_feed_voltage: None,
+            catenary_circuit_mode: None,
+            loco_current_ma: None,
+            loco_count: None,
+            train_current_amps: None,
+            turnout_lantern_current_ma: None,
+            turnout_decoder_current_ma: None,
+            layers: None,
+            active_layer_id: None,
+            baseboard: None,
+            baseboards: None,
+        };
+        let mut layout_with_tunnel = layout_only_mtn.clone();
+        layout_with_tunnel.pieces = vec![p0, p1];
+
+        let mesh_base = build_scene_mesh_3d(&layout_only_mtn, &catalogs);
+        let mesh_tunnel = build_scene_mesh_3d(&layout_with_tunnel, &catalogs);
+        assert!(mesh_tunnel.vertices.len() > mesh_base.vertices.len() + 100);
+        assert!(mesh_tunnel.vertices.iter().all(|v| v.pos[0].is_finite() && v.pos[1].is_finite() && v.pos[2].is_finite()));
+    }
 }

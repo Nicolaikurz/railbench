@@ -4,6 +4,8 @@ mod collab;
 mod export;
 mod i18n;
 mod icons;
+mod power_sim;
+mod ramp_tools;
 mod theme;
 mod ui_panels;
 mod viewer3d;
@@ -22,6 +24,8 @@ use crate::catalog::{builtin_catalogs, create_piece};
 use crate::collab::CollabClient;
 use crate::export::{export_bom_csv, export_layout_pdf, export_layout_svg};
 use crate::i18n::Lang;
+use crate::power_sim::{simulate_layout_power, PowerSimResult};
+use crate::ramp_tools::{RampProfile, RampShape};
 use crate::ui_panels::{
     default_layer, draw_dialogs, draw_floating_selection_bar, draw_left_sidebar, draw_right_sidebar, draw_top_bars,
 };
@@ -65,6 +69,8 @@ pub struct RailbenchApp {
     pub show_rulers: bool,
     pub snapping_enabled: bool,
     pub power_sim_enabled: bool,
+    pub power_sim_cache: Option<(u64, PowerSimResult)>,
+    pub pending_focus_point: Option<Vec2>,
     pub measure_mode: bool,
     pub marquee_start: Option<egui::Pos2>,
     pub measure_points: Option<(Vec2, Vec2)>,
@@ -76,9 +82,23 @@ pub struct RailbenchApp {
     pub show_right_sidebar: bool,
     pub collab: CollabClient,
     pub batch_elevation_mm: f64,
+    pub height_tab: u8,
+    pub ramp_start_h: f64,
+    pub ramp_end_h: f64,
+    pub ramp_profile: RampProfile,
+    pub gen_ramp_shape: RampShape,
+    pub gen_curve_left: bool,
+    pub gen_target_h: f64,
+    pub gen_max_grade: f64,
+    pub gen_helix_turns: f64,
+    pub gen_curve_id: Option<String>,
+    pub mountain_brush_active: bool,
+    pub mountain_brush_radius: f64,
+    pub mountain_brush_height: f64,
+    pub active_brush_model_id: Option<String>,
     pub pending_fit_view: bool,
     pub status_message: Option<String>,
-    next_piece_seq: u64,
+    pub next_piece_seq: u64,
 }
 
 impl Default for RailbenchApp {
@@ -116,6 +136,8 @@ impl Default for RailbenchApp {
             show_rulers: true,
             snapping_enabled: true,
             power_sim_enabled: false,
+            power_sim_cache: None,
+            pending_focus_point: None,
             measure_mode: false,
             marquee_start: None,
             measure_points: None,
@@ -127,6 +149,20 @@ impl Default for RailbenchApp {
             show_right_sidebar: true,
             collab: CollabClient::default(),
             batch_elevation_mm: 0.0,
+            height_tab: 0,
+            ramp_start_h: 0.0,
+            ramp_end_h: 80.0,
+            ramp_profile: RampProfile::Linear,
+            gen_ramp_shape: RampShape::Straight,
+            gen_curve_left: false,
+            gen_target_h: 80.0,
+            gen_max_grade: 2.8,
+            gen_helix_turns: 1.5,
+            gen_curve_id: None,
+            mountain_brush_active: false,
+            mountain_brush_radius: 180.0,
+            mountain_brush_height: 220.0,
+            active_brush_model_id: None,
             pending_fit_view: true,
             status_message: None,
             next_piece_seq: 1,
@@ -202,6 +238,24 @@ impl RailbenchApp {
         }
     }
 
+    pub fn get_or_update_power_sim(&mut self) -> &PowerSimResult {
+        let ver = self.layout_version;
+        let stale = self
+            .power_sim_cache
+            .as_ref()
+            .map_or(true, |(cached_ver, _)| *cached_ver != ver);
+        if stale {
+            let res = simulate_layout_power(&self.layout, &self.catalogs);
+            self.power_sim_cache = Some((ver, res));
+        }
+        &self.power_sim_cache.as_ref().unwrap().1
+    }
+
+    pub fn focus_world_point(&mut self, wx: f64, wy: f64) {
+        self.pending_focus_point = Some(Vec2 { x: wx, y: wy });
+        self.is_3d_mode = false;
+    }
+
     pub fn push_undo(&mut self) {
         self.undo_stack.push(self.layout.clone());
         if self.undo_stack.len() > 80 {
@@ -216,6 +270,7 @@ impl RailbenchApp {
             self.redo_stack.push(self.layout.clone());
             self.layout = prev;
             self.selected.clear();
+            self.mark_layout_dirty();
         }
     }
 
@@ -224,6 +279,7 @@ impl RailbenchApp {
             self.undo_stack.push(self.layout.clone());
             self.layout = next;
             self.selected.clear();
+            self.mark_layout_dirty();
         }
     }
 
@@ -318,6 +374,7 @@ impl RailbenchApp {
         crate::catalog::disconnect_cross_type_connections(&mut self.layout, &self.catalogs);
         self.selected.clear();
         self.selected.insert(id);
+        self.mark_layout_dirty();
     }
 
     pub fn place_catalog_entry_at(&mut self, entry: &CatalogEntry, world_pos: Vec2, snap_radius: f64) {
@@ -349,6 +406,7 @@ impl RailbenchApp {
         }
         update_layout_connections(&mut self.layout, 4.0, 35.0, 1.0);
         crate::catalog::disconnect_cross_type_connections(&mut self.layout, &self.catalogs);
+        self.mark_layout_dirty();
     }
 
     pub fn rotate_selected(&mut self, delta_deg: f64) {
@@ -378,6 +436,8 @@ impl RailbenchApp {
             }
         }
         update_layout_connections(&mut self.layout, 4.0, 35.0, 1.0);
+        crate::catalog::disconnect_cross_type_connections(&mut self.layout, &self.catalogs);
+        self.mark_layout_dirty();
     }
 
     pub fn delete_selected(&mut self) {
@@ -391,6 +451,7 @@ impl RailbenchApp {
         }
         self.selected.clear();
         update_layout_connections(&mut self.layout, 4.0, 35.0, 1.0);
+        self.mark_layout_dirty();
     }
 
     pub fn place_builtin_model(&mut self, builtin_id: &str, name: &str, width: f64, depth: f64, height: f64) {
@@ -417,7 +478,36 @@ impl RailbenchApp {
             file_data: None,
             file_name: None,
         });
+        self.mark_layout_dirty();
         self.status_message = Some(format!("Placed 3D model: {name}"));
+    }
+
+    pub fn place_ground_terrain(&mut self, terrain_type: &str, name: &str, width: f64, depth: f64, height: f64) {
+        self.push_undo();
+        let id = format!("terrain-{}", self.next_piece_seq);
+        self.next_piece_seq += 1;
+        let models = self.layout.models.get_or_insert_with(Vec::new);
+        models.push(Model3D {
+            id,
+            name: name.to_string(),
+            category: "terrain".into(),
+            transform: Transform { x: 0.0, y: 0.0, rotation: 0.0 },
+            elevation: Some(0.0),
+            scale: Some(1.0),
+            layer_id: self.layout.active_layer_id.clone(),
+            width,
+            depth,
+            height,
+            model_type: "builtin".into(),
+            builtin_id: Some("ground-terrain".into()),
+            mountain_style: None,
+            mountain_path: None,
+            ground_terrain_type: Some(terrain_type.to_string()),
+            file_data: None,
+            file_name: None,
+        });
+        self.mark_layout_dirty();
+        self.status_message = Some(format!("Placed terrain: {name}"));
     }
 
     pub fn toggle_selected_feeder(&mut self) {
@@ -429,6 +519,7 @@ impl RailbenchApp {
                 p.power_feed = Some(any_off);
             }
         }
+        self.mark_layout_dirty();
     }
 
     pub fn toggle_selected_isolator(&mut self) {
@@ -440,6 +531,7 @@ impl RailbenchApp {
                 p.is_isolator = Some(any_off);
             }
         }
+        self.mark_layout_dirty();
     }
 
     pub fn toggle_selected_catenary(&mut self) {
@@ -451,6 +543,7 @@ impl RailbenchApp {
                 p.has_catenary = Some(any_off);
             }
         }
+        self.mark_layout_dirty();
     }
 
     pub fn toggle_selected_bridge(&mut self) {
@@ -462,6 +555,7 @@ impl RailbenchApp {
                 p.has_bridge = Some(any_off);
             }
         }
+        self.mark_layout_dirty();
     }
 
     pub fn toggle_selected_tunnel(&mut self) {
@@ -473,6 +567,7 @@ impl RailbenchApp {
                 p.has_tunnel = Some(any_off);
             }
         }
+        self.mark_layout_dirty();
     }
 
     pub fn add_layer(&mut self) {
@@ -545,10 +640,21 @@ impl eframe::App for RailbenchApp {
             });
         }
 
+        // Refresh cached power simulation whenever power mode or dialog needs it
+        if self.power_sim_enabled || self.show_power_dialog {
+            let _ = self.get_or_update_power_sim();
+        }
+
         draw_top_bars(ctx, self);
         draw_left_sidebar(ctx, self);
         draw_right_sidebar(ctx, self);
         draw_dialogs(ctx, self);
+
+        let sim_for_canvas = if self.power_sim_enabled {
+            self.power_sim_cache.as_ref().map(|(_, s)| s.clone())
+        } else {
+            None
+        };
 
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE)
@@ -572,6 +678,14 @@ impl eframe::App for RailbenchApp {
                         self.camera.fit_layout(rect, &self.layout);
                         self.pending_fit_view = false;
                     }
+                    if let Some(fp) = self.pending_focus_point.take() {
+                        let rect = ui.available_rect_before_wrap();
+                        self.camera.zoom = self.camera.zoom.max(0.75);
+                        self.camera.offset = egui::vec2(
+                            rect.width() * 0.5 - (fp.x as f32) * self.camera.zoom,
+                            rect.height() * 0.5 - (fp.y as f32) * self.camera.zoom,
+                        );
+                    }
 
                     let res = draw_canvas_2d(
                         ui,
@@ -592,8 +706,14 @@ impl eframe::App for RailbenchApp {
                         self.show_rulers,
                         self.snapping_enabled,
                         self.power_sim_enabled,
+                        sim_for_canvas.as_ref(),
                         self.measure_mode,
                         self.rotation_step,
+                        self.mountain_brush_active,
+                        self.mountain_brush_radius,
+                        self.mountain_brush_height,
+                        &mut self.active_brush_model_id,
+                        &mut self.next_piece_seq,
                     );
                     if let Some((drop_world, snap_r)) = res.drop_catalog_at {
                         if let Some(entry) = self.dragging_catalog_entry.take() {

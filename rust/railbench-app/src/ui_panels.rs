@@ -6,6 +6,10 @@ use railbench_core::types::{BaseboardConfig, Elevation, Layer};
 use crate::canvas2d::{parse_hex_color, ColorMode};
 use crate::i18n::{tr, Lang};
 use crate::icons::{icon_button, icon_button_sized, Icon};
+use crate::ramp_tools::{
+    apply_auto_ramp, available_curves_for_catalog, generate_ramp_or_helix, min_clearance_for_scale,
+    preview_auto_ramp, RampProfile, RampShape,
+};
 use crate::theme::{palette, style_toolbar_ui};
 use crate::{RailbenchApp, SidebarTab};
 
@@ -363,31 +367,57 @@ pub fn draw_top_bars(ctx: &egui::Context, app: &mut RailbenchApp) {
 
                 // Voltage / Power Sim toggle + presets menu
                 if tb_icon(ui, Icon::Zap, app.power_sim_enabled, t.volt_btn) {
-                    app.power_sim_enabled = !app.power_sim_enabled;
-                }
-                ui.menu_button("▾", |ui| {
-                    for (lbl, v, ma) in [
-                        ("10V Spur Z (100 mA)", 10.0, 100.0),
-                        ("12V Spur N (100 mA)", 12.0, 100.0),
-                        ("14V Spur TT (300 mA)", 14.0, 300.0),
-                        ("14V H0 DCC (450 mA)", 14.0, 450.0),
-                        ("16V H0 Standard (450 mA)", 16.0, 450.0),
-                        ("18V Spur 1 (800 mA)", 18.0, 800.0),
-                        ("24V Spur G / LGB (1000 mA)", 24.0, 1000.0),
-                    ] {
-                        if ui.button(lbl).clicked() {
-                            app.layout.feed_voltage = Some(v);
-                            app.layout.loco_current_ma = Some(ma);
-                            app.power_sim_enabled = true;
+                        app.power_sim_enabled = !app.power_sim_enabled;
+                    }
+                    ui.menu_button("▾", |ui| {
+                        for (lbl, v, ma) in [
+                            ("10V Spur Z (100 mA)", 10.0, 100.0),
+                            ("12V Spur N (100 mA)", 12.0, 100.0),
+                            ("14V Spur TT (300 mA)", 14.0, 300.0),
+                            ("14V H0 DCC (450 mA)", 14.0, 450.0),
+                            ("16V H0 Standard (450 mA)", 16.0, 450.0),
+                            ("18V Spur 1 (800 mA)", 18.0, 800.0),
+                            ("24V Spur G / LGB (1000 mA)", 24.0, 1000.0),
+                        ] {
+                            if ui.button(lbl).clicked() {
+                                app.layout.feed_voltage = Some(v);
+                                app.layout.loco_current_ma = Some(ma);
+                                app.power_sim_enabled = true;
+                                app.mark_layout_dirty();
+                                ui.close_menu();
+                            }
+                        }
+                        ui.separator();
+                        if ui.button(t.power_dialog).clicked() {
+                            app.show_power_dialog = true;
                             ui.close_menu();
                         }
+                    });
+
+                    // Red Short-Circuit alert pill (clicks straight to the short point!)
+                    if app.power_sim_enabled {
+                        let first_sc = app
+                            .power_sim_cache
+                            .as_ref()
+                            .filter(|(_, s)| s.has_short_circuit)
+                            .map(|(_, s)| (s.short_circuit_points.len(), s.short_circuit_points.first().map(|pt| (pt.x, pt.y))));
+                        if let Some((cnt, maybe_pt)) = first_sc {
+                            let label = if cnt > 0 { format!("⚡ SHORT ({cnt})") } else { "⚡ SHORT".into() };
+                            if ui
+                                .add(
+                                    egui::Button::new(RichText::new(label).strong().size(11.0).color(Color32::WHITE))
+                                        .fill(Color32::from_rgb(220, 38, 38))
+                                        .corner_radius(CornerRadius::same(6)),
+                                )
+                                .on_hover_text("Focus camera on short circuit")
+                                .clicked()
+                            {
+                                if let Some((x, y)) = maybe_pt {
+                                    app.focus_world_point(x, y);
+                                }
+                            }
+                        }
                     }
-                    ui.separator();
-                    if ui.button(t.power_dialog).clicked() {
-                        app.show_power_dialog = true;
-                        ui.close_menu();
-                    }
-                });
 
                 // 3D Toggle
                 if tb_icon(ui, Icon::Box3d, app.is_3d_mode, "3D View (3)") {
@@ -708,30 +738,123 @@ fn draw_models_tab(ui: &mut egui::Ui, app: &mut RailbenchApp) {
 
 fn draw_terrain_tab(ui: &mut egui::Ui, app: &mut RailbenchApp) {
     let p = palette(app.dark_mode);
-    ui.label(RichText::new("GELÄNDE / TERRAIN").strong().size(11.0).color(p.text_muted));
-    ui.add_space(6.0);
+    ui.label(RichText::new("BERGPINSEL / MOUNTAIN BRUSH").strong().size(11.0).color(p.text_muted));
+    ui.add_space(4.0);
 
-    for (name, w, d, h) in [
-        ("Alpenberg / Alpine Mountain", 650.0, 520.0, 260.0),
-        ("Hügel / Rolling Hill", 480.0, 380.0, 140.0),
-        ("Felsmassiv / Rock Ridge", 800.0, 420.0, 320.0),
-    ] {
-        let resp = Frame::new()
-            .fill(p.bg_card)
-            .corner_radius(CornerRadius::same(8))
-            .inner_margin(Margin::symmetric(10, 7))
-            .stroke(Stroke::new(1.0_f32, p.border_main))
-            .show(ui, |ui| {
-                ui.set_width(ui.available_width());
-                ui.label(RichText::new(name).strong().size(12.5).color(p.text_main));
-                ui.label(RichText::new(format!("{w:.0} × {d:.0} mm  •  H: {h:.0} mm")).size(10.5).color(p.text_muted));
-            })
-            .response
-            .interact(egui::Sense::click());
-        if resp.clicked() {
-            app.place_builtin_model("mountain", name, w, d, h);
+    Frame::new()
+        .fill(p.bg_card)
+        .corner_radius(CornerRadius::same(8))
+        .inner_margin(Margin::same(10))
+        .stroke(Stroke::new(
+            if app.mountain_brush_active { 1.4_f32 } else { 1.0_f32 },
+            if app.mountain_brush_active { Color32::from_rgb(34, 197, 94) } else { p.border_main },
+        ))
+        .show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            let btn_lbl = if app.mountain_brush_active {
+                if app.lang == Lang::De { "Pinsel AKTIV (Klick zum Beenden)" } else { "Brush ACTIVE (Click to stop)" }
+            } else {
+                if app.lang == Lang::De { "Bergpinsel aktivieren" } else { "Paint Mountain Brush" }
+            };
+            let btn_fill = if app.mountain_brush_active {
+                Color32::from_rgb(22, 163, 74)
+            } else {
+                p.primary_hover
+            };
+            if ui
+                .add_sized(
+                    [ui.available_width(), 28.0],
+                    egui::Button::new(RichText::new(btn_lbl).strong().size(12.0).color(Color32::WHITE))
+                        .fill(btn_fill)
+                        .corner_radius(CornerRadius::same(6)),
+                )
+                .clicked()
+            {
+                app.mountain_brush_active = !app.mountain_brush_active;
+                if app.mountain_brush_active {
+                    app.is_3d_mode = false;
+                    app.measure_mode = false;
+                }
+            }
+            ui.add_space(6.0);
+            ui.horizontal(|ui| {
+                ui.label("Radius:");
+                ui.add(egui::DragValue::new(&mut app.mountain_brush_radius).range(60.0..=450.0).speed(5.0).suffix(" mm"));
+            });
+            ui.horizontal(|ui| {
+                ui.label("Height:");
+                ui.add(egui::DragValue::new(&mut app.mountain_brush_height).range(50.0..=500.0).speed(5.0).suffix(" mm"));
+            });
+            if app.mountain_brush_active {
+                ui.label(
+                    RichText::new("Drag on 2D canvas to sculpt mountain ridges")
+                        .size(10.5)
+                        .color(Color32::from_rgb(34, 197, 94)),
+                );
+            }
+        });
+
+    ui.add_space(10.0);
+    ui.label(RichText::new("BERGE / MOUNTAINS").strong().size(11.0).color(p.text_muted));
+    ui.add_space(4.0);
+
+    egui::ScrollArea::vertical().show(ui, |ui| {
+        for (name, w, d, h) in [
+            ("Alpenberg / Alpine Mountain", 650.0, 520.0, 260.0),
+            ("Hügel / Rolling Hill", 480.0, 380.0, 140.0),
+            ("Felsmassiv / Rock Ridge", 800.0, 420.0, 320.0),
+        ] {
+            let resp = Frame::new()
+                .fill(p.bg_card)
+                .corner_radius(CornerRadius::same(8))
+                .inner_margin(Margin::symmetric(10, 7))
+                .stroke(Stroke::new(1.0_f32, p.border_main))
+                .show(ui, |ui| {
+                    ui.set_width(ui.available_width());
+                    ui.label(RichText::new(name).strong().size(12.5).color(p.text_main));
+                    ui.label(RichText::new(format!("{w:.0} × {d:.0} mm  •  H: {h:.0} mm")).size(10.5).color(p.text_muted));
+                })
+                .response
+                .interact(egui::Sense::click());
+            if resp.hovered() {
+                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+            }
+            if resp.clicked() {
+                app.mountain_brush_active = false;
+                app.place_builtin_model("mountain", name, w, d, h);
+            }
         }
-    }
+
+        ui.add_space(10.0);
+        ui.label(RichText::new("UNTERGRUND / GROUND TERRAIN").strong().size(11.0).color(p.text_muted));
+        ui.add_space(4.0);
+
+        for (gtype, name, w, d, h) in [
+            ("water", "See / Alpine Lake", 480.0, 360.0, 6.0),
+            ("water", "Fluss / River", 680.0, 180.0, 6.0),
+            ("hill", "Wiese / Meadow", 560.0, 420.0, 22.0),
+        ] {
+            let resp = Frame::new()
+                .fill(p.bg_card)
+                .corner_radius(CornerRadius::same(8))
+                .inner_margin(Margin::symmetric(10, 7))
+                .stroke(Stroke::new(1.0_f32, p.border_main))
+                .show(ui, |ui| {
+                    ui.set_width(ui.available_width());
+                    ui.label(RichText::new(name).strong().size(12.5).color(p.text_main));
+                    ui.label(RichText::new(format!("{w:.0} × {d:.0} mm  •  H: {h:.0} mm")).size(10.5).color(p.text_muted));
+                })
+                .response
+                .interact(egui::Sense::click());
+            if resp.hovered() {
+                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+            }
+            if resp.clicked() {
+                app.mountain_brush_active = false;
+                app.place_ground_terrain(gtype, name, w, d, h);
+            }
+        }
+    });
 }
 
 fn draw_board_tab(ui: &mut egui::Ui, app: &mut RailbenchApp) {
@@ -1336,10 +1459,18 @@ pub fn draw_dialogs(ctx: &egui::Context, app: &mut RailbenchApp) {
     let t = tr(app.lang);
 
     if app.show_power_dialog {
+        let mut open = app.show_power_dialog;
+        let sim_snapshot = app.power_sim_cache.as_ref().map(|(_, s)| s.clone());
+        let mut param_changed = false;
+        let mut focus_pt: Option<(f64, f64)> = None;
         egui::Window::new(t.power_dialog)
-            .open(&mut app.show_power_dialog)
+            .open(&mut open)
             .resizable(false)
+            .default_width(340.0)
             .show(ctx, |ui| {
+                ui.checkbox(&mut app.power_sim_enabled, "Show Power Overlay on 2D Canvas");
+                ui.separator();
+
                 let mut v = app.layout.feed_voltage.unwrap_or(16.0);
                 let mut ma = app.layout.loco_current_ma.unwrap_or(450.0);
                 let mut cnt = app.layout.loco_count.unwrap_or(1);
@@ -1347,42 +1478,275 @@ pub fn draw_dialogs(ctx: &egui::Context, app: &mut RailbenchApp) {
                     ui.label("Feed Voltage:");
                     if ui.add(egui::DragValue::new(&mut v).range(6.0..=24.0).speed(0.5).suffix(" V")).changed() {
                         app.layout.feed_voltage = Some(v);
+                        param_changed = true;
                     }
                 });
                 ui.horizontal(|ui| {
                     ui.label("Loco Current:");
                     if ui.add(egui::DragValue::new(&mut ma).range(50.0..=1000.0).speed(10.0).suffix(" mA")).changed() {
                         app.layout.loco_current_ma = Some(ma);
+                        param_changed = true;
                     }
                 });
                 ui.horizontal(|ui| {
-                    ui.label("Locos:");
-                    if ui.add(egui::DragValue::new(&mut cnt).range(1..=12)).changed() {
+                    ui.label("Locos running:");
+                    if ui.add(egui::DragValue::new(&mut cnt).range(1..=20)).changed() {
                         app.layout.loco_count = Some(cnt);
+                        param_changed = true;
                     }
                 });
-                ui.separator();
-                let feeders = app.layout.pieces.iter().filter(|p| p.power_feed == Some(true)).count();
-                ui.label(format!("Power feeders placed: {feeders}"));
+
+                if let Some(sim) = sim_snapshot {
+                    ui.separator();
+                    ui.label(
+                        RichText::new(format!(
+                            "System: {}  •  Load: {:.2} A",
+                            if sim.is_two_wire { "2-Wire (DCC/DC)" } else { "3-Wire AC" },
+                            sim.total_current_a
+                        ))
+                        .strong(),
+                    );
+                    ui.label(format!(
+                        "Feeders: {}  •  Isolators: {}  •  Min Voltage: {:.2} V (Drop {:.1}%)",
+                        sim.feeder_count, sim.isolator_count, sim.min_voltage, sim.max_drop_pct
+                    ));
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new(format!("✓ {} Opt", sim.optimal_count)).color(Color32::from_rgb(34, 197, 94)));
+                        ui.label(RichText::new(format!("⚠ {} Warn", sim.warning_count)).color(Color32::from_rgb(245, 158, 11)));
+                        ui.label(RichText::new(format!("✖ {} Crit", sim.critical_count)).color(Color32::from_rgb(239, 68, 68)));
+                        ui.label(RichText::new(format!("○ {} Dead", sim.disconnected_count)).color(Color32::from_rgb(148, 163, 184)));
+                    });
+                    if sim.has_short_circuit {
+                        ui.add_space(4.0);
+                        ui.horizontal(|ui| {
+                            ui.label(
+                                RichText::new(format!("⚡ SHORT CIRCUIT ({} point(s))", sim.short_circuit_points.len()))
+                                    .strong()
+                                    .color(Color32::from_rgb(239, 68, 68)),
+                            );
+                            if let Some(pt) = sim.short_circuit_points.first() {
+                                if ui.small_button("Focus").clicked() {
+                                    focus_pt = Some((pt.x, pt.y));
+                                }
+                            }
+                        });
+                    }
+                    ui.add_space(4.0);
+                    ui.label(RichText::new(&sim.recommendation).size(11.5));
+                }
             });
+        app.show_power_dialog = open;
+        if param_changed {
+            app.mark_layout_dirty();
+        }
+        if let Some((x, y)) = focus_pt {
+            app.focus_world_point(x, y);
+        }
     }
 
     if app.show_height_dialog {
         let mut open = app.show_height_dialog;
+        let nem_h = min_clearance_for_scale(&app.layout.scale);
+        let scale_label = app.layout.scale.clone();
         egui::Window::new(t.height_dialog)
             .open(&mut open)
             .resizable(false)
+            .default_width(350.0)
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    ui.label("Elevation:");
-                    ui.add(egui::DragValue::new(&mut app.batch_elevation_mm).speed(2.0).suffix(" mm"));
+                    ui.selectable_value(&mut app.height_tab, 0, "Flat Height");
+                    ui.selectable_value(&mut app.height_tab, 1, "Auto-Ramp");
+                    ui.selectable_value(&mut app.height_tab, 2, "Ramp / Helix Gen");
                 });
-                if ui.button("Apply to selected").clicked() {
-                    app.push_undo();
-                    let h = app.batch_elevation_mm;
-                    for piece in &mut app.layout.pieces {
-                        if app.selected.contains(&piece.id) {
-                            piece.elevation = Some(Elevation { start: h, end: h });
+                ui.separator();
+
+                match app.height_tab {
+                    0 => {
+                        ui.horizontal(|ui| {
+                            ui.label("Elevation:");
+                            ui.add(egui::DragValue::new(&mut app.batch_elevation_mm).speed(2.0).suffix(" mm"));
+                            if ui.small_button(format!("NEM 102 ({nem_h:.0} mm {scale_label})")).clicked() {
+                                app.batch_elevation_mm = nem_h;
+                            }
+                        });
+                        ui.add_space(4.0);
+                        if ui
+                            .add_enabled(!app.selected.is_empty(), egui::Button::new("Apply flat height to selected"))
+                            .clicked()
+                        {
+                            app.push_undo();
+                            let h = app.batch_elevation_mm;
+                            for piece in &mut app.layout.pieces {
+                                if app.selected.contains(&piece.id) {
+                                    piece.elevation = Some(Elevation { start: h, end: h });
+                                }
+                            }
+                            app.mark_layout_dirty();
+                        }
+                    }
+                    1 => {
+                        ui.horizontal(|ui| {
+                            ui.label("Start:");
+                            ui.add(egui::DragValue::new(&mut app.ramp_start_h).speed(2.0).suffix(" mm"));
+                            ui.label("End:");
+                            ui.add(egui::DragValue::new(&mut app.ramp_end_h).speed(2.0).suffix(" mm"));
+                        });
+                        ui.horizontal(|ui| {
+                            ui.label("Profile:");
+                            ui.radio_value(&mut app.ramp_profile, RampProfile::Linear, "Linear");
+                            ui.radio_value(&mut app.ramp_profile, RampProfile::Eased, "Eased (S-Curve)");
+                        });
+                        if let Some(sum) = preview_auto_ramp(
+                            &app.layout,
+                            &app.catalogs,
+                            &app.selected,
+                            app.ramp_start_h,
+                            app.ramp_end_h,
+                            app.ramp_profile,
+                        ) {
+                            let grade_col = if sum.max_gradient_pct <= 3.0 {
+                                Color32::from_rgb(34, 197, 94)
+                            } else if sum.max_gradient_pct <= 4.0 {
+                                Color32::from_rgb(245, 158, 11)
+                            } else {
+                                Color32::from_rgb(239, 68, 68)
+                            };
+                            ui.label(format!(
+                                "{} pieces  •  Length: {:.1} mm  •  Rise: {:.1} mm",
+                                sum.piece_count, sum.total_length_mm, sum.total_rise_mm
+                            ));
+                            ui.label(
+                                RichText::new(format!("Peak grade: {:.1}% (avg {:.1}%)", sum.max_gradient_pct, sum.avg_gradient_pct))
+                                    .strong()
+                                    .color(grade_col),
+                            );
+                        } else {
+                            ui.weak("Select a chain of track pieces to preview ramp gradient.");
+                        }
+                        ui.add_space(4.0);
+                        if ui
+                            .add_enabled(!app.selected.is_empty(), egui::Button::new("Apply Auto-Ramp"))
+                            .clicked()
+                        {
+                            app.push_undo();
+                            match apply_auto_ramp(
+                                &mut app.layout,
+                                &app.catalogs,
+                                &app.selected,
+                                app.ramp_start_h,
+                                app.ramp_end_h,
+                                app.ramp_profile,
+                            ) {
+                                Ok(sum) => {
+                                    app.mark_layout_dirty();
+                                    app.status_message = Some(format!(
+                                        "Applied ramp over {} pieces ({:.1}% peak grade)",
+                                        sum.piece_count, sum.max_gradient_pct
+                                    ));
+                                }
+                                Err(e) => app.status_message = Some(e),
+                            }
+                        }
+                    }
+                    _ => {
+                        let single_sel = if app.selected.len() == 1 {
+                            app.selected.iter().next().cloned()
+                        } else {
+                            None
+                        };
+                        if single_sel.is_none() {
+                            ui.label(
+                                RichText::new("Select 1 anchor track with an open connector to generate from.")
+                                    .color(Color32::from_rgb(245, 158, 11)),
+                            );
+                        }
+                        ui.horizontal(|ui| {
+                            ui.label("Shape:");
+                            ui.radio_value(&mut app.gen_ramp_shape, RampShape::Straight, "Straight");
+                            ui.radio_value(&mut app.gen_ramp_shape, RampShape::Curved, "Curved");
+                            ui.radio_value(&mut app.gen_ramp_shape, RampShape::Helix, "Helix");
+                        });
+                        if app.gen_ramp_shape != RampShape::Straight {
+                            ui.horizontal(|ui| {
+                                ui.label("Direction:");
+                                ui.radio_value(&mut app.gen_curve_left, true, "Left");
+                                ui.radio_value(&mut app.gen_curve_left, false, "Right");
+                            });
+                            if let Some(cat) = app.catalogs.get(app.selected_catalog_idx) {
+                                let curves = available_curves_for_catalog(cat);
+                                if !curves.is_empty() {
+                                    let sel_label = app
+                                        .gen_curve_id
+                                        .as_deref()
+                                        .and_then(|cid| curves.iter().find(|c| c.id == cid))
+                                        .map(|c| format!("{} (R{:.0})", c.id, c.radius.unwrap_or(0.0)))
+                                        .unwrap_or_else(|| "Auto standard curve".into());
+                                    egui::ComboBox::from_id_salt("gen_curve_combo")
+                                        .selected_text(sel_label)
+                                        .show_ui(ui, |ui| {
+                                            ui.selectable_value(&mut app.gen_curve_id, None, "Auto standard curve");
+                                            for c in &curves {
+                                                let lbl = format!(
+                                                    "{} • R{:.0} mm ({:.1}°)",
+                                                    c.id,
+                                                    c.radius.unwrap_or(0.0),
+                                                    c.angle.unwrap_or(30.0)
+                                                );
+                                                ui.selectable_value(&mut app.gen_curve_id, Some(c.id.clone()), lbl);
+                                            }
+                                        });
+                                }
+                            }
+                        }
+                        ui.horizontal(|ui| {
+                            ui.label("Target H:");
+                            ui.add(egui::DragValue::new(&mut app.gen_target_h).speed(2.0).suffix(" mm"));
+                            if ui.small_button(format!("+{nem_h:.0}")).clicked() {
+                                app.gen_target_h = nem_h;
+                            }
+                        });
+                        ui.horizontal(|ui| {
+                            ui.label("Max Grade:");
+                            ui.add(egui::DragValue::new(&mut app.gen_max_grade).range(0.5..=8.0).speed(0.1).suffix(" %"));
+                            if app.gen_ramp_shape == RampShape::Helix {
+                                ui.label("Turns:");
+                                ui.add(egui::DragValue::new(&mut app.gen_helix_turns).range(0.5..=6.0).speed(0.25));
+                            }
+                        });
+                        ui.add_space(4.0);
+                        if ui
+                            .add_enabled(single_sel.is_some(), egui::Button::new("Generate Ramp / Helix"))
+                            .clicked()
+                        {
+                            if let Some(anchor_id) = single_sel {
+                                app.push_undo();
+                                match generate_ramp_or_helix(
+                                    &mut app.layout,
+                                    &app.catalogs,
+                                    app.selected_catalog_idx,
+                                    &mut app.next_piece_seq,
+                                    &anchor_id,
+                                    app.gen_ramp_shape,
+                                    app.gen_curve_left,
+                                    app.gen_target_h,
+                                    app.gen_max_grade,
+                                    app.gen_helix_turns,
+                                    app.gen_curve_id.as_deref(),
+                                ) {
+                                    Ok((new_ids, sum)) => {
+                                        app.selected.clear();
+                                        for id in new_ids {
+                                            app.selected.insert(id);
+                                        }
+                                        app.mark_layout_dirty();
+                                        app.status_message = Some(format!(
+                                            "Generated {} pieces ({:.1}% grade, {:.1} mm rise)",
+                                            sum.piece_count, sum.avg_gradient_pct, sum.total_rise_mm
+                                        ));
+                                    }
+                                    Err(e) => app.status_message = Some(e),
+                                }
+                            }
                         }
                     }
                 }

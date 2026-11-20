@@ -4,9 +4,12 @@ use eframe::egui::{self, Color32, FontId, Pos2, Rect, Sense, Stroke, Vec2 as Egu
 use railbench_core::geometry::{
     norm_angle_deg, rotate, sample_arc_between_connectors, sample_flex_spline_points,
 };
-use railbench_core::types::{Catalog, CatalogEntry, Layout, TrackPiece, Vec2};
+use railbench_core::types::{
+    Catalog, CatalogEntry, Layout, Model3D, MountainBrushNode, TrackPiece, Transform, Vec2,
+};
 
 use crate::catalog::find_entry;
+use crate::power_sim::{PiecePowerResult, PowerSimResult, PowerStatus};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ColorMode {
@@ -133,8 +136,14 @@ pub fn draw_canvas_2d(
     show_rulers: bool,
     snapping_enabled: bool,
     power_sim_enabled: bool,
+    power_sim: Option<&PowerSimResult>,
     measure_mode: bool,
     rotation_step: f64,
+    mountain_brush_active: bool,
+    mountain_brush_radius: f64,
+    mountain_brush_height: f64,
+    active_brush_model_id: &mut Option<String>,
+    next_piece_seq: &mut u64,
 ) -> CanvasInteraction {
     let mut interaction = CanvasInteraction::default();
 
@@ -224,16 +233,23 @@ pub fn draw_canvas_2d(
                     .collect();
                 let is_sel = selected.contains(&m.id);
                 let is_mtn = m.builtin_id.as_deref() == Some("mountain");
+                let is_water = m.builtin_id.as_deref() == Some("ground-terrain")
+                    && m.ground_terrain_type.as_deref() == Some("water");
+                let is_ground = m.builtin_id.as_deref() == Some("ground-terrain");
                 let mut fill = if is_sel {
                     Color32::from_rgba_unmultiplied(96, 210, 255, 110)
-                } else if is_mtn {
+                } else if is_water {
+                    Color32::from_rgba_unmultiplied(37, 99, 235, 72)
+                } else if is_mtn || is_ground {
                     Color32::from_rgba_unmultiplied(34, 197, 94, 52)
                 } else {
                     Color32::from_rgba_unmultiplied(148, 163, 184, 70)
                 };
                 let mut stroke_col = if is_sel {
                     Color32::from_rgb(125, 224, 255)
-                } else if is_mtn {
+                } else if is_water {
+                    Color32::from_rgb(56, 189, 248)
+                } else if is_mtn || is_ground {
                     Color32::from_rgb(34, 197, 94)
                 } else {
                     Color32::from_rgb(148, 163, 184)
@@ -243,7 +259,22 @@ pub fn draw_canvas_2d(
                     stroke_col = desaturate_color(stroke_col, 0.78, 0.72);
                 }
                 let stroke = Stroke::new(if is_sel { 2.2_f32 } else { 1.2_f32 }, stroke_col);
-                painter.add(egui::Shape::convex_polygon(spts, fill, stroke));
+
+                if is_mtn {
+                    if let Some(nodes) = m.mountain_path.as_ref().filter(|p| !p.is_empty()) {
+                        for n in nodes {
+                            let rp = rotate(Vec2 { x: n.x, y: n.y }, rot);
+                            let sp = camera.world_to_screen(rect, m.transform.x + rp.x, m.transform.y + rp.y);
+                            let nr = ((n.radius * scale) as f32 * camera.zoom).max(4.0);
+                            painter.circle_filled(sp, nr, fill);
+                            painter.circle_stroke(sp, nr, stroke);
+                        }
+                    } else {
+                        painter.add(egui::Shape::convex_polygon(spts, fill, stroke));
+                    }
+                } else {
+                    painter.add(egui::Shape::convex_polygon(spts, fill, stroke));
+                }
 
                 if show_labels {
                     let center = camera.world_to_screen(rect, m.transform.x, m.transform.y);
@@ -280,6 +311,7 @@ pub fn draw_canvas_2d(
         for piece in layer_pieces {
             let is_sel = selected.contains(&piece.id);
             let entry = find_entry(catalogs, &piece.catalog_id);
+            let piece_power = power_sim.and_then(|sim| sim.results.get(&piece.id));
             draw_track_piece(
                 &painter,
                 rect,
@@ -292,10 +324,37 @@ pub fn draw_canvas_2d(
                 lcolor.as_deref(),
                 show_labels,
                 power_sim_enabled,
+                piece_power,
             );
         }
     }
     let _ = layer_height_of;
+
+    // 3.5. Short-circuit warning markers on top of tracks when Power Simulation is enabled
+    if power_sim_enabled {
+        if let Some(sim) = power_sim {
+            for sc in &sim.short_circuit_points {
+                let sp = camera.world_to_screen(rect, sc.x, sc.y);
+                if !rect.expand(24.0).contains(sp) {
+                    continue;
+                }
+                painter.circle_filled(sp, 11.0, Color32::from_rgb(220, 38, 38));
+                painter.circle_stroke(sp, 12.5, Stroke::new(2.0_f32, Color32::WHITE));
+                painter.line_segment(
+                    [Pos2::new(sp.x - 4.5, sp.y - 4.5), Pos2::new(sp.x + 4.5, sp.y + 4.5)],
+                    Stroke::new(2.2_f32, Color32::WHITE),
+                );
+                painter.line_segment(
+                    [Pos2::new(sp.x + 4.5, sp.y - 4.5), Pos2::new(sp.x - 4.5, sp.y + 4.5)],
+                    Stroke::new(2.2_f32, Color32::WHITE),
+                );
+                let tag_pos = Pos2::new(sp.x, sp.y - 21.0);
+                let tag_r = Rect::from_center_size(tag_pos, EguiVec2::new(48.0, 15.0));
+                painter.rect_filled(tag_r, 4.0, Color32::from_rgb(153, 27, 27));
+                painter.text(tag_pos, egui::Align2::CENTER_CENTER, "SHORT!", FontId::proportional(9.5), Color32::WHITE);
+            }
+        }
+    }
 
     // 4. Connectors (snap points) — skip hidden layers
     if show_connectors {
@@ -345,8 +404,53 @@ pub fn draw_canvas_2d(
         None
     };
 
-    // 5. Primary click selection (tracks OR 3D models; skip when measure tool active)
-    if !measure_mode && response.clicked_by(egui::PointerButton::Primary) {
+    // Mountain Brush hover reticle
+    if mountain_brush_active && response.hovered() {
+        if let Some(sp) = ui.input(|i| i.pointer.hover_pos()) {
+            let r_scr = ((mountain_brush_radius as f32) * camera.zoom).max(8.0);
+            painter.circle_filled(sp, r_scr, Color32::from_rgba_unmultiplied(34, 197, 94, 34));
+            painter.circle_stroke(sp, r_scr, Stroke::new(1.6_f32, Color32::from_rgb(34, 197, 94)));
+            ui.ctx().set_cursor_icon(egui::CursorIcon::Crosshair);
+        }
+    }
+
+    // 5. Primary click: Paint single brush mound OR click selection (skip when measure tool active)
+    if mountain_brush_active && response.clicked_by(egui::PointerButton::Primary) {
+        if let Some(sp) = response.interact_pointer_pos() {
+            let wp = camera.screen_to_world(rect, sp);
+            let id = format!("mtn-brush-{}", *next_piece_seq);
+            *next_piece_seq += 1;
+            let models = layout.models.get_or_insert_with(Vec::new);
+            models.push(Model3D {
+                id: id.clone(),
+                name: "Bergpinsel / Mountain".into(),
+                category: "terrain".into(),
+                transform: Transform { x: wp.x, y: wp.y, rotation: 0.0 },
+                elevation: Some(0.0),
+                scale: Some(1.0),
+                layer_id: layout.active_layer_id.clone(),
+                width: mountain_brush_radius * 2.0,
+                depth: mountain_brush_radius * 2.0,
+                height: mountain_brush_height,
+                model_type: "builtin".into(),
+                builtin_id: Some("mountain".into()),
+                mountain_style: None,
+                mountain_path: Some(vec![MountainBrushNode {
+                    x: 0.0,
+                    y: 0.0,
+                    radius: mountain_brush_radius,
+                    height: mountain_brush_height,
+                }]),
+                ground_terrain_type: None,
+                file_data: None,
+                file_name: None,
+            });
+            selected.clear();
+            selected.insert(id);
+            interaction.push_undo = true;
+            interaction.changed = true;
+        }
+    } else if !mountain_brush_active && !measure_mode && response.clicked_by(egui::PointerButton::Primary) {
         if let Some(sp) = response.interact_pointer_pos() {
             let wp = camera.screen_to_world(rect, sp);
             let hit = find_piece_at(layout, wp, 22.0 / (camera.zoom as f64).max(0.25))
@@ -365,53 +469,124 @@ pub fn draw_canvas_2d(
         }
     }
 
-    // 6. Primary drag: Flex handle (3 bend points + endpoint) OR Measure tool OR drag tracks/models OR marquee
+    // 6. Primary drag: Mountain Brush OR Flex handle OR Measure tool OR drag tracks/models OR marquee
     if response.drag_started_by(egui::PointerButton::Primary) {
         if let Some(sp) = response.interact_pointer_pos() {
             let wp = camera.screen_to_world(rect, sp);
-            if let Some((ref fid, handles)) = selected_flex_handles {
-                for (hi, &hpos) in handles.iter().enumerate() {
-                    if sp.distance(hpos) <= 15.0 {
-                        *dragging_flex_handle = Some((fid.clone(), hi));
-                        interaction.push_undo = true;
-                        break;
-                    }
-                }
-            }
-            if dragging_flex_handle.is_none() {
-                if measure_mode {
-                    *measure_points = Some((wp, wp));
-                } else if let Some(hit) = find_piece_at(layout, wp, 22.0 / (camera.zoom as f64).max(0.25))
-                    .or_else(|| find_model_at(layout, wp))
-                {
-                    if !selected.contains(&hit) {
-                        selected.clear();
-                        selected.insert(hit);
-                    }
-                    // Clear stale connections pointing to or from dragged pieces so re-snapping works!
-                    for p in &mut layout.pieces {
-                        let is_sel = selected.contains(&p.id);
-                        for c in &mut p.connectors {
-                            if is_sel
-                                || c.connected_to
-                                    .as_ref()
-                                    .map_or(false, |r| selected.contains(&r.piece_id))
-                            {
-                                c.connected_to = None;
-                            }
+            if mountain_brush_active {
+                interaction.push_undo = true;
+                let id = format!("mtn-brush-{}", *next_piece_seq);
+                *next_piece_seq += 1;
+                let models = layout.models.get_or_insert_with(Vec::new);
+                models.push(Model3D {
+                    id: id.clone(),
+                    name: "Bergpinsel / Mountain".into(),
+                    category: "terrain".into(),
+                    transform: Transform { x: wp.x, y: wp.y, rotation: 0.0 },
+                    elevation: Some(0.0),
+                    scale: Some(1.0),
+                    layer_id: layout.active_layer_id.clone(),
+                    width: mountain_brush_radius * 2.0,
+                    depth: mountain_brush_radius * 2.0,
+                    height: mountain_brush_height,
+                    model_type: "builtin".into(),
+                    builtin_id: Some("mountain".into()),
+                    mountain_style: None,
+                    mountain_path: Some(vec![MountainBrushNode {
+                        x: 0.0,
+                        y: 0.0,
+                        radius: mountain_brush_radius,
+                        height: mountain_brush_height,
+                    }]),
+                    ground_terrain_type: None,
+                    file_data: None,
+                    file_name: None,
+                });
+                selected.clear();
+                selected.insert(id.clone());
+                *active_brush_model_id = Some(id);
+                interaction.changed = true;
+            } else {
+                if let Some((ref fid, handles)) = selected_flex_handles {
+                    for (hi, &hpos) in handles.iter().enumerate() {
+                        if sp.distance(hpos) <= 15.0 {
+                            *dragging_flex_handle = Some((fid.clone(), hi));
+                            interaction.push_undo = true;
+                            break;
                         }
                     }
-                    *dragging_active = true;
-                    *drag_last_world = Some(wp);
-                    interaction.push_undo = true;
-                } else {
-                    *marquee_start = Some(sp);
+                }
+                if dragging_flex_handle.is_none() {
+                    if measure_mode {
+                        *measure_points = Some((wp, wp));
+                    } else if let Some(hit) = find_piece_at(layout, wp, 22.0 / (camera.zoom as f64).max(0.25))
+                        .or_else(|| find_model_at(layout, wp))
+                    {
+                        if !selected.contains(&hit) {
+                            selected.clear();
+                            selected.insert(hit);
+                        }
+                        // Clear stale connections pointing to or from dragged pieces so re-snapping works!
+                        for p in &mut layout.pieces {
+                            let is_sel = selected.contains(&p.id);
+                            for c in &mut p.connectors {
+                                if is_sel
+                                    || c.connected_to
+                                        .as_ref()
+                                        .map_or(false, |r| selected.contains(&r.piece_id))
+                                {
+                                    c.connected_to = None;
+                                }
+                            }
+                        }
+                        *dragging_active = true;
+                        *drag_last_world = Some(wp);
+                        interaction.push_undo = true;
+                    } else {
+                        *marquee_start = Some(sp);
+                    }
                 }
             }
         }
     }
 
-    if let Some((ref fid, handle_idx)) = dragging_flex_handle.clone() {
+    if let Some(ref bid) = active_brush_model_id.clone() {
+        if response.dragged_by(egui::PointerButton::Primary) {
+            if let Some(sp) = response.interact_pointer_pos() {
+                let wp = camera.screen_to_world(rect, sp);
+                if let Some(models) = &mut layout.models {
+                    if let Some(m) = models.iter_mut().find(|m| &m.id == bid) {
+                        let lx = wp.x - m.transform.x;
+                        let ly = wp.y - m.transform.y;
+                        let nodes = m.mountain_path.get_or_insert_with(Vec::new);
+                        let min_step = (mountain_brush_radius * 0.28).max(18.0);
+                        let should_push = nodes
+                            .last()
+                            .map_or(true, |last| (lx - last.x).hypot(ly - last.y) >= min_step);
+                        if should_push {
+                            nodes.push(MountainBrushNode {
+                                x: lx,
+                                y: ly,
+                                radius: mountain_brush_radius,
+                                height: mountain_brush_height,
+                            });
+                            let (mut x0, mut x1, mut y0, mut y1) =
+                                (f64::INFINITY, f64::NEG_INFINITY, f64::INFINITY, f64::NEG_INFINITY);
+                            for n in nodes.iter() {
+                                x0 = x0.min(n.x - n.radius);
+                                x1 = x1.max(n.x + n.radius);
+                                y0 = y0.min(n.y - n.radius);
+                                y1 = y1.max(n.y + n.radius);
+                            }
+                            m.width = (x1 - x0).max(mountain_brush_radius * 2.0);
+                            m.depth = (y1 - y0).max(mountain_brush_radius * 2.0);
+                            interaction.changed = true;
+                        }
+                    }
+                }
+            }
+        }
+    } else if let Some((ref fid, handle_idx)) = dragging_flex_handle.clone() {
         if response.dragged_by(egui::PointerButton::Primary) {
             if let Some(sp) = response.interact_pointer_pos() {
                 let wp = camera.screen_to_world(rect, sp);
@@ -494,6 +669,35 @@ pub fn draw_canvas_2d(
     }
 
     if response.drag_stopped_by(egui::PointerButton::Primary) {
+        if let Some(bid) = active_brush_model_id.take() {
+            if let Some(models) = &mut layout.models {
+                if let Some(m) = models.iter_mut().find(|m| m.id == bid) {
+                    if let Some(nodes) = &mut m.mountain_path {
+                        if !nodes.is_empty() {
+                            let (mut x0, mut x1, mut y0, mut y1) =
+                                (f64::INFINITY, f64::NEG_INFINITY, f64::INFINITY, f64::NEG_INFINITY);
+                            for n in nodes.iter() {
+                                x0 = x0.min(n.x - n.radius);
+                                x1 = x1.max(n.x + n.radius);
+                                y0 = y0.min(n.y - n.radius);
+                                y1 = y1.max(n.y + n.radius);
+                            }
+                            let cx = (x0 + x1) * 0.5;
+                            let cy = (y0 + y1) * 0.5;
+                            m.transform.x += cx;
+                            m.transform.y += cy;
+                            for n in nodes.iter_mut() {
+                                n.x -= cx;
+                                n.y -= cy;
+                            }
+                            m.width = (x1 - x0).max(120.0);
+                            m.depth = (y1 - y0).max(120.0);
+                        }
+                    }
+                }
+            }
+            interaction.changed = true;
+        }
         if dragging_flex_handle.take().is_some() {
             railbench_core::snapping::update_layout_connections(layout, 4.0, 35.0, 1.0);
             crate::catalog::disconnect_cross_type_connections(layout, catalogs);
@@ -817,6 +1021,7 @@ fn draw_track_piece(
     layer_color_hex: Option<&str>,
     show_labels: bool,
     power_sim_enabled: bool,
+    piece_power: Option<&PiecePowerResult>,
 ) {
     let is_road = entry.and_then(|e| e.is_road).unwrap_or(false);
     let gauge = entry.and_then(|e| e.gauge).unwrap_or(16.5);
@@ -832,12 +1037,19 @@ fn draw_track_piece(
     let mut ballast_col = if is_road {
         Color32::from_rgb(55, 65, 81)
     } else if power_sim_enabled {
-        if piece.is_isolator == Some(true) {
+        if let Some(pr) = piece_power {
+            match pr.status {
+                PowerStatus::Optimal => Color32::from_rgb(34, 197, 94),
+                PowerStatus::Warning => Color32::from_rgb(245, 158, 11),
+                PowerStatus::Critical => Color32::from_rgb(239, 68, 68),
+                PowerStatus::Disconnected => Color32::from_rgb(71, 85, 105),
+            }
+        } else if piece.is_isolator == Some(true) {
             Color32::from_rgb(220, 38, 38)
         } else if piece.power_feed == Some(true) {
             Color32::from_rgb(22, 163, 74)
         } else {
-            Color32::from_rgb(34, 197, 94)
+            Color32::from_rgb(71, 85, 105)
         }
     } else {
         match color_mode {
@@ -1035,8 +1247,23 @@ fn draw_track_piece(
             Color32::from_rgba_unmultiplied(186, 198, 212, 165)
         };
         let bg_alpha = if is_active_layer || is_selected { 220 } else { 135 };
+        let label_text = if power_sim_enabled && !is_road {
+            if let Some(pr) = piece_power {
+                if pr.is_short_circuit {
+                    format!("{} • SHORT!", piece.catalog_id)
+                } else if pr.status == PowerStatus::Disconnected {
+                    format!("{} • 0V", piece.catalog_id)
+                } else {
+                    format!("{} • {:.1}V", piece.catalog_id, pr.voltage)
+                }
+            } else {
+                piece.catalog_id.clone()
+            }
+        } else {
+            piece.catalog_id.clone()
+        };
         let galley = painter.layout_no_wrap(
-            piece.catalog_id.clone(),
+            label_text,
             FontId::proportional(font_sz),
             txt_col,
         );
@@ -1173,8 +1400,6 @@ fn find_model_at(layout: &Layout, wp: Vec2) -> Option<String> {
             continue;
         }
         let scale = m.scale.unwrap_or(1.0);
-        let hw = (m.width * scale * 0.5).max(15.0);
-        let hd = (m.depth * scale * 0.5).max(15.0);
         let local = rotate(
             Vec2 {
                 x: wp.x - m.transform.x,
@@ -1182,6 +1407,13 @@ fn find_model_at(layout: &Layout, wp: Vec2) -> Option<String> {
             },
             -m.transform.rotation,
         );
+        if let Some(nodes) = m.mountain_path.as_ref().filter(|p| !p.is_empty()) {
+            if nodes.iter().any(|n| (local.x - n.x).hypot(local.y - n.y) <= n.radius * scale) {
+                return Some(m.id.clone());
+            }
+        }
+        let hw = (m.width * scale * 0.5).max(15.0);
+        let hd = (m.depth * scale * 0.5).max(15.0);
         if local.x.abs() <= hw && local.y.abs() <= hd {
             return Some(m.id.clone());
         }
