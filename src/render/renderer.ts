@@ -1,4 +1,4 @@
-import { Application, Container, Graphics, Text, TexturePool } from "pixi.js";
+import { Application, Container, Graphics, Sprite, Text, TexturePool } from "pixi.js";
 import type { Layout, ColorMode, TrackPiece, BaseboardConfig } from "@/core/types";
 import { catalogRegistry, type Catalog, type CatalogEntry } from "@/catalog/catalog";
 import type { SimulationSummary, ShortCircuitDetectionResult } from "@/core/simulation";
@@ -697,7 +697,6 @@ export class Renderer {
     // 1. Tracks rendern (inkrementeller Per-Track-Cache, sortiert nach realer 3D-Höhe)
     const tracksSig = this.computeTracksSignature(layout, catalog, options);
     if (tracksSig !== this.lastTracksSignature) {
-      this.clearLayer(this.tracksLayer);
       const catenaryMastCtx = new CatenaryMast2DContext();
 
       const showPowerDrop = options.showPowerDrop ?? false;
@@ -835,38 +834,8 @@ export class Renderer {
           this.trackSpriteCache.set(piece.id, { sig: pieceSig, sprite });
         }
 
-    for (const item of visibleTrackItems) {
-      const { piece, layer, baseElev, isInactiveLayer, isSelected } = item;
-
-      const entry: CatalogEntry = entryMap.get(piece.catalogId) ?? catalogRegistry.findEntry(piece.catalogId) ?? {
-        id: piece.catalogId,
-        name: `Gleis ${piece.catalogId}`,
-        kind: "straight",
-        category: "Geraden",
-        description: "",
-        length: 188.3,
-      };
-
-      const powerResult = powerSim?.results.get(piece.id);
-      const isShortCircuit = Boolean(options.shortCircuit?.shortCircuitPieces.has(piece.id));
-
-      const sprite = createTrackGraphics(piece, entry, catalog, {
-        isSelected,
-        showConnectors: options.showConnectors,
-        showPowerDrop,
-        powerResult,
-        isShortCircuit,
-        showTrackLabels: options.showTrackLabels,
-        showColorCode: options.showColorCode,
-        colorMode: options.colorMode,
-        layerColor: layer?.color,
-        layerHeightMm: baseElev,
-        isInactiveLayer,
-        minLayoutElev,
-        allPieces: layout.pieces,
-        worldScale: this.world.scale.x || 1,
-        catenaryMastCtx,
-      });
+        orderedSprites.push(sprite);
+      }
 
       // Nicht mehr vorhandene oder ausgeblendete Gleise aus dem Cache entfernen
       for (const [id, entry] of this.trackSpriteCache) {
