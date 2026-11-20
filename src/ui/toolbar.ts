@@ -49,6 +49,7 @@ export interface ToolbarEvents {
   onToggleWoodPlate?: () => void;
   onToggleLockBars?: () => void;
   onToggleLowGpuMode?: () => void;
+  onToggleDiscreteGpu3D?: () => void;
   onResetUiSizes?: () => void;
   onToggleSnapping: () => void;
   onToggleSelectionLock?: () => void;
@@ -97,6 +98,7 @@ export interface ToolbarState {
   rightSidebarCollapsed?: boolean;
   barsLocked?: boolean;
   lowGpuMode?: boolean;
+  useDiscreteGpu3D?: boolean;
   collabStatus?: "disconnected" | "connecting" | "connected";
   collabUsersCount?: number;
 }
@@ -600,6 +602,11 @@ function createSettingsMenu(t: any, events: ToolbarEvents): HTMLElement {
         id: "item-low-gpu-mode",
         onClick: () => events.onToggleLowGpuMode?.(),
       },
+      {
+        label: getLanguage() === "de" ? "Dedizierte GPU für 3D (dGPU)" : "Use Discrete GPU for 3D (dGPU)",
+        id: "item-discrete-gpu-3d",
+        onClick: () => events.onToggleDiscreteGpu3D?.(),
+      },
       { isDivider: true },
       {
         label: getLanguage() === "de" ? "Sprache automatisch wählen (System)" : "Auto-select language (System)",
@@ -955,6 +962,15 @@ export function updateToolbarState(state: ToolbarState) {
     if (span) {
       const lbl = getLanguage() === "de" ? "Low-GPU-Modus (30 FPS)" : "Low-GPU Mode (30 FPS)";
       span.textContent = `${state.lowGpuMode ? "✓ " : ""}${lbl}`;
+    }
+  }
+
+  const elDiscreteGpu = document.getElementById("item-discrete-gpu-3d");
+  if (elDiscreteGpu && state.useDiscreteGpu3D !== undefined) {
+    const span = elDiscreteGpu.querySelector(".dropdown-item-left span:last-child");
+    if (span) {
+      const lbl = getLanguage() === "de" ? "Dedizierte GPU für 3D (dGPU)" : "Use Discrete GPU for 3D (dGPU)";
+      span.textContent = `${state.useDiscreteGpu3D ? "✓ " : ""}${lbl}`;
     }
   }
 

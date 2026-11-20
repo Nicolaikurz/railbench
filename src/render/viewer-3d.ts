@@ -35,8 +35,8 @@ export class Viewer3D {
   private container: HTMLElement;
   private scene: THREE.Scene;
   private camera: THREE.PerspectiveCamera;
-  private renderer: THREE.WebGLRenderer;
-  private controls: OrbitControls;
+  private renderer!: THREE.WebGLRenderer;
+  private controls!: OrbitControls;
   private animId: number | null = null;
   private trackGroup = new THREE.Group();
   private tableGroup = new THREE.Group();
@@ -101,7 +101,8 @@ export class Viewer3D {
   private readonly _curHemiSky = new THREE.Color();
   private readonly _curHemiGnd = new THREE.Color();
 
-  constructor(host: HTMLElement) {
+  constructor(host: HTMLElement, useDiscreteGpu = false) {
+    this.useDiscreteGpu = useDiscreteGpu;
     this.container = document.createElement("div");
     this.container.className = "viewer-3d-container";
     this.container.style.position = "absolute";
@@ -140,42 +141,8 @@ export class Viewer3D {
     this.camera = new THREE.PerspectiveCamera(45, width / height, 8, 110000);
     this.camera.position.set(0, 1600, 2200);
 
-    // 3. WebGL Renderer (bevorzugt dedizierte GPU für maximale 3D-Beschleunigung)
-    try {
-      this.renderer = new THREE.WebGLRenderer({
-        antialias: true,
-        alpha: false,
-        stencil: false,
-        powerPreference: "high-performance",
-      });
-      this.renderer.setSize(width, height);
-      // Begrenzung auf max. 1.25 DPR spart auf Retina/4K-Displays ~300-500 MB Framebuffer-VRAM bei gestochen scharfem MSAA
-      this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25));
-      this.renderer.shadowMap.enabled = true;
-      this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-      this.renderer.shadowMap.autoUpdate = false;
-      this.renderer.shadowMap.needsUpdate = true;
-      this.container.appendChild(this.renderer.domElement);
-
-      // 4. Orbit Controls (Volle 360°/180° Perspektivenfreiheit inkl. Ansicht von unten)
-      this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-      this.controls.enableDamping = true;
-      this.controls.dampingFactor = 0.08;
-      this.controls.minPolarAngle = 0;
-      this.controls.maxPolarAngle = Math.PI;
-      this.controls.minAzimuthAngle = -Infinity;
-      this.controls.maxAzimuthAngle = Infinity;
-      this.controls.minDistance = 30;
-      this.controls.maxDistance = 65000;
-      this.controls.target.set(0, 0, 0);
-      this.controls.addEventListener("change", () => {
-        this.needsRender = true;
-      });
-    } catch (err) {
-      console.warn("[Viewer3D] WebGL context initialization failed:", err);
-      this.renderer = null as any;
-      this.controls = null as any;
-    }
+    // 3. WebGL Renderer (standardmäßig iGPU / "low-power", optional dGPU / "high-performance")
+    this.initWebGLRenderer(width, height);
 
     // 5. Lighting
     this.setupLighting();
@@ -784,7 +751,77 @@ export class Viewer3D {
   }
 
   private lowGpuMode = false;
+  private useDiscreteGpu = false;
   private lastRenderTs = 0;
+
+  private initWebGLRenderer(width: number, height: number, target?: THREE.Vector3) {
+    try {
+      this.renderer = new THREE.WebGLRenderer({
+        antialias: true,
+        alpha: false,
+        stencil: false,
+        powerPreference: this.useDiscreteGpu ? "high-performance" : "low-power",
+      });
+      this.renderer.setSize(width, height);
+      // Begrenzung auf max. 1.25 DPR spart auf Retina/4K-Displays ~300-500 MB Framebuffer-VRAM bei gestochen scharfem MSAA
+      this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25));
+      this.renderer.shadowMap.enabled = true;
+      this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      this.renderer.shadowMap.autoUpdate = false;
+      this.renderer.shadowMap.needsUpdate = true;
+      // Canvas als erstes Element einfügen, damit Overlay-UI darüber bleibt
+      if (this.container.firstChild) {
+        this.container.insertBefore(this.renderer.domElement, this.container.firstChild);
+      } else {
+        this.container.appendChild(this.renderer.domElement);
+      }
+
+      // 4. Orbit Controls (Volle 360°/180° Perspektivenfreiheit inkl. Ansicht von unten)
+      this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+      this.controls.enableDamping = true;
+      this.controls.dampingFactor = 0.08;
+      this.controls.minPolarAngle = 0;
+      this.controls.maxPolarAngle = Math.PI;
+      this.controls.minAzimuthAngle = -Infinity;
+      this.controls.maxAzimuthAngle = Infinity;
+      this.controls.minDistance = 30;
+      this.controls.maxDistance = 65000;
+      if (target) {
+        this.controls.target.copy(target);
+      } else {
+        this.controls.target.set(0, 0, 0);
+      }
+      this.controls.addEventListener("change", () => {
+        this.needsRender = true;
+      });
+    } catch (err) {
+      console.warn("[Viewer3D] WebGL context initialization failed:", err);
+      this.renderer = null as any;
+      this.controls = null as any;
+    }
+  }
+
+  setUseDiscreteGpu(enabled: boolean) {
+    if (this.useDiscreteGpu === enabled) return;
+    this.useDiscreteGpu = enabled;
+    if (!this.renderer) return;
+
+    const prevTarget = this.controls ? this.controls.target.clone() : new THREE.Vector3(0, 0, 0);
+    const width = this.container.clientWidth || this.renderer.domElement.clientWidth || 800;
+    const height = this.container.clientHeight || this.renderer.domElement.clientHeight || 600;
+
+    try {
+      this.controls?.dispose();
+    } catch {}
+    try {
+      const oldCanvas = this.renderer.domElement;
+      this.renderer.dispose();
+      oldCanvas?.remove();
+    } catch {}
+
+    this.initWebGLRenderer(width, height, prevTarget);
+    this.requestRender();
+  }
 
   setLowGpuMode(enabled: boolean) {
     if (this.lowGpuMode === enabled) return;
