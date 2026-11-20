@@ -54,23 +54,53 @@ pub fn evaluate_mountain_heightfield(
             let h = if !has_strokes {
                 natural_mountain_height_at(nx, nz, height)
             } else {
+                let n_nodes = strokes.len() / 4;
+                let noise_val = mountain_noise(lx / 220.0, lz / 220.0);
                 let mut best = 0.0_f64;
-                let mut s = 0;
-                while s + 3 < strokes.len() {
-                    let sx = strokes[s] as f64;
-                    let sz = strokes[s + 1] as f64;
-                    let sr = (strokes[s + 2] as f64).max(1.0);
-                    let sh = strokes[s + 3] as f64;
-                    let d = (lx - sx).hypot(lz - sz) / sr;
-                    if d < 1.0 {
-                        let prof = (d * std::f64::consts::FRAC_PI_2).cos().powf(1.35);
-                        let n = mountain_noise(lx / sr, lz / sr);
-                        let cand = (sh * prof * (0.88 + 0.16 * n)).max(0.0);
-                        if cand > best {
-                            best = cand;
+                if n_nodes == 1 {
+                    let sx = strokes[0] as f64;
+                    let sz = strokes[1] as f64;
+                    let sr = (strokes[2] as f64).max(25.0);
+                    let sh = (strokes[3] as f64).max(10.0);
+                    let nr = (lx - sx).hypot(lz - sz) / sr;
+                    if nr < 1.0 {
+                        let prof = (nr * std::f64::consts::FRAC_PI_2).cos().powf(1.35);
+                        best = (sh * prof * (1.0 + 0.26 * noise_val)).max(0.0);
+                    }
+                } else {
+                    // Continuous ridge capsule segments connecting consecutive brush nodes
+                    for i in 0..(n_nodes - 1) {
+                        let ax = strokes[i * 4] as f64;
+                        let az = strokes[i * 4 + 1] as f64;
+                        let ar = (strokes[i * 4 + 2] as f64).max(25.0);
+                        let ah = (strokes[i * 4 + 3] as f64).max(10.0);
+
+                        let bx = strokes[(i + 1) * 4] as f64;
+                        let bz = strokes[(i + 1) * 4 + 1] as f64;
+                        let br = (strokes[(i + 1) * 4 + 2] as f64).max(25.0);
+                        let bh = (strokes[(i + 1) * 4 + 3] as f64).max(10.0);
+
+                        let abx = bx - ax;
+                        let abz = bz - az;
+                        let len_sq = abx * abx + abz * abz;
+                        let t = if len_sq > 1e-4 {
+                            (((lx - ax) * abx + (lz - az) * abz) / len_sq).clamp(0.0, 1.0)
+                        } else {
+                            0.0
+                        };
+                        let px = ax + abx * t;
+                        let pz = az + abz * t;
+                        let r = ar + (br - ar) * t;
+                        let sh = ah + (bh - ah) * t;
+                        let nr = (lx - px).hypot(lz - pz) / r;
+                        if nr < 1.0 {
+                            let prof = (nr * std::f64::consts::FRAC_PI_2).cos().powf(1.35);
+                            let cand = (sh * prof * (1.0 + 0.26 * noise_val)).max(0.0);
+                            if cand > best {
+                                best = cand;
+                            }
                         }
                     }
-                    s += 4;
                 }
                 best
             };
@@ -287,5 +317,19 @@ mod tests {
         assert_eq!(h.len(), 25);
         assert!(h[2 * 5 + 2] > 50.0);
         assert_eq!(h[0], 0.0);
+    }
+
+    #[test]
+    fn mountain_heightfield_ridge_capsule_bridges_between_nodes() {
+        // Two nodes 300 mm apart with radius 100 mm: isolated circles would leave a 0-height gap at x=0,
+        // whereas capsule interpolation produces a smooth connecting mountain ridge at the center.
+        let strokes = [
+            -150.0_f32, 0.0, 100.0, 200.0,
+             150.0_f32, 0.0, 100.0, 200.0,
+        ];
+        let h = evaluate_mountain_heightfield(6, 4, 250.0, 150.0, 200.0, &strokes);
+        // Center grid vertex is iz = 2, ix = 3 (lx = 0, lz = 0)
+        let mid_h = h[2 * 7 + 3];
+        assert!(mid_h > 120.0, "Expected ridge capsule height > 120 at midpoint, got {mid_h}");
     }
 }
