@@ -2,7 +2,9 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR/.."
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+cd "$PROJECT_ROOT"
+source "$SCRIPT_DIR/release-cleanup.sh"
 
 # Argument handling:
 # ./scripts/build-macos.sh [arch] [format]
@@ -262,7 +264,9 @@ process_unix_target() {
     fi
 }
 
-# 2. Package with electron-builder
+# 2. Archive old macOS binaries & package with electron-builder
+[ "$WANT_DMG" = true ] && archive_old_binaries "$PROJECT_ROOT/release" "*-mac-*.dmg"
+[ "$WANT_ZIP" = true ] && archive_old_binaries "$PROJECT_ROOT/release" "*-mac-*.zip"
 if [ "$IS_MACOS" = true ]; then
     # Native macOS build with electron-builder
     TARGETS=""
@@ -307,6 +311,8 @@ else
             ;;
     esac
 fi
+
+cleanup_build_artifacts "$PROJECT_ROOT"
 
 echo ""
 echo "=========================================================="

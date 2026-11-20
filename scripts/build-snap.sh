@@ -4,12 +4,15 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 cd "$PROJECT_ROOT"
+source "$SCRIPT_DIR/release-cleanup.sh"
 
 TARGET="${1:-x64}"
 VERSION="$(node -p "require('$PROJECT_ROOT/package.json').version")"
 
 echo "=== Building Linux Snap package for RAILbench v${VERSION} ==="
 echo "Target Architecture: $TARGET"
+
+archive_old_binaries "$PROJECT_ROOT/release" "*.snap"
 
 npm run build:all
 
@@ -51,7 +54,7 @@ case "$TARGET" in
         ;;
 esac
 
-rm -rf "$PROJECT_ROOT/release/__snap-"*
+cleanup_build_artifacts "$PROJECT_ROOT"
 
 echo ""
 echo "==========================================="

@@ -7,10 +7,13 @@ export VIPS_WARNING=0
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 REPO_DIR="$PROJECT_ROOT/release/flatpak-repo"
+source "$SCRIPT_DIR/release-cleanup.sh"
 
 TARGET="${1:-x64}"
 HOST_ARCH="$(uname -m)"
 VERSION="$(node -p "require('$PROJECT_ROOT/package.json').version")"
+
+archive_old_binaries "$PROJECT_ROOT/release" "*.flatpak"
 
 echo "=== 1. Checking Flatpak tools ==="
 if ! command -v flatpak-builder &> /dev/null; then
@@ -99,6 +102,8 @@ case "$TARGET" in
         exit 1
         ;;
 esac
+
+cleanup_build_artifacts "$PROJECT_ROOT"
 
 echo ""
 echo "==========================================="
