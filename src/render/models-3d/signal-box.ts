@@ -74,8 +74,17 @@ export function buildSignalBox3D(group: THREE.Group): void {
   upperHeader.position.set(-4, 81, 0);
   group.add(upperHeader);
 
-  // Panorama-Verglasung rundum (4 Seiten) + sichtbares Innen-Stellpult
-  const glassCore = new THREE.Mesh(getSharedBoxGeometry(104, 18, 66), warmGlassMat);
+  // Panorama-Verglasung rundum (halbtransparent, damit Stellpult & Hebelbank sichtbar sind)
+  const panoGlassMat = new THREE.MeshStandardMaterial({
+    color: 0xfde68a,
+    roughness: 0.18,
+    metalness: 0.2,
+    emissive: 0xf59e0b,
+    emissiveIntensity: 0.25,
+    transparent: true,
+    opacity: 0.42,
+  });
+  const glassCore = new THREE.Mesh(getSharedBoxGeometry(104, 18, 66), panoGlassMat);
   glassCore.position.set(-4, 69.5, 0);
   group.add(glassCore);
 
@@ -149,16 +158,49 @@ export function buildSignalBox3D(group: THREE.Group): void {
     group.add(st);
   }
 
-  // Treppenwange & Geländer
-  const stringer = new THREE.Mesh(getSharedBoxGeometry(1.2, 2.5, 58), steelMat);
-  stringer.position.set(59.5, 28, 3);
-  stringer.rotation.x = 0.82;
-  group.add(stringer);
+  // Treppenwangen (innen & außen), Handlauf & Podest-Geländer
+  const stringerOuter = new THREE.Mesh(getSharedBoxGeometry(1.2, 2.5, 58), steelMat);
+  stringerOuter.position.set(59.5, 28, 3);
+  stringerOuter.rotation.x = 0.82;
+  group.add(stringerOuter);
+
+  const stringerInner = new THREE.Mesh(getSharedBoxGeometry(1.2, 2.5, 58), steelMat);
+  stringerInner.position.set(48.5, 28, 3);
+  stringerInner.rotation.x = 0.82;
+  group.add(stringerInner);
 
   const handrail = new THREE.Mesh(getSharedBoxGeometry(1.0, 1.2, 58), steelMat);
   handrail.position.set(59.5, 38, 3);
   handrail.rotation.x = 0.82;
   group.add(handrail);
+
+  const postGeo = getSharedBoxGeometry(1.0, 10, 1.0);
+  for (const [pz, py] of [
+    [22, 14],
+    [8, 29],
+    [-6, 44],
+    [-16, 54],
+  ] as const) {
+    const p = new THREE.Mesh(postGeo, steelMat);
+    p.position.set(59.5, py, pz);
+    group.add(p);
+  }
+
+  // Sicherheitsgeländer am oberen Podest (+X und -Z)
+  for (const [px, pz] of [
+    [60, -26.5],
+    [48.5, -26.5],
+  ] as const) {
+    const lp = new THREE.Mesh(postGeo, steelMat);
+    lp.position.set(px, 54, pz);
+    group.add(lp);
+  }
+  const landingRailX = new THREE.Mesh(getSharedBoxGeometry(1.0, 1.0, 12), steelMat);
+  landingRailX.position.set(60, 59, -21.2);
+  group.add(landingRailX);
+  const landingRailZ = new THREE.Mesh(getSharedBoxGeometry(12.5, 1.0, 1.0), steelMat);
+  landingRailZ.position.set(54.2, 59, -26.5);
+  group.add(landingRailZ);
 }
 
 /** Vereinfachte Low-Poly Variante des Stellwerks (LOD >= 3500 mm) */

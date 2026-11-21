@@ -73,9 +73,9 @@ export function getBuildingDoorConnectors(model: Model3D): BuildingDoorConnector
     // Ringlokschuppen hat 3 Stände bei -12°, 0°, +12°
     // TT_Z = -350, R_FRONT = 195 (Abstand vom Drehscheibenzentrum zum Torportal)
     const stalls = [
-      { angleDeg: -12, x: -40.54, y: -159.35, inAngle: 78, outAngle: 258 },
+      { angleDeg: -12, x: -40.54, y: -159.26, inAngle: 102, outAngle: 282 },
       { angleDeg: 0, x: 0, y: -155.0, inAngle: 90, outAngle: 270 },
-      { angleDeg: 12, x: 40.54, y: -159.35, inAngle: 102, outAngle: 282 },
+      { angleDeg: 12, x: 40.54, y: -159.26, inAngle: 78, outAngle: 258 },
     ];
 
     return stalls.map((s, idx) => {

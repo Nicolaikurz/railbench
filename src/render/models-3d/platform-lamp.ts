@@ -11,8 +11,7 @@ let _sharedShadeGeo: THREE.ConeGeometry | null = null;
 
 function getSharedNeckGeo(): THREE.TorusGeometry {
   if (!_sharedNeckGeo) {
-    _sharedNeckGeo = new THREE.TorusGeometry(8.5, 1.1, 8, 18, Math.PI / 2);
-    _sharedNeckGeo.rotateZ(Math.PI / 2);
+    _sharedNeckGeo = new THREE.TorusGeometry(8.5, 1.1, 8, 24, Math.PI);
     _sharedNeckGeo.userData.shared = true;
   }
   return _sharedNeckGeo;
@@ -64,17 +63,17 @@ export function buildPlatformLamp3D(group: THREE.Group): void {
   neck.position.set(8.5, 63, 0);
   group.add(neck);
 
-  // Emaille-Lampenschirm + weißer Reflektor
+  // Emaille-Lampenschirm + weißer Reflektor (direkt am Bogenende (17, 63, 0))
   const shade = new THREE.Mesh(getSharedShadeGeo(), enamelDarkMat);
-  shade.position.set(17, 65.2, 0);
+  shade.position.set(17, 61.8, 0);
   group.add(shade);
 
   const reflector = new THREE.Mesh(getSharedCylinderGeometry(5.6, 5.6, 0.6, 16), enamelWhiteMat);
-  reflector.position.set(17, 63.4, 0);
+  reflector.position.set(17, 60.0, 0);
   group.add(reflector);
 
   // Warmweißer Glasdiffusor
   const bulb = new THREE.Mesh(getSharedSphereGeometry(2.3, 12, 10), glowMat);
-  bulb.position.set(17, 62.2, 0);
+  bulb.position.set(17, 58.8, 0);
   group.add(bulb);
 }

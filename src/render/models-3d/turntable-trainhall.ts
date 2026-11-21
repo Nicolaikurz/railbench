@@ -138,29 +138,41 @@ export function buildTurntableTrainhall3D(group: THREE.Group): void {
   for (const angle of STALL_CENTERS) {
     const stallGroup = new THREE.Group();
     stallGroup.position.set(0, 0, TT_Z);
-    stallGroup.rotation.y = -angle;
+    stallGroup.rotation.y = angle;
 
-    // Schienenprofile (Höhe 2.0 mm auf dem Hallenboden bei Y=3.5 mm -> Y=4.5 mm)
+    // Erhöhtes Schienenbett & Schienenprofile (Oberkante 9,3 mm passend zur Drehscheibe)
+    const bedGeo = new THREE.BoxGeometry(4.0, 3.8, trackLength);
+    for (const sx of [-trackGauge / 2, trackGauge / 2]) {
+      const bed = new THREE.Mesh(bedGeo, groundMat);
+      bed.position.set(sx, Y_FLOOR + 1.9, R_FRONT + trackLength / 2);
+      stallGroup.add(bed);
+    }
+
     const railGeo = new THREE.BoxGeometry(1.6, 2.0, trackLength);
     const railLeft = new THREE.Mesh(railGeo, railMat);
-    railLeft.position.set(-trackGauge / 2, Y_FLOOR + 1.0, R_FRONT + trackLength / 2);
+    railLeft.position.set(-trackGauge / 2, Y_FLOOR + 4.8, R_FRONT + trackLength / 2);
     stallGroup.add(railLeft);
 
     const railRight = new THREE.Mesh(railGeo, railMat);
-    railRight.position.set(trackGauge / 2, Y_FLOOR + 1.0, R_FRONT + trackLength / 2);
+    railRight.position.set(trackGauge / 2, Y_FLOOR + 4.8, R_FRONT + trackLength / 2);
     stallGroup.add(railRight);
 
-    // Untersuchungsgrube (dunkle Einbuchtung zwischen den Schienen, Y=3.5 bis 3.8 mm)
+    // Untersuchungsgrube (dunkle Einbuchtung zwischen den Schienen, Y=3.5 bis 4.1 mm)
     const pitMat = new THREE.MeshStandardMaterial({ color: 0x1f2937, roughness: 0.95 });
-    const pit = new THREE.Mesh(new THREE.BoxGeometry(trackGauge - 3.2, 0.6, trackLength - 30), pitMat);
+    const pit = new THREE.Mesh(new THREE.BoxGeometry(trackGauge - 5.2, 0.6, trackLength - 30), pitMat);
     pit.position.set(0, Y_FLOOR + 0.3, R_FRONT + trackLength / 2 - 10);
     stallGroup.add(pit);
 
-    // Prellbock am Hallenende
+    // Prellbock am Hallenende auf Schienenhöhe
     const stopMat = new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.8 });
-    const bufferStop = new THREE.Mesh(new THREE.BoxGeometry(trackGauge + 6, 7, 4), stopMat);
-    bufferStop.position.set(0, Y_FLOOR + 3.5, R_FRONT + trackLength - 6);
+    const bufferStop = new THREE.Mesh(new THREE.BoxGeometry(trackGauge + 6, 6.5, 4), stopMat);
+    bufferStop.position.set(0, Y_FLOOR + 11.0, R_FRONT + trackLength - 6);
     stallGroup.add(bufferStop);
+    for (const sx of [-8, 8]) {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(3, 11, 3), steelMat);
+      post.position.set(sx, Y_FLOOR + 5.5, R_FRONT + trackLength - 6);
+      stallGroup.add(post);
+    }
 
     group.add(stallGroup);
   }
@@ -172,7 +184,7 @@ export function buildTurntableTrainhall3D(group: THREE.Group): void {
   for (const side of [-1, 1]) {
     const flankGroup = new THREE.Group();
     flankGroup.position.set(0, 0, TT_Z);
-    flankGroup.rotation.y = -side * 18 * DEG2RAD;
+    flankGroup.rotation.y = side * 18 * DEG2RAD;
 
     // Backsteinwand von Y=3.5 bis Y=64 mm
     const wall = new THREE.Mesh(new THREE.BoxGeometry(4, wallH, flankLen), brickMat);
@@ -198,7 +210,7 @@ export function buildTurntableTrainhall3D(group: THREE.Group): void {
     const angle = STALL_CENTERS[i]!;
     const segGroup = new THREE.Group();
     segGroup.position.set(0, 0, TT_Z);
-    segGroup.rotation.y = -angle;
+    segGroup.rotation.y = angle;
 
     const segW = R_REAR * 12 * DEG2RAD;
     const rearWall = new THREE.Mesh(new THREE.BoxGeometry(segW + 2, wallH, 4), brickMat);
@@ -231,7 +243,7 @@ export function buildTurntableTrainhall3D(group: THREE.Group): void {
     const angle = STALL_CENTERS[i]!;
     const portalGroup = new THREE.Group();
     portalGroup.position.set(0, 0, TT_Z);
-    portalGroup.rotation.y = -angle;
+    portalGroup.rotation.y = angle;
 
     const frontSegW = R_FRONT * 12 * DEG2RAD + 2;
 
@@ -256,14 +268,14 @@ export function buildTurntableTrainhall3D(group: THREE.Group): void {
     archTrim.position.set(0, Y_FLOOR + portalH + 1.7, R_FRONT + 2);
     portalGroup.add(archTrim);
 
-    // Torflügel links & rechts weit geöffnet an den Außenpfosten
+    // Torflügel links & rechts weit geöffnet an den Außenpfosten (90° nach außen)
     const leafW = portalW / 2 - 0.5;
     const doorLeafGeo = new THREE.BoxGeometry(leafW, portalH - 1, 1.8);
 
-    // Linker Torflügel: Scharnier am linken Portalpfeiler, weit nach außen geöffnet (~77°)
+    // Linker Torflügel: Scharnier am linken Portalpfeiler, 89° nach außen geöffnet
     const hingeL = new THREE.Group();
     hingeL.position.set(-portalW / 2, Y_FLOOR + (portalH - 1) / 2, R_FRONT + 2);
-    hingeL.rotation.y = 1.35;
+    hingeL.rotation.y = 1.55;
 
     const doorL = new THREE.Mesh(doorLeafGeo, doorMat);
     doorL.position.set(leafW / 2, 0, 0);
@@ -275,10 +287,10 @@ export function buildTurntableTrainhall3D(group: THREE.Group): void {
 
     portalGroup.add(hingeL);
 
-    // Rechter Torflügel: Scharnier am rechten Portalpfeiler, weit nach außen geöffnet (~ -77°)
+    // Rechter Torflügel: Scharnier am rechten Portalpfeiler, -89° nach außen geöffnet
     const hingeR = new THREE.Group();
     hingeR.position.set(portalW / 2, Y_FLOOR + (portalH - 1) / 2, R_FRONT + 2);
-    hingeR.rotation.y = -1.35;
+    hingeR.rotation.y = -1.55;
 
     const doorR = new THREE.Mesh(doorLeafGeo, doorMat);
     doorR.position.set(-leafW / 2, 0, 0);
@@ -361,19 +373,21 @@ export function buildTurntableTrainhall3D(group: THREE.Group): void {
     const angle = STALL_CENTERS[s]!;
     const ridgeGroup = new THREE.Group();
     ridgeGroup.position.set(0, 0, TT_Z);
-    ridgeGroup.rotation.y = -angle;
+    ridgeGroup.rotation.y = angle;
 
-    const ridgeLen = R_ROOF_REAR - R_ROOF_FRONT - 40;
-    const midR = (R_ROOF_FRONT + R_ROOF_REAR) / 2;
+    // Verglaste Dachreiter / Oberlichtstreifen auf dem First (vor & hinter dem Schornstein bei R=335)
+    for (const [midR, skyLen] of [
+      [266, 92],
+      [419, 122],
+    ] as const) {
+      const skylight = new THREE.Mesh(new THREE.BoxGeometry(10, 5, skyLen), glassMat);
+      skylight.position.set(0, Y_RIDGE + 2.5, midR);
+      ridgeGroup.add(skylight);
 
-    // Verglaster Dachreiter / Oberlichtstreifen auf dem First
-    const skylight = new THREE.Mesh(new THREE.BoxGeometry(10, 5, ridgeLen), glassMat);
-    skylight.position.set(0, Y_RIDGE + 2.5, midR);
-    ridgeGroup.add(skylight);
-
-    const skylightFrame = new THREE.Mesh(new THREE.BoxGeometry(11, 1.2, ridgeLen + 2), steelMat);
-    skylightFrame.position.set(0, Y_RIDGE + 5.2, midR);
-    ridgeGroup.add(skylightFrame);
+      const skylightFrame = new THREE.Mesh(new THREE.BoxGeometry(11, 1.2, skyLen + 2), steelMat);
+      skylightFrame.position.set(0, Y_RIDGE + 5.2, midR);
+      ridgeGroup.add(skylightFrame);
+    }
 
     // Rauchabzug / Schornstein für Dampflokomotiven über dem Stand
     const chimneyR = R_FRONT + 140;
@@ -393,7 +407,7 @@ export function buildTurntableTrainhall3D(group: THREE.Group): void {
     for (const pr of [R_FRONT + 75, R_FRONT + 155, R_FRONT + 235]) {
       const colGroup = new THREE.Group();
       colGroup.position.set(0, 0, TT_Z);
-      colGroup.rotation.y = -pillarAngle;
+      colGroup.rotation.y = pillarAngle;
 
       const column = new THREE.Mesh(new THREE.BoxGeometry(3.5, Y_EAVE - Y_FLOOR, 3.5), steelMat);
       column.position.set(0, Y_FLOOR + (Y_EAVE - Y_FLOOR) / 2, pr);

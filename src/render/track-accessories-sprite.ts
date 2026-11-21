@@ -13,6 +13,7 @@ import { getEffectiveFlexEntry } from "@/core/flextrack";
 import { drawTrackCenterline } from "./track-rails-draw";
 
 const FEEDER_MARKER_TEXT_ACTIVE = new TextStyle({ fontSize: 13, fill: 0x1e293b, fontWeight: "bold" });
+const ISOLATOR_TEXT_STYLE = new TextStyle({ fontSize: 13, fill: 0xffffff, fontWeight: "bold" });
 const FEEDER_MARKER_TEXT_GREY = new TextStyle({ fontSize: 13, fill: 0xe2e8f0, fontWeight: "bold" });
 const SIGNAL_TEXT_STYLE = new TextStyle({
   fontSize: 4,
@@ -139,7 +140,7 @@ export function drawIsolatorMarker(parent: Container, entry: CatalogEntry, isoId
 
   const txt = new Text({
     text: isGrey ? "⊘" : "⛔",
-    style: new TextStyle({ fontSize: 13, fill: 0xffffff, fontWeight: "bold" }),
+    style: ISOLATOR_TEXT_STYLE,
   });
   txt.anchor.set(0.5);
   marker.addChild(txt);

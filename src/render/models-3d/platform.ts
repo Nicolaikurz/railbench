@@ -119,10 +119,17 @@ export function buildPlatform3D(group: THREE.Group): void {
   // -------------------------------------------------------------------------
   // 2. BAHNSTEIGKÖRPER & DECK
   // -------------------------------------------------------------------------
-  // Zentraler Gehbelag (X: -140 bis +140, Z: -26 bis +26, H: 10 mm)
-  const mainDeck = new THREE.Mesh(new THREE.BoxGeometry(280, 10, 52), deckMat);
-  mainDeck.position.set(0, 5, 0);
-  group.add(mainDeck);
+  // Zentraler Gehbelag um die Treppenöffnung (X: -140 bis +140, Ausschnitt [-17..+17] × [-9..+9])
+  for (const [cx, cz, cw, cd] of [
+    [-78.5, 0, 123, 52],
+    [78.5, 0, 123, 52],
+    [0, -17.5, 34, 17],
+    [0, 17.5, 34, 17],
+  ] as const) {
+    const slab = new THREE.Mesh(new THREE.BoxGeometry(cw, 10, cd), deckMat);
+    slab.position.set(cx, 5, cz);
+    group.add(slab);
+  }
 
   // Schräge End-Rampen für Wartungs-/Personalzugang
   // Linke Rampe (X: -160 bis -140)
@@ -159,16 +166,36 @@ export function buildPlatform3D(group: THREE.Group): void {
   // -------------------------------------------------------------------------
   // 3. BAHNSTEIGKANTEN & TAKTILE SICHERHEITSLINIEN
   // -------------------------------------------------------------------------
-  // Bahnsteigkantensteine entlang beider Gleisseiten (Z = -26.5 und Z = +26.5)
+  // Bahnsteigkantensteine entlang des Hauptdecks + abgeschrägte Kanten entlang der Rampen
   for (const zSide of [-26.5, 26.5]) {
-    const curb = new THREE.Mesh(new THREE.BoxGeometry(320, 10.3, 2.2), curbMat);
+    const curb = new THREE.Mesh(new THREE.BoxGeometry(280, 10.3, 2.2), curbMat);
     curb.position.set(0, 5.15, zSide);
     group.add(curb);
+
+    const lCurbShape = new THREE.Shape();
+    lCurbShape.moveTo(-160, 1.4);
+    lCurbShape.lineTo(-140, 10.3);
+    lCurbShape.lineTo(-140, 0);
+    lCurbShape.lineTo(-160, 0);
+    lCurbShape.closePath();
+    const lCurbGeo = new THREE.ExtrudeGeometry(lCurbShape, { depth: 2.2, bevelEnabled: false });
+    lCurbGeo.translate(0, 0, zSide - 1.1);
+    group.add(new THREE.Mesh(lCurbGeo, curbMat));
+
+    const rCurbShape = new THREE.Shape();
+    rCurbShape.moveTo(140, 10.3);
+    rCurbShape.lineTo(160, 1.4);
+    rCurbShape.lineTo(160, 0);
+    rCurbShape.lineTo(140, 0);
+    rCurbShape.closePath();
+    const rCurbGeo = new THREE.ExtrudeGeometry(rCurbShape, { depth: 2.2, bevelEnabled: false });
+    rCurbGeo.translate(0, 0, zSide - 1.1);
+    group.add(new THREE.Mesh(rCurbGeo, curbMat));
   }
 
-  // Weiße taktile Sicherheitslinien (Blindenleitsystem / Gefahrenstreifen)
+  // Weiße taktile Sicherheitslinien (nur auf der ebenen Fläche -138..+138 mm)
   for (const zSide of [-22.5, 22.5]) {
-    const safetyLine = new THREE.Mesh(new THREE.BoxGeometry(300, 0.4, 1.8), safetyLineMat);
+    const safetyLine = new THREE.Mesh(new THREE.BoxGeometry(276, 0.4, 1.8), safetyLineMat);
     safetyLine.position.set(0, 10.22, zSide);
     group.add(safetyLine);
   }
@@ -179,21 +206,29 @@ export function buildPlatform3D(group: THREE.Group): void {
   const stairX = 0;
   const stairW = 34; // Länge X
   const stairD = 18; // Breite Z
+  const wellMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.95 });
 
-  // Dunkle Schachtöffnung
-  const stairWell = new THREE.Mesh(
-    new THREE.BoxGeometry(stairW, 9.6, stairD),
-    new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.95 })
-  );
-  stairWell.position.set(stairX, 5.1, 0);
-  group.add(stairWell);
+  // Versenkte Schachtsohle & Innenwände der Unterführung
+  const stairFloor = new THREE.Mesh(new THREE.BoxGeometry(stairW, 1, stairD), wellMat);
+  stairFloor.position.set(stairX, 0.5, 0);
+  group.add(stairFloor);
 
-  // Stufen nach unten (von X = +14 absteigend nach X = -14)
+  const wellWestWall = new THREE.Mesh(new THREE.BoxGeometry(0.5, 9.6, stairD), wellMat);
+  wellWestWall.position.set(-16.75, 5.1, 0);
+  group.add(wellWestWall);
+  for (const zSide of [-8.75, 8.75]) {
+    const sideWall = new THREE.Mesh(new THREE.BoxGeometry(stairW, 9.6, 0.5), wellMat);
+    sideWall.position.set(stairX, 5.1, zSide);
+    group.add(sideWall);
+  }
+
+  // Stufen nach unten (von X = +13 absteigend nach X = -9.8, voll unterfüttert bis Schachtsohle)
   for (let s = 0; s < 7; s++) {
-    const sx = 12 - s * 3.8;
-    const sy = 9.2 - s * 1.3;
-    const step = new THREE.Mesh(new THREE.BoxGeometry(3.6, 2, stairD - 2), curbMat);
-    step.position.set(sx, sy, 0);
+    const sx = 13.0 - s * 3.8;
+    const stepTop = 9.8 - s * 1.15;
+    const stepH = stepTop - 1.0;
+    const step = new THREE.Mesh(new THREE.BoxGeometry(3.8, stepH, stairD - 1.6), curbMat);
+    step.position.set(sx, 1.0 + stepH / 2, 0);
     group.add(step);
   }
 
@@ -372,19 +407,19 @@ export function buildPlatform3D(group: THREE.Group): void {
     group.add(textStrip);
   }
 
-  // Doppelseitige Bahnhofsuhr bei X = 15
+  // Doppelseitige Bahnhofsuhr bei X = 22.5 (klar rechts neben dem Schild [-16..+16])
   const clockFrame = new THREE.Mesh(new THREE.CylinderGeometry(3.5, 3.5, 1.4, 16), steelMat);
-  clockFrame.position.set(16, roofBaseY - 4.5, 0);
+  clockFrame.position.set(22.5, roofBaseY - 4.5, 0);
   clockFrame.rotation.z = Math.PI / 2;
   group.add(clockFrame);
 
   const clockRod = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 3.5, 6), steelMat);
-  clockRod.position.set(16, roofBaseY - 1, 0);
+  clockRod.position.set(22.5, roofBaseY - 1, 0);
   group.add(clockRod);
 
   for (const xDir of [-1, 1]) {
     const clockFace = new THREE.Mesh(new THREE.CylinderGeometry(3, 3, 0.2, 16), safetyLineMat);
-    clockFace.position.set(16 + xDir * 0.72, roofBaseY - 4.5, 0);
+    clockFace.position.set(22.5 + xDir * 0.72, roofBaseY - 4.5, 0);
     clockFace.rotation.z = Math.PI / 2;
     group.add(clockFace);
   }
@@ -416,9 +451,9 @@ export function buildPlatform3D(group: THREE.Group): void {
   infoVitrine.position.set(-32, 16, 0);
   group.add(infoVitrine);
 
-  for (const zDir of [-1, 1]) {
+  for (const xDir of [-1, 1]) {
     const poster = new THREE.Mesh(new THREE.BoxGeometry(0.2, 9.5, 11), yellowWarnMat);
-    poster.position.set(-32, 16, zDir * 0.7);
+    poster.position.set(-32 + xDir * 0.65, 16, 0);
     group.add(poster);
   }
 

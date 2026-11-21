@@ -604,6 +604,7 @@ pub struct AppSettings {
     pub dark_mode: bool,
     pub lang: String,
     pub snapping_enabled: bool,
+    pub layer_protection: bool,
     pub color_mode: String,
     pub show_labels: bool,
     pub show_connectors: bool,
@@ -616,6 +617,7 @@ pub struct AppSettings {
     pub last_opened_path: Option<String>,
     pub perf_monitor_visible: bool,
     pub custom_keymap: BTreeMap<String, String>,
+    pub favorite_tracks: Vec<String>,
 }
 
 impl Default for AppSettings {
@@ -624,6 +626,7 @@ impl Default for AppSettings {
             dark_mode: true,
             lang: "de".into(),
             snapping_enabled: true,
+            layer_protection: true,
             color_mode: "types".into(),
             show_labels: true,
             show_connectors: true,
@@ -631,11 +634,12 @@ impl Default for AppSettings {
             show_wood_plates: true,
             show_right_sidebar: true,
             rotation_step: 30.0,
-            viewer3d_env: "hall".into(),
+            viewer3d_env: "hall-landscape".into(),
             startup_action: StartupAction::Ask,
             last_opened_path: None,
             perf_monitor_visible: false,
             custom_keymap: BTreeMap::new(),
+            favorite_tracks: Vec::new(),
         }
     }
 }
@@ -711,6 +715,7 @@ impl AppSettings {
         root.insert("dark_mode".into(), Value::Bool(self.dark_mode));
         root.insert("lang".into(), Value::String(self.lang.clone()));
         root.insert("snapping_enabled".into(), Value::Bool(self.snapping_enabled));
+        root.insert("layer_protection".into(), Value::Bool(self.layer_protection));
         root.insert("color_mode".into(), Value::String(self.color_mode.clone()));
         root.insert("show_labels".into(), Value::Bool(self.show_labels));
         root.insert("show_connectors".into(), Value::Bool(self.show_connectors));
@@ -729,6 +734,15 @@ impl AppSettings {
             km.insert(k.clone(), Value::String(v.clone()));
         }
         root.insert("custom_keymap".into(), Value::Object(km));
+        root.insert(
+            "favorite_tracks".into(),
+            Value::Array(
+                self.favorite_tracks
+                    .iter()
+                    .map(|id| Value::String(id.clone()))
+                    .collect(),
+            ),
+        );
         serde_json::to_string_pretty(&Value::Object(root)).unwrap_or_else(|_| "{}".into())
     }
 
@@ -745,6 +759,9 @@ impl AppSettings {
         }
         if let Some(v) = map.get("snapping_enabled").and_then(|v| v.as_bool()) {
             s.snapping_enabled = v;
+        }
+        if let Some(v) = map.get("layer_protection").and_then(|v| v.as_bool()) {
+            s.layer_protection = v;
         }
         if let Some(v) = map.get("color_mode").and_then(|v| v.as_str()) {
             s.color_mode = v.into();
@@ -790,6 +807,12 @@ impl AppSettings {
                 }
             }
         }
+        if let Some(Value::Array(favs)) = map.get("favorite_tracks") {
+            s.favorite_tracks = favs
+                .iter()
+                .filter_map(|v| v.as_str().map(|id| id.to_string()))
+                .collect();
+        }
         s
     }
 
@@ -826,6 +849,7 @@ mod tests {
         cfg.startup_action = StartupAction::Demo;
         cfg.last_opened_path = Some("/tmp/demo.railbench".into());
         cfg.set_key(KeyAction::Toggle3D, "Ctrl+Shift+3".into());
+        cfg.favorite_tracks = vec!["24188".into(), "24611".into()];
 
         let json = cfg.to_json_string();
         let parsed = AppSettings::from_json_str(&json);
@@ -834,6 +858,7 @@ mod tests {
         assert!((parsed.rotation_step - 15.0).abs() < 1e-6);
         assert_eq!(parsed.startup_action, StartupAction::Demo);
         assert_eq!(parsed.effective_key(KeyAction::Toggle3D), "Ctrl+Shift+3");
+        assert_eq!(parsed.favorite_tracks, vec!["24188".to_string(), "24611".to_string()]);
 
         let mut reset = parsed.clone();
         reset.reset_personal_defaults();

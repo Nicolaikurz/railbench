@@ -14,8 +14,17 @@ try {
   // Hardware-beschleunigte GPU-Rasterung & Zero-Copy VRAM-Buffer
   app.commandLine.appendSwitch("enable-gpu-rasterization");
   app.commandLine.appendSwitch("enable-zero-copy");
-  // Out-of-Process Canvas Rasterization (lagert 2D- & WebGL-Canvas auf GPU-Worker-Threads aus)
-  app.commandLine.appendSwitch("enable-features", "CanvasOopRasterization,ParallelDownloading");
+  // Out-of-Process Canvas Rasterization & Linux Native Wayland/Vulkan Acceleration
+  if (process.platform === "linux") {
+    app.commandLine.appendSwitch("ozone-platform-hint", "auto");
+    app.commandLine.appendSwitch(" ignore-gpu-blocklist".trim());
+    app.commandLine.appendSwitch(
+      "enable-features",
+      "CanvasOopRasterization,ParallelDownloading,Vulkan,DefaultANGLEVulkan,VulkanFromANGLE,VaapiVideoDecoder"
+    );
+  } else {
+    app.commandLine.appendSwitch("enable-features", "CanvasOopRasterization,ParallelDownloading");
+  }
   // Parallele V8-Kompilierung & erweiterter 4 GB Heap-Limit gegen Heap Exhaustion bei großen Anlagen
   app.commandLine.appendSwitch("js-flags", "--max-old-space-size=4096 --parallel-compile-tasks --concurrent-recompilation");
 } catch {}

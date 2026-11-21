@@ -250,6 +250,48 @@ export function buildStation3D(group: THREE.Group): void {
   towerBelt2.position.set(0, 118, -12);
   group.add(towerBelt2);
 
+  // 4-seitige Bahnhofsuhren am Uhrturm (Vorder-/Rückseite & beide Flanken)
+  const clockRimGeo = getSharedCylinderGeometry(7.8, 7.8, 1.2, 16);
+  const clockDialGeo = getSharedCylinderGeometry(6.6, 6.6, 1.5, 16);
+  const clockHandMinZGeo = getSharedBoxGeometry(0.9, 5.0, 0.4);
+  const clockHandHrZGeo = getSharedBoxGeometry(3.8, 1.0, 0.4);
+  const clockHandMinXGeo = getSharedBoxGeometry(0.4, 5.0, 0.9);
+  const clockHandHrXGeo = getSharedBoxGeometry(0.4, 1.0, 3.8);
+
+  for (const side of [-1, 1] as const) {
+    const cz = -12 + side * 18.2;
+    const rimZ = new THREE.Mesh(clockRimGeo, ironMat);
+    rimZ.rotation.x = Math.PI / 2;
+    rimZ.position.set(0, 104, cz);
+    group.add(rimZ);
+    const dialZ = new THREE.Mesh(clockDialGeo, signWhiteMat);
+    dialZ.rotation.x = Math.PI / 2;
+    dialZ.position.set(0, 104, cz + side * 0.15);
+    group.add(dialZ);
+    const minZ = new THREE.Mesh(clockHandMinZGeo, ironMat);
+    minZ.position.set(0, 106.2, cz + side * 0.95);
+    group.add(minZ);
+    const hrZ = new THREE.Mesh(clockHandHrZGeo, ironMat);
+    hrZ.position.set(1.6, 104, cz + side * 0.95);
+    group.add(hrZ);
+
+    const cx = side * 18.2;
+    const rimX = new THREE.Mesh(clockRimGeo, ironMat);
+    rimX.rotation.z = Math.PI / 2;
+    rimX.position.set(cx, 104, -12);
+    group.add(rimX);
+    const dialX = new THREE.Mesh(clockDialGeo, signWhiteMat);
+    dialX.rotation.z = Math.PI / 2;
+    dialX.position.set(cx + side * 0.15, 104, -12);
+    group.add(dialX);
+    const minX = new THREE.Mesh(clockHandMinXGeo, ironMat);
+    minX.position.set(cx + side * 0.95, 106.2, -12);
+    group.add(minX);
+    const hrX = new THREE.Mesh(clockHandHrXGeo, ironMat);
+    hrX.position.set(cx + side * 0.95, 104, -10.4);
+    group.add(hrX);
+  }
+
   // Kupferpatina-Spitzhelm + Turmspitze
   const spire = new THREE.Mesh(getSharedSpireGeo(), spireMat);
   spire.position.set(0, 137.5, -12);
@@ -375,7 +417,15 @@ export function buildStation3D(group: THREE.Group): void {
   // =========================================================================
   // 5. VERGLASTES BAHNSTEIG-VORDACH, GUSSEISENSÄULEN & BAHNSTEIGDETAILS (+Z)
   // =========================================================================
-  // Schräges Bahnsteigdach mit zentralem Lichtband (Glas)
+  // Schräges Bahnsteigdach mit zentralem Lichtband (Glas) & Flügelanschluss ohne Luftspalt
+  const wingCanopyTieGeo = getSharedBoxGeometry(80, 2.2, 6.4);
+  for (const sideX of [-1, 1]) {
+    const tie = new THREE.Mesh(wingCanopyTieGeo, canopyRoofMat);
+    tie.position.set(sideX * 109, 42.0, 27.8);
+    tie.rotation.x = 0.08;
+    group.add(tie);
+  }
+
   const canopyBack = new THREE.Mesh(getSharedBoxGeometry(298, 2.2, 13), canopyRoofMat);
   canopyBack.position.set(0, 41.2, 36);
   canopyBack.rotation.x = 0.08;
@@ -400,7 +450,8 @@ export function buildStation3D(group: THREE.Group): void {
   const colPlinthGeo = getSharedBoxGeometry(6, 5, 6);
   const colShaftGeo = getSharedCylinderGeometry(1.7, 2.1, 31, 10);
   const colCapitalGeo = getSharedBoxGeometry(5, 2.2, 5);
-  const rafterGeo = getSharedBoxGeometry(2.2, 2.4, 36);
+  const rafterInnerGeo = getSharedBoxGeometry(2.2, 2.4, 36);
+  const rafterOuterGeo = getSharedBoxGeometry(2.2, 2.4, 41);
 
   for (let x = -130; x <= 130; x += 52) {
     const cp = new THREE.Mesh(colPlinthGeo, stoneBaseMat);
@@ -415,9 +466,10 @@ export function buildStation3D(group: THREE.Group): void {
     cap.position.set(x, 38.5, 58);
     group.add(cap);
 
-    // Dachsparren vom Gebäude zur Säule
-    const rafter = new THREE.Mesh(rafterGeo, ironMat);
-    rafter.position.set(x, 38.8, 46);
+    // Dachsparren vom Gebäude zur Säule (Außenflügel bis Z = 25)
+    const isWing = Math.abs(x) > 70;
+    const rafter = new THREE.Mesh(isWing ? rafterOuterGeo : rafterInnerGeo, ironMat);
+    rafter.position.set(x, isWing ? 39.0 : 38.8, isWing ? 43 : 46);
     rafter.rotation.x = 0.08;
     group.add(rafter);
   }
@@ -465,12 +517,12 @@ export function buildStation3D(group: THREE.Group): void {
     }
   }
 
-  // Fahrplan-Vitrine neben dem Bahnsteig-Eingang
-  const vitrineFrame = new THREE.Mesh(getSharedBoxGeometry(14, 16, 2.4), ironMat);
-  vitrineFrame.position.set(22, 18, 34);
+  // Fahrplan-Vitrine bündig an der Hauptwand (+Z = 31) neben dem Bahnsteig-Eingang
+  const vitrineFrame = new THREE.Mesh(getSharedBoxGeometry(14, 16, 2.2), ironMat);
+  vitrineFrame.position.set(22, 18, 32.0);
   group.add(vitrineFrame);
-  const vitrineSheet = new THREE.Mesh(getSharedBoxGeometry(11.5, 13, 2.6), signWhiteMat);
-  vitrineSheet.position.set(22, 18, 34);
+  const vitrineSheet = new THREE.Mesh(getSharedBoxGeometry(11.5, 13, 1.8), signWhiteMat);
+  vitrineSheet.position.set(22, 18, 32.35);
   group.add(vitrineSheet);
 }
 
@@ -486,16 +538,16 @@ export function buildStationLowPoly3D(group: THREE.Group): void {
   plinth.position.set(0, 2.5, 0);
   group.add(plinth);
 
-  const mainBody = new THREE.Mesh(getSharedBoxGeometry(140, 68, 86), wallMat);
-  mainBody.position.set(0, 42, -12);
+  const mainBody = new THREE.Mesh(getSharedBoxGeometry(140, 71, 86), wallMat);
+  mainBody.position.set(0, 40.5, -12);
   group.add(mainBody);
 
   const mainRoof = new THREE.Mesh(getSharedMainRoofGeo(), roofMat);
   group.add(mainRoof);
 
   for (const sideX of [-1, 1]) {
-    const wb = new THREE.Mesh(getSharedBoxGeometry(86, 48, 74), wallMat);
-    wb.position.set(sideX * 112, 31, -12);
+    const wb = new THREE.Mesh(getSharedBoxGeometry(86, 50, 74), wallMat);
+    wb.position.set(sideX * 112, 30, -12);
     group.add(wb);
 
     const wr = new THREE.Mesh(getSharedWingRoofGeo(), roofMat);

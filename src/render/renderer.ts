@@ -12,10 +12,7 @@ import { getBaseboards, getBaseboardBounds } from "@/core/layout";
 import type { BaseboardSnapGuide } from "@/core/baseboard-snapping";
 import { getConnectorSnapStatus } from "@/core/snapping";
 import { isFlexTrack, getFlexTrackPointAt } from "@/core/flextrack";
-import {
-  getBuildingDoorConnectors,
-  isConnectorConnectedToBuilding,
-} from "@/core/engine-shed-snap";
+import { getBuildingDoorConnectors } from "@/core/engine-shed-snap";
 import { dist, deg2rad } from "@/core/geometry";
 import { renderSceneOverlays } from "./renderer-overlays";
 
@@ -77,6 +74,10 @@ export class Renderer {
 
   // Per-Track Sprite-Cache: beim Verschieben/Auswählen einzelner Gleise wird nicht die ganze Anlage neu gebaut
   private trackSpriteCache = new Map<string, { sig: string; sprite: Container }>();
+  private cachedCatalog: Catalog | null = null;
+  private cachedCatalogLen = -1;
+  private cachedEntryMap = new Map<string, CatalogEntry>();
+  private pieceById = new Map<string, TrackPiece>();
   private lastConnectorsSignature = "";
 
   getBaseboardContainer(): Container {
@@ -457,12 +458,18 @@ export class Renderer {
     const activeLayerElev = activeLayer?.heightMm ?? 0;
 
     const selectedIds = options.selectedIds ?? new Set<string>();
-    const entryMap = new Map<string, CatalogEntry>();
-    if (catalog) {
-      for (const e of catalog.entries) {
-        entryMap.set(e.id, e);
+    const catLen = catalog ? catalog.entries.length : -1;
+    if (catalog !== this.cachedCatalog || catLen !== this.cachedCatalogLen) {
+      this.cachedEntryMap.clear();
+      if (catalog) {
+        for (const e of catalog.entries) {
+          this.cachedEntryMap.set(e.id, e);
+        }
       }
+      this.cachedCatalog = catalog ?? null;
+      this.cachedCatalogLen = catLen;
     }
+    const entryMap = this.cachedEntryMap;
 
     // 0. Baseboard / Tischplatte & Zwischenebenen rendern (sortiert nach realer 3D-Höhe)
     const baseboardSig = this.computeBaseboardSignature(layout, options);
@@ -759,7 +766,8 @@ export class Renderer {
 
       const activeIds = new Set<string>();
       const orderedSprites: Container[] = [];
-      const pieceById = new Map<string, TrackPiece>();
+      const pieceById = this.pieceById;
+      pieceById.clear();
       for (const p of layout.pieces) pieceById.set(p.id, p);
 
       for (const item of visibleTrackItems) {
@@ -890,6 +898,11 @@ export class Renderer {
       this.lastTracksSignature = tracksSig;
     }
 
+    if (this.pieceById.size !== layout.pieces.length) {
+      this.pieceById.clear();
+      for (const p of layout.pieces) this.pieceById.set(p.id, p);
+    }
+
     // 2A. Statisches Connector-Overlay cachen (ohne Hover in Signatur + Spatial-Hash für O(N) statt O(N^2))
     const hov = options.hoveredOpenConnector;
     const connectorsSig = `${Boolean(options.showConnectors)}_${tracksSig}_${modelsSig}`;
@@ -898,40 +911,61 @@ export class Renderer {
       cov.clear();
 
       if (options.showConnectors) {
-        // Spatial-Hash-Grid (16 mm Zellen) für schnelle O(1)-Nachbarschaftssuche (Toleranz <= 5 mm)
+        // Spatial-Hash-Grid (16 mm Zellen) mit numerischem Schlüssel für schnelle O(1)-Nachbarschaftssuche
         const cellSize = 16;
-        const connectorGrid = new Map<string, TrackPiece[]>();
+        const cellKey = (cx: number, cy: number) => (cx + 131072) * 262144 + (cy + 131072);
+        const connectorGrid = new Map<number, TrackPiece[]>();
         for (const p of layout.pieces) {
           for (const c of p.connectors) {
             const cx = Math.floor(c.x / cellSize);
             const cy = Math.floor(c.y / cellSize);
-            const cellKey = `${cx},${cy}`;
-            let bucket = connectorGrid.get(cellKey);
+            const key = cellKey(cx, cy);
+            let bucket = connectorGrid.get(key);
             if (!bucket) {
               bucket = [];
-              connectorGrid.set(cellKey, bucket);
+              connectorGrid.set(key, bucket);
             }
             if (!bucket.includes(p)) bucket.push(p);
           }
         }
+        const nearbyBuf: TrackPiece[] = [];
+        const seenBuf = new Set<string>();
         const getNearbyPieces = (x: number, y: number): TrackPiece[] => {
           const cx = Math.floor(x / cellSize);
           const cy = Math.floor(y / cellSize);
-          const nearby: TrackPiece[] = [];
-          const seen = new Set<string>();
+          nearbyBuf.length = 0;
+          seenBuf.clear();
           for (let dx = -1; dx <= 1; dx++) {
             for (let dy = -1; dy <= 1; dy++) {
-              const bucket = connectorGrid.get(`${cx + dx},${cy + dy}`);
+              const bucket = connectorGrid.get(cellKey(cx + dx, cy + dy));
               if (!bucket) continue;
               for (const p of bucket) {
-                if (!seen.has(p.id)) {
-                  seen.add(p.id);
-                  nearby.push(p);
+                if (!seenBuf.has(p.id)) {
+                  seenBuf.add(p.id);
+                  nearbyBuf.push(p);
                 }
               }
             }
           }
-          return nearby;
+          return nearbyBuf;
+        };
+
+        const buildingDoors: Array<{ x: number; y: number }> = [];
+        if (layout.models) {
+          for (const m of layout.models) {
+            for (const door of getBuildingDoorConnectors(m)) {
+              buildingDoors.push({ x: door.x, y: door.y });
+            }
+          }
+        }
+        const hasNearbyDoor = (x: number, y: number): boolean => {
+          for (let di = 0; di < buildingDoors.length; di++) {
+            const d = buildingDoors[di]!;
+            const dx = x - d.x;
+            const dy = y - d.y;
+            if (dx * dx + dy * dy <= 36.0) return true;
+          }
+          return false;
         };
 
         const drawnConnected = new Set<string>();
@@ -940,7 +974,7 @@ export class Renderer {
           const pieceLayerKey = piece.layerId || defaultLayerId;
           for (let cIdx = 0; cIdx < piece.connectors.length; cIdx++) {
             const conn = piece.connectors[cIdx]!;
-            const isBuildingSnap = isConnectorConnectedToBuilding(conn, layout.models);
+            const isBuildingSnap = buildingDoors.length > 0 && hasNearbyDoor(conn.x, conn.y);
             const nearbyPieces = getNearbyPieces(conn.x, conn.y);
             const info = getConnectorSnapStatus(piece, cIdx, nearbyPieces, layout.layers);
 
@@ -1054,7 +1088,7 @@ export class Renderer {
 
     // Hovered Open-Connector '+' Button im transienten Overlay (kein Rebuild von connectorsOverlay nötig!)
     if (options.showConnectors && hov) {
-      const hovPiece = layout.pieces.find((p) => p.id === hov.pieceId);
+      const hovPiece = this.pieceById.get(hov.pieceId);
       const hovConn = hovPiece?.connectors[hov.connectorIndex];
       const hovLayerId = hovPiece?.layerId || defaultLayerId;
       const hovInactive = hasMultipleLayers && hovLayerId !== activeLayerId;
@@ -1093,42 +1127,42 @@ export class Renderer {
     }
 
     // Interaktiver Flexgleis-Ziehgriff für markierte Flexgleise ("tack the open snappoint")
-    for (const piece of layout.pieces) {
-      if (selectedIds.has(piece.id)) {
-        const rawEntry = entryMap.get(piece.catalogId) ?? catalogRegistry.findEntry(piece.catalogId);
-        if (isFlexTrack(rawEntry, piece)) {
-          for (let ci = 0; ci < piece.connectors.length; ci++) {
-            const flexConn = piece.connectors[ci];
-            if (!flexConn || flexConn.connectedTo) continue;
-            ov.circle(flexConn.x, flexConn.y, 9);
-            ov.stroke({ width: 2.5, color: 0x06b6d4, alpha: 0.95 });
-            ov.circle(flexConn.x, flexConn.y, 6.5);
-            ov.fill({ color: 0x0891b2, alpha: 0.9 });
-            ov.circle(flexConn.x, flexConn.y, 2.8);
+    for (const selId of selectedIds) {
+      const piece = this.pieceById.get(selId);
+      if (!piece) continue;
+      const rawEntry = entryMap.get(piece.catalogId) ?? catalogRegistry.findEntry(piece.catalogId);
+      if (isFlexTrack(rawEntry, piece)) {
+        for (let ci = 0; ci < piece.connectors.length; ci++) {
+          const flexConn = piece.connectors[ci];
+          if (!flexConn || flexConn.connectedTo) continue;
+          ov.circle(flexConn.x, flexConn.y, 9);
+          ov.stroke({ width: 2.5, color: 0x06b6d4, alpha: 0.95 });
+          ov.circle(flexConn.x, flexConn.y, 6.5);
+          ov.fill({ color: 0x0891b2, alpha: 0.9 });
+          ov.circle(flexConn.x, flexConn.y, 2.8);
+          ov.fill({ color: 0xffffff });
+          ov.circle(flexConn.x, flexConn.y, 12);
+          ov.stroke({ width: 1, color: 0x38bdf8, alpha: 0.5 });
+        }
+
+        if (rawEntry && piece.connectors.length >= 2) {
+          const fractions = [0.25, 0.5, 0.75];
+          for (const frac of fractions) {
+            const pt = getFlexTrackPointAt(piece, rawEntry, frac);
+            const isCenter = frac === 0.5;
+            const outerR = isCenter ? 11 : 9;
+            const midR = isCenter ? 7.5 : 6;
+            const innerR = isCenter ? 5 : 4;
+            const dotR = isCenter ? 2 : 1.5;
+
+            ov.circle(pt.x, pt.y, outerR);
+            ov.stroke({ width: 1.5, color: 0x38bdf8, alpha: isCenter ? 0.7 : 0.45 });
+            ov.circle(pt.x, pt.y, midR);
+            ov.stroke({ width: 2.2, color: 0x0284c7, alpha: 0.95 });
+            ov.circle(pt.x, pt.y, innerR);
+            ov.fill({ color: 0x06b6d4, alpha: 0.95 });
+            ov.circle(pt.x, pt.y, dotR);
             ov.fill({ color: 0xffffff });
-            ov.circle(flexConn.x, flexConn.y, 12);
-            ov.stroke({ width: 1, color: 0x38bdf8, alpha: 0.5 });
-          }
-
-          if (rawEntry && piece.connectors.length >= 2) {
-            const fractions = [0.25, 0.5, 0.75];
-            for (const frac of fractions) {
-              const pt = getFlexTrackPointAt(piece, rawEntry, frac);
-              const isCenter = frac === 0.5;
-              const outerR = isCenter ? 11 : 9;
-              const midR = isCenter ? 7.5 : 6;
-              const innerR = isCenter ? 5 : 4;
-              const dotR = isCenter ? 2 : 1.5;
-
-              ov.circle(pt.x, pt.y, outerR);
-              ov.stroke({ width: 1.5, color: 0x38bdf8, alpha: isCenter ? 0.7 : 0.45 });
-              ov.circle(pt.x, pt.y, midR);
-              ov.stroke({ width: 2.2, color: 0x0284c7, alpha: 0.95 });
-              ov.circle(pt.x, pt.y, innerR);
-              ov.fill({ color: 0x06b6d4, alpha: 0.95 });
-              ov.circle(pt.x, pt.y, dotR);
-              ov.fill({ color: 0xffffff });
-            }
           }
         }
       }

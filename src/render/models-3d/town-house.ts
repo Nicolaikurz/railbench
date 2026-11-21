@@ -31,6 +31,7 @@ function getSharedTownHouseGableGeo(): THREE.ExtrudeGeometry {
     gableShape.closePath();
     _sharedGableGeo = new THREE.ExtrudeGeometry(gableShape, { depth: 1.2, bevelEnabled: false });
     _sharedGableGeo.rotateY(Math.PI / 2);
+    _sharedGableGeo.translate(-0.6, 0, 0);
     _sharedGableGeo.userData.shared = true;
   }
   return _sharedGableGeo;
@@ -71,44 +72,59 @@ export function buildTownHouse3D(group: THREE.Group): void {
   ogBody.position.set(0, 59, 0);
   group.add(ogBody);
 
-  // Giebeldreiecke links & rechts
+  // Giebeldreiecke links & rechts (mittig auf ±52,6 mm, Außenkante exakt ±53,2 mm)
   for (const sx of [-1, 1]) {
     const gable = new THREE.Mesh(getSharedTownHouseGableGeo(), plasterMat);
-    gable.position.set(sx * 52.4, 76, 0);
+    gable.position.set(sx * 52.6, 76, 0);
     group.add(gable);
   }
 
-  // 3. Fachwerk-Balken (horizontale Riegel & vertikale Ständer)
-  const hBeamLongGeo = getSharedBoxGeometry(107.6, 2.6, 83.6);
-  for (const by of [42.5, 59, 75.2]) {
+  // 3. Fachwerk-Balken (horizontale Riegel & vertikale Ständer außerhalb der Fensterachsen)
+  const hBeamLongGeo = getSharedBoxGeometry(107.6, 2.5, 83.6);
+  for (const by of [42.5, 49.5, 68.5, 75.2]) {
     const hb = new THREE.Mesh(hBeamLongGeo, beamMat);
     hb.position.set(0, by, 0);
     group.add(hb);
   }
 
-  const vPostGeo = getSharedBoxGeometry(2.6, 35, 2.6);
-  const egPostGeo = getSharedBoxGeometry(2.6, 33, 2.6);
+  const vPostGeo = getSharedBoxGeometry(2.5, 35, 2.5);
+  const egPostGeo = getSharedBoxGeometry(2.5, 33, 2.5);
   for (const sz of [-1, 1]) {
-    for (const bx of [-52.2, -26, 0, 26, 52.2]) {
+    for (const bx of [-52.2, -18, 18, 52.2]) {
       const ogPost = new THREE.Mesh(vPostGeo, beamMat);
       ogPost.position.set(bx, 59, sz * 40.5);
       group.add(ogPost);
     }
-    for (const bx of [-50.2, -25, 25, 50.2]) {
+    for (const bx of [-50.2, -18, 18, 50.2]) {
       const egPost = new THREE.Mesh(egPostGeo, beamMat);
       egPost.position.set(bx, 25.5, sz * 38.5);
       group.add(egPost);
     }
   }
 
-  // Diagonale Fachwerk-Streben an den Ecken des OG
-  const braceGeo = getSharedBoxGeometry(2.2, 22, 1.8);
+  // Kurze Diagonalstreben im Brüstungsfeld unter den OG-Fenstern (schneiden keine Fenster)
+  const braceGeo = getSharedBoxGeometry(2.0, 9.5, 1.8);
   for (const sz of [-1, 1]) {
     for (const sx of [-1, 1]) {
-      const br = new THREE.Mesh(braceGeo, beamMat);
-      br.position.set(sx * 39, 59, sz * 41.1);
-      br.rotation.z = sx * 0.65;
-      group.add(br);
+      const brOuter = new THREE.Mesh(braceGeo, beamMat);
+      brOuter.position.set(sx * 44, 46, sz * 41.1);
+      brOuter.rotation.z = sx * 0.95;
+      group.add(brOuter);
+
+      const brInner = new THREE.Mesh(braceGeo, beamMat);
+      brInner.position.set(sx * 10, 46, sz * 41.1);
+      brInner.rotation.z = -sx * 0.95;
+      group.add(brInner);
+    }
+  }
+  // Klassische Eckstreben an den fensterfreien ±X Giebelflächen
+  const gableBraceGeo = getSharedBoxGeometry(1.8, 22, 2.0);
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      const gbr = new THREE.Mesh(gableBraceGeo, beamMat);
+      gbr.position.set(sx * 52.6, 59, sz * 30);
+      gbr.rotation.x = sz * 0.6;
+      group.add(gbr);
     }
   }
 

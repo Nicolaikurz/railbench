@@ -56,25 +56,31 @@ export function buildEngineShed3D(group: THREE.Group): void {
   pit.position.set(10, baseH + 0.1, 0);
   group.add(pit);
 
-  // Gleisstränge im Innenraum
-  const railL = new THREE.Mesh(new THREE.BoxGeometry(220, 1.8, 1.5), railMat);
-  railL.position.set(-10, baseH + 0.9, -8.25);
+  // Erhöhte Schienenbetten & Gleisstränge im Innenraum (Oberkante 9,3 mm passend zum Anschlussgleis)
+  for (const zOff of [-8.25, 8.25]) {
+    const bed = new THREE.Mesh(new THREE.BoxGeometry(220, 4.3, 4.0), foundationMat);
+    bed.position.set(-10, baseH + 2.15, zOff);
+    group.add(bed);
+  }
+
+  const railL = new THREE.Mesh(new THREE.BoxGeometry(220, 2.0, 1.5), railMat);
+  railL.position.set(-10, baseH + 5.3, -8.25);
   group.add(railL);
 
-  const railR = new THREE.Mesh(new THREE.BoxGeometry(220, 1.8, 1.5), railMat);
-  railR.position.set(-10, baseH + 0.9, 8.25);
+  const railR = new THREE.Mesh(new THREE.BoxGeometry(220, 2.0, 1.5), railMat);
+  railR.position.set(-10, baseH + 5.3, 8.25);
   group.add(railR);
 
   // Prellbock am Hallenende (X = 95)
   const bufferMat = new THREE.MeshStandardMaterial({ color: 0xb91c1c, roughness: 0.7 });
   const bufferBeam = new THREE.Mesh(new THREE.BoxGeometry(4, 6, 22), bufferMat);
-  bufferBeam.position.set(95, baseH + 7, 0);
+  bufferBeam.position.set(95, 15, 0);
   group.add(bufferBeam);
-  const bufferPostL = new THREE.Mesh(new THREE.BoxGeometry(3, 10, 3), ironMat);
-  bufferPostL.position.set(95, baseH + 5, -8);
+  const bufferPostL = new THREE.Mesh(new THREE.BoxGeometry(3, 12, 3), ironMat);
+  bufferPostL.position.set(95, 9, -8);
   group.add(bufferPostL);
-  const bufferPostR = new THREE.Mesh(new THREE.BoxGeometry(3, 10, 3), ironMat);
-  bufferPostR.position.set(95, baseH + 5, 8);
+  const bufferPostR = new THREE.Mesh(new THREE.BoxGeometry(3, 12, 3), ironMat);
+  bufferPostR.position.set(95, 9, 8);
   group.add(bufferPostR);
 
   // 2. MAUERWERK (Hallenlänge 240 mm, Wandstärke 3 mm, Breite 70 mm [-35, +35])
@@ -127,7 +133,7 @@ export function buildEngineShed3D(group: THREE.Group): void {
   const gableGeo = new THREE.ExtrudeGeometry(gableShape, { depth: 3, bevelEnabled: false });
   gableGeo.rotateY(Math.PI / 2);
   const rearGable = new THREE.Mesh(gableGeo, brickMat);
-  rearGable.position.set(120, 0, 0);
+  rearGable.position.set(117, 0, 0);
   group.add(rearGable);
 
   // 3. FRONTPORTAL & WEIT GEÖFFNETE TORE (X = -120 mm)
@@ -153,9 +159,9 @@ export function buildEngineShed3D(group: THREE.Group): void {
   lintel.position.set(-118.5, baseH + portalH + lintelH / 2, 0);
   group.add(lintel);
 
-  // Front-Giebel über dem Tor
+  // Front-Giebel über dem Tor (bündig mit X = -120..-117)
   const frontGable = new THREE.Mesh(gableGeo, brickMat);
-  frontGable.position.set(-117, 0, 0);
+  frontGable.position.set(-120, 0, 0);
   group.add(frontGable);
 
   // Laterne über dem Torbogen
@@ -177,10 +183,10 @@ export function buildEngineShed3D(group: THREE.Group): void {
 
   // Linker Torflügel:
   // Scharnier am linken Pfosten: X = -120, Z = -22.
-  // Weit nach außen aufgeschwenkt (+80° bzw. +1.40 rad) flach an den Pfeiler
+  // Weit nach außen (-102°) aufgeschwenkt, damit die Gleisdurchfahrt frei bleibt
   const hingeL = new THREE.Group();
   hingeL.position.set(-120, baseH + leafH / 2, -portalW / 2);
-  hingeL.rotation.y = 1.4; // Weit geöffnet nach außen
+  hingeL.rotation.y = -1.78;
 
   // Holztorblatt
   const doorMeshL = new THREE.Mesh(new THREE.BoxGeometry(leafThick, leafH, leafW), doorWoodMat);
@@ -209,10 +215,10 @@ export function buildEngineShed3D(group: THREE.Group): void {
 
   // Rechter Torflügel:
   // Scharnier am rechten Pfosten: X = -120, Z = +22.
-  // Weit nach außen aufgeschwenkt (-80° bzw. -1.40 rad) flach an den Pfeiler
+  // Weit nach außen (+102°) aufgeschwenkt
   const hingeR = new THREE.Group();
   hingeR.position.set(-120, baseH + leafH / 2, portalW / 2);
-  hingeR.rotation.y = -1.4; // Weit geöffnet nach außen
+  hingeR.rotation.y = 1.78;
 
   const doorMeshR = new THREE.Mesh(new THREE.BoxGeometry(leafThick, leafH, leafW), doorWoodMat);
   doorMeshR.position.set(0, 0, -leafW / 2);
@@ -260,15 +266,17 @@ export function buildEngineShed3D(group: THREE.Group): void {
   ridgeBeam.position.set(0, 124.5, 0);
   group.add(ridgeBeam);
 
-  // Dach-Oberlicht (Skylight lantern strip mittig auf dem Dach)
-  const skyLen = 150;
-  const skylight = new THREE.Mesh(new THREE.BoxGeometry(skyLen, 5, 12), skylightGlassMat);
-  skylight.position.set(0, 126.5, 0);
-  group.add(skylight);
+  // Zweiteiliges Dach-Oberlicht (lässt den mittleren Schornstein bei X = 0 frei)
+  const skyLen = 50;
+  for (const sx of [-37, 37]) {
+    const skylight = new THREE.Mesh(new THREE.BoxGeometry(skyLen, 5, 12), skylightGlassMat);
+    skylight.position.set(sx, 126.5, 0);
+    group.add(skylight);
 
-  const skylightRidge = new THREE.Mesh(new THREE.BoxGeometry(skyLen + 2, 2, 2), ironMat);
-  skylightRidge.position.set(0, 129.0, 0);
-  group.add(skylightRidge);
+    const skylightRidge = new THREE.Mesh(new THREE.BoxGeometry(skyLen + 2, 2, 2), ironMat);
+    skylightRidge.position.set(sx, 129.0, 0);
+    group.add(skylightRidge);
+  }
 
   // 3 Rauchabzugshauben (Dampflok-Schornsteinhauben) auf dem Dach
   for (const cx of [-75, 0, 75]) {

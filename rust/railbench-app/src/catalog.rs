@@ -1,5 +1,47 @@
+use std::collections::{HashMap, HashSet};
+use std::sync::OnceLock;
+
 use railbench_core::geometry::{deg2rad, norm_angle_deg, rotate};
 use railbench_core::types::{Catalog, CatalogEntry, Connector, TrackPiece, Transform, Vec2};
+
+struct BuiltinCatalogIndex {
+    first_entry: HashMap<String, (usize, usize)>,
+    three_rail_ids: HashSet<String>,
+    catalog_sig: Vec<(String, usize)>,
+}
+
+fn builtin_index() -> &'static BuiltinCatalogIndex {
+    static INDEX: OnceLock<BuiltinCatalogIndex> = OnceLock::new();
+    INDEX.get_or_init(|| {
+        let cats = builtin_catalogs();
+        let mut first_entry = HashMap::with_capacity(2048);
+        let mut three_rail_ids = HashSet::with_capacity(512);
+        let mut catalog_sig = Vec::with_capacity(cats.len());
+        for (ci, cat) in cats.iter().enumerate() {
+            catalog_sig.push((cat.id.clone(), cat.entries.len()));
+            let is_three_rail = cat.conductors == Some(3);
+            for (ei, entry) in cat.entries.iter().enumerate() {
+                first_entry.entry(entry.id.clone()).or_insert((ci, ei));
+                if is_three_rail {
+                    three_rail_ids.insert(entry.id.clone());
+                }
+            }
+        }
+        BuiltinCatalogIndex {
+            first_entry,
+            three_rail_ids,
+            catalog_sig,
+        }
+    })
+}
+
+fn is_builtin_slice(catalogs: &[Catalog], idx: &BuiltinCatalogIndex) -> bool {
+    catalogs.len() == idx.catalog_sig.len()
+        && catalogs
+            .iter()
+            .zip(idx.catalog_sig.iter())
+            .all(|(c, (id, len))| c.entries.len() == *len && c.id == *id)
+}
 
 const TRACK_CATALOG_JSONS: &[(&str, &str)] = &[
     ("maerklin-c-h0", include_str!("../../../src/catalog/systems/maerklin-c-h0.json")),
@@ -72,6 +114,35 @@ pub fn builtin_catalogs() -> Vec<Catalog> {
     out
 }
 
+pub fn is_buffer_stop_entry(entry: &CatalogEntry) -> bool {
+    if entry.is_road == Some(true) {
+        return false;
+    }
+    if matches!(entry.kind.as_str(), "buffer" | "buffer-stop" | "accessory") {
+        return true;
+    }
+    if entry.local_connectors.as_ref().map_or(false, |lc| lc.len() == 1) {
+        return true;
+    }
+    let contains_kw = |s: &str| -> bool {
+        let lower = s.to_ascii_lowercase();
+        lower.contains("prellbock") || lower.contains("buffer stop") || lower.contains("buffer-stop")
+    };
+    contains_kw(&entry.name)
+        || entry.name_en.as_deref().map_or(false, contains_kw)
+        || contains_kw(&entry.description)
+}
+
+pub fn is_illuminated_buffer_entry(entry: &CatalogEntry) -> bool {
+    let contains_lit = |s: &str| -> bool {
+        let lower = s.to_ascii_lowercase();
+        lower.contains("beleuchtet") || lower.contains("illuminat")
+    };
+    contains_lit(&entry.name)
+        || entry.name_en.as_deref().map_or(false, contains_lit)
+        || contains_lit(&entry.description)
+}
+
 pub fn local_connectors(entry: &CatalogEntry) -> Vec<Connector> {
     if let Some(lc) = &entry.local_connectors {
         if !lc.is_empty() {
@@ -85,6 +156,10 @@ pub fn local_connectors(entry: &CatalogEntry) -> Vec<Connector> {
                 })
                 .collect();
         }
+    }
+
+    if is_buffer_stop_entry(entry) {
+        return vec![Connector { x: 0.0, y: 0.0, angle: 180.0, connected_to: None }];
     }
 
     match entry.kind.as_str() {
@@ -177,12 +252,36 @@ pub fn create_piece(id: String, entry: &CatalogEntry, tr: Transform, layer_id: O
 }
 
 pub fn find_entry<'a>(catalogs: &'a [Catalog], catalog_id: &str) -> Option<&'a CatalogEntry> {
+    let idx = builtin_index();
+    if let Some(&(ci, ei)) = idx.first_entry.get(catalog_id) {
+        if let Some(entry) = catalogs.get(ci).and_then(|c| c.entries.get(ei)) {
+            if entry.id == catalog_id {
+                return Some(entry);
+            }
+        }
+    } else if is_builtin_slice(catalogs, idx) {
+        return None;
+    }
+
     for cat in catalogs {
         if let Some(e) = cat.entries.iter().find(|e| e.id == catalog_id) {
             return Some(e);
         }
     }
     None
+}
+
+pub fn has_three_rail_catalog(catalogs: &[Catalog], catalog_id: &str) -> bool {
+    let idx = builtin_index();
+    if is_builtin_slice(catalogs, idx) {
+        return idx.three_rail_ids.contains(catalog_id);
+    }
+    for cat in catalogs {
+        if cat.entries.iter().any(|e| e.id == catalog_id) && cat.conductors == Some(3) {
+            return true;
+        }
+    }
+    false
 }
 
 pub fn is_road_id(catalogs: &[Catalog], catalog_id: &str) -> bool {
@@ -200,16 +299,41 @@ pub fn is_flex_id(catalogs: &[Catalog], catalog_id: &str) -> bool {
             return true;
         }
     }
-    catalog_id.to_lowercase().contains("flex")
+    catalog_id
+        .as_bytes()
+        .windows(4)
+        .any(|w| w.eq_ignore_ascii_case(b"flex"))
+}
+
+pub fn flex_max_length(catalogs: &[Catalog], catalog_id: &str) -> f64 {
+    find_entry(catalogs, catalog_id)
+        .and_then(|e| e.length)
+        .unwrap_or(900.0)
+        .max(1200.0)
+}
+
+fn polyline_length(pts: &[Vec2]) -> f64 {
+    let mut total = 0.0;
+    for w in pts.windows(2) {
+        total += (w[1].x - w[0].x).hypot(w[1].y - w[0].y);
+    }
+    total
+}
+
+fn signed_angle_diff_deg(from_deg: f64, to_deg: f64) -> f64 {
+    let mut d = (to_deg - from_deg) % 360.0;
+    if d > 180.0 {
+        d -= 360.0;
+    } else if d < -180.0 {
+        d += 360.0;
+    }
+    d
 }
 
 /// Recomputes a flex piece's connector 1 (`c[1]`) from `custom_length` (mm) and `custom_angle` (deg)
 /// while keeping connector 0 (`c[0]`) anchored at its current world position & angle.
 pub fn apply_flex_geometry(piece: &mut TrackPiece, catalogs: &[Catalog], length_mm: f64, angle_deg: f64) {
-    let default_len = find_entry(catalogs, &piece.catalog_id)
-        .and_then(|e| e.length)
-        .unwrap_or(900.0);
-    let len = length_mm.clamp(25.0, default_len.max(1200.0));
+    let len = length_mm.clamp(25.0, flex_max_length(catalogs, &piece.catalog_id));
     let ang = angle_deg.clamp(-180.0, 180.0);
 
     piece.custom_length = Some(len);
@@ -240,11 +364,129 @@ pub fn apply_flex_geometry(piece: &mut TrackPiece, catalogs: &[Catalog], length_
     piece.connectors[1].y = y0 + rp.y;
     piece.connectors[1].angle = norm_angle_deg(entry_heading + ang);
     piece.connectors[1].connected_to = None;
+    piece.transform.x = x0;
+    piece.transform.y = y0;
+    piece.transform.rotation = entry_heading;
 }
 
-/// Returns the 4 interactive flex handles in world coordinates:
-/// `[bend_25%, bend_50%, bend_75%, endpoint_c1]`.
-pub fn flex_bend_handles_world(piece: &TrackPiece) -> Option<[Vec2; 4]> {
+/// Free-drags either endpoint (`moving_conn_idx`: `0` or `1`) of a flex track to `world_pos`,
+/// keeping the opposite connector anchored while bending into a smooth circular arc and
+/// shortening/lengthening within `[25.0, flex_max_length]`.
+pub fn apply_flex_endpoint_drag(
+    piece: &mut TrackPiece,
+    catalogs: &[Catalog],
+    moving_conn_idx: usize,
+    world_pos: Vec2,
+) {
+    if piece.connectors.len() < 2 || moving_conn_idx > 1 {
+        return;
+    }
+    let anchor_idx = 1 - moving_conn_idx;
+    let ax = piece.connectors[anchor_idx].x;
+    let ay = piece.connectors[anchor_idx].y;
+    let anchor_heading = norm_angle_deg(piece.connectors[anchor_idx].angle + 180.0);
+
+    let local = rotate(Vec2 { x: world_pos.x - ax, y: world_pos.y - ay }, -anchor_heading);
+    let chord = local.x.hypot(local.y).max(25.0);
+    let max_alpha = deg2rad(87.5);
+    let alpha = local.y.atan2(local.x.max(5.0)).clamp(-max_alpha, max_alpha);
+    let bend_deg = (2.0 * alpha).to_degrees().clamp(-175.0, 175.0);
+    let raw_arc_len = if alpha.abs() < 0.01 {
+        chord
+    } else {
+        chord * (alpha / alpha.sin())
+    };
+    let max_len = flex_max_length(catalogs, &piece.catalog_id);
+    let len = raw_arc_len.clamp(25.0, max_len);
+
+    let (local_x, local_y, radius_opt) = if bend_deg.abs() < 0.25 {
+        (len, 0.0, None)
+    } else {
+        let rad = deg2rad(bend_deg.abs());
+        let r = len / rad;
+        let dir = if bend_deg < 0.0 { -1.0 } else { 1.0 };
+        (r * rad.sin(), dir * r * (1.0 - rad.cos()), Some(r))
+    };
+
+    let rp = rotate(Vec2 { x: local_x, y: local_y }, anchor_heading);
+    piece.connectors[moving_conn_idx].x = ax + rp.x;
+    piece.connectors[moving_conn_idx].y = ay + rp.y;
+    piece.connectors[moving_conn_idx].angle = norm_angle_deg(anchor_heading + bend_deg);
+    piece.connectors[moving_conn_idx].connected_to = None;
+
+    piece.custom_offsets = None;
+    piece.custom_chord_dist = None;
+    piece.custom_length = Some(len);
+    piece.custom_radius = radius_opt;
+    let c0_heading = norm_angle_deg(piece.connectors[0].angle + 180.0);
+    piece.custom_angle = Some(signed_angle_diff_deg(c0_heading, piece.connectors[1].angle));
+    piece.transform.x = piece.connectors[0].x;
+    piece.transform.y = piece.connectors[0].y;
+    piece.transform.rotation = c0_heading;
+}
+
+/// Snaps either endpoint (`moving_conn_idx`: `0` or `1`) of a flex track onto a target connector
+/// `(target_pos, target_angle)` with exact 0° tangent alignment, keeping the opposite connector
+/// anchored and automatically bending (circular arc or smooth C1 S-curve) and shortening as needed.
+/// Returns `true` if the target is within valid flex length `[20.0, flex_max_length]`.
+pub fn snap_flex_endpoint(
+    piece: &mut TrackPiece,
+    catalogs: &[Catalog],
+    moving_conn_idx: usize,
+    target_pos: Vec2,
+    target_angle: f64,
+) -> bool {
+    if piece.connectors.len() < 2 || moving_conn_idx > 1 {
+        return false;
+    }
+    let anchor_idx = 1 - moving_conn_idx;
+    let anchor = &piece.connectors[anchor_idx];
+    let chord = (target_pos.x - anchor.x).hypot(target_pos.y - anchor.y);
+    if chord < 18.0 {
+        return false;
+    }
+
+    let snapped_angle = norm_angle_deg(target_angle + 180.0);
+    let (x0, y0, a0, x1, y1, a1) = if moving_conn_idx == 1 {
+        (anchor.x, anchor.y, anchor.angle, target_pos.x, target_pos.y, snapped_angle)
+    } else {
+        (target_pos.x, target_pos.y, snapped_angle, anchor.x, anchor.y, anchor.angle)
+    };
+
+    let pts = railbench_core::geometry::sample_arc_between_connectors(x0, y0, a0, x1, y1, a1, 40);
+    let arc_len = polyline_length(&pts);
+    let max_len = flex_max_length(catalogs, &piece.catalog_id);
+    if !arc_len.is_finite() || arc_len < 20.0 || arc_len > max_len {
+        return false;
+    }
+
+    piece.connectors[moving_conn_idx].x = target_pos.x;
+    piece.connectors[moving_conn_idx].y = target_pos.y;
+    piece.connectors[moving_conn_idx].angle = snapped_angle;
+    piece.connectors[moving_conn_idx].connected_to = None;
+
+    piece.custom_offsets = None;
+    piece.custom_chord_dist = None;
+    piece.custom_length = Some(arc_len);
+
+    let c0_heading = norm_angle_deg(piece.connectors[0].angle + 180.0);
+    let bend_deg = signed_angle_diff_deg(c0_heading, piece.connectors[1].angle);
+    piece.custom_angle = Some(bend_deg);
+    piece.custom_radius = if bend_deg.abs() >= 0.25 {
+        Some(arc_len / deg2rad(bend_deg.abs()))
+    } else {
+        None
+    };
+
+    piece.transform.x = piece.connectors[0].x;
+    piece.transform.y = piece.connectors[0].y;
+    piece.transform.rotation = c0_heading;
+    true
+}
+
+/// Returns the 5 interactive flex handles in world coordinates:
+/// `[bend_25%, bend_50%, bend_75%, endpoint_c1, endpoint_c0]`.
+pub fn flex_bend_handles_world(piece: &TrackPiece) -> Option<[Vec2; 5]> {
     if piece.connectors.len() < 2 {
         return None;
     }
@@ -264,17 +506,23 @@ pub fn flex_bend_handles_world(piece: &TrackPiece) -> Option<[Vec2; 4]> {
             let dy = c1.y - c0.y;
             let ch = dx.hypot(dy).max(1.0);
             let ang = dy.atan2(dx).to_degrees();
-            // If currently a circular arc, sample its 25/50/75% points as initial handle positions
+            // If currently a circular arc / C1 Bezier, sample its 25/50/75% points as initial handle positions
             let pts = railbench_core::geometry::sample_arc_between_connectors(
                 c0.x, c0.y, c0.angle, c1.x, c1.y, c1.angle, 12,
             );
             if pts.len() >= 13 {
-                return Some([pts[3], pts[6], pts[9], Vec2 { x: c1.x, y: c1.y }]);
+                return Some([
+                    pts[3],
+                    pts[6],
+                    pts[9],
+                    Vec2 { x: c1.x, y: c1.y },
+                    Vec2 { x: c0.x, y: c0.y },
+                ]);
             }
             (ch, ang, c0.x, c0.y, [0.0, 0.0, 0.0])
         };
 
-    let mut out = [Vec2 { x: 0.0, y: 0.0 }; 4];
+    let mut out = [Vec2 { x: 0.0, y: 0.0 }; 5];
     for (i, &t) in [0.25_f64, 0.50, 0.75].iter().enumerate() {
         let rp = rotate(Vec2 { x: chord * t, y: offsets[i] }, rot);
         out[i] = Vec2 {
@@ -283,11 +531,13 @@ pub fn flex_bend_handles_world(piece: &TrackPiece) -> Option<[Vec2; 4]> {
         };
     }
     out[3] = Vec2 { x: c1.x, y: c1.y };
+    out[4] = Vec2 { x: c0.x, y: c0.y };
     Some(out)
 }
 
 /// Dragging one of the 3 interior flex bend points (`handle_idx` in `0..3`) updates
-/// `custom_offsets` (`[h1, h2, h3]`) and `custom_chord_dist` (1:1 with TS flextrack splines).
+/// `custom_offsets` (`[h1, h2, h3]`) and `custom_chord_dist` (1:1 with TS flextrack splines)
+/// while preserving already-connected endpoint angles and updating `custom_length`.
 pub fn apply_flex_spline_offset(piece: &mut TrackPiece, handle_idx: usize, world_pos: Vec2) {
     if piece.connectors.len() < 2 || handle_idx >= 3 {
         return;
@@ -296,6 +546,8 @@ pub fn apply_flex_spline_offset(piece: &mut TrackPiece, handle_idx: usize, world
     let c0y = piece.connectors[0].y;
     let c1x = piece.connectors[1].x;
     let c1y = piece.connectors[1].y;
+    let c0_locked = piece.connectors[0].connected_to.is_some();
+    let c1_locked = piece.connectors[1].connected_to.is_some();
 
     // Ensure piece is initialized in spline coordinates anchored at c[0] -> c[1]
     if piece.custom_offsets.as_ref().map_or(true, |o| o.len() < 3) || piece.custom_chord_dist.is_none() {
@@ -335,16 +587,31 @@ pub fn apply_flex_spline_offset(piece: &mut TrackPiece, handle_idx: usize, world
     if let Some(offs) = &mut piece.custom_offsets {
         offs[handle_idx] = local.y.clamp(-max_off, max_off);
         let (h1, h2, h3) = (offs[0], offs[1], offs[2]);
-        // Update connector 0 & 1 angles from the Hermite spline endpoint slopes m0 & m4
-        let m0 = 2.0 * (4.0 * h1 - h2);
-        let m4 = -2.0 * (4.0 * h3 - h2);
-        let tan0_deg = m0.atan2(chord).to_degrees();
-        let tan1_deg = m4.atan2(chord).to_degrees();
-        piece.connectors[0].angle = norm_angle_deg(rot + tan0_deg + 180.0);
-        piece.connectors[1].angle = norm_angle_deg(rot + tan1_deg);
+        // Only rotate free (unconnected) endpoints so snapped track joints stay locked
+        if !c0_locked {
+            let m0 = 2.0 * (4.0 * h1 - h2);
+            let tan0_deg = m0.atan2(chord).to_degrees();
+            piece.connectors[0].angle = norm_angle_deg(rot + tan0_deg + 180.0);
+        }
+        if !c1_locked {
+            let m4 = -2.0 * (4.0 * h3 - h2);
+            let tan1_deg = m4.atan2(chord).to_degrees();
+            piece.connectors[1].angle = norm_angle_deg(rot + tan1_deg);
+        }
         let end_rp = rotate(Vec2 { x: chord, y: 0.0 }, rot);
         piece.connectors[1].x = piece.transform.x + end_rp.x;
         piece.connectors[1].y = piece.transform.y + end_rp.y;
+
+        // Recompute true curved length of the spline
+        let flat = railbench_core::geometry::sample_flex_spline_points(chord, h1, h2, h3, 32);
+        let mut spline_len = 0.0;
+        let mut prev = (flat[0], flat[1]);
+        for i in (5..flat.len()).step_by(5) {
+            let cur = (flat[i], flat[i + 1]);
+            spline_len += (cur.0 - prev.0).hypot(cur.1 - prev.1);
+            prev = cur;
+        }
+        piece.custom_length = Some(spline_len);
     }
 }
 
@@ -377,5 +644,112 @@ mod tests {
         let cats = builtin_catalogs();
         assert_eq!(cats.len(), TRACK_CATALOG_JSONS.len() + ROAD_CATALOG_JSONS.len());
         assert!(cats.iter().all(|c| !c.entries.is_empty()));
+    }
+
+    #[test]
+    fn indexed_catalog_lookup_matches_linear_scan() {
+        let cats = builtin_catalogs();
+        for cat in &cats {
+            for entry in &cat.entries {
+                let linear = cats.iter().find_map(|c| c.entries.iter().find(|e| e.id == entry.id));
+                let indexed = find_entry(&cats, &entry.id);
+                assert_eq!(
+                    indexed.map(|e| (&e.id, &e.kind)),
+                    linear.map(|e| (&e.id, &e.kind)),
+                    "mismatch for catalog_id {}",
+                    entry.id
+                );
+            }
+        }
+        assert!(find_entry(&cats, "__missing_id__").is_none());
+        // Subset slice fallback
+        let single = &cats[0..1];
+        let first_id = &cats[0].entries[0].id;
+        assert_eq!(find_entry(single, first_id).map(|e| e.id.as_str()), Some(first_id.as_str()));
+        // Three-rail detection: Maerklin C H0 (24188) vs Piko A H0 (55200)
+        assert!(has_three_rail_catalog(&cats, "24188"));
+        assert!(!has_three_rail_catalog(&cats, "55200"));
+        assert!(!has_three_rail_catalog(&cats, "__missing__"));
+        // Case-insensitive flex id fallback without allocation
+        assert!(is_flex_id(&cats, "CUSTOM-FLEX-01"));
+        assert!(!is_flex_id(&cats, "abc"));
+    }
+
+    #[test]
+    fn flex_snap_endpoint_aligns_tangent_bends_and_shortens() {
+        let cats = builtin_catalogs();
+        let entry = find_entry(&cats, "24900")
+            .or_else(|| cats.iter().flat_map(|c| c.entries.iter()).find(|e| e.kind == "flex"))
+            .expect("flex entry");
+        let mut piece = create_piece(
+            "flex-1".into(),
+            entry,
+            Transform { x: 0.0, y: 0.0, rotation: 0.0 },
+            Some("layer-1".into()),
+        );
+        let orig_len = entry.length.unwrap_or(900.0);
+
+        // Snap connector 1 to a track 450 mm ahead, 80 mm lateral offset, facing 150° (so flex exits at 330° / -30°)
+        let ok = snap_flex_endpoint(&mut piece, &cats, 1, Vec2 { x: 450.0, y: 80.0 }, 150.0);
+        assert!(ok, "flex endpoint should snap within range");
+        assert!((piece.connectors[0].x - 0.0).abs() < 1e-6);
+        assert!((piece.connectors[0].y - 0.0).abs() < 1e-6);
+        assert!((piece.connectors[1].x - 450.0).abs() < 1e-6);
+        assert!((piece.connectors[1].y - 80.0).abs() < 1e-6);
+        // Exact 180° opposite of target connector angle (150° + 180° = 330°)
+        assert!((piece.connectors[1].angle - 330.0).abs() < 1e-6);
+        // Auto-shortened from ~900 mm down to curved arc length (~460-490 mm)
+        let new_len = piece.custom_length.expect("custom_length set");
+        assert!(new_len < orig_len && new_len > 450.0 && new_len < 520.0, "unexpected len {new_len}");
+        assert!(piece.custom_offsets.is_none());
+
+        // Now snap connector 0 while keeping connector 1 locked
+        let ok0 = snap_flex_endpoint(&mut piece, &cats, 0, Vec2 { x: 50.0, y: -20.0 }, 10.0);
+        assert!(ok0, "connector 0 should also snap while connector 1 stays anchored");
+        assert!((piece.connectors[1].x - 450.0).abs() < 1e-6);
+        assert!((piece.connectors[1].y - 80.0).abs() < 1e-6);
+        assert!((piece.connectors[0].x - 50.0).abs() < 1e-6);
+        assert!((piece.connectors[0].y - (-20.0)).abs() < 1e-6);
+        assert!((piece.connectors[0].angle - 190.0).abs() < 1e-6);
+
+        // Should expose all 5 handles (3 interior + c[1] + c[0])
+        let handles = flex_bend_handles_world(&piece).expect("5 flex handles");
+        assert!((handles[3].x - piece.connectors[1].x).abs() < 1e-6);
+        assert!((handles[4].x - piece.connectors[0].x).abs() < 1e-6);
+
+        // Over-length target beyond max flex length should be rejected
+        assert!(!snap_flex_endpoint(&mut piece, &cats, 1, Vec2 { x: 5000.0, y: 0.0 }, 180.0));
+    }
+
+    #[test]
+    fn flex_endpoint_drag_both_ends_and_spline_preserves_locked_angles() {
+        let cats = builtin_catalogs();
+        let entry = cats
+            .iter()
+            .flat_map(|c| c.entries.iter())
+            .find(|e| e.kind == "flex")
+            .expect("flex entry");
+        let mut piece = create_piece(
+            "flex-2".into(),
+            entry,
+            Transform { x: 0.0, y: 0.0, rotation: 0.0 },
+            Some("layer-1".into()),
+        );
+
+        // Free-drag c[1] to shorten to ~300 mm and bend
+        apply_flex_endpoint_drag(&mut piece, &cats, 1, Vec2 { x: 280.0, y: 60.0 });
+        let len1 = piece.custom_length.unwrap();
+        assert!(len1 > 270.0 && len1 < 330.0, "expected shortened len, got {len1}");
+        assert!((piece.connectors[0].x - 0.0).abs() < 1e-6);
+
+        // Mark c[0] as connected and drag an interior bend handle -> c[0].angle must stay locked!
+        let locked_a0 = piece.connectors[0].angle;
+        piece.connectors[0].connected_to = Some(railbench_core::types::ConnectorRef {
+            piece_id: "track-a".into(),
+            connector_index: 1,
+        });
+        apply_flex_spline_offset(&mut piece, 1, Vec2 { x: 140.0, y: -40.0 });
+        assert!((piece.connectors[0].angle - locked_a0).abs() < 1e-6);
+        assert!(piece.custom_length.unwrap() > 250.0);
     }
 }

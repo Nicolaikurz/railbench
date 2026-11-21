@@ -205,23 +205,44 @@ export function buildDieselFuelStation3D(group: THREE.Group): void {
     tankGroup.add(rPost);
   }
 
-  // Access ladder on front of tank (+Z side)
-  const ladderH = tankCenterY + tankRadius + 3;
+  // Access ladder on front of tank (+Z side) with top bridge onto catwalk
+  const ladderTopY = tankCenterY + tankRadius + 9.5;
+  const ladderH = ladderTopY - 0.5;
   for (const lx of [-1.8, 1.8]) {
     const rail = new THREE.Mesh(
       new THREE.BoxGeometry(0.6, ladderH, 0.6),
       yellowSafetyMat,
     );
-    rail.position.set(lx, ladderH / 2, tankRadius + 1.5);
+    rail.position.set(lx, 0.5 + ladderH / 2, tankRadius + 1.5);
     tankGroup.add(rail);
   }
-  for (let ry = 4; ry < ladderH; ry += 4.5) {
+  for (let ry = 4; ry <= tankCenterY + tankRadius + 2.8; ry += 4.5) {
     const rung = new THREE.Mesh(
       new THREE.BoxGeometry(3.6, 0.5, 0.5),
       yellowSafetyMat,
     );
     rung.position.set(0, ry, tankRadius + 1.5);
     tankGroup.add(rung);
+  }
+  const ladderBridge = new THREE.Mesh(
+    new THREE.BoxGeometry(5.6, 0.8, 13.4),
+    grateMat,
+  );
+  ladderBridge.position.set(0, tankCenterY + tankRadius + 2.8, 9.5);
+  tankGroup.add(ladderBridge);
+  for (const lx of [-2.4, 2.4]) {
+    const sideRail = new THREE.Mesh(
+      new THREE.BoxGeometry(0.6, 0.6, 13.4),
+      yellowSafetyMat,
+    );
+    sideRail.position.set(lx, tankCenterY + tankRadius + 9.5, 9.5);
+    tankGroup.add(sideRail);
+    const midPost = new THREE.Mesh(
+      new THREE.BoxGeometry(0.6, 7, 0.6),
+      yellowSafetyMat,
+    );
+    midPost.position.set(lx, tankCenterY + tankRadius + 6.2, 9.5);
+    tankGroup.add(midPost);
   }
 
   group.add(tankGroup);
@@ -251,12 +272,19 @@ export function buildDieselFuelStation3D(group: THREE.Group): void {
   pumpRoof.position.y = 27.1;
   pumpGroup.add(pumpRoof);
 
-  // Steel door & industrial window on front (+Z)
-  const pumpDoor = new THREE.Mesh(
-    new THREE.BoxGeometry(7, 17, 0.8),
+  // Steel door (bündig auf dem Vorbau vor dem Sockel) & industrial window on front (+Z)
+  const pumpDoorThreshold = new THREE.Mesh(
+    new THREE.BoxGeometry(8, 1.0, 1.6),
     darkSteelMat,
   );
-  pumpDoor.position.set(-5, 11, 10.6);
+  pumpDoorThreshold.position.set(-5, 0.5, 11.5);
+  pumpGroup.add(pumpDoorThreshold);
+
+  const pumpDoor = new THREE.Mesh(
+    new THREE.BoxGeometry(7, 18.5, 1.0),
+    darkSteelMat,
+  );
+  pumpDoor.position.set(-5, 9.8, 11.1);
   pumpGroup.add(pumpDoor);
 
   const pumpWindow = new THREE.Mesh(
@@ -368,12 +396,12 @@ export function buildDieselFuelStation3D(group: THREE.Group): void {
     boomArm.position.set(dx + 2.2, 2.2 + 32, 5.5);
     islandGroup.add(boomArm);
 
-    // Hanging flexible fuel hose
+    // Hanging flexible fuel hose (nahtlos am Schwenkgalgen-Ende bei y = 35,1 mm)
     const hose = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.45, 0.45, 18, 8),
+      new THREE.CylinderGeometry(0.45, 0.45, 20, 8),
       hoseMat,
     );
-    hose.position.set(dx + 2.2, 2.2 + 22, 11);
+    hose.position.set(dx + 2.2, 2.2 + 23.0, 11.8);
     islandGroup.add(hose);
   }
 

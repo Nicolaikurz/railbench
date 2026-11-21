@@ -1,0 +1,37 @@
+# Maintainer: Nicolai Kurz <https://github.com/Nicolaikurz/railbench>
+pkgname=railbench-native
+pkgver=0.6.1
+pkgrel=1
+pkgdesc="Native Rust/wgpu 2D & 3D Model Railway Track Planner with Power Simulation"
+arch=('x86_64')
+url="https://github.com/Nicolaikurz/railbench"
+license=('MIT')
+depends=('gcc-libs' 'glibc' 'vulkan-icd-loader' 'wayland' 'libxkbcommon' 'gtk3')
+makedepends=('cargo' 'rust')
+provides=('railbench')
+conflicts=('railbench')
+options=('!lto')
+
+build() {
+  cd "${startdir}/../.."
+  export CARGO_TARGET_DIR="${srcdir}/target"
+  # Compile with x86-64-v3 (AVX2 / FMA / BMI2) for optimal Arch Linux CPU/SIMD throughput
+  export RUSTFLAGS="${RUSTFLAGS} -C target-cpu=x86-64-v3"
+  cargo build --frozen --release --manifest-path rust/Cargo.toml -p railbench-app
+}
+
+check() {
+  cd "${startdir}/../.."
+  export CARGO_TARGET_DIR="${srcdir}/target"
+  cargo test --frozen --release --manifest-path rust/Cargo.toml -p railbench-core -p railbench-app
+}
+
+package() {
+  cd "${startdir}/../.."
+  install -Dm755 "${srcdir}/target/release/railbench-app" "${pkgdir}/usr/bin/railbench"
+  install -Dm644 "packaging/flatpak/io.github.Nicolaikurz.railbench.desktop" \
+    "${pkgdir}/usr/share/applications/io.github.Nicolaikurz.railbench.desktop"
+  install -Dm644 "public/icon.svg" \
+    "${pkgdir}/usr/share/icons/hicolor/scalable/apps/io.github.Nicolaikurz.railbench.svg"
+  install -Dm644 "LICENSE" "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
+}

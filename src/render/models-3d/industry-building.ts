@@ -33,22 +33,21 @@ export function buildIndustryBuilding3D(group: THREE.Group): void {
 
   // 2. Erhöhte Laderampe an der Front (LKW & Güterwagen-Andockstelle)
   const rampWidth = 140;
-  const rampDepth = 30;
+  const rampDepth = 20;
   const rampHeight = 10;
   const ramp = new THREE.Mesh(new THREE.BoxGeometry(rampWidth, rampHeight, rampDepth), rampMat);
-  ramp.position.set(-30, 4 + rampHeight / 2, 70);
+  ramp.position.set(-30, 4 + rampHeight / 2, 75);
   group.add(ramp);
 
-  // Auffahrkeil / Schräge für Gabelstapler an der Rampe
+  // Auffahrkeil / Schräge für Gabelstapler an der Rampe (fällt nach +X ab)
   const rampWedgeShape = new THREE.Shape();
   rampWedgeShape.moveTo(0, 0);
   rampWedgeShape.lineTo(24, 0);
   rampWedgeShape.lineTo(0, rampHeight);
   rampWedgeShape.closePath();
   const rampWedgeGeo = new THREE.ExtrudeGeometry(rampWedgeShape, { depth: rampDepth, bevelEnabled: false });
-  rampWedgeGeo.rotateY(Math.PI / 2);
   const rampWedge = new THREE.Mesh(rampWedgeGeo, rampMat);
-  rampWedge.position.set(rampWidth / 2 - 30, 4, 70 - rampDepth / 2);
+  rampWedge.position.set(rampWidth / 2 - 30, 4, 65);
   group.add(rampWedge);
 
   // Rammschutzpuffer an der Rampe
@@ -82,12 +81,12 @@ export function buildIndustryBuilding3D(group: THREE.Group): void {
 
   // Vordach über der Laderampe
   const canopy = new THREE.Mesh(new THREE.BoxGeometry(rampWidth + 10, 2.5, 24), trimMat);
-  canopy.position.set(-30, 4 + 38, 72);
+  canopy.position.set(-30, 4 + 38, 77);
   group.add(canopy);
 
   // Gelbe Warnmarkierung am Vordach
   const hazardStrip = new THREE.Mesh(new THREE.BoxGeometry(rampWidth + 10, 1.2, 0.5), hazardMat);
-  hazardStrip.position.set(-30, 4 + 37.4, 84.2);
+  hazardStrip.position.set(-30, 4 + 37.4, 89.2);
   group.add(hazardStrip);
 
   // 4. Zwei Industrie-Sektionaltore an der Rampe
@@ -151,9 +150,10 @@ export function buildIndustryBuilding3D(group: THREE.Group): void {
   const siloX = 110;
   const siloZ = 0;
 
-  // Zylindrischer Silokörper
-  const siloBody = new THREE.Mesh(new THREE.CylinderGeometry(siloRadius, siloRadius, siloHeight, 20), siloMat);
-  siloBody.position.set(siloX, 4 + siloHeight / 2, siloZ);
+  // Zylindrischer Silokörper startet sauber über dem Trichter (Y=16..89 mm)
+  const siloBodyHeight = 73;
+  const siloBody = new THREE.Mesh(new THREE.CylinderGeometry(siloRadius, siloRadius, siloBodyHeight, 20), siloMat);
+  siloBody.position.set(siloX, 16 + siloBodyHeight / 2, siloZ);
   group.add(siloBody);
 
   // Silodach (Kuppel / Kegel)
@@ -184,13 +184,13 @@ export function buildIndustryBuilding3D(group: THREE.Group): void {
   pipe.position.set(siloX - 15, 4 + 50, siloZ);
   group.add(pipe);
 
-  // 7. Industrieller Schornstein / Abluftturm
-  const chimHeight = 65;
-  const chim = new THREE.Mesh(new THREE.CylinderGeometry(5, 7, chimHeight, 12), chimneyMat);
-  chim.position.set(65, 4 + hallWallHeight + chimHeight / 2 - 10, -45);
+  // 7. Industrieller Schornstein / Abluftturm (fest auf dem Hofpflaster neben der Halle)
+  const chimHeight = 100;
+  const chim = new THREE.Mesh(new THREE.CylinderGeometry(5, 7.2, chimHeight, 12), chimneyMat);
+  chim.position.set(106, 4 + chimHeight / 2, -46);
   group.add(chim);
 
   const chimCap = new THREE.Mesh(new THREE.ConeGeometry(10, 6, 12), chimneyMat);
-  chimCap.position.set(65, 4 + hallWallHeight + chimHeight - 7, -45);
+  chimCap.position.set(106, 4 + chimHeight + 3, -46);
   group.add(chimCap);
 }

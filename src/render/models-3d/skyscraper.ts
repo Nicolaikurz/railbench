@@ -26,31 +26,34 @@ export function buildSkyscraper3D(group: THREE.Group): void {
   const beaconMat = new THREE.MeshStandardMaterial({ color: 0xef4444, emissive: 0xef4444, emissiveIntensity: 0.95 });
   const warmLightMat = new THREE.MeshStandardMaterial({ color: 0xfef08a, emissive: 0xfef08a, emissiveIntensity: 0.7 });
 
-  // 1. Vorplatz & Fundament
-  const basePlaza = new THREE.Mesh(new THREE.BoxGeometry(150, 4, 130), plazaMat);
-  basePlaza.position.set(0, 2, 0);
+  // 1. Vorplatz & Fundament (exakt innerhalb 130 × 110 mm, ohne Z-Fighting)
+  const basePlaza = new THREE.Mesh(new THREE.BoxGeometry(130, 3.6, 110), plazaMat);
+  basePlaza.position.set(0, 1.8, 0);
   group.add(basePlaza);
 
-  // Randsteine & Treppenstufe
-  const step = new THREE.Mesh(new THREE.BoxGeometry(70, 2, 16), curbMat);
-  step.position.set(0, 3, 58);
-  group.add(step);
+  // Gestufte Eingangsstufen sauber auf den Vorplatz aufgesetzt
+  const stepLower = new THREE.Mesh(new THREE.BoxGeometry(60, 0.6, 10), curbMat);
+  stepLower.position.set(0, 3.9, 50);
+  group.add(stepLower);
+  const stepUpper = new THREE.Mesh(new THREE.BoxGeometry(54, 1.0, 7), curbMat);
+  stepUpper.position.set(0, 4.1, 44.5);
+  group.add(stepUpper);
 
   // Pflanzkübel mit Zierbüschen vor dem Portal
-  for (const px of [-45, 45]) {
-    const planter = new THREE.Mesh(new THREE.BoxGeometry(16, 6, 16), planterMat);
-    planter.position.set(px, 5, 52);
+  for (const px of [-42, 42]) {
+    const planter = new THREE.Mesh(new THREE.BoxGeometry(14, 5.5, 14), planterMat);
+    planter.position.set(px, 4.8, 45);
     group.add(planter);
 
-    const bush = new THREE.Mesh(new THREE.DodecahedronGeometry(7, 1), bushMat);
-    bush.position.set(px, 12, 52);
+    const bush = new THREE.Mesh(new THREE.DodecahedronGeometry(6.4, 1), bushMat);
+    bush.position.set(px, 11.2, 45);
     group.add(bush);
   }
 
-  // 2. Erdgeschoss / Lobby (Hohe Decke mit Kolonnaden)
-  const lobbyHeight = 24;
+  // 2. Erdgeschoss / Lobby (Hohe Decke mit Kolonnaden & freier Türmitte)
+  const lobbyHeight = 24.4;
   const lobbyBase = new THREE.Mesh(new THREE.BoxGeometry(110, lobbyHeight, 90), glassMat);
-  lobbyBase.position.set(0, 4 + lobbyHeight / 2, 0);
+  lobbyBase.position.set(0, 3.6 + lobbyHeight / 2, 0);
   group.add(lobbyBase);
 
   // Vordach über Haupteingang
@@ -63,10 +66,10 @@ export function buildSkyscraper3D(group: THREE.Group): void {
   sign.position.set(0, 4 + 21, 53);
   group.add(sign);
 
-  // Pfeiler an der Fassade (Erdgeschoss)
-  for (const cx of [-55, -28, 0, 28, 55]) {
+  // Pfeiler an der Fassade (symmetrische Paare mit freiem Mittelportal)
+  for (const cx of [-55, -33, -15, 15, 33, 55]) {
     const col = new THREE.Mesh(new THREE.BoxGeometry(4, lobbyHeight, 4), steelMat);
-    col.position.set(cx, 4 + lobbyHeight / 2, 45);
+    col.position.set(cx, 3.6 + lobbyHeight / 2, 45);
     group.add(col);
   }
 
@@ -120,7 +123,7 @@ export function buildSkyscraper3D(group: THREE.Group): void {
   setbackSlab.position.set(0, setbackY + 1.5, 0);
   group.add(setbackSlab);
 
-  // Sicherheitsgeländer der Dachterrasse
+  // Sicherheitsgeländer rund um die Dachterrasse (4 Seiten)
   const railingMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.3, metalness: 0.8 });
   const railingL = new THREE.Mesh(new THREE.BoxGeometry(2, 6, 90), railingMat);
   railingL.position.set(-53, setbackY + 5, 0);
@@ -128,6 +131,12 @@ export function buildSkyscraper3D(group: THREE.Group): void {
   const railingR = new THREE.Mesh(new THREE.BoxGeometry(2, 6, 90), railingMat);
   railingR.position.set(53, setbackY + 5, 0);
   group.add(railingR);
+  const railingF = new THREE.Mesh(new THREE.BoxGeometry(108, 6, 2), railingMat);
+  railingF.position.set(0, setbackY + 5, 44);
+  group.add(railingF);
+  const railingB = new THREE.Mesh(new THREE.BoxGeometry(108, 6, 2), railingMat);
+  railingB.position.set(0, setbackY + 5, -44);
+  group.add(railingB);
 
   const tower2Height = 65;
   const tower2Y = setbackY + 3 + tower2Height / 2;

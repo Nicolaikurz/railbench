@@ -135,13 +135,25 @@ export function buildWaterTower3D(group: THREE.Group): void {
   roof.position.set(0, 159, 0);
   group.add(roof);
 
-  const cupolaBase = new THREE.Mesh(getSharedCylinderGeometry(9.5, 10, 10, 12), tankBandMat);
-  cupolaBase.position.set(0, 174, 0);
+  const cupolaBase = new THREE.Mesh(getSharedCylinderGeometry(9.6, 10, 3.5, 12), tankBandMat);
+  cupolaBase.position.set(0, 170.75, 0);
   group.add(cupolaBase);
 
-  const cupolaGlass = new THREE.Mesh(getSharedCylinderGeometry(8.2, 8.2, 6, 12), glassWarmMat);
-  cupolaGlass.position.set(0, 175, 0);
+  const cupolaGlass = new THREE.Mesh(getSharedCylinderGeometry(8.4, 8.4, 6, 12), glassWarmMat);
+  cupolaGlass.position.set(0, 175.5, 0);
   group.add(cupolaGlass);
+
+  const cupolaTopRing = new THREE.Mesh(getSharedCylinderGeometry(9.6, 9.6, 1.2, 12), tankBandMat);
+  cupolaTopRing.position.set(0, 178.8, 0);
+  group.add(cupolaTopRing);
+
+  const mullionGeo = getSharedCylinderGeometry(0.45, 0.45, 6.2, 6);
+  for (let i = 0; i < 6; i++) {
+    const a = (i * Math.PI * 2) / 6;
+    const m = new THREE.Mesh(mullionGeo, tankBandMat);
+    m.position.set(Math.sin(a) * 8.9, 175.5, Math.cos(a) * 8.9);
+    group.add(m);
+  }
 
   const cupolaRoof = new THREE.Mesh(getSharedCupolaRoofGeo(), roofMat);
   cupolaRoof.position.set(0, 184, 0);
@@ -151,18 +163,25 @@ export function buildWaterTower3D(group: THREE.Group): void {
   finial.position.set(0, 194, 0);
   group.add(finial);
 
-  // 6. Steigleiter auf der Rückseite (-Z)
-  const railGeo = getSharedCylinderGeometry(0.6, 0.6, 122, 6);
+  // 6. Steigleiter außen auf der Rückseite (-Z = -41.2, frei vor dem Behälter)
+  const railGeo = getSharedCylinderGeometry(0.6, 0.6, 132, 6);
   for (const lx of [-2.4, 2.4]) {
     const rail = new THREE.Mesh(railGeo, tankBandMat);
-    rail.position.set(lx, 75, -35.5);
+    rail.position.set(lx, 78, -41.2);
     group.add(rail);
   }
   const rungGeo = getSharedBoxGeometry(5.2, 0.8, 0.8);
-  for (let ry = 18; ry <= 134; ry += 8) {
+  for (let ry = 18; ry <= 140; ry += 8) {
     const rung = new THREE.Mesh(rungGeo, tankBandMat);
-    rung.position.set(0, ry, -35.5);
+    rung.position.set(0, ry, -41.2);
     group.add(rung);
+  }
+  for (const sy of [28, 60, 92, 124]) {
+    for (const lx of [-2.4, 2.4]) {
+      const standOff = new THREE.Mesh(getSharedBoxGeometry(0.8, 0.8, 9.5), tankBandMat);
+      standOff.position.set(lx, sy, -36.5);
+      group.add(standOff);
+    }
   }
 
   // 7. Wasserkran-Ausleger (+X Seite) mit Steigrohr, Flansch & Trichter

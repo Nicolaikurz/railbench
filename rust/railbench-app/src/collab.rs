@@ -1,7 +1,7 @@
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
 
-use railbench_core::io::{load_layout_json, save_layout_json};
+use railbench_core::io::{load_layout_json, save_layout_json_compact};
 use railbench_core::types::Layout;
 use tungstenite::Message;
 
@@ -121,6 +121,7 @@ impl CollabClient {
         if let Some(tx) = self.out_tx.take() {
             let _ = tx.send("__CLOSE__".into());
         }
+        self.in_rx = None;
         self.connected = false;
         self.status = "Offline".into();
     }
@@ -129,16 +130,18 @@ impl CollabClient {
         if !self.connected {
             return;
         }
-        if let (Some(tx), Ok(json)) = (&self.out_tx, save_layout_json(layout)) {
-            if let Ok(val) = serde_json::from_str::<serde_json::Value>(&json) {
-                let msg = serde_json::json!({
-                    "type": "layout",
-                    "room": self.room_id,
-                    "layout": val,
-                })
-                .to_string();
-                let _ = tx.send(msg);
-            }
+        if let (Some(tx), Ok(room_json), Ok(layout_json)) = (
+            &self.out_tx,
+            serde_json::to_string(&self.room_id),
+            save_layout_json_compact(layout),
+        ) {
+            let mut msg = String::with_capacity(34 + room_json.len() + layout_json.len());
+            msg.push_str(r#"{"type":"layout","room":"#);
+            msg.push_str(&room_json);
+            msg.push_str(r#","layout":"#);
+            msg.push_str(&layout_json);
+            msg.push('}');
+            let _ = tx.send(msg);
         }
     }
 

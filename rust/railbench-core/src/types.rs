@@ -1,4 +1,29 @@
+use std::sync::Arc;
+
 use serde::{Deserialize, Serialize};
+
+mod opt_arc_str_serde {
+    use std::sync::Arc;
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S>(val: &Option<Arc<str>>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match val {
+            Some(s) => serializer.serialize_some(s.as_ref()),
+            None => serializer.serialize_none(),
+        }
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<Arc<str>>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let opt = Option::<String>::deserialize(deserializer)?;
+        Ok(opt.map(Arc::from))
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)]
 pub struct Vec2 {
@@ -239,8 +264,8 @@ pub struct Model3D {
     pub mountain_path: Option<Vec<MountainBrushNode>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ground_terrain_type: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub file_data: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none", with = "opt_arc_str_serde")]
+    pub file_data: Option<Arc<str>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub file_name: Option<String>,
 }

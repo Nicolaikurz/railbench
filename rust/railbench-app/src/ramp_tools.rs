@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 
 use railbench_core::geometry::{deg2rad, norm_angle_deg, rotate};
 use railbench_core::ramp::compute_ramp_chain_elevations;
@@ -6,6 +6,14 @@ use railbench_core::snapping::update_layout_connections;
 use railbench_core::types::{Catalog, CatalogEntry, Elevation, Layout, TrackPiece, Transform, Vec2};
 
 use crate::catalog::{create_piece, disconnect_cross_type_connections, find_entry, local_connectors};
+
+#[derive(Debug, Clone, Default)]
+pub struct RampSelectionState {
+    pub start_piece: Option<String>,
+    pub end_piece: Option<String>,
+    /// `Some(true)` = clicking a track picks Start (A); `Some(false)` = clicking a track picks End (B).
+    pub pick_mode: Option<bool>,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RampProfile {
@@ -187,15 +195,177 @@ pub fn order_selected_chain(layout: &Layout, selected: &HashSet<String>) -> Vec<
     ordered
 }
 
-pub fn preview_auto_ramp(
+/// Finds the shortest connected track chain between `start_id` and `end_id` across the entire layout,
+/// returning `(piece_id, reversed)` where `reversed == true` means traversal enters at connector 1
+/// and exits at connector 0.
+pub fn find_ramp_chain_between(
+    layout: &Layout,
+    start_id: &str,
+    end_id: &str,
+) -> Vec<(String, bool)> {
+    let n = layout.pieces.len();
+    let Some(start_idx) = layout.pieces.iter().position(|p| p.id == start_id) else {
+        return Vec::new();
+    };
+    let Some(end_idx) = layout.pieces.iter().position(|p| p.id == end_id) else {
+        return Vec::new();
+    };
+    if start_idx == end_idx {
+        return vec![(start_id.to_string(), false)];
+    }
+
+    let id_to_idx: HashMap<&str, usize> = layout
+        .pieces
+        .iter()
+        .enumerate()
+        .map(|(i, p)| (p.id.as_str(), i))
+        .collect();
+
+    // Adjacency: (neighbor_idx, my_conn_idx, nbr_conn_idx)
+    let mut adj: Vec<Vec<(usize, usize, usize)>> = vec![Vec::new(); n];
+    for (i, p) in layout.pieces.iter().enumerate() {
+        for (c_idx, c) in p.connectors.iter().enumerate() {
+            if let Some(ref link) = c.connected_to {
+                if let Some(&j) = id_to_idx.get(link.piece_id.as_str()) {
+                    if j != i && !adj[i].iter().any(|&(nbr, _, _)| nbr == j) {
+                        adj[i].push((j, c_idx, link.connector_index));
+                    }
+                }
+            }
+        }
+    }
+    // Proximity fallback (<= 8 mm) in case two adjacent tracks weren't explicitly linked yet
+    for i in 0..n {
+        for j in (i + 1)..n {
+            if adj[i].iter().any(|&(nbr, _, _)| nbr == j) {
+                continue;
+            }
+            'pair: for (c1_idx, c1) in layout.pieces[i].connectors.iter().enumerate() {
+                for (c2_idx, c2) in layout.pieces[j].connectors.iter().enumerate() {
+                    if (c1.x - c2.x).hypot(c1.y - c2.y) <= 8.0 {
+                        adj[i].push((j, c1_idx, c2_idx));
+                        adj[j].push((i, c2_idx, c1_idx));
+                        break 'pair;
+                    }
+                }
+            }
+        }
+    }
+
+    // BFS shortest path from start_idx to end_idx
+    let mut prev: Vec<Option<(usize, usize, usize)>> = vec![None; n];
+    let mut visited = vec![false; n];
+    let mut queue = VecDeque::new();
+    visited[start_idx] = true;
+    queue.push_back(start_idx);
+
+    while let Some(u) = queue.pop_front() {
+        if u == end_idx {
+            break;
+        }
+        for &(v, u_conn, v_conn) in &adj[u] {
+            if !visited[v] {
+                visited[v] = true;
+                prev[v] = Some((u, u_conn, v_conn));
+                queue.push_back(v);
+            }
+        }
+    }
+
+    if !visited[end_idx] {
+        return Vec::new();
+    }
+
+    // Reconstruct path of (piece_idx, out_conn_to_next, in_conn_from_prev)
+    let mut path_indices = Vec::new();
+    let mut cur = end_idx;
+    while cur != start_idx {
+        path_indices.push(cur);
+        cur = prev[cur].unwrap().0;
+    }
+    path_indices.push(start_idx);
+    path_indices.reverse();
+
+    let mut result = Vec::with_capacity(path_indices.len());
+    for pos in 0..path_indices.len() {
+        let idx = path_indices[pos];
+        let reversed = if pos + 1 < path_indices.len() {
+            let next_idx = path_indices[pos + 1];
+            let out_conn = prev[next_idx].map(|(_, u_c, _)| u_c).unwrap_or(1);
+            // Exiting through connector 0 means we entered at connector 1 (reversed)
+            out_conn == 0
+        } else {
+            let in_conn = prev[idx].map(|(_, _, v_c)| v_c).unwrap_or(0);
+            in_conn == 1
+        };
+        result.push((layout.pieces[idx].id.clone(), reversed));
+    }
+    result
+}
+
+/// Resolves the ordered ramp chain from explicit Start/End pieces if set, otherwise from `selected`.
+pub fn resolve_ramp_chain(
+    layout: &Layout,
+    selected: &HashSet<String>,
+    start_id: Option<&str>,
+    end_id: Option<&str>,
+) -> Vec<(String, bool)> {
+    if let (Some(s), Some(e)) = (start_id, end_id) {
+        let path = find_ramp_chain_between(layout, s, e);
+        if !path.is_empty() {
+            return path;
+        }
+    }
+    let mut chain = order_selected_chain(layout, selected);
+    if chain.len() >= 2 {
+        let should_reverse = match (start_id, end_id) {
+            (Some(s), _) if chain.last().is_some_and(|(id, _)| id == s) => true,
+            (_, Some(e)) if chain.first().is_some_and(|(id, _)| id == e) => true,
+            _ => false,
+        };
+        if should_reverse {
+            chain.reverse();
+            for (_, rev) in &mut chain {
+                *rev = !*rev;
+            }
+        }
+    }
+    chain
+}
+
+/// Returns `(entry_world, exit_world)` points for each piece along a resolved ramp chain
+/// so the 2D canvas can render clear directional arrows from Start (A) to End (B).
+pub fn ramp_chain_direction_segments(
+    layout: &Layout,
+    chain: &[(String, bool)],
+) -> Vec<(Vec2, Vec2)> {
+    let mut out = Vec::with_capacity(chain.len());
+    for (pid, rev) in chain {
+        if let Some(p) = layout.pieces.iter().find(|pc| &pc.id == pid) {
+            if p.connectors.len() >= 2 {
+                let (c_in, c_out) = if *rev {
+                    (&p.connectors[1], &p.connectors[0])
+                } else {
+                    (&p.connectors[0], &p.connectors[1])
+                };
+                out.push((
+                    Vec2 { x: c_in.x, y: c_in.y },
+                    Vec2 { x: c_out.x, y: c_out.y },
+                ));
+            }
+        }
+    }
+    out
+}
+
+pub fn preview_auto_ramp_for_chain(
     layout: &Layout,
     catalogs: &[Catalog],
-    selected: &HashSet<String>,
+    chain: &[(String, bool)],
     start_h: f64,
     end_h: f64,
     profile: RampProfile,
 ) -> Option<RampSummary> {
-    let chain = order_selected_chain(layout, selected);
     if chain.is_empty() {
         return None;
     }
@@ -248,17 +418,29 @@ pub fn preview_auto_ramp(
     })
 }
 
-pub fn apply_auto_ramp(
-    layout: &mut Layout,
+#[allow(dead_code)]
+pub fn preview_auto_ramp(
+    layout: &Layout,
     catalogs: &[Catalog],
     selected: &HashSet<String>,
     start_h: f64,
     end_h: f64,
     profile: RampProfile,
-) -> Result<RampSummary, String> {
+) -> Option<RampSummary> {
     let chain = order_selected_chain(layout, selected);
+    preview_auto_ramp_for_chain(layout, catalogs, &chain, start_h, end_h, profile)
+}
+
+pub fn apply_auto_ramp_for_chain(
+    layout: &mut Layout,
+    catalogs: &[Catalog],
+    chain: &[(String, bool)],
+    start_h: f64,
+    end_h: f64,
+    profile: RampProfile,
+) -> Result<RampSummary, String> {
     if chain.is_empty() {
-        return Err("Select at least one track piece first.".into());
+        return Err("Select a start & end track or a track chain first.".into());
     }
 
     let lengths: Vec<f64> = chain
@@ -305,8 +487,24 @@ pub fn apply_auto_ramp(
         }
     }
 
-    preview_auto_ramp(layout, catalogs, selected, start_h, end_h, profile)
+    update_layout_connections(layout, 4.0, 35.0, 1.0);
+    disconnect_cross_type_connections(layout, catalogs);
+
+    preview_auto_ramp_for_chain(layout, catalogs, chain, start_h, end_h, profile)
         .ok_or_else(|| "Unable to compute ramp.".into())
+}
+
+#[allow(dead_code)]
+pub fn apply_auto_ramp(
+    layout: &mut Layout,
+    catalogs: &[Catalog],
+    selected: &HashSet<String>,
+    start_h: f64,
+    end_h: f64,
+    profile: RampProfile,
+) -> Result<RampSummary, String> {
+    let chain = order_selected_chain(layout, selected);
+    apply_auto_ramp_for_chain(layout, catalogs, &chain, start_h, end_h, profile)
 }
 
 pub fn available_curves_for_catalog(catalog: &Catalog) -> Vec<CatalogEntry> {
@@ -602,5 +800,47 @@ mod tests {
         .unwrap();
         assert!(h_ids.len() >= 6);
         assert!((h_sum.total_rise_mm - 80.0).abs() < 0.1);
+    }
+
+    #[test]
+    fn ramp_start_end_path_and_reverse_direction() {
+        let (mut layout, catalogs, _) = make_layout_with_chain(4);
+        let empty_sel = HashSet::new();
+
+        // Forward path s0 -> s3 (without needing s1, s2 selected!)
+        let fwd = resolve_ramp_chain(&layout, &empty_sel, Some("s0"), Some("s3"));
+        assert_eq!(
+            fwd,
+            vec![
+                ("s0".into(), false),
+                ("s1".into(), false),
+                ("s2".into(), false),
+                ("s3".into(), false),
+            ]
+        );
+        let segs_fwd = ramp_chain_direction_segments(&layout, &fwd);
+        assert_eq!(segs_fwd.len(), 4);
+        assert!(segs_fwd[0].1.x > segs_fwd[0].0.x);
+
+        // Reversed path s3 -> s0: rises from 0 mm at s3's outer end to 80 mm at s0's outer end
+        let rev = resolve_ramp_chain(&layout, &empty_sel, Some("s3"), Some("s0"));
+        assert_eq!(
+            rev,
+            vec![
+                ("s3".into(), true),
+                ("s2".into(), true),
+                ("s1".into(), true),
+                ("s0".into(), true),
+            ]
+        );
+        let segs_rev = ramp_chain_direction_segments(&layout, &rev);
+        assert!(segs_rev[0].1.x < segs_rev[0].0.x);
+
+        let sum = apply_auto_ramp_for_chain(&mut layout, &catalogs, &rev, 0.0, 80.0, RampProfile::Linear)
+            .unwrap();
+        assert_eq!(sum.piece_count, 4);
+        // s3 entered at c[1] (0 mm) -> exited at c[0] (20 mm); s0 exited at c[0] (80 mm)
+        assert!((layout.pieces[3].elevation.unwrap().end - 0.0).abs() < 0.02);
+        assert!((layout.pieces[0].elevation.unwrap().start - 80.0).abs() < 0.02);
     }
 }

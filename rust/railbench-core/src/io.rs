@@ -5,9 +5,20 @@ pub fn load_layout_json(json: &str) -> Result<Layout, serde_json::Error> {
     serde_json::from_str(json)
 }
 
-/// Serializes a `Layout` to pretty-printed `.railbench` JSON.
+/// Serializes a `Layout` to `.railbench` JSON.
+/// Uses pretty-printed JSON for small/medium layouts (<= 250 pieces) and compact JSON
+/// for larger layouts to keep file sizes small and saves fast.
 pub fn save_layout_json(layout: &Layout) -> Result<String, serde_json::Error> {
-    serde_json::to_string_pretty(layout)
+    if layout.pieces.len() <= 250 {
+        serde_json::to_string_pretty(layout)
+    } else {
+        serde_json::to_string(layout)
+    }
+}
+
+/// Serializes a `Layout` to compact (single-line) JSON for fast network sync and large files.
+pub fn save_layout_json_compact(layout: &Layout) -> Result<String, serde_json::Error> {
+    serde_json::to_string(layout)
 }
 
 /// Parses a track catalog JSON string into a `Catalog`.
@@ -46,5 +57,11 @@ mod tests {
         let saved = save_layout_json(&layout).expect("serialize layout");
         let reparsed = load_layout_json(&saved).expect("reparse layout");
         assert_eq!(layout, reparsed);
+
+        let compact = save_layout_json_compact(&layout).expect("serialize compact layout");
+        assert!(!compact.contains('\n'));
+        assert!(compact.len() < saved.len());
+        let reparsed_compact = load_layout_json(&compact).expect("reparse compact layout");
+        assert_eq!(layout, reparsed_compact);
     }
 }

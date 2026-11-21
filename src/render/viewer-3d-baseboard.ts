@@ -121,7 +121,8 @@ export function buildBaseboard3D(
         const pt = { x: piece.transform.x, y: piece.transform.y };
         if (!isPointInsideBaseboard(pt, config)) continue;
 
-        const cutoutR = 146;
+        const scaleF = Math.max(0.4, Math.min(2.5, (entry.radius ?? 189) / 189));
+        const cutoutR = 142 * scaleF;
         const holePath = new THREE.Path();
         holePath.absarc(pt.x, pt.y, cutoutR, 0, Math.PI * 2, true);
         shape.holes.push(holePath);

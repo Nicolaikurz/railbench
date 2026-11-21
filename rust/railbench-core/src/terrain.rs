@@ -41,12 +41,12 @@ pub fn evaluate_mountain_heightfield(
     let inv_nx = if nx_steps > 0 { 1.0 / nx_steps as f64 } else { 0.0 };
     let inv_nz = if nz_steps > 0 { 1.0 / nz_steps as f64 } else { 0.0 };
 
-    for iz in 0..rows {
+    let eval_row = |iz: usize, row_out: &mut [f32]| {
         let vz = iz as f64 * inv_nz;
         let lz = (vz * 2.0 - 1.0) * half_d;
         let nz = lz / half_d;
 
-        for ix in 0..cols {
+        for (ix, cell) in row_out.iter_mut().enumerate() {
             let vx = ix as f64 * inv_nx;
             let lx = (vx * 2.0 - 1.0) * half_w;
             let nx = lx / half_w;
@@ -68,7 +68,6 @@ pub fn evaluate_mountain_heightfield(
                         best = (sh * prof * (1.0 + 0.26 * noise_val)).max(0.0);
                     }
                 } else {
-                    // Continuous ridge capsule segments connecting consecutive brush nodes
                     for i in 0..(n_nodes - 1) {
                         let ax = strokes[i * 4] as f64;
                         let az = strokes[i * 4 + 1] as f64;
@@ -105,7 +104,31 @@ pub fn evaluate_mountain_heightfield(
                 best
             };
 
-            heights[iz * cols + ix] = h as f32;
+            *cell = h as f32;
+        }
+    };
+
+    #[cfg(not(target_arch = "wasm32"))]
+    let threads = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1);
+    #[cfg(target_arch = "wasm32")]
+    let threads = 1usize;
+
+    if threads > 1 && rows * cols >= 512 {
+        let rows_per_chunk = (rows + threads - 1) / threads;
+        let chunk_elems = rows_per_chunk * cols;
+        std::thread::scope(|s| {
+            for (chunk_idx, chunk_slice) in heights.chunks_mut(chunk_elems).enumerate() {
+                let row_start = chunk_idx * rows_per_chunk;
+                s.spawn(move || {
+                    for (local_r, row_slice) in chunk_slice.chunks_mut(cols).enumerate() {
+                        eval_row(row_start + local_r, row_slice);
+                    }
+                });
+            }
+        });
+    } else {
+        for (iz, row_slice) in heights.chunks_mut(cols).enumerate() {
+            eval_row(iz, row_slice);
         }
     }
 
@@ -145,12 +168,128 @@ pub fn carve_ground_terrain_grid(
     let inv_sx = if segs_x > 0 { 1.0 / segs_x as f64 } else { 0.0 };
     let inv_sz = if segs_z > 0 { 1.0 / segs_z as f64 } else { 0.0 };
 
-    for iz in 0..rows {
+    let transition_sq = transition_dist * transition_dist;
+
+    struct GroundBldg {
+        wx: f64,
+        wz: f64,
+        cos: f64,
+        sin: f64,
+        hw: f64,
+        hd: f64,
+        max_r: f64,
+    }
+    let mut bldgs = Vec::with_capacity(buildings.len() / 6);
+    let mut bi = 0;
+    while bi + 5 < buildings.len() {
+        let b_hw = buildings[bi + 4] as f64;
+        let b_hd = buildings[bi + 5] as f64;
+        bldgs.push(GroundBldg {
+            wx: buildings[bi] as f64,
+            wz: buildings[bi + 1] as f64,
+            cos: buildings[bi + 2] as f64,
+            sin: buildings[bi + 3] as f64,
+            hw: b_hw,
+            hd: b_hd,
+            max_r: b_hw.max(b_hd) + transition_dist,
+        });
+        bi += 6;
+    }
+
+    struct GroundCorridor {
+        min_x: f64,
+        max_x: f64,
+        min_z: f64,
+        max_z: f64,
+        c_hw: f64,
+        c_hw_sq: f64,
+        r_outer: f64,
+        r_outer_sq: f64,
+        is_tt: bool,
+        pts: Vec<[f64; 2]>,
+        g_min_x: f64,
+        g_min_z: f64,
+        inv_cell: f64,
+        grid_w: usize,
+        grid_h: usize,
+        cells: Vec<Vec<usize>>,
+    }
+    let mut prepared_corridors = Vec::with_capacity(corridor_meta.len() / 8);
+    let mut ci = 0;
+    while ci + 7 < corridor_meta.len() {
+        let c_hw = corridor_meta[ci + 4] as f64;
+        let r_outer = c_hw + transition_dist;
+        let is_tt = corridor_meta[ci + 5] > 0.5;
+        let pt_start = corridor_meta[ci + 6] as usize;
+        let pt_count = corridor_meta[ci + 7] as usize;
+        let mut pts = Vec::with_capacity(pt_count);
+        let (mut pmin_x, mut pmax_x, mut pmin_z, mut pmax_z) =
+            (f64::INFINITY, f64::NEG_INFINITY, f64::INFINITY, f64::NEG_INFINITY);
+        for p in 0..pt_count {
+            let pb = (pt_start + p) * 3;
+            if pb + 2 >= corridor_pts.len() {
+                break;
+            }
+            let pt_elev = corridor_pts[pb + 2] as f64;
+            if (pt_elev - base_layer_elev).abs() > 45.0 {
+                continue;
+            }
+            let px = corridor_pts[pb] as f64;
+            let pz = corridor_pts[pb + 1] as f64;
+            pmin_x = pmin_x.min(px);
+            pmax_x = pmax_x.max(px);
+            pmin_z = pmin_z.min(pz);
+            pmax_z = pmax_z.max(pz);
+            pts.push([px, pz]);
+        }
+        if !pts.is_empty() {
+            let (inv_cell, grid_w, grid_h, cells) = if pts.len() > 12 {
+                let min_cell = (r_outer * 1.05 + 1.0).max(24.0);
+                let span_x = (pmax_x - pmin_x).max(min_cell);
+                let span_z = (pmax_z - pmin_z).max(min_cell);
+                let cell = min_cell.max(span_x / 63.0).max(span_z / 63.0);
+                let inv = 1.0 / cell;
+                let gw = ((pmax_x - pmin_x) * inv).floor() as usize + 1;
+                let gh = ((pmax_z - pmin_z) * inv).floor() as usize + 1;
+                let mut grid = vec![Vec::new(); gw * gh];
+                for (pi, pt) in pts.iter().enumerate() {
+                    let gx = (((pt[0] - pmin_x) * inv).floor() as usize).min(gw - 1);
+                    let gz = (((pt[1] - pmin_z) * inv).floor() as usize).min(gh - 1);
+                    grid[gz * gw + gx].push(pi);
+                }
+                (inv, gw, gh, grid)
+            } else {
+                (0.0, 0, 0, Vec::new())
+            };
+            prepared_corridors.push(GroundCorridor {
+                min_x: corridor_meta[ci] as f64,
+                max_x: corridor_meta[ci + 1] as f64,
+                min_z: corridor_meta[ci + 2] as f64,
+                max_z: corridor_meta[ci + 3] as f64,
+                c_hw,
+                c_hw_sq: c_hw * c_hw,
+                r_outer,
+                r_outer_sq: r_outer * r_outer,
+                is_tt,
+                pts,
+                g_min_x: pmin_x,
+                g_min_z: pmin_z,
+                inv_cell,
+                grid_w,
+                grid_h,
+                cells,
+            });
+        }
+        ci += 8;
+    }
+
+    let eval_carve_row = |iz: usize, row_out: &mut [f32]| {
         let lz = (iz as f64 * inv_sz - 0.5) * depth;
         let nz = if half_d > 0.0 { lz / half_d } else { 0.0 };
 
         for ix in 0..cols {
             let v_idx = iz * cols + ix;
+            let cell_base = ix * 4;
             let lx = (ix as f64 * inv_sx - 0.5) * width;
             let nx = if half_w > 0.0 { lx / half_w } else { 0.0 };
 
@@ -161,10 +300,10 @@ pub fn carve_ground_terrain_grid(
                 || is_point_in_any_polygon(wx, wz, support_poly_offsets, support_poly_coords);
 
             if !in_bounds {
-                out[v_idx * 4] = 0.0;
-                out[v_idx * 4 + 1] = 0.0;
-                out[v_idx * 4 + 2] = 0.0;
-                out[v_idx * 4 + 3] = 1.0;
+                row_out[cell_base] = 0.0;
+                row_out[cell_base + 1] = 0.0;
+                row_out[cell_base + 2] = 0.0;
+                row_out[cell_base + 3] = 1.0;
                 continue;
             }
 
@@ -181,71 +320,87 @@ pub fn carve_ground_terrain_grid(
             let mut flatten_weight = 0.0_f64;
             let mut inside_turntable = false;
 
-            let mut bi = 0;
-            while bi + 5 < buildings.len() {
-                let b_wx = buildings[bi] as f64;
-                let b_wz = buildings[bi + 1] as f64;
-                let b_cos = buildings[bi + 2] as f64;
-                let b_sin = buildings[bi + 3] as f64;
-                let b_hw = buildings[bi + 4] as f64;
-                let b_hd = buildings[bi + 5] as f64;
-                let dx = wx - b_wx;
-                let dz = wz - b_wz;
-                let max_r = b_hw.max(b_hd) + transition_dist;
-                if dx.abs() <= max_r && dz.abs() <= max_r {
-                    let blx = dx * b_cos - dz * b_sin;
-                    let blz = dx * b_sin + dz * b_cos;
-                    let qx = (blx.abs() - b_hw).max(0.0);
-                    let qz = (blz.abs() - b_hd).max(0.0);
-                    let d = qx.hypot(qz);
-                    if d < transition_dist {
-                        let w = 1.0 - smoothstep(0.0, transition_dist, d);
-                        if w > flatten_weight {
-                            flatten_weight = w;
-                        }
+            for b in &bldgs {
+                let dx = wx - b.wx;
+                if dx.abs() > b.max_r {
+                    continue;
+                }
+                let dz = wz - b.wz;
+                if dz.abs() > b.max_r {
+                    continue;
+                }
+                let blx = dx * b.cos - dz * b.sin;
+                let blz = dx * b.sin + dz * b.cos;
+                let qx = (blx.abs() - b.hw).max(0.0);
+                let qz = (blz.abs() - b.hd).max(0.0);
+                let d_sq = qx * qx + qz * qz;
+                if d_sq < transition_sq {
+                    let w = 1.0 - smoothstep(0.0, transition_dist, d_sq.sqrt());
+                    if w > flatten_weight {
+                        flatten_weight = w;
                     }
                 }
-                bi += 6;
             }
 
-            let mut ci = 0;
-            while ci + 7 < corridor_meta.len() {
-                let min_x = corridor_meta[ci] as f64;
-                let max_x = corridor_meta[ci + 1] as f64;
-                let min_z = corridor_meta[ci + 2] as f64;
-                let max_z = corridor_meta[ci + 3] as f64;
-                if wx >= min_x && wx <= max_x && wz >= min_z && wz <= max_z {
-                    let c_hw = corridor_meta[ci + 4] as f64;
-                    let is_tt = corridor_meta[ci + 5] > 0.5;
-                    let pt_start = corridor_meta[ci + 6] as usize;
-                    let pt_count = corridor_meta[ci + 7] as usize;
-                    for p in 0..pt_count {
-                        let pb = (pt_start + p) * 3;
-                        if pb + 2 >= corridor_pts.len() {
-                            break;
-                        }
-                        let pt_elev = corridor_pts[pb + 2] as f64;
-                        if (pt_elev - base_layer_elev).abs() > 45.0 {
-                            continue;
-                        }
-                        let d = (wx - corridor_pts[pb] as f64).hypot(wz - corridor_pts[pb + 1] as f64);
-                        if is_tt && d < c_hw {
+            for col in &prepared_corridors {
+                if wx < col.min_x || wx > col.max_x || wz < col.min_z || wz > col.max_z {
+                    continue;
+                }
+                if col.cells.is_empty() {
+                    for pt in &col.pts {
+                        let dx = wx - pt[0];
+                        let dz = wz - pt[1];
+                        let d_sq = dx * dx + dz * dz;
+                        if col.is_tt && d_sq < col.c_hw_sq {
                             inside_turntable = true;
                             flatten_weight = 1.0;
                             break;
                         }
-                        if d < c_hw + transition_dist {
-                            let w = 1.0 - smoothstep(c_hw, c_hw + transition_dist, d);
+                        if d_sq < col.r_outer_sq {
+                            let w = 1.0 - smoothstep(col.c_hw, col.r_outer, d_sq.sqrt());
                             if w > flatten_weight {
                                 flatten_weight = w;
                             }
                         }
                     }
-                    if inside_turntable {
-                        break;
+                } else {
+                    let qcx = ((wx - col.g_min_x) * col.inv_cell).floor() as isize;
+                    let qcz = ((wz - col.g_min_z) * col.inv_cell).floor() as isize;
+                    let x0 = (qcx - 1).max(0);
+                    let x1 = (qcx + 1).min(col.grid_w as isize - 1);
+                    let z0 = (qcz - 1).max(0);
+                    let z1 = (qcz + 1).min(col.grid_h as isize - 1);
+                    for gz in z0..=z1 {
+                        for gx in x0..=x1 {
+                            for &pi in &col.cells[gz as usize * col.grid_w + gx as usize] {
+                                let pt = col.pts[pi];
+                                let dx = wx - pt[0];
+                                let dz = wz - pt[1];
+                                let d_sq = dx * dx + dz * dz;
+                                if col.is_tt && d_sq < col.c_hw_sq {
+                                    inside_turntable = true;
+                                    flatten_weight = 1.0;
+                                    break;
+                                }
+                                if d_sq < col.r_outer_sq {
+                                    let w = 1.0 - smoothstep(col.c_hw, col.r_outer, d_sq.sqrt());
+                                    if w > flatten_weight {
+                                        flatten_weight = w;
+                                    }
+                                }
+                            }
+                            if inside_turntable {
+                                break;
+                            }
+                        }
+                        if inside_turntable {
+                            break;
+                        }
                     }
                 }
-                ci += 8;
+                if inside_turntable {
+                    break;
+                }
             }
 
             let is_water_vert = if inside_turntable {
@@ -264,10 +419,35 @@ pub fn carve_ground_terrain_grid(
                 false
             };
 
-            out[v_idx * 4] = h as f32;
-            out[v_idx * 4 + 1] = 1.0;
-            out[v_idx * 4 + 2] = if is_water_vert { 1.0 } else { 0.0 };
-            out[v_idx * 4 + 3] = flatten_weight as f32;
+            row_out[cell_base] = h as f32;
+            row_out[cell_base + 1] = 1.0;
+            row_out[cell_base + 2] = if is_water_vert { 1.0 } else { 0.0 };
+            row_out[cell_base + 3] = flatten_weight as f32;
+        }
+    };
+
+    let row_stride = cols * 4;
+    #[cfg(not(target_arch = "wasm32"))]
+    let threads = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1);
+    #[cfg(target_arch = "wasm32")]
+    let threads = 1usize;
+
+    if threads > 1 && total >= 512 {
+        let rows_per_chunk = (rows + threads - 1) / threads;
+        let chunk_elems = rows_per_chunk * row_stride;
+        std::thread::scope(|s| {
+            for (chunk_idx, chunk_slice) in out.chunks_mut(chunk_elems).enumerate() {
+                let row_start = chunk_idx * rows_per_chunk;
+                s.spawn(move || {
+                    for (local_r, row_slice) in chunk_slice.chunks_mut(row_stride).enumerate() {
+                        eval_carve_row(row_start + local_r, row_slice);
+                    }
+                });
+            }
+        });
+    } else {
+        for (iz, row_slice) in out.chunks_mut(row_stride).enumerate() {
+            eval_carve_row(iz, row_slice);
         }
     }
 
@@ -331,5 +511,31 @@ mod tests {
         // Center grid vertex is iz = 2, ix = 3 (lx = 0, lz = 0)
         let mid_h = h[2 * 7 + 3];
         assert!(mid_h > 120.0, "Expected ridge capsule height > 120 at midpoint, got {mid_h}");
+    }
+
+    #[test]
+    fn carve_ground_terrain_grid_flattens_dense_corridors_and_turntable() {
+        let mut pts = Vec::new();
+        for i in 0..24 {
+            let x = -200.0 + (i as f32) * (400.0 / 23.0);
+            pts.push(x);
+            pts.push(0.0);
+            pts.push(0.0);
+        }
+        // Dense non-turntable corridor along z = 0 plus turntable hole at (120, 0)
+        let meta = [
+            -260.0_f32, 260.0, -80.0, 80.0, 20.0, 0.0, 0.0, 24.0,
+            60.0, 180.0, -60.0, 60.0, 35.0, 1.0, 18.0, 1.0,
+        ];
+        let buildings = [0.0_f32, 100.0, 1.0, 0.0, 20.0, 20.0];
+        let out = carve_ground_terrain_grid(
+            8, 8, 500.0, 500.0, 30.0, 0.0, 0.0, 0.0, 1.0, 0.0, 40.0, false,
+            &[], &[], &[], &buildings, &meta, &pts,
+        );
+        assert_eq!(out.len(), 9 * 9 * 4);
+        // Center vertex (iz=4, ix=4 -> wx=0, wz=0) sits directly on corridor: height ~ 0, flatten_weight ~ 1
+        let center_idx = (4 * 9 + 4) * 4;
+        assert!(out[center_idx] < 1.0, "expected corridor center carved flat, got {}", out[center_idx]);
+        assert!(out[center_idx + 3] > 0.99);
     }
 }

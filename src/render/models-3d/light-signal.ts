@@ -43,19 +43,19 @@ export function buildLightSignal3D(group: THREE.Group): void {
   cabRoof.position.set(0, 20.5, -1.5);
   group.add(cabRoof);
 
-  // 3. Weiß-rot-weißes DB-Mastschild (Vorderseite +Z)
+  // 3. Weiß-rot-weißes DB-Mastschild (Vorderseite +Z, ohne Rückseiten-Z-Fighting)
   const mastSignBg = new THREE.Mesh(getSharedBoxGeometry(4.2, 22, 0.8), whiteMat);
   mastSignBg.position.set(0, 39, 2.4);
   group.add(mastSignBg);
-  const mastSignRed = new THREE.Mesh(getSharedBoxGeometry(2.2, 21.5, 1.0), redPaintMat);
-  mastSignRed.position.set(0, 39, 2.5);
+  const mastSignRed = new THREE.Mesh(getSharedBoxGeometry(2.2, 21.5, 0.5), redPaintMat);
+  mastSignRed.position.set(0, 39, 2.85);
   group.add(mastSignRed);
 
-  // 4. Wartungsleiter & kleiner Wartungskorb auf der Rückseite (-Z)
-  const railGeo = getSharedCylinderGeometry(0.35, 0.35, 62, 6);
+  // 4. Wartungsleiter & kleiner Wartungskorb auf der Rückseite (-Z, startet sauber auf dem Schaltkasten-Dach)
+  const railGeo = getSharedCylinderGeometry(0.35, 0.35, 54, 6);
   for (const lx of [-1.8, 1.8]) {
     const rail = new THREE.Mesh(railGeo, mastMat);
-    rail.position.set(lx, 46, -3.5);
+    rail.position.set(lx, 48.1, -3.5);
     group.add(rail);
   }
   const rungGeo = getSharedBoxGeometry(3.8, 0.5, 0.5);
@@ -75,8 +75,8 @@ export function buildLightSignal3D(group: THREE.Group): void {
   shieldRim.position.set(0, 71, 2.8);
   group.add(shieldRim);
 
-  const shieldBody = new THREE.Mesh(getSharedBoxGeometry(11.8, 25.8, 2.2), shieldMat);
-  shieldBody.position.set(0, 71, 3.1);
+  const shieldBody = new THREE.Mesh(getSharedBoxGeometry(11.8, 25.8, 1.8), shieldMat);
+  shieldBody.position.set(0, 71, 3.4);
   group.add(shieldBody);
 
   // 6. Drei Signaloptiken (Grün oben, Rot Mitte, Gelb unten) inkl. Sonnenblenden (Schuten)

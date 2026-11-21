@@ -9,7 +9,7 @@ use eframe::egui::{self, Color32, CornerRadius, Frame, Margin, Pos2, Rect, RichT
 use railbench_core::types::Layout;
 
 use crate::i18n::Lang;
-use crate::viewer3d::SceneMesh3D;
+use crate::viewer3d::Scene3DBundle;
 
 #[derive(Debug, Clone)]
 pub struct GpuAdapterMeta {
@@ -75,6 +75,7 @@ pub struct PerfMonitor {
     prev_sys_idle: Option<u64>,
     prev_proc_ticks: Option<u64>,
     pub cpu_cores: usize,
+    pub process_threads: usize,
     pub cpu_model: String,
     pub sys_cpu_pct: Option<f32>,
     pub app_cpu_pct: Option<f32>,
@@ -113,6 +114,7 @@ impl Default for PerfMonitor {
             prev_sys_idle: None,
             prev_proc_ticks: None,
             cpu_cores: cores,
+            process_threads: cores,
             cpu_model,
             sys_cpu_pct: None,
             app_cpu_pct: None,
@@ -218,6 +220,9 @@ impl PerfMonitor {
             if let Some(rss_kb) = parse_vm_rss_kb(&status_txt) {
                 self.app_ram_mb = Some(rss_kb as f64 / 1024.0);
             }
+            if let Some(th) = parse_proc_threads(&status_txt) {
+                self.process_threads = th;
+            }
         }
 
         if let Ok(mem_txt) = std::fs::read_to_string("/proc/meminfo") {
@@ -281,7 +286,7 @@ impl PerfMonitor {
         &mut self,
         ctx: &egui::Context,
         layout: &Layout,
-        mesh_3d: Option<&SceneMesh3D>,
+        mesh_3d: Option<&Scene3DBundle>,
         is_3d_mode: bool,
         lang: Lang,
     ) -> Option<usize> {
@@ -353,9 +358,12 @@ impl PerfMonitor {
                     draw_usage_bar(ui, sys_pct / 100.0, Color32::from_rgb(56, 189, 248));
                 }
                 ui.label(
-                    RichText::new(format!("{} ({}T)", self.cpu_model, self.cpu_cores))
-                        .size(10.0)
-                        .color(Color32::from_rgb(100, 116, 139)),
+                    RichText::new(format!(
+                        "{} ({} Cores | {} Active Threads)",
+                        self.cpu_model, self.cpu_cores, self.process_threads
+                    ))
+                    .size(10.0)
+                    .color(Color32::from_rgb(100, 116, 139)),
                 );
                 ui.add_space(3.0);
 
@@ -442,6 +450,17 @@ impl PerfMonitor {
                         .size(10.2)
                         .color(Color32::from_rgb(148, 163, 184)),
                     );
+                    let proto_cnt = mesh.track_prototype_count();
+                    let inst_cnt = mesh.track_instance_count();
+                    if proto_cnt > 0 {
+                        ui.label(
+                            RichText::new(format!(
+                                "GPU Instancing: {proto_cnt} track types -> {inst_cnt} instances"
+                            ))
+                            .size(9.8)
+                            .color(Color32::from_rgb(56, 189, 248)),
+                        );
+                    }
                 }
 
                 // 5. Scene Objects & Mode
@@ -580,6 +599,15 @@ pub fn parse_vm_rss_kb(status_text: &str) -> Option<u64> {
     None
 }
 
+pub fn parse_proc_threads(status_text: &str) -> Option<usize> {
+    for line in status_text.lines() {
+        if let Some(rest) = line.strip_prefix("Threads:") {
+            return rest.split_whitespace().next()?.parse::<usize>().ok();
+        }
+    }
+    None
+}
+
 pub fn parse_meminfo_kb(meminfo_text: &str) -> Option<(u64, u64)> {
     let mut total = None;
     let mut avail = None;
@@ -692,6 +720,7 @@ mod tests {
     fn parse_ram_status_and_meminfo_work() {
         let status = "Name:\trailbench-app\nVmSize:\t512000 kB\nVmRSS:\t131072 kB\nThreads:\t8\n";
         assert_eq!(parse_vm_rss_kb(status), Some(131072));
+        assert_eq!(parse_proc_threads(status), Some(8));
 
         let meminfo = "MemTotal:       16384000 kB\nMemFree:         2048000 kB\nMemAvailable:    8192000 kB\n";
         assert_eq!(parse_meminfo_kb(meminfo), Some((16_384_000, 8_192_000)));

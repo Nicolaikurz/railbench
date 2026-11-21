@@ -154,16 +154,9 @@ fn rail_terminal(piece_id: &str, entry: Option<&CatalogEntry>, c_idx: usize, sid
 }
 
 fn is_two_wire_system(rail_pieces: &[&TrackPiece], catalogs: &[Catalog]) -> bool {
-    for p in rail_pieces {
-        for cat in catalogs {
-            if cat.entries.iter().any(|e| e.id == p.catalog_id) {
-                if cat.conductors == Some(3) {
-                    return false;
-                }
-            }
-        }
-    }
-    true
+    !rail_pieces
+        .iter()
+        .any(|p| crate::catalog::has_three_rail_catalog(catalogs, &p.catalog_id))
 }
 
 #[derive(Clone, Copy)]
@@ -183,6 +176,7 @@ fn collect_non_isolated_joints(
 ) -> Vec<JointPair> {
     let mut visited: HashSet<(usize, usize, usize, usize)> = HashSet::new();
     let mut joints = Vec::new();
+    let mut has_unconnected = false;
 
     let is_iso = |p: &TrackPiece, c_idx: usize| -> bool {
         if check_catenary_isolator {
@@ -217,24 +211,61 @@ fn collect_non_isolated_joints(
                     }
                 }
             } else {
-                for (j, p2) in pieces.iter().enumerate().skip(i + 1) {
-                    for (c2_idx, c2) in p2.connectors.iter().enumerate() {
-                        let d = (c1.x - c2.x).hypot(c1.y - c2.y);
-                        if d > 10.0 {
+                has_unconnected = true;
+            }
+        }
+    }
+
+    if has_unconnected {
+        const CELL_SIZE: f64 = 12.0;
+        const INV_CELL: f64 = 1.0 / CELL_SIZE;
+        const MAX_DIST_SQ: f64 = 100.0; // 10.0^2
+
+        let mut grid: HashMap<(i32, i32), Vec<(usize, usize)>> = HashMap::with_capacity(pieces.len() * 2);
+        for (j, p2) in pieces.iter().enumerate() {
+            for (c2_idx, c2) in p2.connectors.iter().enumerate() {
+                let gx = (c2.x * INV_CELL).floor() as i32;
+                let gy = (c2.y * INV_CELL).floor() as i32;
+                grid.entry((gx, gy)).or_default().push((j, c2_idx));
+            }
+        }
+
+        for (i, p1) in pieces.iter().enumerate() {
+            for (c1_idx, c1) in p1.connectors.iter().enumerate() {
+                if c1.connected_to.is_some() {
+                    continue;
+                }
+                let gx = (c1.x * INV_CELL).floor() as i32;
+                let gy = (c1.y * INV_CELL).floor() as i32;
+                for ox in -1..=1 {
+                    for oy in -1..=1 {
+                        let Some(bucket) = grid.get(&(gx + ox, gy + oy)) else {
                             continue;
-                        }
-                        let diff_a = (norm_angle_deg(c1.angle - c2.angle) - 180.0).abs();
-                        if diff_a <= 35.0 {
-                            let key = (i, c1_idx, j, c2_idx);
-                            if visited.insert(key) && !is_iso(p1, c1_idx) && !is_iso(p2, c2_idx) {
-                                joints.push(JointPair {
-                                    i,
-                                    c1: c1_idx,
-                                    j,
-                                    c2: c2_idx,
-                                    x: (c1.x + c2.x) * 0.5,
-                                    y: (c1.y + c2.y) * 0.5,
-                                });
+                        };
+                        for &(j, c2_idx) in bucket {
+                            if j <= i {
+                                continue;
+                            }
+                            let p2 = pieces[j];
+                            let c2 = &p2.connectors[c2_idx];
+                            let dx = c1.x - c2.x;
+                            let dy = c1.y - c2.y;
+                            if dx * dx + dy * dy > MAX_DIST_SQ {
+                                continue;
+                            }
+                            let diff_a = (norm_angle_deg(c1.angle - c2.angle) - 180.0).abs();
+                            if diff_a <= 35.0 {
+                                let key = (i, c1_idx, j, c2_idx);
+                                if visited.insert(key) && !is_iso(p1, c1_idx) && !is_iso(p2, c2_idx) {
+                                    joints.push(JointPair {
+                                        i,
+                                        c1: c1_idx,
+                                        j,
+                                        c2: c2_idx,
+                                        x: (c1.x + c2.x) * 0.5,
+                                        y: (c1.y + c2.y) * 0.5,
+                                    });
+                                }
                             }
                         }
                     }
@@ -309,6 +340,7 @@ pub fn simulate_layout_power(layout: &Layout, catalogs: &[Catalog]) -> PowerSimR
     let mut entries: Vec<Option<&CatalogEntry>> = Vec::with_capacity(n);
     let mut lens_m: Vec<f64> = Vec::with_capacity(n);
     let mut feeder_indices: Vec<u32> = Vec::new();
+    let mut is_feeder_flags: Vec<bool> = vec![false; n];
     let mut isolator_count = 0usize;
     let mut total_acc_ma = 0.0_f64;
 
@@ -320,6 +352,7 @@ pub fn simulate_layout_power(layout: &Layout, catalogs: &[Catalog]) -> PowerSimR
 
         if is_feeder_piece(p, entry) {
             feeder_indices.push(i as u32);
+            is_feeder_flags[i] = true;
         }
         if p.is_isolator == Some(true) {
             isolator_count += 1;
@@ -341,113 +374,142 @@ pub fn simulate_layout_power(layout: &Layout, catalogs: &[Catalog]) -> PowerSimR
     let total_current_a = traction_amps + total_acc_ma / 1000.0;
     let feeder_count = feeder_indices.len();
 
-    // Rail Dijkstra (0.08 Ohm/m rail, 0.05 Ohm/joint matching TS)
-    let rail_joints = collect_non_isolated_joints(&rail_pieces, &id_to_idx, false);
-    let (offsets, neighbors) = build_csr_from_joints(n, &rail_joints);
-    let solved = solve_power_dijkstra(n, &offsets, &neighbors, &lens_m, &feeder_indices, 0.08, 0.05);
-
-    // Catenary Dijkstra
     let cat_pieces: Vec<&TrackPiece> = rail_pieces
         .iter()
         .copied()
         .filter(|p| p.has_catenary == Some(true))
         .collect();
-    let mut cat_min_res: HashMap<String, f64> = HashMap::new();
     let parallel_cat = layout.catenary_circuit_mode.as_deref() == Some("parallel");
     let cat_feed_voltage = if parallel_cat {
         feed_voltage
     } else {
         layout.catenary_feed_voltage.unwrap_or(feed_voltage)
     };
-    if !cat_pieces.is_empty() {
-        let mut cat_id_to_idx: HashMap<&str, usize> = HashMap::with_capacity(cat_pieces.len());
-        let mut cat_lens_m: Vec<f64> = Vec::with_capacity(cat_pieces.len());
-        let mut cat_feeders: Vec<u32> = Vec::new();
-        for (ci, p) in cat_pieces.iter().enumerate() {
-            cat_id_to_idx.insert(p.id.as_str(), ci);
-            let e = find_entry(catalogs, &p.catalog_id);
-            cat_lens_m.push(piece_length_meters(p, e));
-            let is_cf = p.catenary_power_feed == Some(true)
-                || (parallel_cat && is_feeder_piece(p, e));
-            if is_cf {
-                cat_feeders.push(ci as u32);
-            }
-        }
-        let cat_joints = collect_non_isolated_joints(&cat_pieces, &cat_id_to_idx, true);
-        let (c_offs, c_nbrs) = build_csr_from_joints(cat_pieces.len(), &cat_joints);
-        let cat_solved = solve_power_dijkstra(
-            cat_pieces.len(),
-            &c_offs,
-            &c_nbrs,
-            &cat_lens_m,
-            &cat_feeders,
-            0.06,
-            0.04,
-        );
-        for (ci, p) in cat_pieces.iter().enumerate() {
-            cat_min_res.insert(p.id.clone(), cat_solved[ci]);
-        }
-    }
-
-    // 2-Wire Short Circuit DSU detection
     let is_two_wire = is_two_wire_system(&rail_pieces, catalogs);
-    let mut short_circuit_pieces: HashSet<String> = HashSet::new();
-    let mut short_circuit_points: Vec<ShortCircuitPoint> = Vec::new();
 
-    if is_two_wire && !rail_joints.is_empty() {
-        let mut term_map: HashMap<String, u32> = HashMap::new();
-        let mut get_term = |key: String| -> u32 {
-            if let Some(&id) = term_map.get(&key) {
-                id
-            } else {
-                let id = term_map.len() as u32;
-                term_map.insert(key, id);
-                id
-            }
+    // Run Rail Dijkstra + 2-Wire Short-Circuit DSU concurrently with Catenary Dijkstra when catenary is present
+    let ((solved, short_circuit_pieces, short_circuit_points), cat_min_res) = std::thread::scope(|s| {
+        let cat_handle = if !cat_pieces.is_empty() {
+            let cat_pieces_ref = &cat_pieces;
+            Some(s.spawn(move || {
+                let mut cat_min_res: HashMap<String, f64> = HashMap::with_capacity(cat_pieces_ref.len());
+                let mut cat_id_to_idx: HashMap<&str, usize> = HashMap::with_capacity(cat_pieces_ref.len());
+                let mut cat_lens_m: Vec<f64> = Vec::with_capacity(cat_pieces_ref.len());
+                let mut cat_feeders: Vec<u32> = Vec::new();
+                for (ci, p) in cat_pieces_ref.iter().enumerate() {
+                    cat_id_to_idx.insert(p.id.as_str(), ci);
+                    let e = find_entry(catalogs, &p.catalog_id);
+                    cat_lens_m.push(piece_length_meters(p, e));
+                    let is_cf = p.catenary_power_feed == Some(true)
+                        || (parallel_cat && is_feeder_piece(p, e));
+                    if is_cf {
+                        cat_feeders.push(ci as u32);
+                    }
+                }
+                let cat_joints = collect_non_isolated_joints(cat_pieces_ref, &cat_id_to_idx, true);
+                let (c_offs, c_nbrs) = build_csr_from_joints(cat_pieces_ref.len(), &cat_joints);
+                let cat_solved = solve_power_dijkstra(
+                    cat_pieces_ref.len(),
+                    &c_offs,
+                    &c_nbrs,
+                    &cat_lens_m,
+                    &cat_feeders,
+                    0.06,
+                    0.04,
+                );
+                for (ci, p) in cat_pieces_ref.iter().enumerate() {
+                    cat_min_res.insert(p.id.clone(), cat_solved[ci]);
+                }
+                cat_min_res
+            }))
+        } else {
+            None
         };
 
-        let mut edges: Vec<u32> = Vec::with_capacity(rail_joints.len() * 4);
-        for jt in &rail_joints {
-            let p1 = rail_pieces[jt.i];
-            let p2 = rail_pieces[jt.j];
-            let e1 = entries[jt.i];
-            let e2 = entries[jt.j];
-            edges.push(get_term(rail_terminal(&p1.id, e1, jt.c1, true)));
-            edges.push(get_term(rail_terminal(&p1.id, e1, jt.c1, false)));
-            edges.push(get_term(rail_terminal(&p2.id, e2, jt.c2, true)));
-            edges.push(get_term(rail_terminal(&p2.id, e2, jt.c2, false)));
-        }
+        // Rail joints + parallel Rail Dijkstra + 2-Wire Short Circuit DSU
+        let rail_joints = collect_non_isolated_joints(&rail_pieces, &id_to_idx, false);
+        let rail_joints_ref = &rail_joints;
+        let rail_pieces_ref = &rail_pieces;
+        let entries_ref = &entries;
+        let lens_m_ref = &lens_m;
+        let feeder_indices_ref = &feeder_indices;
 
-        let mut pair_piece_ids: Vec<&str> = Vec::with_capacity(n + 8);
-        let mut rail_pairs: Vec<u32> = Vec::with_capacity(n * 2 + 16);
-        for (i, p) in rail_pieces.iter().enumerate() {
-            pair_piece_ids.push(p.id.as_str());
-            rail_pairs.push(get_term(format!("{}:1", p.id)));
-            rail_pairs.push(get_term(format!("{}:2", p.id)));
-            if entries[i].map_or(false, |e| e.kind == "crossing") {
-                pair_piece_ids.push(p.id.as_str());
-                rail_pairs.push(get_term(format!("{}:3", p.id)));
-                rail_pairs.push(get_term(format!("{}:4", p.id)));
-            }
-        }
+        let (solved, (short_circuit_pieces, short_circuit_points)) = std::thread::scope(|s_inner| {
+            let dsu_handle = if is_two_wire && !rail_joints_ref.is_empty() {
+                Some(s_inner.spawn(move || {
+                    let mut short_pieces: HashSet<String> = HashSet::new();
+                    let mut short_points: Vec<ShortCircuitPoint> = Vec::new();
+                    let mut term_map: HashMap<String, u32> = HashMap::new();
+                    let mut get_term = |key: String| -> u32 {
+                        if let Some(&id) = term_map.get(&key) {
+                            id
+                        } else {
+                            let id = term_map.len() as u32;
+                            term_map.insert(key, id);
+                            id
+                        }
+                    };
 
-        let dsu_out = solve_short_circuit_dsu(term_map.len(), &edges, &rail_pairs);
-        for (k, jt) in rail_joints.iter().enumerate() {
-            if dsu_out.get(k).copied().unwrap_or(0) != 0 {
-                short_circuit_points.push(ShortCircuitPoint {
-                    piece_id_1: rail_pieces[jt.i].id.clone(),
-                    piece_id_2: rail_pieces[jt.j].id.clone(),
-                    x: jt.x,
-                    y: jt.y,
-                });
-            }
-        }
-        for (k, &pid) in pair_piece_ids.iter().enumerate() {
-            if dsu_out.get(rail_joints.len() + k).copied().unwrap_or(0) != 0 {
-                short_circuit_pieces.insert(pid.to_string());
-            }
-        }
-    }
+                    let mut edges: Vec<u32> = Vec::with_capacity(rail_joints_ref.len() * 4);
+                    for jt in rail_joints_ref {
+                        let p1 = rail_pieces_ref[jt.i];
+                        let p2 = rail_pieces_ref[jt.j];
+                        let e1 = entries_ref[jt.i];
+                        let e2 = entries_ref[jt.j];
+                        edges.push(get_term(rail_terminal(&p1.id, e1, jt.c1, true)));
+                        edges.push(get_term(rail_terminal(&p1.id, e1, jt.c1, false)));
+                        edges.push(get_term(rail_terminal(&p2.id, e2, jt.c2, true)));
+                        edges.push(get_term(rail_terminal(&p2.id, e2, jt.c2, false)));
+                    }
+
+                    let mut pair_piece_ids: Vec<&str> = Vec::with_capacity(n + 8);
+                    let mut rail_pairs: Vec<u32> = Vec::with_capacity(n * 2 + 16);
+                    for (i, p) in rail_pieces_ref.iter().enumerate() {
+                        pair_piece_ids.push(p.id.as_str());
+                        rail_pairs.push(get_term(format!("{}:1", p.id)));
+                        rail_pairs.push(get_term(format!("{}:2", p.id)));
+                        if entries_ref[i].map_or(false, |e| e.kind == "crossing") {
+                            pair_piece_ids.push(p.id.as_str());
+                            rail_pairs.push(get_term(format!("{}:3", p.id)));
+                            rail_pairs.push(get_term(format!("{}:4", p.id)));
+                        }
+                    }
+
+                    let dsu_out = solve_short_circuit_dsu(term_map.len(), &edges, &rail_pairs);
+                    for (k, jt) in rail_joints_ref.iter().enumerate() {
+                        if dsu_out.get(k).copied().unwrap_or(0) != 0 {
+                            short_points.push(ShortCircuitPoint {
+                                piece_id_1: rail_pieces_ref[jt.i].id.clone(),
+                                piece_id_2: rail_pieces_ref[jt.j].id.clone(),
+                                x: jt.x,
+                                y: jt.y,
+                            });
+                        }
+                    }
+                    for (k, &pid) in pair_piece_ids.iter().enumerate() {
+                        if dsu_out.get(rail_joints_ref.len() + k).copied().unwrap_or(0) != 0 {
+                            short_pieces.insert(pid.to_string());
+                        }
+                    }
+                    (short_pieces, short_points)
+                }))
+            } else {
+                None
+            };
+
+            let (offsets, neighbors) = build_csr_from_joints(n, rail_joints_ref);
+            let solved = solve_power_dijkstra(n, &offsets, &neighbors, lens_m_ref, feeder_indices_ref, 0.08, 0.05);
+            let dsu_res = dsu_handle
+                .and_then(|h| h.join().ok())
+                .unwrap_or_else(|| (HashSet::new(), Vec::new()));
+            (solved, dsu_res)
+        });
+
+        let cat_res = cat_handle
+            .and_then(|h| h.join().ok())
+            .unwrap_or_default();
+        ((solved, short_circuit_pieces, short_circuit_points), cat_res)
+    });
 
     let has_short_circuit = !short_circuit_pieces.is_empty() || !short_circuit_points.is_empty();
 
@@ -462,7 +524,7 @@ pub fn simulate_layout_power(layout: &Layout, catalogs: &[Catalog]) -> PowerSimR
     for (i, p) in rail_pieces.iter().enumerate() {
         let mut res = solved[i];
         let dist_m = solved[n + i];
-        let is_feeder = feeder_indices.contains(&(i as u32));
+        let is_feeder = is_feeder_flags[i];
         let is_short = short_circuit_pieces.contains(&p.id);
         let has_cat = p.has_catenary == Some(true);
         let cat_res = cat_min_res.get(&p.id).copied();
@@ -684,5 +746,31 @@ mod tests {
         layout_iso.pieces[1].isolated_connector_index = Some(1);
         let sim2 = simulate_layout_power(&layout_iso, &catalogs);
         assert!(!sim2.has_short_circuit);
+    }
+
+    #[test]
+    fn spatial_hash_unconnected_joints_propagate_power() {
+        let catalogs = builtin_catalogs();
+        let entry = find_entry(&catalogs, "55200").unwrap();
+        let mut pieces = Vec::new();
+        let step = entry.length.unwrap_or(230.9);
+        for idx in 0..8 {
+            let mut p = create_piece(
+                format!("p{idx}"),
+                entry,
+                Transform { x: idx as f64 * step, y: 0.0, rotation: 0.0 },
+                None,
+            );
+            if idx == 0 {
+                p.power_feed = Some(true);
+            }
+            // Deliberately leave connected_to == None to test the spatial-hash proximity fallback!
+            pieces.push(p);
+        }
+        let layout = make_test_layout(pieces);
+        let sim = simulate_layout_power(&layout, &catalogs);
+        assert!(sim.is_two_wire);
+        assert_eq!(sim.disconnected_count, 0);
+        assert!(sim.results["p7"].voltage > 15.0 && sim.results["p7"].voltage < 16.0);
     }
 }

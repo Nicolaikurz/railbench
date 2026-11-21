@@ -94,8 +94,8 @@ export function buildBufferStop3D(group: THREE.Group): void {
     plate.position.set(px, beamY, beamZ - 2.6);
     group.add(plate);
 
-    // Pufferhülse
-    const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(1.45, 1.85, 2.8, 10), steelMat);
+    // Pufferhülse (breites Ende an der Bohle +Z, verjüngt zum Pufferteller -Z)
+    const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(1.85, 1.45, 2.8, 10), steelMat);
     sleeve.rotation.x = Math.PI / 2;
     sleeve.position.set(px, beamY, beamZ - 4.2);
     group.add(sleeve);

@@ -175,9 +175,9 @@ export function buildCoalingStation3D(group: THREE.Group): void {
   hopperCoalPeak.position.set(towerCX, hopCenterY + 6, towerCZ);
   group.add(hopperCoalPeak);
 
-  // Schwenkbare Kohlenschütte zur Gleisseite (+Z)
+  // Schwenkbare Kohlenschütte zur Gleisseite (+Z), direkt am Trichterauslauf angesetzt
   const chuteGroup = new THREE.Group();
-  chuteGroup.position.set(towerCX, 50, towerCZ + 13);
+  chuteGroup.position.set(towerCX, 48, towerCZ + 4.5);
   chuteGroup.rotation.x = 0.55; // Nach vorn unten zum Gleis geneigt
   const chuteBed = new THREE.Mesh(new THREE.BoxGeometry(12, 2, 26), darkSteelMat);
   chuteBed.position.set(0, 0, 11);
@@ -313,6 +313,6 @@ export function buildCoalingStation3D(group: THREE.Group): void {
   group.add(wcSpout);
 
   const wcWeight = new THREE.Mesh(new THREE.SphereGeometry(3.8, 10, 10), warningMat);
-  wcWeight.position.set(wcX - 7, 55, wcZ);
+  wcWeight.position.set(wcX - 6, 53.5, wcZ);
   group.add(wcWeight);
 }
