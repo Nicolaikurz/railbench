@@ -1,41 +1,109 @@
 import * as THREE from "three";
+import {
+  getSharedBoxGeometry,
+  getSharedCylinderGeometry,
+  getSharedMaterial,
+} from "./primitive-cache";
 
-/** 6. LICHTSIGNAL (25 x 25 x 85 mm) */
+/**
+ * 6. LICHTSIGNAL — Authentisches DB-Lichthauptsignal (Hp0/Hp1/Hp2, 25 × 25 × 88 mm)
+ * Betonsockel, Schaltkasten, Stahlmast mit weiß-rot-weißem Mastschild,
+ * hintere Wartungsleiter, Signalschirm mit weißem Rand & Schuten (Blenden) über Rot/Grün/Gelb.
+ */
 export function buildLightSignal3D(group: THREE.Group): void {
-  // Betonsockel
-  const baseMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.9 });
-  const base = new THREE.Mesh(new THREE.BoxGeometry(20, 4, 20), baseMat);
-  base.position.set(0, 2, 0);
+  const concreteMat = getSharedMaterial(0x64748b, 0.9);
+  const mastMat = getSharedMaterial(0x334155, 0.42, 0.72);
+  const cabinetMat = getSharedMaterial(0x94a3b8, 0.55, 0.45);
+  const shieldMat = getSharedMaterial(0x0f172a, 0.65, 0.2);
+  const whiteMat = getSharedMaterial(0xf8fafc, 0.5);
+  const redPaintMat = getSharedMaterial(0xdc2626, 0.5);
+  const redLampMat = getSharedMaterial(0xef4444, 0.2, 0.1, 0xef4444, 0.9);
+  const greenLampMat = getSharedMaterial(0x22c55e, 0.2, 0.1, 0x22c55e, 0.95);
+  const yellowLampMat = getSharedMaterial(0xf59e0b, 0.25, 0.1, 0xf59e0b, 0.35);
+
+  // 1. Gestufter Betonsockel
+  const base = new THREE.Mesh(getSharedBoxGeometry(18, 4.5, 18), concreteMat);
+  base.position.set(0, 2.25, 0);
   group.add(base);
 
-  // Signalmast
-  const mastMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.4, metalness: 0.7 });
-  const mast = new THREE.Mesh(new THREE.CylinderGeometry(2, 2.5, 75, 8), mastMat);
-  mast.position.set(0, 39.5, 0);
+  const footPlate = new THREE.Mesh(getSharedBoxGeometry(9, 1.5, 9), mastMat);
+  footPlate.position.set(0, 5.25, 0);
+  group.add(footPlate);
+
+  // 2. Stahl-Signalmaster (H-Profil / Rohr) + Schaltkasten
+  const mast = new THREE.Mesh(getSharedCylinderGeometry(1.7, 2.2, 74, 10), mastMat);
+  mast.position.set(0, 42, 0);
   group.add(mast);
 
-  // Schaltschrank unten
-  const boxMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.5, metalness: 0.5 });
-  const box = new THREE.Mesh(new THREE.BoxGeometry(10, 16, 8), boxMat);
-  box.position.set(0, 12, 0);
-  group.add(box);
+  const cabinet = new THREE.Mesh(getSharedBoxGeometry(9.5, 14, 7.5), cabinetMat);
+  cabinet.position.set(0, 13, -1.5);
+  group.add(cabinet);
 
-  // Signalschirm (schwarz mit runder Kante)
-  const shieldMat = new THREE.MeshStandardMaterial({ color: 0x09090b, roughness: 0.7 });
-  const shield = new THREE.Mesh(new THREE.BoxGeometry(12, 24, 2), shieldMat);
-  shield.position.set(0, 68, 4);
-  group.add(shield);
+  const cabRoof = new THREE.Mesh(getSharedBoxGeometry(10.5, 1.2, 8.5), mastMat);
+  cabRoof.position.set(0, 20.5, -1.5);
+  group.add(cabRoof);
 
-  // Grüne & rote Optik (mit Leuchten)
-  const redMat = new THREE.MeshStandardMaterial({ color: 0xef4444, emissive: 0xef4444, emissiveIntensity: 0.6 });
-  const redLight = new THREE.Mesh(new THREE.CylinderGeometry(2, 2, 2, 12), redMat);
-  redLight.rotation.x = Math.PI / 2;
-  redLight.position.set(0, 73, 5);
-  group.add(redLight);
+  // 3. Weiß-rot-weißes DB-Mastschild (Vorderseite +Z)
+  const mastSignBg = new THREE.Mesh(getSharedBoxGeometry(4.2, 22, 0.8), whiteMat);
+  mastSignBg.position.set(0, 39, 2.4);
+  group.add(mastSignBg);
+  const mastSignRed = new THREE.Mesh(getSharedBoxGeometry(2.2, 21.5, 1.0), redPaintMat);
+  mastSignRed.position.set(0, 39, 2.5);
+  group.add(mastSignRed);
 
-  const greenMat = new THREE.MeshStandardMaterial({ color: 0x22c55e, emissive: 0x22c55e, emissiveIntensity: 0.6 });
-  const greenLight = new THREE.Mesh(new THREE.CylinderGeometry(2, 2, 2, 12), greenMat);
-  greenLight.rotation.x = Math.PI / 2;
-  greenLight.position.set(0, 63, 5);
-  group.add(greenLight);
+  // 4. Wartungsleiter & kleiner Wartungskorb auf der Rückseite (-Z)
+  const railGeo = getSharedCylinderGeometry(0.35, 0.35, 62, 6);
+  for (const lx of [-1.8, 1.8]) {
+    const rail = new THREE.Mesh(railGeo, mastMat);
+    rail.position.set(lx, 46, -3.5);
+    group.add(rail);
+  }
+  const rungGeo = getSharedBoxGeometry(3.8, 0.5, 0.5);
+  for (let ry = 22; ry <= 74; ry += 5.5) {
+    const rung = new THREE.Mesh(rungGeo, mastMat);
+    rung.position.set(0, ry, -3.5);
+    group.add(rung);
+  }
+
+  // Wartungsplattform unter dem Signalschirm
+  const platform = new THREE.Mesh(getSharedBoxGeometry(11, 1.0, 7), mastMat);
+  platform.position.set(0, 55, -2.5);
+  group.add(platform);
+
+  // 5. Signalschirm (schwarz mit weißem Randrahmen)
+  const shieldRim = new THREE.Mesh(getSharedBoxGeometry(13.2, 27.2, 1.6), whiteMat);
+  shieldRim.position.set(0, 71, 2.8);
+  group.add(shieldRim);
+
+  const shieldBody = new THREE.Mesh(getSharedBoxGeometry(11.8, 25.8, 2.2), shieldMat);
+  shieldBody.position.set(0, 71, 3.1);
+  group.add(shieldBody);
+
+  // 6. Drei Signaloptiken (Grün oben, Rot Mitte, Gelb unten) inkl. Sonnenblenden (Schuten)
+  const lensGeo = getSharedCylinderGeometry(1.9, 1.9, 1.6, 14);
+  const hoodTopGeo = getSharedBoxGeometry(4.8, 0.7, 4.2);
+  const hoodSideGeo = getSharedBoxGeometry(0.6, 2.4, 3.6);
+
+  const aspects: Array<{ y: number; mat: THREE.Material }> = [
+    { y: 78, mat: greenLampMat },
+    { y: 71, mat: redLampMat },
+    { y: 64, mat: yellowLampMat },
+  ];
+
+  for (const asp of aspects) {
+    const lens = new THREE.Mesh(lensGeo, asp.mat);
+    lens.rotation.x = Math.PI / 2;
+    lens.position.set(0, asp.y, 4.2);
+    group.add(lens);
+
+    // Sonnenblende (Schute)
+    const hTop = new THREE.Mesh(hoodTopGeo, shieldMat);
+    hTop.position.set(0, asp.y + 2.2, 5.6);
+    group.add(hTop);
+    for (const sx of [-2.1, 2.1]) {
+      const hSide = new THREE.Mesh(hoodSideGeo, shieldMat);
+      hSide.position.set(sx, asp.y + 1.1, 5.3);
+      group.add(hSide);
+    }
+  }
 }

@@ -4,14 +4,17 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 cd "$PROJECT_ROOT"
+source "$SCRIPT_DIR/release-cleanup.sh"
 
 ARCH="${1:-all}"
 PRODUCT_NAME=$(node -p "require('./package.json').build?.productName || require('./package.json').name || 'railbench'" 2>/dev/null || echo "railbench")
 APP_VERSION=$(node -p "require('./package.json').version || '0.6.1'" 2>/dev/null || echo "0.6.1")
 
-echo "=== Building Windows Portable (Directory & ZIP) ==="
+echo "=== Building Windows Portable (ZIP) ==="
 echo "Application: $PRODUCT_NAME v$APP_VERSION"
 echo "Target Architecture: $ARCH"
+
+archive_old_binaries "$PROJECT_ROOT/release" "*-win-*.zip" "*-portable-*.exe"
 
 npm run build:all
 
@@ -49,6 +52,7 @@ package_target() {
         local SIZE
         SIZE=$(du -h "$ZIP_OUTPUT" | awk '{print $1}')
         echo "✓ Created Portable ZIP: $ZIP_OUTPUT ($SIZE)"
+        rm -rf "$STAGED_DIR"
     else
         echo "⚠️  Directory $UNPACKED_DIR was not generated."
     fi
@@ -66,12 +70,11 @@ else
     exit 1
 fi
 
+cleanup_build_artifacts "$PROJECT_ROOT"
+
 echo ""
 echo "==========================================="
 echo " Windows Portable build complete!"
-echo "Folders:"
-echo "  • x64:   release/${PRODUCT_NAME}-${APP_VERSION}-win-x64/${PRODUCT_NAME}.exe"
-echo "  • arm64: release/${PRODUCT_NAME}-${APP_VERSION}-win-arm64/${PRODUCT_NAME}.exe"
 echo "ZIP Archives:"
 echo "  • x64:   release/${PRODUCT_NAME}-${APP_VERSION}-win-x64.zip"
 echo "  • arm64: release/${PRODUCT_NAME}-${APP_VERSION}-win-arm64.zip"

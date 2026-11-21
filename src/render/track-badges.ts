@@ -144,7 +144,12 @@ function getSharedLabelTexture(
   ctx.textBaseline = "middle";
   ctx.fillText(labelText, cssWidth / 2, cssHeight / 2 + roundedFont * 0.04);
 
-  const texture = Texture.from(canvas);
+  const texture = Texture.from({
+    resource: canvas,
+    autoGenerateMipmaps: true,
+    scaleMode: "linear",
+    maxAnisotropy: 4,
+  });
   const entry: CachedLabelTexture = { texture, cssWidth, cssHeight };
   if (_sharedLabelTexCache.size < MAX_SHARED_LABEL_TEXTURES) {
     _sharedLabelTexCache.set(key, entry);

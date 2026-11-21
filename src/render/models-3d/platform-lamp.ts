@@ -1,46 +1,80 @@
 import * as THREE from "three";
+import {
+  getSharedBoxGeometry,
+  getSharedCylinderGeometry,
+  getSharedMaterial,
+  getSharedSphereGeometry,
+} from "./primitive-cache";
 
-const SHARED_LAMP_STEEL_MAT = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.4, metalness: 0.7 });
-SHARED_LAMP_STEEL_MAT.userData.shared = true;
+let _sharedNeckGeo: THREE.TorusGeometry | null = null;
+let _sharedShadeGeo: THREE.ConeGeometry | null = null;
 
-const SHARED_LAMP_SHADE_MAT = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.5 });
-SHARED_LAMP_SHADE_MAT.userData.shared = true;
+function getSharedNeckGeo(): THREE.TorusGeometry {
+  if (!_sharedNeckGeo) {
+    _sharedNeckGeo = new THREE.TorusGeometry(8.5, 1.1, 8, 18, Math.PI / 2);
+    _sharedNeckGeo.rotateZ(Math.PI / 2);
+    _sharedNeckGeo.userData.shared = true;
+  }
+  return _sharedNeckGeo;
+}
 
-const SHARED_LAMP_GLOW_MAT = new THREE.MeshStandardMaterial({ color: 0xfef08a, emissive: 0xfef08a, emissiveIntensity: 0.9 });
-SHARED_LAMP_GLOW_MAT.userData.shared = true;
+function getSharedShadeGeo(): THREE.ConeGeometry {
+  if (!_sharedShadeGeo) {
+    _sharedShadeGeo = new THREE.ConeGeometry(6.2, 3.6, 16);
+    _sharedShadeGeo.userData.shared = true;
+  }
+  return _sharedShadeGeo;
+}
 
-const SHARED_LAMP_MAST_GEO = new THREE.CylinderGeometry(1.5, 2, 60, 8);
-SHARED_LAMP_MAST_GEO.userData.shared = true;
-
-const SHARED_LAMP_NECK_GEO = new THREE.TorusGeometry(8, 1.2, 8, 16, Math.PI / 2);
-SHARED_LAMP_NECK_GEO.rotateZ(Math.PI / 2);
-SHARED_LAMP_NECK_GEO.userData.shared = true;
-
-const SHARED_LAMP_SHADE_GEO = new THREE.ConeGeometry(5, 3, 12);
-SHARED_LAMP_SHADE_GEO.userData.shared = true;
-
-const SHARED_LAMP_BULB_GEO = new THREE.SphereGeometry(1.8, 8, 8);
-SHARED_LAMP_BULB_GEO.userData.shared = true;
-
-/** 10. BAHNSTEIGLEUCHTE (20 x 20 x 70 mm) */
+/**
+ * 10. BAHNSTEIGLEUCHTE — Klassische Gusseisen-Peitschenleuchte (20 × 20 × 74 mm)
+ * Gestufter Gusseisensockel, Zierkragen, schlanker Mast, Schwanenhals-Ausleger,
+ * Emaille-Schirm (außen dunkel, innen weiß) und warmweißer Glasdiffusor.
+ */
 export function buildPlatformLamp3D(group: THREE.Group): void {
-  // Mast
-  const mast = new THREE.Mesh(SHARED_LAMP_MAST_GEO, SHARED_LAMP_STEEL_MAT);
-  mast.position.set(0, 30, 0);
+  const ironMat = getSharedMaterial(0x1e293b, 0.38, 0.75);
+  const enamelDarkMat = getSharedMaterial(0x334155, 0.45, 0.4);
+  const enamelWhiteMat = getSharedMaterial(0xf8fafc, 0.4);
+  const glowMat = getSharedMaterial(0xfef08a, 0.15, 0.05, 0xfef08a, 0.95);
+
+  // Gestufter Gusseisen-Sockel
+  const plinth = new THREE.Mesh(getSharedBoxGeometry(7.5, 2.2, 7.5), ironMat);
+  plinth.position.set(0, 1.1, 0);
+  group.add(plinth);
+
+  const baseCone = new THREE.Mesh(getSharedCylinderGeometry(2.4, 3.6, 11, 10), ironMat);
+  baseCone.position.set(0, 7.5, 0);
+  group.add(baseCone);
+
+  const collar1 = new THREE.Mesh(getSharedCylinderGeometry(3.0, 3.0, 1.6, 10), ironMat);
+  collar1.position.set(0, 13.5, 0);
+  group.add(collar1);
+
+  // Schlanker verjüngter Mast
+  const mast = new THREE.Mesh(getSharedCylinderGeometry(1.15, 1.85, 50, 10), ironMat);
+  mast.position.set(0, 38.5, 0);
   group.add(mast);
 
+  const collar2 = new THREE.Mesh(getSharedCylinderGeometry(2.0, 2.0, 1.4, 10), ironMat);
+  collar2.position.set(0, 62.5, 0);
+  group.add(collar2);
+
   // Schwanenhals-Bogen
-  const neck = new THREE.Mesh(SHARED_LAMP_NECK_GEO, SHARED_LAMP_STEEL_MAT);
-  neck.position.set(8, 60, 0);
+  const neck = new THREE.Mesh(getSharedNeckGeo(), ironMat);
+  neck.position.set(8.5, 63, 0);
   group.add(neck);
 
-  // Lampenschirm
-  const shade = new THREE.Mesh(SHARED_LAMP_SHADE_GEO, SHARED_LAMP_SHADE_MAT);
-  shade.position.set(16, 62, 0);
+  // Emaille-Lampenschirm + weißer Reflektor
+  const shade = new THREE.Mesh(getSharedShadeGeo(), enamelDarkMat);
+  shade.position.set(17, 65.2, 0);
   group.add(shade);
 
-  // Warmweißes Leuchtmittel
-  const bulb = new THREE.Mesh(SHARED_LAMP_BULB_GEO, SHARED_LAMP_GLOW_MAT);
-  bulb.position.set(16, 60.5, 0);
+  const reflector = new THREE.Mesh(getSharedCylinderGeometry(5.6, 5.6, 0.6, 16), enamelWhiteMat);
+  reflector.position.set(17, 63.4, 0);
+  group.add(reflector);
+
+  // Warmweißer Glasdiffusor
+  const bulb = new THREE.Mesh(getSharedSphereGeometry(2.3, 12, 10), glowMat);
+  bulb.position.set(17, 62.2, 0);
   group.add(bulb);
 }

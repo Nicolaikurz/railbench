@@ -2,12 +2,17 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR/.."
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+cd "$PROJECT_ROOT"
+source "$SCRIPT_DIR/release-cleanup.sh"
 
 ARCH="${1:-all}"
+VERSION="$(node -p "require('$PROJECT_ROOT/package.json').version")"
 
-echo "=== Building Linux AppImage (Gleisplan 0.4.0) ==="
+echo "=== Building Linux AppImage (RAILbench v${VERSION}) ==="
 echo "Target Architecture: $ARCH"
+
+archive_old_binaries "$PROJECT_ROOT/release" "*.AppImage"
 
 npm run build:all
 
@@ -24,6 +29,8 @@ else
     echo "Unknown architecture: $ARCH (choose x64, arm64, or all)"
     exit 1
 fi
+
+cleanup_build_artifacts "$PROJECT_ROOT"
 
 echo ""
 echo "==========================================="

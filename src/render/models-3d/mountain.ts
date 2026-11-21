@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { Layout, Model3D } from "@/core/types";
 import { deg2rad } from "@/core/geometry";
+import { isWasmReady, buildTunnelSweepPositionsKernel } from "@/core/wasm-bridge";
 import { collectTerrainSupportPolygons, isPointInAnyPolygon } from "./ground-terrain";
 import {
   TunnelProfile,
@@ -67,30 +68,49 @@ export function buildTunnelSweep(
   if (path.length < 2) return null;
   const section = profilePoints(p, inset);
   const ns = section.length;
-  const positions: number[] = [];
-  const indices: number[] = [];
+  let posArray: Float32Array | number[] | null = null;
 
-  let prevSx = 1;
-  let prevSz = 0;
-  for (let i = 0; i < path.length; i++) {
-    const a = path[Math.max(i - 1, 0)]!;
-    const b = path[Math.min(i + 1, path.length - 1)]!;
-    const tx = b.x - a.x;
-    const tz = b.z - a.z;
-    const len = Math.hypot(tx, tz);
-    let sx = prevSx;
-    let sz = prevSz;
-    if (len > 1e-6) {
-      sx = tz / len;
-      sz = -tx / len;
+  if (isWasmReady()) {
+    const pathFlat = new Float32Array(path.length * 3);
+    for (let i = 0; i < path.length; i++) {
+      pathFlat[i * 3] = path[i]!.x;
+      pathFlat[i * 3 + 1] = path[i]!.y;
+      pathFlat[i * 3 + 2] = path[i]!.z;
     }
-    prevSx = sx;
-    prevSz = sz;
-
-    const c = path[i]!;
-    for (const [x, y] of section) positions.push(c.x + sx * x, c.y + y, c.z + sz * x);
+    const secFlat = new Float32Array(ns * 2);
+    for (let j = 0; j < ns; j++) {
+      secFlat[j * 2] = section[j]![0];
+      secFlat[j * 2 + 1] = section[j]![1];
+    }
+    posArray = buildTunnelSweepPositionsKernel(pathFlat, secFlat);
   }
 
+  if (!posArray) {
+    const positions: number[] = [];
+    let prevSx = 1;
+    let prevSz = 0;
+    for (let i = 0; i < path.length; i++) {
+      const a = path[Math.max(i - 1, 0)]!;
+      const b = path[Math.min(i + 1, path.length - 1)]!;
+      const tx = b.x - a.x;
+      const tz = b.z - a.z;
+      const len = Math.hypot(tx, tz);
+      let sx = prevSx;
+      let sz = prevSz;
+      if (len > 1e-6) {
+        sx = tz / len;
+        sz = -tx / len;
+      }
+      prevSx = sx;
+      prevSz = sz;
+
+      const c = path[i]!;
+      for (const [x, y] of section) positions.push(c.x + sx * x, c.y + y, c.z + sz * x);
+    }
+    posArray = positions;
+  }
+
+  const indices: number[] = [];
   for (let i = 0; i < path.length - 1; i++) {
     for (let j = 0; j < ns - 1; j++) {
       const a = i * ns + j;
@@ -102,7 +122,7 @@ export function buildTunnelSweep(
   }
 
   const geo = new THREE.BufferGeometry();
-  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(posArray, 3));
   geo.setIndex(indices);
   geo.computeVertexNormals();
   return new THREE.Mesh(geo, mat);

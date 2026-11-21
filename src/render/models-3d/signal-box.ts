@@ -2,224 +2,185 @@ import * as THREE from "three";
 import {
   getSharedBoxGeometry,
   getSharedCylinderGeometry,
-  getSharedDodecahedronGeometry,
   getSharedMaterial,
 } from "./primitive-cache";
 
-/** 2. STELLWERK (120 x 75 x 110 mm) */
+/**
+ * 2. STELLWERK — Klassisches Fahrdienstleiter-Stellwerk (120 × 75 × 110 mm)
+ * Sauberer Steinsockel ohne überstehende Grasplatte, Klinker-Untergeschoss,
+ * auskragender verglaster Stellwerksraum mit Fenstersprossen & sichtbarem Stellpult,
+ * Stahl-Außentreppe mit Podest & Geländer, Walmdach mit Antenne & Stellwerksschild.
+ */
 export function buildSignalBox3D(group: THREE.Group): void {
-  // Geteilte Materialien
-  const grassMat = getSharedMaterial(0x4d7c0f, 0.88);
-  const pathMat = getSharedMaterial(0xd4b996, 0.8);
-  const bushMat = getSharedMaterial(0x166534, 0.9);
-  const brickMat = getSharedMaterial(0x854d0e, 0.85);
-  const topWallMat = getSharedMaterial(0xd97706, 0.6);
-  const glassMat = getSharedMaterial(0x0284c7, 0.15, 0.85);
-  const roofMat = getSharedMaterial(0x1e293b, 0.7);
-  const stairMat = getSharedMaterial(0x64748b, 0.5, 0.6);
-  const frameMat = getSharedMaterial(0x1f2937, 0.6, 0.3);
-  const doorMat = getSharedMaterial(0x78350f, 0.8);
+  const stoneMat = getSharedMaterial(0x64748b, 0.88);
+  const corniceMat = getSharedMaterial(0xd6d3d1, 0.75);
+  const brickMat = getSharedMaterial(0x9a3412, 0.82);
+  const upperWallMat = getSharedMaterial(0xe5d6be, 0.76);
+  const steelMat = getSharedMaterial(0x1e293b, 0.42, 0.72);
+  const roofMat = getSharedMaterial(0x334155, 0.62, 0.3);
+  const glassMat = getSharedMaterial(0x38bdf8, 0.12, 0.82);
+  const warmGlassMat = getSharedMaterial(0xfde68a, 0.18, 0.25, 0xf59e0b, 0.45);
+  const doorMat = getSharedMaterial(0x5c2e14, 0.78);
+  const signBlueMat = getSharedMaterial(0x1d4ed8, 0.45, 0.15);
+  const signWhiteMat = getSharedMaterial(0xf8fafc, 0.55);
+  const deskMat = getSharedMaterial(0x475569, 0.6, 0.3);
+  const leverRedMat = getSharedMaterial(0xdc2626, 0.4);
+  const leverBlueMat = getSharedMaterial(0x2563eb, 0.4);
 
-  // Landschaftsplatte um das Stellwerk
-  const grass = new THREE.Mesh(getSharedBoxGeometry(180, 3, 130), grassMat);
-  grass.position.set(10, 1.5, 0);
-  group.add(grass);
+  // 1. Sauberer Betonsockel (exakt innerhalb 120 × 75 mm)
+  const plinth = new THREE.Mesh(getSharedBoxGeometry(118, 5, 73), stoneMat);
+  plinth.position.set(0, 2.5, 0);
+  group.add(plinth);
 
-  // Weg zur Treppe
-  const path = new THREE.Mesh(getSharedBoxGeometry(35, 1, 80), pathMat);
-  path.position.set(65, 3.2, 25);
-  group.add(path);
-
-  // Büsche & Grasbüschel
-  const bush1 = new THREE.Mesh(getSharedDodecahedronGeometry(9, 1), bushMat);
-  bush1.position.set(-45, 9, 35);
-  group.add(bush1);
-
-  // Untergeschoss (Klinker)
-  const groundFloor = new THREE.Mesh(getSharedBoxGeometry(100, 45, 65), brickMat);
-  groundFloor.position.set(0, 24, 0);
+  // 2. Klinker-Untergeschoss (Relaisraum)
+  const groundFloor = new THREE.Mesh(getSharedBoxGeometry(92, 42, 58), brickMat);
+  groundFloor.position.set(-4, 26, 0);
   group.add(groundFloor);
 
-  // Obergeschoss (Ausstellend mit großen Fenstern)
-  const topFloor = new THREE.Mesh(getSharedBoxGeometry(112, 35, 75), topWallMat);
-  topFloor.position.set(0, 64, 0);
-  group.add(topFloor);
+  // Gesimsband zwischen EG & OG
+  const belt = new THREE.Mesh(getSharedBoxGeometry(108, 3.2, 70), corniceMat);
+  belt.position.set(-4, 48, 0);
+  group.add(belt);
 
-  // Panorama-Fensterband
-  const glassGeo = getSharedBoxGeometry(106, 20, 1);
-  const frontGlass = new THREE.Mesh(glassGeo, glassMat);
-  frontGlass.position.set(0, 67.5, 38);
-  group.add(frontGlass);
-
-  const backGlass = new THREE.Mesh(glassGeo, glassMat);
-  backGlass.position.set(0, 67.5, -38);
-  group.add(backGlass);
-
-  // Flachdach mit Dachrand
-  const roof = new THREE.Mesh(getSharedBoxGeometry(122, 5, 85), roofMat);
-  roof.position.set(0, 84, 0);
-  group.add(roof);
-
-  // --- Außentreppe an der Ostwand (x = 50), steigt Richtung -Z ---
-  const steps = 14;
-  const stairX = 55;
-  const z0 = 24, z1 = -12;
-  const y0 = 3, y1 = 46.5;
-  const run = z0 - z1;
-  const rise = y1 - y0;
-  const slope = Math.atan2(rise, run);
-  const len = Math.hypot(run, rise);
-  const midZ = (z0 + z1) / 2;
-  const midY = (y0 + y1) / 2;
-
-  // Wangen
-  const stringerGeo = getSharedBoxGeometry(1.5, 3, len);
-  for (const dx of [-3.5, 3.5]) {
-    const stringer = new THREE.Mesh(stringerGeo, stairMat);
-    stringer.rotation.x = slope;
-    stringer.position.set(stairX + dx, midY, midZ);
-    group.add(stringer);
+  // EG-Fenster (Vorder- & Rückseite) + Stahltür
+  const egFrameGeo = getSharedBoxGeometry(11, 14, 1.4);
+  const egGlassGeo = getSharedBoxGeometry(8.6, 11.6, 1.6);
+  for (const side of [-1, 1] as const) {
+    const wz = side * 29;
+    for (const dx of [-32, -8, 16]) {
+      const f = new THREE.Mesh(egFrameGeo, corniceMat);
+      f.position.set(dx, 27, wz + side * 0.4);
+      group.add(f);
+      const gl = new THREE.Mesh(egGlassGeo, side === 1 && dx === -8 ? warmGlassMat : glassMat);
+      gl.position.set(dx, 27, wz + side * 0.6);
+      group.add(gl);
+    }
   }
 
-  // Stufen
-  const treadGeo = getSharedBoxGeometry(8, 1, 3.2);
-  for (let i = 0; i < steps; i++) {
-    const tread = new THREE.Mesh(treadGeo, stairMat);
-    tread.position.set(
-      stairX,
-      y0 + (rise * (i + 1)) / steps - 0.5,
-      z0 - (run * (i + 0.5)) / steps,
-    );
-    group.add(tread);
+  // Eingangstür EG rechts
+  const doorFrame = new THREE.Mesh(getSharedBoxGeometry(1.8, 22, 13), corniceMat);
+  doorFrame.position.set(42.2, 16, 0);
+  group.add(doorFrame);
+  const door = new THREE.Mesh(getSharedBoxGeometry(2.0, 20, 10.5), doorMat);
+  door.position.set(42.4, 15.5, 0);
+  group.add(door);
+
+  // 3. Auskragendes Obergeschoss (Stellwerksraum mit Panorama-Fensterband)
+  const lowerParapet = new THREE.Mesh(getSharedBoxGeometry(106, 11, 68), upperWallMat);
+  lowerParapet.position.set(-4, 55, 0);
+  group.add(lowerParapet);
+
+  const upperHeader = new THREE.Mesh(getSharedBoxGeometry(106, 6, 68), upperWallMat);
+  upperHeader.position.set(-4, 81, 0);
+  group.add(upperHeader);
+
+  // Panorama-Verglasung rundum (4 Seiten) + sichtbares Innen-Stellpult
+  const glassCore = new THREE.Mesh(getSharedBoxGeometry(104, 18, 66), warmGlassMat);
+  glassCore.position.set(-4, 69.5, 0);
+  group.add(glassCore);
+
+  // Innenraum-Stellpult / Hebelbank (durch die Scheibe erkennbar)
+  const desk = new THREE.Mesh(getSharedBoxGeometry(70, 9, 10), deskMat);
+  desk.position.set(-4, 64, 14);
+  group.add(desk);
+  const leverGeo = getSharedCylinderGeometry(0.6, 0.6, 7, 6);
+  for (let lx = -28; lx <= 20; lx += 8) {
+    const lev = new THREE.Mesh(leverGeo, lx % 16 === 0 ? leverRedMat : leverBlueMat);
+    lev.position.set(lx, 70, 14);
+    lev.rotation.x = 0.25;
+    group.add(lev);
   }
 
-  // Geländer an der Außenseite der Treppe
-  const railX = stairX + 3.8;
-  const postGeo = getSharedCylinderGeometry(0.4, 0.4, 9, 6);
-  for (const i of [1, 4, 7, 10, 13]) {
-    const post = new THREE.Mesh(postGeo, stairMat);
-    post.position.set(
-      railX,
-      y0 + (rise * (i + 1)) / steps + 4,
-      z0 - (run * (i + 0.5)) / steps,
-    );
-    group.add(post);
+  // Vertikale Fenstersprossen rund um den Stellwerksraum
+  const mullionGeo = getSharedBoxGeometry(2.2, 19, 2.2);
+  for (const side of [-1, 1] as const) {
+    for (let mx = -56; mx <= 48; mx += 13) {
+      const m = new THREE.Mesh(mullionGeo, steelMat);
+      m.position.set(mx, 69.5, side * 33.4);
+      group.add(m);
+    }
   }
-  const handrail = new THREE.Mesh(getSharedBoxGeometry(0.8, 0.8, len), stairMat);
-  handrail.rotation.x = slope;
-  handrail.position.set(railX, midY + 10.5, midZ);
-  group.add(handrail);
+  for (const sideX of [-56, 48]) {
+    for (let mz = -22; mz <= 22; mz += 14.5) {
+      const m = new THREE.Mesh(mullionGeo, steelMat);
+      m.position.set(sideX, 69.5, mz);
+      group.add(m);
+    }
+  }
 
-  // Podest vor der Obergeschoss-Tür mit Stützen
-  const landing = new THREE.Mesh(getSharedBoxGeometry(12, 1.5, 20), stairMat);
-  landing.position.set(56, 45.75, -22);
+  // 4. Auskragendes Dach mit Dachrand, Entlüfter & Funkantenne
+  const roofLower = new THREE.Mesh(getSharedBoxGeometry(116, 4, 78), roofMat);
+  roofLower.position.set(-4, 86, 0);
+  group.add(roofLower);
+
+  const roofUpper = new THREE.Mesh(getSharedBoxGeometry(102, 5, 64), roofMat);
+  roofUpper.position.set(-4, 90.5, 0);
+  group.add(roofUpper);
+
+  const antenna = new THREE.Mesh(getSharedCylinderGeometry(0.5, 0.8, 18, 6), steelMat);
+  antenna.position.set(-36, 102, -16);
+  group.add(antenna);
+
+  const vent = new THREE.Mesh(getSharedBoxGeometry(10, 6, 10), stoneMat);
+  vent.position.set(22, 95, -14);
+  group.add(vent);
+
+  // Stellwerks-Schild (DB-Blau/Weiß) an beiden Längsseiten
+  const signBgGeo = getSharedBoxGeometry(34, 6.5, 1.2);
+  const signTxtGeo = getSharedBoxGeometry(26, 2.2, 1.5);
+  for (const side of [-1, 1] as const) {
+    const sb = new THREE.Mesh(signBgGeo, signBlueMat);
+    sb.position.set(-4, 55, side * 34.4);
+    group.add(sb);
+    const st = new THREE.Mesh(signTxtGeo, signWhiteMat);
+    st.position.set(-4, 55, side * 34.5);
+    group.add(st);
+  }
+
+  // 5. Stahl-Außentreppe rechts (+X) zum Stellwerksraum
+  const landing = new THREE.Mesh(getSharedBoxGeometry(13, 2, 18), steelMat);
+  landing.position.set(54, 49, -18);
   group.add(landing);
 
-  const supportGeo = getSharedCylinderGeometry(1.2, 1.2, 42, 8);
-  for (const pz of [-31, -13]) {
-    const support = new THREE.Mesh(supportGeo, stairMat);
-    support.position.set(61, 24, pz);
-    group.add(support);
+  const stepGeo = getSharedBoxGeometry(11, 1.4, 4);
+  for (let i = 0; i < 11; i++) {
+    const st = new THREE.Mesh(stepGeo, steelMat);
+    st.position.set(54, 7 + i * 4.1, 24 - i * 3.8);
+    group.add(st);
   }
 
-  // Podest-Geländer (Ost- und Nordseite)
-  const railEGeo = getSharedBoxGeometry(0.8, 0.8, 20);
-  const railNGeo = getSharedBoxGeometry(12, 0.8, 0.8);
-  for (const ry of [49, 53]) {
-    const railE = new THREE.Mesh(railEGeo, stairMat);
-    railE.position.set(61.6, ry, -22);
-    group.add(railE);
-    const railN = new THREE.Mesh(railNGeo, stairMat);
-    railN.position.set(56, ry, -31.6);
-    group.add(railN);
-  }
-  const landingPostGeo = getSharedCylinderGeometry(0.4, 0.4, 7, 6);
-  for (const [px, pz] of [[61.6, -31.6], [61.6, -22], [61.6, -12.5]] as const) {
-    const post = new THREE.Mesh(landingPostGeo, stairMat);
-    post.position.set(px, 50, pz);
-    group.add(post);
-  }
+  // Treppenwange & Geländer
+  const stringer = new THREE.Mesh(getSharedBoxGeometry(1.2, 2.5, 58), steelMat);
+  stringer.position.set(59.5, 28, 3);
+  stringer.rotation.x = 0.82;
+  group.add(stringer);
 
-  // --- Tür im Obergeschoss (Ostwand der Bedienetage, x = 56) ---
-  const upperFrame = new THREE.Mesh(getSharedBoxGeometry(1, 28, 15), frameMat);
-  upperFrame.position.set(56.5, 60.5, -22);
-  group.add(upperFrame);
-
-  const upperDoor = new THREE.Mesh(getSharedBoxGeometry(1, 26, 12), doorMat);
-  upperDoor.position.set(57, 59.5, -22);
-  group.add(upperDoor);
-
-  const doorGlass = new THREE.Mesh(getSharedBoxGeometry(1.2, 8, 6), glassMat);
-  doorGlass.position.set(57.4, 65, -22);
-  group.add(doorGlass);
-
-  const upperCanopy = new THREE.Mesh(getSharedBoxGeometry(8, 1.5, 18), roofMat);
-  upperCanopy.position.set(60, 77, -22);
-  group.add(upperCanopy);
-
-  // --- Eingang im Erdgeschoss (Südwand +Z, z = 32.5) ---
-  const entryPatch = new THREE.Mesh(getSharedBoxGeometry(22, 1, 27), pathMat);
-  entryPatch.position.set(40, 3.1, 46.5);
-  group.add(entryPatch);
-
-  const groundFrame = new THREE.Mesh(getSharedBoxGeometry(13, 33, 1), frameMat);
-  groundFrame.position.set(40, 19.5, 33);
-  group.add(groundFrame);
-
-  const groundDoor = new THREE.Mesh(getSharedBoxGeometry(10, 30, 1), doorMat);
-  groundDoor.position.set(40, 18, 33.5);
-  group.add(groundDoor);
-
-  const groundStep = new THREE.Mesh(getSharedBoxGeometry(14, 1.5, 4), stairMat);
-  groundStep.position.set(40, 3.75, 35);
-  group.add(groundStep);
-
-  const groundCanopy = new THREE.Mesh(getSharedBoxGeometry(18, 1.5, 8), roofMat);
-  groundCanopy.position.set(40, 37.5, 36.5);
-  group.add(groundCanopy);
+  const handrail = new THREE.Mesh(getSharedBoxGeometry(1.0, 1.2, 58), steelMat);
+  handrail.position.set(59.5, 38, 3);
+  handrail.rotation.x = 0.82;
+  group.add(handrail);
 }
 
-/** Vereinfachte Low-Poly Variante des Stellwerks (LOD bei Distanz >= 3200 mm) */
+/** Vereinfachte Low-Poly Variante des Stellwerks (LOD >= 3500 mm) */
 export function buildSignalBoxLowPoly3D(group: THREE.Group): void {
-  const grassMat = getSharedMaterial(0x4d7c0f, 0.88);
-  const brickMat = getSharedMaterial(0x854d0e, 0.85);
-  const topWallMat = getSharedMaterial(0xd97706, 0.6);
-  const glassMat = getSharedMaterial(0x0284c7, 0.15, 0.85);
-  const roofMat = getSharedMaterial(0x1e293b, 0.7);
-  const stairMat = getSharedMaterial(0x64748b, 0.5, 0.6);
+  const stoneMat = getSharedMaterial(0x64748b, 0.88);
+  const brickMat = getSharedMaterial(0x9a3412, 0.82);
+  const upperWallMat = getSharedMaterial(0xe5d6be, 0.76);
+  const roofMat = getSharedMaterial(0x334155, 0.62, 0.3);
 
-  // Landschaftsplatte
-  const grass = new THREE.Mesh(getSharedBoxGeometry(180, 3, 130), grassMat);
-  grass.position.set(10, 1.5, 0);
-  group.add(grass);
+  const plinth = new THREE.Mesh(getSharedBoxGeometry(118, 5, 73), stoneMat);
+  plinth.position.set(0, 2.5, 0);
+  group.add(plinth);
 
-  // Untergeschoss
-  const groundFloor = new THREE.Mesh(getSharedBoxGeometry(100, 45, 65), brickMat);
-  groundFloor.position.set(0, 24, 0);
+  const groundFloor = new THREE.Mesh(getSharedBoxGeometry(92, 42, 58), brickMat);
+  groundFloor.position.set(-4, 26, 0);
   group.add(groundFloor);
 
-  // Obergeschoss
-  const topFloor = new THREE.Mesh(getSharedBoxGeometry(112, 35, 75), topWallMat);
-  topFloor.position.set(0, 64, 0);
+  const topFloor = new THREE.Mesh(getSharedBoxGeometry(106, 36, 68), upperWallMat);
+  topFloor.position.set(-4, 65, 0);
   group.add(topFloor);
 
-  // Panorama-Fensterband
-  const glassGeo = getSharedBoxGeometry(106, 20, 1);
-  const frontGlass = new THREE.Mesh(glassGeo, glassMat);
-  frontGlass.position.set(0, 67.5, 38);
-  group.add(frontGlass);
-
-  const backGlass = new THREE.Mesh(glassGeo, glassMat);
-  backGlass.position.set(0, 67.5, -38);
-  group.add(backGlass);
-
-  // Flachdach
-  const roof = new THREE.Mesh(getSharedBoxGeometry(122, 5, 85), roofMat);
-  roof.position.set(0, 84, 0);
+  const roof = new THREE.Mesh(getSharedBoxGeometry(116, 7, 78), roofMat);
+  roof.position.set(-4, 87, 0);
   group.add(roof);
-
-  // Treppenblock vereinfacht
-  const stairBlock = new THREE.Mesh(getSharedBoxGeometry(8, 43.5, 36), stairMat);
-  stairBlock.position.set(55, 24.75, 6);
-  group.add(stairBlock);
 }

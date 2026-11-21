@@ -4,6 +4,7 @@ import { getBaseboardPolygon, isPointInsideBaseboard } from "@/core/layout";
 import { deg2rad, dist, isCurvedTrackEntry, isStraightTrackEntry, transformPoint } from "@/core/geometry";
 import { getMinClearanceHeightForScale } from "@/core/ramp-generator";
 import { getPieceConnectorHeight } from "@/core/snapping";
+import { isWasmReady, simplifyCutoutPolygonKernel } from "@/core/wasm-bridge";
 
 export interface TrackCutoutPolygon {
   points: Array<{ x: number; y: number }>;
@@ -421,30 +422,48 @@ export function computeTableTrackCutouts(
     const bMinY = baseboardBounds.y + inset;
     const bMaxY = baseboardBounds.y + baseboardBounds.depth - inset;
 
-    const clampedPolygon = rawPolygon.map((p) => ({
-      x: Math.max(bMinX, Math.min(bMaxX, Math.round(p.x * 10) / 10)),
-      y: Math.max(bMinY, Math.min(bMaxY, Math.round(p.y * 10) / 10)),
-    }));
-
-    // Deduplicate consecutive points and filter micro-segments to prevent self-intersecting bevel contours
-    const dedupedPolygon: Array<{ x: number; y: number }> = [];
-    for (const p of clampedPolygon) {
-      if (
-        dedupedPolygon.length === 0 ||
-        dist(p, dedupedPolygon[dedupedPolygon.length - 1]!) >= 3.0
-      ) {
-        dedupedPolygon.push(p);
+    let simplified: Array<{ x: number; y: number }> | null = null;
+    if (isWasmReady()) {
+      const rawFlat = new Float64Array(rawPolygon.length * 2);
+      for (let i = 0; i < rawPolygon.length; i++) {
+        rawFlat[i * 2] = rawPolygon[i]!.x;
+        rawFlat[i * 2 + 1] = rawPolygon[i]!.y;
+      }
+      const resFlat = simplifyCutoutPolygonKernel(rawFlat, bMinX, bMaxX, bMinY, bMaxY, 3.0, 0.04);
+      if (resFlat) {
+        simplified = [];
+        for (let i = 0; i + 1 < resFlat.length; i += 2) {
+          simplified.push({ x: resFlat[i]!, y: resFlat[i + 1]! });
+        }
       }
     }
 
-    // Remove collinear points along boundary edges and straight runs
-    const simplified = simplifyCollinear(dedupedPolygon, 0.04);
+    if (!simplified) {
+      const clampedPolygon = rawPolygon.map((p) => ({
+        x: Math.max(bMinX, Math.min(bMaxX, Math.round(p.x * 10) / 10)),
+        y: Math.max(bMinY, Math.min(bMaxY, Math.round(p.y * 10) / 10)),
+      }));
 
-    if (
-      simplified.length > 2 &&
-      dist(simplified[0]!, simplified[simplified.length - 1]!) <= 2.0
-    ) {
-      simplified.pop();
+      // Deduplicate consecutive points and filter micro-segments to prevent self-intersecting bevel contours
+      const dedupedPolygon: Array<{ x: number; y: number }> = [];
+      for (const p of clampedPolygon) {
+        if (
+          dedupedPolygon.length === 0 ||
+          dist(p, dedupedPolygon[dedupedPolygon.length - 1]!) >= 3.0
+        ) {
+          dedupedPolygon.push(p);
+        }
+      }
+
+      // Remove collinear points along boundary edges and straight runs
+      simplified = simplifyCollinear(dedupedPolygon, 0.04);
+
+      if (
+        simplified.length > 2 &&
+        dist(simplified[0]!, simplified[simplified.length - 1]!) <= 2.0
+      ) {
+        simplified.pop();
+      }
     }
 
     if (simplified.length < 3) continue;

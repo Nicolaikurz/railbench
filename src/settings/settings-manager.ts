@@ -17,6 +17,8 @@ export interface AppSettings {
   barsLocked?: boolean;
   /** Low-GPU-Modus (30 FPS Limit, reduzierte Auflösung, 3D-Schatten aus) */
   lowGpuMode?: boolean;
+  /** Dedizierte GPU (dGPU / high-performance) ausschließlich für die 3D-Ansicht nutzen (2D bleibt auf iGPU) */
+  useDiscreteGpu3D?: boolean;
   /** Auswahlsperre aufgehoben (alle Ebenen & gelöschte Ebenen auswählbar) */
   selectionLockDisabled?: boolean;
   /** Drehungswinkel-Schrittweite in Grad (z.B. 5.7, 30, 90) */

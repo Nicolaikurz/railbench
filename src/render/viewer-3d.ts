@@ -35,8 +35,8 @@ export class Viewer3D {
   private container: HTMLElement;
   private scene: THREE.Scene;
   private camera: THREE.PerspectiveCamera;
-  private renderer: THREE.WebGLRenderer;
-  private controls: OrbitControls;
+  private renderer!: THREE.WebGLRenderer;
+  private controls!: OrbitControls;
   private animId: number | null = null;
   private trackGroup = new THREE.Group();
   private tableGroup = new THREE.Group();
@@ -101,7 +101,9 @@ export class Viewer3D {
   private readonly _curHemiSky = new THREE.Color();
   private readonly _curHemiGnd = new THREE.Color();
 
-  constructor(host: HTMLElement) {
+  constructor(host: HTMLElement, useDiscreteGpu = false, lowGpuMode = false) {
+    this.useDiscreteGpu = useDiscreteGpu;
+    this.lowGpuMode = lowGpuMode;
     this.container = document.createElement("div");
     this.container.className = "viewer-3d-container";
     this.container.style.position = "absolute";
@@ -140,42 +142,8 @@ export class Viewer3D {
     this.camera = new THREE.PerspectiveCamera(45, width / height, 8, 110000);
     this.camera.position.set(0, 1600, 2200);
 
-    // 3. WebGL Renderer (bevorzugt dedizierte GPU für maximale 3D-Beschleunigung)
-    try {
-      this.renderer = new THREE.WebGLRenderer({
-        antialias: true,
-        alpha: false,
-        stencil: false,
-        powerPreference: "high-performance",
-      });
-      this.renderer.setSize(width, height);
-      // Begrenzung auf max. 1.25 DPR spart auf Retina/4K-Displays ~300-500 MB Framebuffer-VRAM bei gestochen scharfem MSAA
-      this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25));
-      this.renderer.shadowMap.enabled = true;
-      this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-      this.renderer.shadowMap.autoUpdate = false;
-      this.renderer.shadowMap.needsUpdate = true;
-      this.container.appendChild(this.renderer.domElement);
-
-      // 4. Orbit Controls (Volle 360°/180° Perspektivenfreiheit inkl. Ansicht von unten)
-      this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-      this.controls.enableDamping = true;
-      this.controls.dampingFactor = 0.08;
-      this.controls.minPolarAngle = 0;
-      this.controls.maxPolarAngle = Math.PI;
-      this.controls.minAzimuthAngle = -Infinity;
-      this.controls.maxAzimuthAngle = Infinity;
-      this.controls.minDistance = 30;
-      this.controls.maxDistance = 65000;
-      this.controls.target.set(0, 0, 0);
-      this.controls.addEventListener("change", () => {
-        this.needsRender = true;
-      });
-    } catch (err) {
-      console.warn("[Viewer3D] WebGL context initialization failed:", err);
-      this.renderer = null as any;
-      this.controls = null as any;
-    }
+    // 3. WebGL Renderer (standardmäßig iGPU / "low-power", optional dGPU / "high-performance")
+    this.initWebGLRenderer(width, height);
 
     // 5. Lighting
     this.setupLighting();
@@ -228,13 +196,16 @@ export class Viewer3D {
 
   requestRender() {
     this.needsRender = true;
+    if (this.isVisible) {
+      this.scheduleRenderLoop();
+    }
   }
 
   requestShadowUpdate() {
-    if (this.renderer) {
+    if (this.renderer && this.renderer.shadowMap.enabled) {
       this.renderer.shadowMap.needsUpdate = true;
     }
-    this.needsRender = true;
+    this.requestRender();
   }
 
   setTheme(theme: "light" | "dark") {
@@ -253,8 +224,8 @@ export class Viewer3D {
     this.sunLight = new THREE.DirectionalLight(0xfff8ed, 1.4);
     this.sunLight.position.set(1600, 3200, 1400);
     this.sunLight.castShadow = true;
-    this.sunLight.shadow.mapSize.width = 1024;
-    this.sunLight.shadow.mapSize.height = 1024;
+    this.sunLight.shadow.mapSize.width = 2048;
+    this.sunLight.shadow.mapSize.height = 2048;
     this.sunLight.shadow.camera.near = 100;
     this.sunLight.shadow.camera.far = 18000;
     const d = 3200;
@@ -784,59 +755,170 @@ export class Viewer3D {
   }
 
   private lowGpuMode = false;
+  private useDiscreteGpu = false;
   private lastRenderTs = 0;
+  private lowGpuTimer: ReturnType<typeof setTimeout> | null = null;
+
+  private getTargetPixelRatio(): number {
+    const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
+    // Scharfe 3D-Darstellung auch beim Herauszoomen auf FHD (1.5x im Low-GPU-Modus, 2.0x normal)
+    return this.lowGpuMode ? Math.min(Math.max(dpr, 1.5), 1.5) : Math.min(Math.max(dpr, 2.0), 2.0);
+  }
+
+  private initWebGLRenderer(width: number, height: number, target?: THREE.Vector3) {
+    try {
+      this.renderer = new THREE.WebGLRenderer({
+        antialias: true,
+        alpha: false,
+        stencil: false,
+        powerPreference: this.useDiscreteGpu ? "high-performance" : "low-power",
+      });
+      this.renderer.setSize(width, height);
+      this.renderer.setPixelRatio(this.getTargetPixelRatio());
+      this.renderer.shadowMap.enabled = true;
+      this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      this.renderer.shadowMap.autoUpdate = false;
+      this.renderer.shadowMap.needsUpdate = true;
+      if (this.sunLight) {
+        this.sunLight.castShadow = true;
+      }
+      // Canvas als erstes Element einfügen, damit Overlay-UI darüber bleibt
+      if (this.container.firstChild) {
+        this.container.insertBefore(this.renderer.domElement, this.container.firstChild);
+      } else {
+        this.container.appendChild(this.renderer.domElement);
+      }
+
+      // 4. Orbit Controls (Volle 360°/180° Perspektivenfreiheit inkl. Ansicht von unten)
+      this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+      this.controls.enableDamping = true;
+      this.controls.dampingFactor = 0.08;
+      this.controls.minPolarAngle = 0;
+      this.controls.maxPolarAngle = Math.PI;
+      this.controls.minAzimuthAngle = -Infinity;
+      this.controls.maxAzimuthAngle = Infinity;
+      this.controls.minDistance = 30;
+      this.controls.maxDistance = 65000;
+      if (target) {
+        this.controls.target.copy(target);
+      } else {
+        this.controls.target.set(0, 0, 0);
+      }
+      this.controls.addEventListener("start", () => {
+        this.requestRender();
+      });
+      this.controls.addEventListener("change", () => {
+        this.requestRender();
+      });
+    } catch (err) {
+      console.warn("[Viewer3D] WebGL context initialization failed:", err);
+      this.renderer = null as any;
+      this.controls = null as any;
+    }
+  }
+
+  setUseDiscreteGpu(enabled: boolean) {
+    if (this.useDiscreteGpu === enabled) return;
+    this.useDiscreteGpu = enabled;
+    if (!this.renderer) return;
+
+    const prevTarget = this.controls ? this.controls.target.clone() : new THREE.Vector3(0, 0, 0);
+    const width = this.container.clientWidth || this.renderer.domElement.clientWidth || 800;
+    const height = this.container.clientHeight || this.renderer.domElement.clientHeight || 600;
+
+    try {
+      this.controls?.dispose();
+    } catch {}
+    try {
+      const oldCanvas = this.renderer.domElement;
+      this.renderer.dispose();
+      oldCanvas?.remove();
+    } catch {}
+
+    this.initWebGLRenderer(width, height, prevTarget);
+    this.requestRender();
+  }
 
   setLowGpuMode(enabled: boolean) {
     if (this.lowGpuMode === enabled) return;
     this.lowGpuMode = enabled;
+    if (this.renderer) {
+      this.renderer.setPixelRatio(this.getTargetPixelRatio());
+    }
     this.requestRender();
   }
 
-  private startLoop() {
-    if (this.animId !== null) return;
-    this.lastFrameTime = performance.now();
-    const animate = () => {
-      this.animId = requestAnimationFrame(animate);
-      const now = performance.now();
-      if (this.lowGpuMode && now - this.lastRenderTs < 1000 / 30) {
+  private scheduleRenderLoop() {
+    if (!this.isVisible || this.animId !== null || this.lowGpuTimer !== null) return;
+    if (this.lowGpuMode) {
+      const elapsed = performance.now() - this.lastRenderTs;
+      const minIntervalMs = 1000 / 30;
+      if (elapsed < minIntervalMs) {
+        this.lowGpuTimer = setTimeout(() => {
+          this.lowGpuTimer = null;
+          if (!this.isVisible || this.animId !== null) return;
+          this.animId = requestAnimationFrame(this.runRenderFrame);
+        }, Math.max(1, Math.ceil(minIntervalMs - elapsed)));
         return;
       }
-      const dt = Math.min((now - this.lastFrameTime) / 1000, 0.1);
-      this.lastFrameTime = now;
+    }
+    this.animId = requestAnimationFrame(this.runRenderFrame);
+  }
 
-      if (this.dayNightActive && this.envMode !== "minimal") {
-        this.updateDayNight(dt);
+  private runRenderFrame = () => {
+    this.animId = null;
+    if (!this.isVisible) return;
+
+    const now = performance.now();
+    const dt = Math.min((now - this.lastFrameTime) / 1000, 0.1);
+    this.lastFrameTime = now;
+
+    const dayNightRunning = this.dayNightActive && this.envMode !== "minimal";
+    if (dayNightRunning) {
+      this.updateDayNight(dt);
+    }
+
+    // OrbitControls with damping: update() returns true if camera target or position changed
+    const controlsChanged = this.controls ? this.controls.update() : false;
+    if (controlsChanged) {
+      this.needsRender = true;
+    }
+
+    if (this.needsRender) {
+      this.lastRenderTs = now;
+      if (this.envMode !== "minimal") {
+        if (this.sunCorona) this.sunCorona.quaternion.copy(this.camera.quaternion);
+        if (this.moonGlow) this.moonGlow.quaternion.copy(this.camera.quaternion);
       }
 
-      // OrbitControls with damping: update() returns true if camera target or position changed
-      const controlsChanged = this.controls ? this.controls.update() : false;
-      if (controlsChanged) {
-        this.needsRender = true;
+      updateViewCubeOrientation(this.viewCubeEl, this.camera, this.controls);
+      if (this.camera) {
+        const aboveFloor = this.camera.position.y >= -700;
+        this.trainHallGroup.visible = this.envMode === "hall" && aboveFloor;
+        this.landscapeGroup.visible = this.envMode === "landscape" && aboveFloor;
       }
-
-      if (this.needsRender) {
-        this.lastRenderTs = now;
-        if (this.envMode !== "minimal") {
-          if (this.sunCorona) this.sunCorona.quaternion.copy(this.camera.quaternion);
-          if (this.moonGlow) this.moonGlow.quaternion.copy(this.camera.quaternion);
-        }
-
-        updateViewCubeOrientation(this.viewCubeEl, this.camera, this.controls);
-        if (this.camera) {
-          const aboveFloor = this.camera.position.y >= -700;
-          this.trainHallGroup.visible = this.envMode === "hall" && aboveFloor;
-          this.landscapeGroup.visible = this.envMode === "landscape" && aboveFloor;
-        }
-        if (this.renderer && this.scene && this.camera) {
-          this.renderer.render(this.scene, this.camera);
-        }
-        this.needsRender = false;
+      if (this.renderer && this.scene && this.camera) {
+        this.renderer.render(this.scene, this.camera);
       }
-    };
-    animate();
+      this.needsRender = false;
+    }
+
+    // On-Demand: nur nächsten Frame planen, wenn Day/Night läuft oder Kamera-Damping noch ausläuft
+    if (dayNightRunning || controlsChanged || this.needsRender) {
+      this.scheduleRenderLoop();
+    }
+  };
+
+  private startLoop() {
+    this.lastFrameTime = performance.now();
+    this.requestRender();
   }
 
   private stopLoop() {
+    if (this.lowGpuTimer !== null) {
+      clearTimeout(this.lowGpuTimer);
+      this.lowGpuTimer = null;
+    }
     if (this.animId !== null) {
       cancelAnimationFrame(this.animId);
       this.animId = null;
@@ -851,7 +933,7 @@ export class Viewer3D {
 
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25));
+    this.renderer.setPixelRatio(this.getTargetPixelRatio());
     this.renderer.setSize(width, height);
     this.requestRender();
   }

@@ -1,6 +1,7 @@
 import type { Layout, TrackPiece, Connector } from "./types";
 import { catalogRegistry, computeWorldConnectors, isFeederEntry, type Catalog, type CatalogEntry } from "@/catalog/catalog";
 import { dist, deg2rad, normAngle } from "./geometry";
+import { isWasmReady, solvePowerDijkstraKernel, solveShortCircuitDsuKernel } from "./wasm-bridge";
 
 export type PowerStatus = "optimal" | "warning" | "critical" | "disconnected";
 
@@ -330,55 +331,110 @@ export function detectShortCircuit(layout: Layout, catalog: Catalog): ShortCircu
     }
   }
 
-  const dsu = new DisjointSet();
   const shortCircuitPoints: ShortCircuitPoint[] = [];
-
-  for (const conn of connections) {
-    const entry1 = entryMap.get(conn.p1.catalogId) ?? catalogRegistry.findEntry(conn.p1.catalogId);
-    const entry2 = entryMap.get(conn.p2.catalogId) ?? catalogRegistry.findEntry(conn.p2.catalogId);
-
-    const node1L = getRailTerminal(conn.p1, entry1, conn.cIdx1, "L");
-    const node1R = getRailTerminal(conn.p1, entry1, conn.cIdx1, "R");
-    const node2L = getRailTerminal(conn.p2, entry2, conn.cIdx2, "L");
-    const node2R = getRailTerminal(conn.p2, entry2, conn.cIdx2, "R");
-
-    // Beim Zusammenstecken berührt 1L -> 2R und 1R -> 2L
-    // Wenn vor dem Verbinden node1L und node2L (oder node1R und node2R) bereits im selben Set waren,
-    // führt das Verbinden von 1L mit 2R dazu, dass 2L mit 2R kurzgeschlossen wird!
-    const willShortCircuit =
-      dsu.find(node1L) === dsu.find(node2L) ||
-      dsu.find(node1R) === dsu.find(node2R) ||
-      dsu.find(node1L) === dsu.find(node1R) ||
-      dsu.find(node2L) === dsu.find(node2R);
-
-    if (willShortCircuit && dsu.find(node1L) !== dsu.find(node2R)) {
-      shortCircuitPoints.push({
-        pieceId1: conn.p1.id,
-        connectorIndex1: conn.cIdx1,
-        pieceId2: conn.p2.id,
-        connectorIndex2: conn.cIdx2,
-        x: (conn.c1.x + conn.c2.x) / 2,
-        y: (conn.c1.y + conn.c2.y) / 2,
-      });
-    }
-
-    dsu.union(node1L, node2R);
-    dsu.union(node1R, node2L);
-  }
-
   const shortCircuitPieces = new Set<string>();
-  for (const p of pieces) {
-    const r1 = `${p.id}:1`;
-    const r2 = `${p.id}:2`;
-    if (dsu.find(r1) === dsu.find(r2)) {
-      shortCircuitPieces.add(p.id);
+
+  if (isWasmReady() && connections.length > 0) {
+    const termMap = new Map<string, number>();
+    const getTermIdx = (key: string): number => {
+      let id = termMap.get(key);
+      if (id === undefined) {
+        id = termMap.size;
+        termMap.set(key, id);
+      }
+      return id;
+    };
+
+    const edgeArr = new Uint32Array(connections.length * 4);
+    for (let i = 0; i < connections.length; i++) {
+      const conn = connections[i]!;
+      const entry1 = entryMap.get(conn.p1.catalogId) ?? catalogRegistry.findEntry(conn.p1.catalogId);
+      const entry2 = entryMap.get(conn.p2.catalogId) ?? catalogRegistry.findEntry(conn.p2.catalogId);
+      edgeArr[i * 4] = getTermIdx(getRailTerminal(conn.p1, entry1, conn.cIdx1, "L"));
+      edgeArr[i * 4 + 1] = getTermIdx(getRailTerminal(conn.p1, entry1, conn.cIdx1, "R"));
+      edgeArr[i * 4 + 2] = getTermIdx(getRailTerminal(conn.p2, entry2, conn.cIdx2, "L"));
+      edgeArr[i * 4 + 3] = getTermIdx(getRailTerminal(conn.p2, entry2, conn.cIdx2, "R"));
     }
-    const entry = entryMap.get(p.catalogId) ?? catalogRegistry.findEntry(p.catalogId);
-    if (entry?.kind === "crossing") {
-      const r3 = `${p.id}:3`;
-      const r4 = `${p.id}:4`;
-      if (dsu.find(r3) === dsu.find(r4)) {
+
+    const pairPieceIds: string[] = [];
+    const pairIndices: number[] = [];
+    for (const p of pieces) {
+      pairPieceIds.push(p.id);
+      pairIndices.push(getTermIdx(`${p.id}:1`), getTermIdx(`${p.id}:2`));
+      const entry = entryMap.get(p.catalogId) ?? catalogRegistry.findEntry(p.catalogId);
+      if (entry?.kind === "crossing") {
+        pairPieceIds.push(p.id);
+        pairIndices.push(getTermIdx(`${p.id}:3`), getTermIdx(`${p.id}:4`));
+      }
+    }
+
+    const res = solveShortCircuitDsuKernel(termMap.size, edgeArr, new Uint32Array(pairIndices));
+    if (res) {
+      for (let i = 0; i < connections.length; i++) {
+        if (res[i]) {
+          const conn = connections[i]!;
+          shortCircuitPoints.push({
+            pieceId1: conn.p1.id,
+            connectorIndex1: conn.cIdx1,
+            pieceId2: conn.p2.id,
+            connectorIndex2: conn.cIdx2,
+            x: (conn.c1.x + conn.c2.x) / 2,
+            y: (conn.c1.y + conn.c2.y) / 2,
+          });
+        }
+      }
+      for (let i = 0; i < pairPieceIds.length; i++) {
+        if (res[connections.length + i]) {
+          shortCircuitPieces.add(pairPieceIds[i]!);
+        }
+      }
+    }
+  } else {
+    const dsu = new DisjointSet();
+
+    for (const conn of connections) {
+      const entry1 = entryMap.get(conn.p1.catalogId) ?? catalogRegistry.findEntry(conn.p1.catalogId);
+      const entry2 = entryMap.get(conn.p2.catalogId) ?? catalogRegistry.findEntry(conn.p2.catalogId);
+
+      const node1L = getRailTerminal(conn.p1, entry1, conn.cIdx1, "L");
+      const node1R = getRailTerminal(conn.p1, entry1, conn.cIdx1, "R");
+      const node2L = getRailTerminal(conn.p2, entry2, conn.cIdx2, "L");
+      const node2R = getRailTerminal(conn.p2, entry2, conn.cIdx2, "R");
+
+      const willShortCircuit =
+        dsu.find(node1L) === dsu.find(node2L) ||
+        dsu.find(node1R) === dsu.find(node2R) ||
+        dsu.find(node1L) === dsu.find(node1R) ||
+        dsu.find(node2L) === dsu.find(node2R);
+
+      if (willShortCircuit && dsu.find(node1L) !== dsu.find(node2R)) {
+        shortCircuitPoints.push({
+          pieceId1: conn.p1.id,
+          connectorIndex1: conn.cIdx1,
+          pieceId2: conn.p2.id,
+          connectorIndex2: conn.cIdx2,
+          x: (conn.c1.x + conn.c2.x) / 2,
+          y: (conn.c1.y + conn.c2.y) / 2,
+        });
+      }
+
+      dsu.union(node1L, node2R);
+      dsu.union(node1R, node2L);
+    }
+
+    for (const p of pieces) {
+      const r1 = `${p.id}:1`;
+      const r2 = `${p.id}:2`;
+      if (dsu.find(r1) === dsu.find(r2)) {
         shortCircuitPieces.add(p.id);
+      }
+      const entry = entryMap.get(p.catalogId) ?? catalogRegistry.findEntry(p.catalogId);
+      if (entry?.kind === "crossing") {
+        const r3 = `${p.id}:3`;
+        const r4 = `${p.id}:4`;
+        if (dsu.find(r3) === dsu.find(r4)) {
+          shortCircuitPieces.add(p.id);
+        }
       }
     }
   }
@@ -611,56 +667,69 @@ export function simulatePowerDrop(
     }
   }
 
-  // 3. Multi-Source Dijkstra zur Berechnung des kürzesten elektrischen Widerstands von Einspeisungen
+  // 3. Multi-Source Dijkstra (Rust-WASM-Kernel wenn gebaut, sonst binärer Min-Heap in JS: O((V+E) log V))
+  const nPieces = pieces.length;
+  const pieceIdToIdx = new Map<string, number>();
+  const pieceLenM = new Float64Array(nPieces);
+  for (let i = 0; i < nPieces; i++) {
+    const p = pieces[i]!;
+    pieceIdToIdx.set(p.id, i);
+    pieceLenM[i] = getPieceLengthMeters(entryMap.get(p.catalogId));
+  }
+
+  const adjOffsets = new Uint32Array(nPieces + 1);
+  let totalEdges = 0;
+  for (let i = 0; i < nPieces; i++) {
+    const nbrs = adj.get(pieces[i]!.id);
+    adjOffsets[i] = totalEdges;
+    if (nbrs) totalEdges += nbrs.size;
+  }
+  adjOffsets[nPieces] = totalEdges;
+
+  const adjNeighbors = new Uint32Array(totalEdges);
+  let edgeCursor = 0;
+  for (let i = 0; i < nPieces; i++) {
+    const nbrs = adj.get(pieces[i]!.id);
+    if (nbrs) {
+      for (const nbrId of nbrs) {
+        const nbrIdx = pieceIdToIdx.get(nbrId);
+        if (nbrIdx !== undefined) {
+          adjNeighbors[edgeCursor++] = nbrIdx;
+        }
+      }
+    }
+    adjOffsets[i + 1] = edgeCursor;
+  }
+
+  const feederIndicesArr: number[] = [];
+  for (const feeder of feeders) {
+    const idx = pieceIdToIdx.get(feeder.id);
+    if (idx !== undefined) feederIndicesArr.push(idx);
+  }
+
+  const solved = solvePowerDijkstraKernel(
+    nPieces,
+    adjOffsets,
+    adjNeighbors.subarray(0, edgeCursor),
+    pieceLenM,
+    new Uint32Array(feederIndicesArr),
+    railOhmPerMeter,
+    jointResistanceOhm,
+  );
+
   const minResistance = new Map<string, number>();
   const minDistance = new Map<string, number>();
   const parent = new Map<string, string | null>();
   const edgeResToParent = new Map<string, number>();
-  const pq: { pieceId: string; res: number; distM: number }[] = [];
 
-  for (const p of pieces) {
-    minResistance.set(p.id, Infinity);
-    minDistance.set(p.id, Infinity);
-  }
-
-  for (const feeder of feeders) {
-    const entry = entryMap.get(feeder.catalogId);
-    const pieceLen = getPieceLengthMeters(entry);
-    const initialRes = (pieceLen / 2) * railOhmPerMeter; // Mittlerer Widerstand am Einspeisepunkt
-    minResistance.set(feeder.id, initialRes);
-    minDistance.set(feeder.id, 0);
-    parent.set(feeder.id, null);
-    edgeResToParent.set(feeder.id, initialRes);
-    pq.push({ pieceId: feeder.id, res: initialRes, distM: 0 });
-  }
-
-  // Dijkstra ausführen
-  while (pq.length > 0) {
-    pq.sort((a, b) => a.res - b.res);
-    const curr = pq.shift()!;
-    if (curr.res > (minResistance.get(curr.pieceId) ?? Infinity)) continue;
-
-    const currPiece = pieces.find((p) => p.id === curr.pieceId);
-    if (!currPiece) continue;
-
-    const neighbors = adj.get(curr.pieceId) ?? new Set();
-    for (const nbrId of neighbors) {
-      const nbrPiece = pieces.find((p) => p.id === nbrId);
-      if (!nbrPiece) continue;
-
-      const nbrEntry = entryMap.get(nbrPiece.catalogId);
-      const lenM = getPieceLengthMeters(nbrEntry);
-      const edgeRes = lenM * railOhmPerMeter + jointResistanceOhm;
-      const newRes = curr.res + edgeRes;
-      const newDist = curr.distM + lenM;
-
-      if (newRes < (minResistance.get(nbrId) ?? Infinity)) {
-        minResistance.set(nbrId, newRes);
-        minDistance.set(nbrId, newDist);
-        parent.set(nbrId, curr.pieceId);
-        edgeResToParent.set(nbrId, edgeRes);
-        pq.push({ pieceId: nbrId, res: newRes, distM: newDist });
-      }
+  for (let i = 0; i < nPieces; i++) {
+    const pid = pieces[i]!.id;
+    minResistance.set(pid, solved.minResistance[i]!);
+    minDistance.set(pid, solved.minDistance[i]!);
+    const parIdx = solved.parent[i]!;
+    parent.set(pid, parIdx >= 0 ? pieces[parIdx]!.id : null);
+    if (solved.minResistance[i]! < Infinity) {
+      edgeResToParent.set(pid, solved.edgeResToParent[i]!);
     }
   }
 
@@ -759,39 +828,56 @@ export function simulatePowerDrop(
       }
     }
 
-    // Dijkstra für Oberleitung
-    const catPq: { pieceId: string; res: number }[] = [];
-    for (const p of catenaryPieces) {
-      minCatenaryRes.set(p.id, Infinity);
+    // Dijkstra für Oberleitung (Rust-WASM-Kernel wenn geladen, sonst binärer Min-Heap in JS)
+    const nCat = catenaryPieces.length;
+    const catIdToIdx = new Map<string, number>();
+    const catLenM = new Float64Array(nCat);
+    for (let i = 0; i < nCat; i++) {
+      const cp = catenaryPieces[i]!;
+      catIdToIdx.set(cp.id, i);
+      catLenM[i] = getPieceLengthMeters(entryMap.get(cp.catalogId));
     }
 
-    for (const cf of catenaryFeeders) {
-      const entry = entryMap.get(cf.catalogId);
-      const pieceLen = getPieceLengthMeters(entry);
-      const initRes = (pieceLen / 2) * catenaryOhmPerMeter;
-      minCatenaryRes.set(cf.id, initRes);
-      catPq.push({ pieceId: cf.id, res: initRes });
+    const catOffsets = new Uint32Array(nCat + 1);
+    let totalCatEdges = 0;
+    for (let i = 0; i < nCat; i++) {
+      const nbrs = catAdj.get(catenaryPieces[i]!.id);
+      catOffsets[i] = totalCatEdges;
+      if (nbrs) totalCatEdges += nbrs.size;
     }
+    catOffsets[nCat] = totalCatEdges;
 
-    while (catPq.length > 0) {
-      catPq.sort((a, b) => a.res - b.res);
-      const curr = catPq.shift()!;
-      if (curr.res > (minCatenaryRes.get(curr.pieceId) ?? Infinity)) continue;
-
-      const neighbors = catAdj.get(curr.pieceId) ?? new Set();
-      for (const nbrId of neighbors) {
-        const nbrPiece = catenaryPieces.find((p) => p.id === nbrId);
-        if (!nbrPiece) continue;
-        const nbrEntry = entryMap.get(nbrPiece.catalogId);
-        const lenM = getPieceLengthMeters(nbrEntry);
-        const edgeRes = lenM * catenaryOhmPerMeter + catenaryJointResOhm;
-        const newRes = curr.res + edgeRes;
-
-        if (newRes < (minCatenaryRes.get(nbrId) ?? Infinity)) {
-          minCatenaryRes.set(nbrId, newRes);
-          catPq.push({ pieceId: nbrId, res: newRes });
+    const catNeighbors = new Uint32Array(totalCatEdges);
+    let catCursor = 0;
+    for (let i = 0; i < nCat; i++) {
+      const nbrs = catAdj.get(catenaryPieces[i]!.id);
+      if (nbrs) {
+        for (const nbrId of nbrs) {
+          const idx = catIdToIdx.get(nbrId);
+          if (idx !== undefined) catNeighbors[catCursor++] = idx;
         }
       }
+      catOffsets[i + 1] = catCursor;
+    }
+
+    const catFeederIdx: number[] = [];
+    for (const cf of catenaryFeeders) {
+      const idx = catIdToIdx.get(cf.id);
+      if (idx !== undefined) catFeederIdx.push(idx);
+    }
+
+    const catSolved = solvePowerDijkstraKernel(
+      nCat,
+      catOffsets,
+      catNeighbors.subarray(0, catCursor),
+      catLenM,
+      new Uint32Array(catFeederIdx),
+      catenaryOhmPerMeter,
+      catenaryJointResOhm,
+    );
+
+    for (let i = 0; i < nCat; i++) {
+      minCatenaryRes.set(catenaryPieces[i]!.id, catSolved.minResistance[i]!);
     }
   }
 

@@ -8,9 +8,17 @@ if "%ARCH%"=="" set "ARCH=all"
 for /f "delims=" %%i in ('node -p "require('./package.json').build?.productName || require('./package.json').name || 'railbench'"') do set "PRODUCT_NAME=%%i"
 for /f "delims=" %%i in ('node -p "require('./package.json').version || '0.6.1'"') do set "APP_VERSION=%%i"
 
-echo === Building Windows Portable (Directory ^& ZIP) ===
+echo === Building Windows Portable (ZIP) ===
 echo Application: %PRODUCT_NAME% v%APP_VERSION%
 echo Target Architecture: %ARCH%
+
+if not exist "release\old" mkdir "release\old"
+for %%f in (release\*-win-*.zip release\*-portable-*.exe) do (
+    if exist "%%f" (
+        echo * Archiving old binary -^> release\old\%%~nxf
+        move /y "%%f" "release\old\%%~nxf" >nul
+    )
+)
 
 call npm run build:all
 if %errorlevel% neq 0 (
@@ -33,12 +41,16 @@ if /i "%ARCH%"=="x64" (
 
 if %errorlevel% neq 0 exit /b %errorlevel%
 
+echo * Cleaning intermediate build artifacts...
+if exist "release\win-unpacked" rmdir /s /q "release\win-unpacked"
+if exist "release\win-arm64-unpacked" rmdir /s /q "release\win-arm64-unpacked"
+if exist "release\builder-debug.yml" del /f /q "release\builder-debug.yml"
+if exist "release\builder-effective-config.yaml" del /f /q "release\builder-effective-config.yaml"
+for %%f in (release\latest*.yml release\*.blockmap) do if exist "%%f" del /f /q "%%f"
+
 echo.
 echo ===========================================
 echo Windows Portable build complete!
-echo Folders:
-echo   x64:   release\%PRODUCT_NAME%-%APP_VERSION%-win-x64\%PRODUCT_NAME%.exe
-echo   arm64: release\%PRODUCT_NAME%-%APP_VERSION%-win-arm64\%PRODUCT_NAME%.exe
 echo ZIP Archives:
 echo   x64:   release\%PRODUCT_NAME%-%APP_VERSION%-win-x64.zip
 echo   arm64: release\%PRODUCT_NAME%-%APP_VERSION%-win-arm64.zip
@@ -75,6 +87,7 @@ if exist "%UNPACKED_DIR%" (
         exit /b !errorlevel!
     )
     echo [OK] Created %ZIP_OUTPUT%
+    rmdir /s /q "%STAGED_DIR%"
 ) else (
     echo [WARN] Directory %UNPACKED_DIR% was not generated.
 )

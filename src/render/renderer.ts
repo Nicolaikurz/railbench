@@ -2,8 +2,8 @@ import { Application, Container, Graphics, Sprite, Text, TexturePool } from "pix
 import type { Layout, ColorMode, TrackPiece, BaseboardConfig } from "@/core/types";
 import { catalogRegistry, type Catalog, type CatalogEntry } from "@/catalog/catalog";
 import type { SimulationSummary, ShortCircuitDetectionResult } from "@/core/simulation";
-import { createTrackGraphics } from "./track-sprite";
-import { computeLabelTextResolution } from "./track-badges";
+import { createTrackGraphics, TRACK_TIES_LOD_MIN_SCALE } from "./track-sprite";
+import { computeLabelTextResolution, updateSharedLabelSpriteResolution } from "./track-badges";
 import { CatenaryMast2DContext } from "./track-accessories-sprite";
 import { createBaseboardGraphics } from "./baseboard-sprite";
 import { createModel2DGraphics } from "./model-sprite";
@@ -70,6 +70,7 @@ export class Renderer {
   private renderScheduled = false;
   private rafId = 0;
   private delayedRenderTimer: ReturnType<typeof setTimeout> | null = null;
+  private labelResTimer: ReturnType<typeof setTimeout> | null = null;
   private lowGpuMode = false;
   private lastRenderTs = 0;
   private resizeObserver: ResizeObserver | null = null;
@@ -125,55 +126,28 @@ export class Renderer {
     this.trackSpriteCache.clear();
   }
 
-  /** Schaltet den Low-GPU-Modus um (30 FPS Limit + DPR 1.0 für geringere GPU-Last). */
+  /**
+   * Berechnet die 2D-Canvas-Auflösung (Supersampling auf FHD-Displays für gestochen scharfe
+   * Gleise, Schienen und Schriften auch beim starken Herauszoomen).
+   */
+  private getTarget2DResolution(_lowGpu = this.lowGpuMode): number {
+    const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
+    // Immer mind. 2.0x Supersampling auf FHD für gestochen scharfe 2D-Darstellung bei jedem Zoom
+    return Math.min(Math.max(dpr, 2.0), 2.0);
+  }
+
+  /** Schaltet den Low-GPU-Modus um (30 FPS Limit + 1.5x statt 2.0x Supersampling). */
   setLowGpuMode(enabled: boolean) {
     if (this.lowGpuMode === enabled) return;
     this.lowGpuMode = enabled;
     if (this.app?.renderer) {
-      const targetDpr = enabled
-        ? 1.0
-        : Math.min(typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1, 1.25);
+      const targetDpr = this.getTarget2DResolution(enabled);
       if (this.app.renderer.resolution !== targetDpr) {
         this.app.renderer.resolution = targetDpr;
         this.app.resize();
       }
       this.requestRender();
     }
-  }
-
-  /** Plant genau einen WebGL-Frame via requestAnimationFrame (On-Demand, im Low-GPU-Modus auf 30 FPS gedrosselt). */
-  requestRender() {
-    if (this.isPaused || this.renderScheduled) return;
-    if (!this.app?.renderer || !this.app?.stage) return;
-
-    const scheduleFrame = () => {
-      this.rafId = requestAnimationFrame(() => {
-        this.renderScheduled = false;
-        this.rafId = 0;
-        if (this.isPaused || !this.app?.renderer || !this.app?.stage) return;
-        this.lastRenderTs = performance.now();
-        this.app.renderer.render(this.app.stage);
-      });
-    };
-
-    this.renderScheduled = true;
-    if (this.lowGpuMode) {
-      const elapsed = performance.now() - this.lastRenderTs;
-      const minIntervalMs = 1000 / 30;
-      if (elapsed < minIntervalMs) {
-        this.delayedRenderTimer = setTimeout(() => {
-          this.delayedRenderTimer = null;
-          if (this.isPaused) {
-            this.renderScheduled = false;
-            return;
-          }
-          scheduleFrame();
-        }, Math.max(1, Math.ceil(minIntervalMs - elapsed)));
-        return;
-      }
-      this.requestRender();
-    }
-    scheduleFrame();
   }
 
   /** Plant genau einen WebGL-Frame via requestAnimationFrame (On-Demand, im Low-GPU-Modus auf 30 FPS gedrosselt). */
@@ -216,6 +190,10 @@ export class Renderer {
       clearTimeout(this.delayedRenderTimer);
       this.delayedRenderTimer = null;
     }
+    if (this.labelResTimer !== null) {
+      clearTimeout(this.labelResTimer);
+      this.labelResTimer = null;
+    }
     if (this.rafId) {
       cancelAnimationFrame(this.rafId);
       this.rafId = 0;
@@ -226,7 +204,7 @@ export class Renderer {
 
   resume() {
     this.isPaused = false;
-    this.updateLabelResolutions();
+    this.updateLabelResolutions(true);
     this.requestRender();
   }
 
@@ -253,15 +231,14 @@ export class Renderer {
     this.lowGpuMode = lowGpuMode;
     const isDark = document.documentElement.getAttribute("data-theme") === "dark";
     this.currentTheme = isDark ? "dark" : "light";
-    const dpr = lowGpuMode
-      ? 1.0
-      : Math.min(typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1, 1.25);
+    const dpr = this.getTarget2DResolution(lowGpuMode);
     await this.app.init({
       resizeTo: host,
       background: isDark ? "#131b2e" : "#e4dfd5",
-      antialias: !lowGpuMode,
+      antialias: true,
       autoDensity: true,
       resolution: dpr,
+      powerPreference: "low-power",
       autoStart: false,
     });
     this.app.ticker?.stop();
@@ -869,15 +846,7 @@ export class Renderer {
           this.trackSpriteCache.set(piece.id, { sig: pieceSig, sprite });
         }
 
-      // Nicht mehr vorhandene oder ausgeblendete Gleise aus dem Cache entfernen
-      for (const [id, entry] of this.trackSpriteCache) {
-        if (!activeIds.has(id)) {
-          if (entry.sprite.parent === this.tracksLayer) {
-            this.tracksLayer.removeChild(entry.sprite);
-          }
-          this.destroyDisplayObject(entry.sprite);
-          this.trackSpriteCache.delete(id);
-        }
+        orderedSprites.push(sprite);
       }
 
       // Nicht mehr vorhandene oder ausgeblendete Gleise aus dem Cache entfernen
@@ -921,14 +890,50 @@ export class Renderer {
       this.lastTracksSignature = tracksSig;
     }
 
-    // 2A. Statisches Connector-Overlay cachen (verhindert O(N^2)-Neuberechnung bei jeder Mausbewegung)
+    // 2A. Statisches Connector-Overlay cachen (ohne Hover in Signatur + Spatial-Hash für O(N) statt O(N^2))
     const hov = options.hoveredOpenConnector;
-    const connectorsSig = `${Boolean(options.showConnectors)}_${tracksSig}_${modelsSig}_${hov ? `${hov.pieceId}:${hov.connectorIndex}` : ""}`;
+    const connectorsSig = `${Boolean(options.showConnectors)}_${tracksSig}_${modelsSig}`;
     if (connectorsSig !== this.lastConnectorsSignature) {
       const cov = this.connectorsOverlay;
       cov.clear();
 
       if (options.showConnectors) {
+        // Spatial-Hash-Grid (16 mm Zellen) für schnelle O(1)-Nachbarschaftssuche (Toleranz <= 5 mm)
+        const cellSize = 16;
+        const connectorGrid = new Map<string, TrackPiece[]>();
+        for (const p of layout.pieces) {
+          for (const c of p.connectors) {
+            const cx = Math.floor(c.x / cellSize);
+            const cy = Math.floor(c.y / cellSize);
+            const cellKey = `${cx},${cy}`;
+            let bucket = connectorGrid.get(cellKey);
+            if (!bucket) {
+              bucket = [];
+              connectorGrid.set(cellKey, bucket);
+            }
+            if (!bucket.includes(p)) bucket.push(p);
+          }
+        }
+        const getNearbyPieces = (x: number, y: number): TrackPiece[] => {
+          const cx = Math.floor(x / cellSize);
+          const cy = Math.floor(y / cellSize);
+          const nearby: TrackPiece[] = [];
+          const seen = new Set<string>();
+          for (let dx = -1; dx <= 1; dx++) {
+            for (let dy = -1; dy <= 1; dy++) {
+              const bucket = connectorGrid.get(`${cx + dx},${cy + dy}`);
+              if (!bucket) continue;
+              for (const p of bucket) {
+                if (!seen.has(p.id)) {
+                  seen.add(p.id);
+                  nearby.push(p);
+                }
+              }
+            }
+          }
+          return nearby;
+        };
+
         const drawnConnected = new Set<string>();
         for (const { piece, isInactiveLayer } of this.lastVisibleTrackItems) {
           const alphaMul = isInactiveLayer ? 0.5 : 1.0;
@@ -936,7 +941,8 @@ export class Renderer {
           for (let cIdx = 0; cIdx < piece.connectors.length; cIdx++) {
             const conn = piece.connectors[cIdx]!;
             const isBuildingSnap = isConnectorConnectedToBuilding(conn, layout.models);
-            const info = getConnectorSnapStatus(piece, cIdx, layout.pieces, layout.layers);
+            const nearbyPieces = getNearbyPieces(conn.x, conn.y);
+            const info = getConnectorSnapStatus(piece, cIdx, nearbyPieces, layout.layers);
 
             if (isBuildingSnap) {
               const key = `${pieceLayerKey}:${Math.round(conn.x * 2) / 2},${Math.round(conn.y * 2) / 2}`;
@@ -979,11 +985,7 @@ export class Renderer {
               cov.stroke({ width: 1.2, color: 0xffffff, alpha: 0.95 * alphaMul });
 
               const isSelected = selectedIds.has(piece.id);
-              const isHovered = Boolean(
-                hov && hov.pieceId === piece.id && hov.connectorIndex === cIdx,
-              );
-
-              if ((isSelected || isHovered) && !isInactiveLayer) {
+              if (isSelected && !isInactiveLayer) {
                 const rad = deg2rad(conn.angle);
                 const plusDist = 28;
                 const px = conn.x + Math.cos(rad) * plusDist;
@@ -994,10 +996,10 @@ export class Renderer {
                 cov.stroke({ width: 1.2, color: 0x38bdf8, alpha: 0.75 });
 
                 cov.circle(px, py, 10);
-                cov.fill({ color: 0x0284c7, alpha: isHovered ? 0.35 : 0.2 });
+                cov.fill({ color: 0x0284c7, alpha: 0.2 });
 
                 cov.circle(px, py, 7.5);
-                cov.fill({ color: isHovered ? 0x0284c7 : 0x0ea5e9, alpha: 0.95 });
+                cov.fill({ color: 0x0ea5e9, alpha: 0.95 });
                 cov.stroke({ width: 1.5, color: 0xffffff, alpha: 1.0 });
 
                 const bArm = 3.6;
@@ -1014,7 +1016,8 @@ export class Renderer {
           for (const m of layout.models) {
             const doors = getBuildingDoorConnectors(m);
             for (const door of doors) {
-              const isConnected = layout.pieces.some((p) =>
+              const nearby = getNearbyPieces(door.x, door.y);
+              const isConnected = nearby.some((p) =>
                 p.connectors.some((c) => dist(c, door) <= 5.0),
               );
               const key = `${Math.round(door.x * 2) / 2},${Math.round(door.y * 2) / 2}`;
@@ -1043,11 +1046,41 @@ export class Renderer {
       this.lastConnectorsSignature = connectorsSig;
     }
 
-    // 2B. Transiente Overlays rendern (Snap-Ziele, Flexgleis-Griffe, Auswahlrahmen, Messwerkzeug)
+    // 2B. Transiente Overlays rendern (Hovered Connector +, Snap-Ziele, Flexgleis-Griffe, Auswahlrahmen, Messwerkzeug)
     this.clearLayer(this.overlayLayer);
     const ov = this.overlayGraphics;
     ov.clear();
     this.overlayLayer.addChild(ov);
+
+    // Hovered Open-Connector '+' Button im transienten Overlay (kein Rebuild von connectorsOverlay nötig!)
+    if (options.showConnectors && hov) {
+      const hovPiece = layout.pieces.find((p) => p.id === hov.pieceId);
+      const hovConn = hovPiece?.connectors[hov.connectorIndex];
+      const hovLayerId = hovPiece?.layerId || defaultLayerId;
+      const hovInactive = hasMultipleLayers && hovLayerId !== activeLayerId;
+      if (hovPiece && hovConn && !hovInactive) {
+        const rad = deg2rad(hovConn.angle);
+        const plusDist = 28;
+        const px = hovConn.x + Math.cos(rad) * plusDist;
+        const py = hovConn.y + Math.sin(rad) * plusDist;
+
+        ov.moveTo(hovConn.x + Math.cos(rad) * 6, hovConn.y + Math.sin(rad) * 6)
+          .lineTo(px - Math.cos(rad) * 7.5, py - Math.sin(rad) * 7.5);
+        ov.stroke({ width: 1.2, color: 0x38bdf8, alpha: 0.85 });
+
+        ov.circle(px, py, 10);
+        ov.fill({ color: 0x0284c7, alpha: 0.35 });
+
+        ov.circle(px, py, 7.5);
+        ov.fill({ color: 0x0284c7, alpha: 0.95 });
+        ov.stroke({ width: 1.5, color: 0xffffff, alpha: 1.0 });
+
+        const bArm = 3.6;
+        ov.moveTo(px - bArm, py).lineTo(px + bArm, py);
+        ov.moveTo(px, py - bArm).lineTo(px, py + bArm);
+        ov.stroke({ width: 1.8, color: 0xffffff, alpha: 1.0 });
+      }
+    }
 
     // Falls gerade ein Snap-Ziel aktiv ist:
     if (options.snapPreviewTarget) {
@@ -1139,30 +1172,114 @@ export class Renderer {
   }
 
   /**
-   * Aktualisiert die Rasterauflösung aller sichtbaren Gleis-Labels/Badges dynamisch passend zum Zoom.
-   * Gleise außerhalb des sichtbaren Bildausschnitts bleiben bei niedriger Basis-Auflösung,
-   * um Speicher- und VRAM-Verbrauch auch bei sehr großen Layouts minimal zu halten.
+   * Aktualisiert Viewport-Culling (blendet Gleise/Modelle außerhalb des Bildausschnitts aus),
+   * blendet feines Hilfsraster, Schwellen, Konnektoren & Labels beim Herauszoomen aus (LOD),
+   * debounced die Label-Auflösungs-Rerasterisierung für flüssiges Zoomen und triggert einen On-Demand-Frame.
    */
-  updateLabelResolutions() {
+  updateLabelResolutions(immediateLabels = false) {
     const worldScale = this.world.scale.x || 1;
-    const screenW = this.app?.screen?.width ?? 0;
-    const screenH = this.app?.screen?.height ?? 0;
+    const screenW = this.app?.renderer?.screen?.width ?? 0;
+    const screenH = this.app?.renderer?.screen?.height ?? 0;
     const hasViewport = screenW > 0 && screenH > 0;
-    const pad = 350;
-    const viewMinX = hasViewport ? (-this.world.x) / worldScale - pad : -Infinity;
-    const viewMaxX = hasViewport ? (screenW - this.world.x) / worldScale + pad : Infinity;
-    const viewMinY = hasViewport ? (-this.world.y) / worldScale - pad : -Infinity;
-    const viewMaxY = hasViewport ? (screenH - this.world.y) / worldScale + pad : Infinity;
+
+    // 1. Keine Qualitätsreduktion beim Herauszoomen: Konnektoren, Schwellen & Labels bleiben immer sichtbar
+    this.fineGrid.visible = true;
+    this.connectorsOverlay.visible = true;
+
+    // 2. Großzügiger Sichtbereich für Viewport-Culling (1000 mm Puffer deckt auch 900 mm Flexgleise & Drehscheiben ab)
+    const cullPad = 1000;
+    const cullMinX = hasViewport ? (-this.world.x) / worldScale - cullPad : -Infinity;
+    const cullMaxX = hasViewport ? (screenW - this.world.x) / worldScale + cullPad : Infinity;
+    const cullMinY = hasViewport ? (-this.world.y) / worldScale - cullPad : -Infinity;
+    const cullMaxY = hasViewport ? (screenH - this.world.y) / worldScale + cullPad : Infinity;
 
     for (const trackCont of this.tracksLayer.children) {
       if (!(trackCont instanceof Container)) continue;
-      const inView =
+      const inCullView =
+        !hasViewport ||
+        (trackCont.x >= cullMinX &&
+          trackCont.x <= cullMaxX &&
+          trackCont.y >= cullMinY &&
+          trackCont.y <= cullMaxY);
+      trackCont.visible = inCullView;
+      if (!inCullView) continue;
+
+      for (const child of trackCont.children) {
+        if (
+          child.label === "track-ties" ||
+          child.label === "track-number-label" ||
+          child.label === "track-voltage-badge" ||
+          child.label === "track-ramp-badge"
+        ) {
+          child.visible = true;
+        }
+      }
+    }
+
+    // 3. Viewport-Culling für 2D-Gebäude/Modelle (Gelände/Berge & Masken bleiben immer aktiv)
+    for (const modelChild of this.modelsLayer.children) {
+      if (!(modelChild instanceof Container) || modelChild instanceof Graphics) continue;
+      const r: number = typeof (modelChild as any)._cullRadius === "number" ? (modelChild as any)._cullRadius : 1000;
+      if (!isFinite(r)) {
+        modelChild.visible = true;
+        continue;
+      }
+      const mMinX = hasViewport ? (-this.world.x) / worldScale - r : -Infinity;
+      const mMaxX = hasViewport ? (screenW - this.world.x) / worldScale + r : Infinity;
+      const mMinY = hasViewport ? (-this.world.y) / worldScale - r : -Infinity;
+      const mMaxY = hasViewport ? (screenH - this.world.y) / worldScale + r : Infinity;
+      modelChild.visible =
+        !hasViewport ||
+        (modelChild.x >= mMinX &&
+          modelChild.x <= mMaxX &&
+          modelChild.y >= mMinY &&
+          modelChild.y <= mMaxY);
+    }
+
+    this.requestRender();
+
+    // 4. Label-Textur-Rerasterisierung beim aktiven Zoomen/Pannen um 120 ms debouncen
+    if (immediateLabels) {
+      if (this.labelResTimer !== null) {
+        clearTimeout(this.labelResTimer);
+        this.labelResTimer = null;
+      }
+      this.refreshVisibleLabelTextures();
+    } else {
+      if (this.labelResTimer !== null) {
+        clearTimeout(this.labelResTimer);
+      }
+      this.labelResTimer = setTimeout(() => {
+        this.labelResTimer = null;
+        if (!this.isPaused) {
+          this.refreshVisibleLabelTextures();
+          this.requestRender();
+        }
+      }, 120);
+    }
+  }
+
+  /** Aktualisiert die Textur-/Rasterauflösung sichtbarer Labels (debounced nach Zoom-Ende aufgerufen). */
+  private refreshVisibleLabelTextures() {
+    const worldScale = this.world.scale.x || 1;
+    const screenW = this.app?.renderer?.screen?.width ?? 0;
+    const screenH = this.app?.renderer?.screen?.height ?? 0;
+    const hasViewport = screenW > 0 && screenH > 0;
+    const labelPad = 350;
+    const viewMinX = hasViewport ? (-this.world.x) / worldScale - labelPad : -Infinity;
+    const viewMaxX = hasViewport ? (screenW - this.world.x) / worldScale + labelPad : Infinity;
+    const viewMinY = hasViewport ? (-this.world.y) / worldScale - labelPad : -Infinity;
+    const viewMaxY = hasViewport ? (screenH - this.world.y) / worldScale + labelPad : Infinity;
+
+    for (const trackCont of this.tracksLayer.children) {
+      if (!(trackCont instanceof Container) || !trackCont.visible) continue;
+      const inLabelView =
         !hasViewport ||
         (trackCont.x >= viewMinX &&
           trackCont.x <= viewMaxX &&
           trackCont.y >= viewMinY &&
           trackCont.y <= viewMaxY);
-      const effectiveScale = inView ? worldScale : 1;
+      const effectiveScale = inLabelView ? worldScale : 1;
 
       for (const child of trackCont.children) {
         if (
@@ -1174,7 +1291,9 @@ export class Renderer {
           continue;
         }
         for (const sub of child.children) {
-          if (sub instanceof Text) {
+          if (sub instanceof Sprite && (sub as any)._sharedTexture) {
+            updateSharedLabelSpriteResolution(sub, effectiveScale);
+          } else if (sub instanceof Text) {
             const baseFontSize: number =
               typeof (sub as any)._baseFontSize === "number"
                 ? (sub as any)._baseFontSize

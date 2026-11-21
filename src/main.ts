@@ -17,6 +17,7 @@ import {
   getDefaultLocoCurrentMa,
 } from "@/core/simulation";
 import { Selection } from "@/editor/selection";
+import { initWasmKernel } from "@/core/wasm-bridge";
 import { History } from "@/editor/commands";
 import { createToolbar, updateToolbarState, type ToolbarEvents } from "@/ui/toolbar";
 import { buildToolbarEvents } from "@/ui/toolbar-events-factory";
@@ -59,6 +60,8 @@ import { getEffectiveFlexEntry } from "@/core/flextrack";
 import { initLayoutResizers } from "@/ui/layout-resizer";
 
 async function main() {
+  // Optionalen Rust-WASM-Kernel asynchron im Hintergrund laden (fällt transparent auf JS zurück)
+  void initWasmKernel();
   document.title = `${getFullAppTitle()} – Model Railway Track Planner`;
   const savedSettings = loadAppSettings();
 
@@ -89,6 +92,7 @@ async function main() {
   let activeBaseboardSnapGuides: BaseboardSnapGuide[] = [];
   let layoutResizer: any = null;
   let lowGpuMode = savedSettings.lowGpuMode ?? true;
+  let useDiscreteGpu3D = savedSettings.useDiscreteGpu3D ?? false;
 
   if (rightSidebarCollapsed) {
     const app = document.getElementById("app");
@@ -123,6 +127,7 @@ async function main() {
       rightSidebarCollapsed,
       barsLocked: layoutResizer?.isLocked(),
       lowGpuMode,
+      useDiscreteGpu3D,
       selectedCatalogId: catalog?.id,
       activeSidebarTab: (sidebar?.getActiveTab() as any) ?? "catalog",
       camera: renderer?.world ? {
@@ -355,7 +360,7 @@ async function main() {
     ruler.update();
   }
 
-  viewer3D = new Viewer3D(canvasHost);
+  viewer3D = new Viewer3D(canvasHost, useDiscreteGpu3D, lowGpuMode);
   let is3DMode = false;
 
   function zoomView(factor: number) {
@@ -626,6 +631,7 @@ async function main() {
       rightSidebarCollapsed,
       barsLocked: layoutResizer?.isLocked(),
       lowGpuMode,
+      useDiscreteGpu3D,
       collabStatus: collabClient.getStatus(),
       collabUsersCount: collabClient.getUsers().length,
     });
@@ -790,6 +796,33 @@ async function main() {
       sync();
       const isDe = getLanguage() === "de";
       showToast(locked ? (isDe ? "Leistengrößen fixiert" : "Panels locked") : (isDe ? "Leistengrößen freigegeben" : "Panels unlocked"), locked ? ICONS.lock : ICONS.unlock);
+    },
+    onToggleLowGpuMode: () => {
+      lowGpuMode = !lowGpuMode;
+      renderer.setLowGpuMode(lowGpuMode);
+      viewer3D?.setLowGpuMode(lowGpuMode);
+      saveSettingsState();
+      sync();
+      const isDe = getLanguage() === "de";
+      showToast(
+        lowGpuMode
+          ? (isDe ? "Low-GPU-Modus aktiviert (30 FPS)" : "Low-GPU mode enabled (30 FPS)")
+          : (isDe ? "Low-GPU-Modus deaktiviert" : "Low-GPU mode disabled"),
+        ICONS.settings,
+      );
+    },
+    onToggleDiscreteGpu3D: () => {
+      useDiscreteGpu3D = !useDiscreteGpu3D;
+      viewer3D?.setUseDiscreteGpu(useDiscreteGpu3D);
+      saveSettingsState();
+      sync();
+      const isDe = getLanguage() === "de";
+      showToast(
+        useDiscreteGpu3D
+          ? (isDe ? "3D-Ansicht nutzt dedizierte GPU (2D bleibt auf iGPU)" : "3D view set to discrete GPU (2D stays on iGPU)")
+          : (isDe ? "3D-Ansicht nutzt integrierte GPU (iGPU)" : "3D view set to integrated GPU (iGPU)"),
+        ICONS.settings,
+      );
     },
     isSnappingEnabled: () => snappingEnabled,
     setSnappingEnabled: (val) => { snappingEnabled = val; },

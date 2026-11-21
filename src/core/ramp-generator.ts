@@ -2,6 +2,7 @@ import type { TrackPiece, Layer, Connector } from "./types";
 import type { Catalog, CatalogEntry } from "@/catalog/catalog";
 import { dist, normAngle, rotate } from "./geometry";
 import { getPieceConnectorHeight } from "./snapping";
+import { isWasmReady, computeRampChainElevationsKernel } from "./wasm-bridge";
 import { getLocalConnectors, computeWorldConnectors } from "@/catalog/catalog";
 import { getTrackPieceLength } from "./ramp";
 
@@ -367,6 +368,18 @@ export function generateRampPieces(params: RampGeneratorParams): GeneratedRampRe
   const totalLengthMm = sequence.reduce((sum, s) => sum + getTrackPieceLength(s.entry), 0);
   const avgGrad = totalLengthMm > 0 ? (Math.abs(totalRise) / totalLengthMm) * 100 : 0;
 
+  // Optionaler Rust-WASM-Schnellpfad für das Höhenprofil entlang der gesamten Rampenkette
+  let wasmElevs: Float64Array | null = null;
+  if (isWasmReady() && sequence.length > 0) {
+    const lens = new Float64Array(sequence.length);
+    const leftFlags = new Uint8Array(sequence.length);
+    for (let k = 0; k < sequence.length; k++) {
+      lens[k] = getTrackPieceLength(sequence[k]!.entry);
+      leftFlags[k] = sequence[k]!.direction === "left" ? 1 : 0;
+    }
+    wasmElevs = computeRampChainElevationsKernel(lens, leftFlags, hStart, totalRise, targetLayerBaseH);
+  }
+
   let currTargetConn: Connector = { ...startConn };
   let accumDist = 0;
   const newPieces: TrackPiece[] = [];
@@ -400,25 +413,32 @@ export function generateRampPieces(params: RampGeneratorParams): GeneratedRampRe
 
     const worldConns = computeWorldConnectors(entry, pieceTransform);
 
-    // Calculate elevation for start and end of this piece
-    const pLen = getTrackPieceLength(entry);
-    const sDist = accumDist;
-    const eDist = accumDist + pLen;
-    accumDist = eDist;
+    let pieceElev: { start: number; end: number };
+    if (wasmElevs) {
+      pieceElev = {
+        start: wasmElevs[k * 2]!,
+        end: wasmElevs[k * 2 + 1]!,
+      };
+    } else {
+      const pLen = getTrackPieceLength(entry);
+      const sDist = accumDist;
+      const eDist = accumDist + pLen;
+      accumDist = eDist;
 
-    const u0 = totalLengthMm > 0 ? sDist / totalLengthMm : 0;
-    const u1 = totalLengthMm > 0 ? eDist / totalLengthMm : 1;
+      const u0 = totalLengthMm > 0 ? sDist / totalLengthMm : 0;
+      const u1 = totalLengthMm > 0 ? eDist / totalLengthMm : 1;
 
-    const hEntry = hStart + totalRise * u0;
-    const hExit = hStart + totalRise * u1;
+      const hEntry = hStart + totalRise * u0;
+      const hExit = hStart + totalRise * u1;
 
-    const hC0 = inConnIdx === 0 ? hEntry : hExit;
-    const hC1 = inConnIdx === 0 ? hExit : hEntry;
+      const hC0 = inConnIdx === 0 ? hEntry : hExit;
+      const hC1 = inConnIdx === 0 ? hExit : hEntry;
 
-    const pieceElev = {
-      start: Math.round((hC0 - targetLayerBaseH) * 100) / 100,
-      end: Math.round((hC1 - targetLayerBaseH) * 100) / 100,
-    };
+      pieceElev = {
+        start: Math.round((hC0 - targetLayerBaseH) * 100) / 100,
+        end: Math.round((hC1 - targetLayerBaseH) * 100) / 100,
+      };
+    }
 
     const newPiece: TrackPiece = {
       id: `ramp-${Date.now()}-${k}-${Math.random().toString(36).substring(2, 6)}`,
