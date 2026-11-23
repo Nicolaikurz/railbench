@@ -238,6 +238,8 @@ pub(super) fn draw_catalog_tab(ui: &mut egui::Ui, app: &mut RailbenchApp, roads_
     let mut dragged_entry_idx: Option<usize> = None;
     let mut clicked_entry_idx: Option<usize> = None;
     let mut toggled_fav_id: Option<String> = None;
+    let mut toggled_feeder_id: Option<String> = None;
+    let mut toggled_iso_id: Option<String> = None;
 
     egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
         let mut last_cat: &str = "";
@@ -260,6 +262,8 @@ pub(super) fn draw_catalog_tab(ui: &mut egui::Ui, app: &mut RailbenchApp, roads_
                 "crossings" => matches!(entry.kind.as_str(), "crossing" | "double-slip"),
                 "accessories" => {
                     is_buf
+                        || crate::catalog::is_feeder_entry(entry)
+                        || crate::catalog::is_isolating_entry(entry)
                         || matches!(
                             entry.kind.as_str(),
                             "buffer" | "turntable" | "transfer-table" | "feeder" | "uncoupler" | "isolating" | "isolator"
@@ -317,7 +321,14 @@ pub(super) fn draw_catalog_tab(ui: &mut egui::Ui, app: &mut RailbenchApp, roads_
                 String::new()
             };
 
+            let is_feeder = crate::catalog::is_feeder_entry(entry);
+            let is_iso = crate::catalog::is_isolating_entry(entry);
+            let power_enabled = is_feeder && app.catalog_entry_power_enabled.contains(&entry.id);
+            let iso_enabled = is_iso && app.catalog_entry_isolating_enabled.contains(&entry.id);
+
             let mut star_clicked = false;
+            let mut feeder_toggle_clicked = false;
+            let mut iso_toggle_clicked = false;
             let mut plus_clicked = false;
             let card_w = ui.available_width();
             let card_resp = Frame::new()
@@ -364,6 +375,62 @@ pub(super) fn draw_catalog_tab(ui: &mut egui::Ui, app: &mut RailbenchApp, roads_
                                         {
                                             star_clicked = true;
                                         }
+                                        if is_iso {
+                                            let iso_tip = if iso_enabled {
+                                                if is_de {
+                                                    "Trennstrecke aktiv (Klicken zum Ausschalten)"
+                                                } else {
+                                                    "Track isolator active (click to disable)"
+                                                }
+                                            } else if is_de {
+                                                "Trennstrecke isolieren (Klicken zum Einschalten)"
+                                            } else {
+                                                "Isolate track (click to enable)"
+                                            };
+                                            let btn = egui::Button::new(
+                                                RichText::new("⊘")
+                                                    .strong()
+                                                    .size(11.5)
+                                                    .color(if iso_enabled { Color32::WHITE } else { p.text_muted }),
+                                            )
+                                            .fill(if iso_enabled {
+                                                Color32::from_rgb(220, 38, 38)
+                                            } else {
+                                                p.bg_input
+                                            })
+                                            .small();
+                                            if ui.add(btn).on_hover_text(iso_tip).clicked() {
+                                                iso_toggle_clicked = true;
+                                            }
+                                        }
+                                        if is_feeder {
+                                            let feed_tip = if power_enabled {
+                                                if is_de {
+                                                    "Gleis-Einspeisung aktiv (Klicken zum Ausschalten)"
+                                                } else {
+                                                    "Track power feed active (click to disable)"
+                                                }
+                                            } else if is_de {
+                                                "Gleis-Einspeisung hinzufügen (Klicken zum Einschalten)"
+                                            } else {
+                                                "Add power feed to track (click to enable)"
+                                            };
+                                            let btn = egui::Button::new(
+                                                RichText::new("⚡")
+                                                    .strong()
+                                                    .size(11.0)
+                                                    .color(if power_enabled { Color32::WHITE } else { p.text_muted }),
+                                            )
+                                            .fill(if power_enabled {
+                                                Color32::from_rgb(217, 119, 6)
+                                            } else {
+                                                p.bg_input
+                                            })
+                                            .small();
+                                            if ui.add(btn).on_hover_text(feed_tip).clicked() {
+                                                feeder_toggle_clicked = true;
+                                            }
+                                        }
                                         if !dim_text.is_empty() {
                                             ui.add(
                                                 egui::Label::new(RichText::new(&dim_text).size(10.5).color(p.text_muted))
@@ -394,6 +461,10 @@ pub(super) fn draw_catalog_tab(ui: &mut egui::Ui, app: &mut RailbenchApp, roads_
             }
             if star_clicked {
                 toggled_fav_id = Some(entry.id.clone());
+            } else if feeder_toggle_clicked {
+                toggled_feeder_id = Some(entry.id.clone());
+            } else if iso_toggle_clicked {
+                toggled_iso_id = Some(entry.id.clone());
             } else if plus_clicked || card_resp.clicked() {
                 clicked_entry_idx = Some(entry_idx);
             } else if card_resp.drag_started_by(egui::PointerButton::Primary) {
@@ -404,6 +475,16 @@ pub(super) fn draw_catalog_tab(ui: &mut egui::Ui, app: &mut RailbenchApp, roads_
 
     if let Some(fid) = toggled_fav_id {
         app.toggle_favorite_track(&fid);
+    }
+    if let Some(eid) = toggled_feeder_id {
+        if !app.catalog_entry_power_enabled.remove(&eid) {
+            app.catalog_entry_power_enabled.insert(eid);
+        }
+    }
+    if let Some(eid) = toggled_iso_id {
+        if !app.catalog_entry_isolating_enabled.remove(&eid) {
+            app.catalog_entry_isolating_enabled.insert(eid);
+        }
     }
     if let Some(ei) = dragged_entry_idx {
         app.dragging_catalog_entry = Some(app.catalogs[cat_idx].entries[ei].clone());

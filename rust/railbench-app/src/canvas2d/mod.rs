@@ -462,9 +462,10 @@ pub fn draw_canvas_2d(
         }
     }
 
-    // Short-circuit warning markers on top of tracks when Power Simulation is enabled
-    if power_sim_enabled {
-        if let Some(sim) = power_sim {
+    // Short-circuit warning markers & banner: ALWAYS visible on 2-wire short circuits (even when Power Overlay is off)
+    if let Some(sim) = power_sim {
+        let show_sc = sim.has_short_circuit && (power_sim_enabled || sim.is_two_wire);
+        if show_sc {
             for sc in &sim.short_circuit_points {
                 let sp = camera.world_to_screen(rect, sc.x, sc.y);
                 if !rect.expand(24.0).contains(sp) {
@@ -481,9 +482,36 @@ pub fn draw_canvas_2d(
                     Stroke::new(2.2_f32, Color32::WHITE),
                 );
                 let tag_pos = Pos2::new(sp.x, sp.y - 21.0);
-                let tag_r = Rect::from_center_size(tag_pos, EguiVec2::new(48.0, 15.0));
+                let tag_r = Rect::from_center_size(tag_pos, EguiVec2::new(56.0, 16.0));
                 painter.rect_filled(tag_r, 4.0, Color32::from_rgb(153, 27, 27));
                 painter.text(tag_pos, egui::Align2::CENTER_CENTER, "SHORT!", FontId::proportional(9.5), Color32::WHITE);
+            }
+
+            if sim.is_two_wire {
+                let cnt = sim.short_circuit_points.len().max(1);
+                let warn_msg = if is_de {
+                    format!("⚠ 2-Leiter Kurzschluss ({cnt} Stelle(n)) – Trennstellen (Isolator) setzen!")
+                } else {
+                    format!("⚠ 2-Wire Short Circuit ({cnt} point(s)) – place Isolator tracks to break the loop!")
+                };
+                let banner = Rect::from_center_size(
+                    Pos2::new(rect.center().x, rect.min.y + 36.0),
+                    EguiVec2::new(470.0, 28.0),
+                );
+                painter.rect_filled(banner, 8.0, Color32::from_rgba_unmultiplied(153, 27, 27, 240));
+                painter.rect_stroke(
+                    banner,
+                    8.0,
+                    Stroke::new(1.5_f32, Color32::from_rgb(252, 165, 165)),
+                    egui::StrokeKind::Inside,
+                );
+                painter.text(
+                    banner.center(),
+                    egui::Align2::CENTER_CENTER,
+                    warn_msg,
+                    FontId::proportional(12.0),
+                    Color32::WHITE,
+                );
             }
         }
     }
@@ -895,7 +923,7 @@ use cache::*;
 #[allow(unused_imports)]
 pub use cache::{Canvas2DCache};
 #[allow(unused_imports)]
-pub(crate) use cache::{build_special_piece_top_view_mesh_2d};
+pub(crate) use cache::{build_model_top_view_mesh_2d, build_special_piece_top_view_mesh_2d};
 mod boards_and_grid;
 #[allow(unused_imports)]
 use boards_and_grid::*;

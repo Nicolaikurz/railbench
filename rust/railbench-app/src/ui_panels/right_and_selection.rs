@@ -618,35 +618,29 @@ pub fn draw_floating_selection_bar(ctx: &egui::Context, app: &mut RailbenchApp) 
                         };
 
                         let sz = egui::vec2(26.0, 24.0);
-                        if icon_button_sized(
-                            ui,
-                            Icon::Zap,
-                            sz,
-                            has_feeder,
-                            p.bg_input,
-                            Color32::from_rgb(245, 158, 11),
-                            Color32::from_rgb(245, 158, 11),
-                            p.text_sub,
-                            t.feeder,
-                        )
-                        .clicked()
-                        {
+                        let is_de = app.lang == Lang::De;
+                        let feeder_txt = if is_de { "⚡ Einspeiser" } else { "⚡ Feeder" };
+                        if toggle_pill(ui, feeder_txt, has_feeder, Color32::from_rgb(217, 119, 6), t.feeder) {
                             app.toggle_selected_feeder();
                         }
-                        if icon_button_sized(
-                            ui,
-                            Icon::Isolator,
-                            sz,
-                            has_iso,
-                            p.bg_input,
-                            Color32::from_rgb(220, 38, 38),
-                            Color32::from_rgb(220, 38, 38),
-                            p.text_sub,
-                            t.isolator,
-                        )
-                        .clicked()
-                        {
+                        let iso_lbl = if sel_count == 1 && has_iso {
+                            let idx = sample.isolated_connector_index.unwrap_or(0) + 1;
+                            let total = sample.connectors.len().max(2);
+                            if is_de {
+                                format!("✂ Trenn {idx}/{total}")
+                            } else {
+                                format!("✂ Iso {idx}/{total}")
+                            }
+                        } else if is_de {
+                            "✂ Trennstelle".into()
+                        } else {
+                            "✂ Isolator".into()
+                        };
+                        if toggle_pill(ui, &iso_lbl, has_iso, Color32::from_rgb(220, 38, 38), t.isolator) {
                             app.toggle_selected_isolator();
+                        }
+                        if has_iso && toggle_pill(ui, "⇄", false, Color32::from_rgb(185, 28, 28), if is_de { "Isoliertes Gleisende wechseln" } else { "Cycle isolated track end" }) {
+                            app.cycle_selected_isolator_connector();
                         }
                         if toggle_pill(ui, t.catenary, has_cat, p.primary_hover, "Catenary (O)") {
                             app.toggle_selected_catenary();

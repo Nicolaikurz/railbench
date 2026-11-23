@@ -305,6 +305,103 @@ pub fn is_flex_id(catalogs: &[Catalog], catalog_id: &str) -> bool {
         .any(|w| w.eq_ignore_ascii_case(b"flex"))
 }
 
+fn entry_matches_keywords(e: &CatalogEntry, keywords: &[&str]) -> bool {
+    let id_l = e.id.to_ascii_lowercase();
+    let name_l = e.name.to_ascii_lowercase();
+    let en_l = e.name_en.as_deref().unwrap_or("").to_ascii_lowercase();
+    let desc_l = e.description.to_ascii_lowercase();
+    keywords.iter().any(|kw| {
+        id_l.contains(kw) || name_l.contains(kw) || en_l.contains(kw) || desc_l.contains(kw)
+    })
+}
+
+/// Checks whether a catalog entry is a Feeder Track (1:1 with Electron `isFeederEntry`).
+pub fn is_feeder_entry(entry: &CatalogEntry) -> bool {
+    if entry.kind == "feeder" {
+        return true;
+    }
+    entry_matches_keywords(
+        entry,
+        &[
+            "anschlussgleis",
+            "einspeisung",
+            "einspeise",
+            "anschluss-gleis",
+            "power feeder",
+            "feeder track",
+            "stromanschluss",
+        ],
+    )
+}
+
+/// Checks whether a catalog entry is an Isolating Track (1:1 with Electron `isIsolatingEntry`).
+pub fn is_isolating_entry(entry: &CatalogEntry) -> bool {
+    if matches!(entry.kind.as_str(), "isolating" | "isolator") {
+        return true;
+    }
+    entry_matches_keywords(
+        entry,
+        &[
+            "trennstrecke",
+            "trenngleis",
+            "isoliergleis",
+            "isolating track",
+            "isolated track",
+            "unterbrechergleis",
+            "kontaktgleis",
+            "isolier",
+        ],
+    )
+}
+
+/// Finds the best Feeder Track entry in `catalog` (prefers straight feeder tracks,
+/// falling back to any feeder or standard straight track in the catalog).
+pub fn find_feeder_entry(catalog: &Catalog) -> Option<&CatalogEntry> {
+    catalog
+        .entries
+        .iter()
+        .find(|e| e.kind == "feeder" && e.radius.is_none())
+        .or_else(|| catalog.entries.iter().find(|e| e.kind == "feeder"))
+        .or_else(|| {
+            catalog
+                .entries
+                .iter()
+                .find(|e| e.radius.is_none() && entry_matches_keywords(e, &["anschlussgleis", "feeder"]))
+        })
+        .or_else(|| catalog.entries.iter().find(|e| e.kind == "straight"))
+        .or_else(|| catalog.entries.first())
+}
+
+/// Finds the best Isolating Track entry in `catalog` (prefers straight isolating/Trenngleis tracks,
+/// falling back to a short or standard straight track in the catalog).
+pub fn find_isolating_entry(catalog: &Catalog) -> Option<&CatalogEntry> {
+    let iso_kws = ["trenngleis", "isoliergleis", "isolating", "unterbrechergleis"];
+    catalog
+        .entries
+        .iter()
+        .find(|e| (e.kind == "isolator" || entry_matches_keywords(e, &iso_kws)) && e.radius.is_none())
+        .or_else(|| {
+            catalog
+                .entries
+                .iter()
+                .find(|e| e.kind == "isolator" || entry_matches_keywords(e, &iso_kws))
+        })
+        .or_else(|| {
+            catalog
+                .entries
+                .iter()
+                .filter(|e| e.kind == "straight" && e.length.unwrap_or(999.0) <= 120.0)
+                .min_by(|a, b| {
+                    a.length
+                        .unwrap_or(999.0)
+                        .partial_cmp(&b.length.unwrap_or(999.0))
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                })
+        })
+        .or_else(|| catalog.entries.iter().find(|e| e.kind == "straight"))
+        .or_else(|| catalog.entries.first())
+}
+
 pub fn flex_max_length(catalogs: &[Catalog], catalog_id: &str) -> f64 {
     find_entry(catalogs, catalog_id)
         .and_then(|e| e.length)

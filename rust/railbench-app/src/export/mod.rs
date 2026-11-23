@@ -22,6 +22,7 @@ pub struct BlueprintExportOptions {
     pub include_bom_page: bool,
     pub ghost_other_layers: bool,
     pub show_baseboards: bool,
+    pub show_models: bool,
     pub show_labels: bool,
     pub monochrome: bool,
 }
@@ -36,6 +37,7 @@ impl Default for BlueprintExportOptions {
             include_bom_page: true,
             ghost_other_layers: true,
             show_baseboards: true,
+            show_models: true,
             show_labels: true,
             monochrome: false,
         }
@@ -118,6 +120,60 @@ fn piece_length_and_spec(
         }
     }
     (0.0, String::new())
+}
+
+pub fn get_layer_piece_list_summary(
+    layout: &Layout,
+    catalogs: &[Catalog],
+    layer_id: &str,
+    is_de: bool,
+) -> PieceCategorySummary {
+    let mut counts: BTreeMap<&str, usize> = BTreeMap::new();
+    let mut sample_piece: BTreeMap<&str, &TrackPiece> = BTreeMap::new();
+    for p in &layout.pieces {
+        let p_lid = p.layer_id.as_deref().unwrap_or("layer-1");
+        if p_lid != layer_id {
+            continue;
+        }
+        sample_piece.entry(p.catalog_id.as_str()).or_insert(p);
+        *counts.entry(p.catalog_id.as_str()).or_insert(0) += 1;
+    }
+    let mut items = Vec::with_capacity(counts.len());
+    let mut total_pieces = 0usize;
+    let mut total_m = 0.0_f64;
+    for (cid, cnt) in counts {
+        let entry = find_entry(catalogs, cid);
+        let is_road_item = is_road_id(catalogs, cid);
+        let name = entry
+            .map(|e| if is_de { e.name.as_str() } else { e.name_en.as_deref().unwrap_or(&e.name) })
+            .unwrap_or(cid)
+            .to_string();
+        let category = entry
+            .map(|e| e.category.clone())
+            .unwrap_or_else(|| if is_road_item { "Road" } else { "Track" }.into());
+        let kind = entry.map(|e| e.kind.clone()).unwrap_or_else(|| "unknown".into());
+        let (unit_m, spec) = sample_piece
+            .get(cid)
+            .map(|p| piece_length_and_spec(p, entry, is_road_item))
+            .unwrap_or((0.0, String::new()));
+        let len_m = ((unit_m * cnt as f64) * 100.0).round() / 100.0;
+        total_pieces += cnt;
+        total_m += len_m;
+        items.push(PieceSummaryItem {
+            catalog_id: cid.to_string(),
+            name,
+            category,
+            kind,
+            count: cnt,
+            specification: spec,
+            total_length_meters: len_m,
+        });
+    }
+    PieceCategorySummary {
+        items,
+        total_pieces,
+        total_length_meters: (total_m * 100.0).round() / 100.0,
+    }
 }
 
 pub fn get_piece_list_summary(
@@ -371,6 +427,7 @@ mod svg;
 #[allow(unused_imports)]
 use svg::*;
 pub use svg::{export_layout_svg_with_options};
+pub(crate) use svg::{layout_bounds, sample_track_branches_world};
 mod pdf;
 #[allow(unused_imports)]
 use pdf::*;

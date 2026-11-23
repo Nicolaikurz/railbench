@@ -113,7 +113,7 @@ pub(super) fn project_3d_mesh_to_top_view_2d(
     CachedModelTopMesh2D { tris }
 }
 
-pub(super) fn build_model_top_view_mesh_2d(m: &Model3D) -> CachedModelTopMesh2D {
+pub(crate) fn build_model_top_view_mesh_2d(m: &Model3D) -> CachedModelTopMesh2D {
     let is_mtn = m.builtin_id.as_deref() == Some("mountain");
     let is_ground = m.builtin_id.as_deref() == Some("ground-terrain");
     if is_mtn || is_ground {
@@ -270,6 +270,10 @@ pub(super) fn compute_layout_cache_sig(layout: &Layout, layout_version: u64) -> 
 }
 
 impl Canvas2DCache {
+    pub(crate) fn model_top_mesh(&self, idx: usize) -> Option<&CachedModelTopMesh2D> {
+        self.model_top_meshes.get(idx).map(|arc| arc.as_ref())
+    }
+
     pub fn clear_proto_caches(&mut self) {
         self.model_proto_cache.clear();
         self.piece_top_proto_cache.clear();

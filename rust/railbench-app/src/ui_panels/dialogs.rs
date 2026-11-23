@@ -10,6 +10,15 @@ pub fn draw_dialogs(ctx: &egui::Context, app: &mut RailbenchApp) {
         let mut param_changed = false;
         let mut focus_pt: Option<(f64, f64)> = None;
         let mut bulk_equip: Option<bool> = None;
+        let mut do_add_feeder = false;
+        let mut do_add_isolator = false;
+        let mut do_cycle_iso_end = false;
+
+        let sel_has_iso = app.layout.pieces.iter().any(|pc| {
+            app.selected.contains(&pc.id)
+                && !crate::catalog::is_road_id(&app.catalogs, &pc.catalog_id)
+                && pc.is_isolator == Some(true)
+        });
 
         let mut total_turnouts = 0usize;
         let mut lantern_count = 0usize;
@@ -53,6 +62,41 @@ pub fn draw_dialogs(ctx: &egui::Context, app: &mut RailbenchApp) {
                         "Show Power Overlay on 2D Canvas"
                     },
                 );
+                ui.add_space(4.0);
+                ui.horizontal(|ui| {
+                    if ui
+                        .add(
+                            egui::Button::new(
+                                RichText::new(if is_de { "+ ⚡ Anschlussgleis" } else { "+ ⚡ Feeder Track" })
+                                    .color(Color32::WHITE),
+                            )
+                            .fill(Color32::from_rgb(217, 119, 6)),
+                        )
+                        .clicked()
+                    {
+                        do_add_feeder = true;
+                    }
+                    if ui
+                        .add(
+                            egui::Button::new(
+                                RichText::new(if is_de { "+ ✂ Trenngleis" } else { "+ ✂ Isolating Track" })
+                                    .color(Color32::WHITE),
+                            )
+                            .fill(Color32::from_rgb(220, 38, 38)),
+                        )
+                        .clicked()
+                    {
+                        do_add_isolator = true;
+                    }
+                    if sel_has_iso
+                        && ui
+                            .small_button(if is_de { "⇄ Ende" } else { "⇄ End" })
+                            .on_hover_text(if is_de { "Isoliertes Gleisende wechseln" } else { "Cycle isolated connector end" })
+                            .clicked()
+                    {
+                        do_cycle_iso_end = true;
+                    }
+                });
                 ui.separator();
 
                 let mut v = app.layout.feed_voltage.unwrap_or(16.0);
@@ -224,25 +268,57 @@ pub fn draw_dialogs(ctx: &egui::Context, app: &mut RailbenchApp) {
                         ui.label(RichText::new(format!("Dead {}", sim.disconnected_count)).color(Color32::from_rgb(148, 163, 184)));
                     });
                     if sim.has_short_circuit {
-                        ui.add_space(4.0);
-                        ui.horizontal(|ui| {
-                            ui.label(
-                                RichText::new(format!("SHORT CIRCUIT ({} point(s))", sim.short_circuit_points.len()))
-                                    .strong()
-                                    .color(Color32::from_rgb(239, 68, 68)),
-                            );
-                            if let Some(pt) = sim.short_circuit_points.first() {
-                                if ui.small_button("Focus").clicked() {
-                                    focus_pt = Some((pt.x, pt.y));
+                        ui.add_space(6.0);
+                        egui::Frame::NONE
+                            .fill(Color32::from_rgba_unmultiplied(153, 27, 27, 220))
+                            .stroke(egui::Stroke::new(1.5, Color32::from_rgb(252, 165, 165)))
+                            .corner_radius(6.0)
+                            .inner_margin(egui::Margin::same(8))
+                            .show(ui, |ui| {
+                                ui.horizontal(|ui| {
+                                    let hdr = if sim.is_two_wire {
+                                        if is_de {
+                                            format!("⚠ 2-LEITER KURZSCHLUSS ({} Stelle(n))", sim.short_circuit_points.len().max(1))
+                                        } else {
+                                            format!("⚠ 2-WIRE SHORT CIRCUIT ({} point(s))", sim.short_circuit_points.len().max(1))
+                                        }
+                                    } else {
+                                        format!("⚠ SHORT CIRCUIT ({} point(s))", sim.short_circuit_points.len().max(1))
+                                    };
+                                    ui.label(RichText::new(hdr).strong().color(Color32::WHITE));
+                                    if let Some(pt) = sim.short_circuit_points.first() {
+                                        if ui.small_button(if is_de { "Fokus" } else { "Focus" }).clicked() {
+                                            focus_pt = Some((pt.x, pt.y));
+                                        }
+                                    }
+                                });
+                                if sim.is_two_wire {
+                                    ui.label(
+                                        RichText::new(if is_de {
+                                            "Gegenpolige Schienen sind verbunden (z. B. Kehrschleife / Gleisdreieck). Setze Trennstellen (Isolator) auf den betroffenen Gleisen."
+                                        } else {
+                                            "Opposite rail polarities are connected (e.g. reversing loop / wye). Place Isolator tracks to break the short."
+                                        })
+                                        .size(11.0)
+                                        .color(Color32::from_rgb(254, 226, 226)),
+                                    );
                                 }
-                            }
-                        });
+                            });
                     }
                     ui.add_space(4.0);
                     ui.label(RichText::new(&sim.recommendation).size(11.5));
                 }
             });
         app.show_power_dialog = open;
+        if do_add_feeder {
+            app.place_feeder_track();
+        }
+        if do_add_isolator {
+            app.place_isolating_track();
+        }
+        if do_cycle_iso_end {
+            app.cycle_selected_isolator_connector();
+        }
         if let Some(equip) = bulk_equip {
             app.bulk_equip_turnouts(equip);
         } else if param_changed {

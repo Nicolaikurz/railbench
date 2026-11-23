@@ -1,54 +1,203 @@
 use super::*;
 
-pub(super) fn draw_pdf_plan_page(
+fn hex_to_pdf_rgb(hex: &str) -> (f64, f64, f64) {
+    let h = hex.trim().trim_start_matches('#');
+    if h.len() == 6 {
+        if let (Ok(r), Ok(g), Ok(b)) = (
+            u8::from_str_radix(&h[0..2], 16),
+            u8::from_str_radix(&h[2..4], 16),
+            u8::from_str_radix(&h[4..6], 16),
+        ) {
+            return (r as f64 / 255.0, g as f64 / 255.0, b as f64 / 255.0);
+        }
+    }
+    (0.22, 0.74, 0.97)
+}
+
+fn pdf_track_color(kind: &str, is_road: bool, is_bridge: bool, is_tunnel: bool, monochrome: bool) -> (f64, f64, f64) {
+    if monochrome {
+        return (0.12, 0.14, 0.18);
+    }
+    if is_road {
+        return (0.28, 0.33, 0.41);
+    }
+    if is_bridge {
+        return (0.09, 0.56, 0.55);
+    }
+    if is_tunnel {
+        return (0.45, 0.38, 0.62);
+    }
+    match kind {
+        "curve" => (0.15, 0.39, 0.92),
+        "turnout-left" | "turnout-right" | "curved-turnout-left" | "curved-turnout-right" | "three-way" | "double-slip" => {
+            (0.85, 0.47, 0.02)
+        }
+        "crossing" => (0.58, 0.25, 0.82),
+        "flex" => (0.03, 0.57, 0.70),
+        "feeder" => (0.09, 0.64, 0.29),
+        _ => (0.02, 0.45, 0.76),
+    }
+}
+
+struct PdfBadge<'a> {
+    name: &'a str,
+    color_rgb: (f64, f64, f64),
+    elev_line: String,
+    count_line: String,
+}
+
+fn write_pdf_page_header(
+    s: &mut String,
+    page_w: f64,
+    page_h: f64,
+    margin: f64,
+    title: &str,
+    subtitle: &str,
+    badge: &PdfBadge<'_>,
+) -> f64 {
+    let top_y = page_h - margin;
+
+    // Brand tag (matches Electron print-pdf.ts: #0284c7 bold)
+    let _ = writeln!(
+        s,
+        "0.01 0.52 0.78 rg BT /F2 9 Tf {margin:.1} {:.1} Td (RAILbench Track Planner) Tj ET",
+        top_y - 4.0
+    );
+    // Bold layout title (#0f172a)
+    let _ = writeln!(
+        s,
+        "0.06 0.09 0.16 rg BT /F2 16 Tf {margin:.1} {:.1} Td ({}) Tj ET",
+        top_y - 22.0,
+        pdf_escape(title)
+    );
+    // Subtitle (#64748b)
+    let _ = writeln!(
+        s,
+        "0.39 0.45 0.55 rg BT /F1 8.5 Tf {margin:.1} {:.1} Td ({}) Tj ET",
+        top_y - 35.0,
+        pdf_escape(subtitle)
+    );
+
+    // Top-right Layer / Inventory Badge Card (#f8fafc fill, #e2e8f0 border, thick left accent bar)
+    let badge_w = 185.0_f64.min((page_w - margin * 2.0) * 0.40);
+    let badge_h = 40.0_f64;
+    let badge_x = page_w - margin - badge_w;
+    let badge_y = top_y - 38.0;
+    let _ = writeln!(
+        s,
+        "0.97 0.98 0.99 rg 0.89 0.91 0.94 RG 0.7 w {badge_x:.1} {badge_y:.1} {badge_w:.1} {badge_h:.1} re B"
+    );
+    let (cr, cg, cb) = badge.color_rgb;
+    let _ = writeln!(
+        s,
+        "{cr:.3} {cg:.3} {cb:.3} rg {badge_x:.1} {badge_y:.1} 3.5 {badge_h:.1} re f"
+    );
+    let tx = badge_x + 9.0;
+    let b_name: String = badge.name.chars().take(28).collect();
+    let _ = writeln!(
+        s,
+        "0.06 0.09 0.16 rg BT /F2 9 Tf {tx:.1} {:.1} Td ({}) Tj ET",
+        badge_y + 27.5,
+        pdf_escape(&b_name)
+    );
+    let _ = writeln!(
+        s,
+        "0.20 0.25 0.33 rg BT /F1 7.8 Tf {tx:.1} {:.1} Td ({}) Tj ET",
+        badge_y + 16.0,
+        pdf_escape(&badge.elev_line)
+    );
+    let _ = writeln!(
+        s,
+        "0.39 0.45 0.55 rg BT /F1 7.2 Tf {tx:.1} {:.1} Td ({}) Tj ET",
+        badge_y + 5.5,
+        pdf_escape(&badge.count_line)
+    );
+
+    // Crisp dark header divider rule (#0f172a)
+    let rule_y = top_y - 45.0;
+    let _ = writeln!(
+        s,
+        "0.06 0.09 0.16 RG 1.4 w {margin:.1} {rule_y:.1} m {:.1} {rule_y:.1} l S",
+        page_w - margin
+    );
+    rule_y
+}
+
+fn write_pdf_page_footer(
+    s: &mut String,
+    page_w: f64,
+    margin: f64,
+    left_text: &str,
+    right_page_text: &str,
+) -> f64 {
+    let footer_rule_y = margin + 22.0;
+    let _ = writeln!(
+        s,
+        "0.80 0.84 0.88 RG 0.7 w {margin:.1} {footer_rule_y:.1} m {:.1} {footer_rule_y:.1} l S",
+        page_w - margin
+    );
+    let left_trimmed: String = left_text.chars().take(105).collect();
+    let _ = writeln!(
+        s,
+        "0.28 0.33 0.41 rg BT /F1 7.8 Tf {margin:.1} {:.1} Td ({}) Tj ET",
+        margin + 9.0,
+        pdf_escape(&left_trimmed)
+    );
+    let approx_w = right_page_text.len() as f64 * 4.4;
+    let rx = (page_w - margin - approx_w).max(margin + 200.0);
+    let _ = writeln!(
+        s,
+        "0.39 0.45 0.55 rg BT /F1 7.8 Tf {rx:.1} {:.1} Td ({}) Tj ET",
+        margin + 9.0,
+        pdf_escape(right_page_text)
+    );
+    footer_rule_y
+}
+
+fn draw_pdf_plan_page(
     layout: &Layout,
     catalogs: &[Catalog],
     opts: &BlueprintExportOptions,
     filter_layer_id: Option<&str>,
     subtitle: &str,
+    badge: &PdfBadge<'_>,
+    footer_left: &str,
     page_footer: &str,
     page_w: f64,
     page_h: f64,
 ) -> String {
-    let margin = 36.0_f64;
-    let header_h = 38.0_f64;
-    let footer_h = 22.0_f64;
+    let margin = 28.0_f64;
+    let mut s = String::with_capacity(8192);
+
+    // Pure white page background
+    let _ = writeln!(s, "1 1 1 rg 0 0 {page_w:.1} {page_h:.1} re f");
+
+    let header_rule_y = write_pdf_page_header(&mut s, page_w, page_h, margin, &layout.name, subtitle, badge);
+    let footer_rule_y = write_pdf_page_footer(&mut s, page_w, margin, footer_left, page_footer);
+
+    // Framed plan viewport between header and footer
+    let body_x = margin;
+    let body_y = footer_rule_y + 8.0;
+    let body_w = page_w - margin * 2.0;
+    let body_h = (header_rule_y - 8.0 - body_y).max(80.0);
+    let _ = writeln!(
+        s,
+        "0.89 0.91 0.94 RG 0.7 w {body_x:.1} {body_y:.1} {body_w:.1} {body_h:.1} re S"
+    );
+
     let (min_x, max_x, min_y, max_y) = layout_bounds(layout, catalogs);
     let span_x = (max_x - min_x).max(100.0);
     let span_y = (max_y - min_y).max(100.0);
-    let scale = ((page_w - margin * 2.0) / span_x)
-        .min((page_h - margin * 2.0 - header_h - footer_h) / span_y);
-    let off_x = (page_w - span_x * scale) * 0.5;
-    let off_y = footer_h + (page_h - header_h - footer_h - span_y * scale) * 0.5;
+    let inner_pad = 14.0_f64;
+    let scale = ((body_w - inner_pad * 2.0) / span_x).min((body_h - inner_pad * 2.0) / span_y);
+    let off_x = body_x + (body_w - span_x * scale) * 0.5;
+    let off_y = body_y + (body_h - span_y * scale) * 0.5;
 
     let to_pdf = |wx: f64, wy: f64| -> (f64, f64) {
         let px = off_x + (wx - min_x) * scale;
-        let py = page_h - header_h - (off_y + (wy - min_y) * scale) + footer_h;
+        let py = body_y + body_h - (off_y - body_y) - (wy - min_y) * scale;
         (px, py)
     };
-
-    let mut s = String::new();
-    let title = pdf_escape(&format!("RAILbench: {} ({subtitle})", layout.name));
-    let _ = writeln!(
-        s,
-        "0.08 0.11 0.18 rg BT /F1 12 Tf {margin:.1} {:.1} Td ({title}) Tj ET",
-        page_h - 28.0
-    );
-    let _ = writeln!(
-        s,
-        "0.35 0.40 0.48 rg BT /F1 9 Tf {margin:.1} {:.1} Td (Scale {} | {} pieces | {}) Tj ET",
-        page_h - 41.0,
-        pdf_escape(&layout.scale),
-        layout.pieces.len(),
-        pdf_escape(page_footer)
-    );
-    let _ = writeln!(
-        s,
-        "0.2 0.25 0.35 RG 1.0 w {margin:.1} {:.1} m {:.1} {:.1} l S",
-        page_h - 46.0,
-        page_w - margin,
-        page_h - 46.0
-    );
 
     if opts.show_baseboards {
         for bb in get_baseboards_slice(layout) {
@@ -59,12 +208,98 @@ pub(super) fn draw_pdf_plan_page(
             if poly.len() < 3 {
                 continue;
             }
-            let _ = write!(s, "0.94 0.95 0.97 rg 0.50 0.56 0.65 RG 0.9 w ");
+            let _ = write!(s, "0.97 0.98 0.99 rg 0.58 0.64 0.72 RG 0.9 w ");
             for (k, pt) in poly.iter().enumerate() {
                 let (px, py) = to_pdf(pt.x, pt.y);
                 let _ = write!(s, "{px:.2} {py:.2} {} ", if k == 0 { "m" } else { "l" });
             }
             let _ = writeln!(s, "h B");
+        }
+    }
+
+    // Topographic terrain & mountain underlay drawn UNDERNEATH tracks so all tracks/tunnels stay 100% visible
+    let write_ellipse = |st: &mut String, cx: f64, cy: f64, rx: f64, ry: f64, rot_deg: f64, op: &str| {
+        let steps = 32usize;
+        for k in 0..steps {
+            let a = (k as f64 / steps as f64) * std::f64::consts::TAU;
+            let rp = rotate(Vec2 { x: rx * a.cos(), y: ry * a.sin() }, rot_deg);
+            let (px, py) = to_pdf(cx + rp.x, cy + rp.y);
+            let _ = write!(st, "{px:.2} {py:.2} {} ", if k == 0 { "m" } else { "l" });
+        }
+        let _ = writeln!(st, "h {op}");
+    };
+
+    if let Some(models) = &layout.models {
+        for m in models {
+            let m_lid = m.layer_id.as_deref().unwrap_or("layer-1");
+            if let Some(flid) = filter_layer_id {
+                if flid != m_lid {
+                    continue;
+                }
+            }
+            let is_mountain = m.builtin_id.as_deref() == Some("mountain");
+            let is_ground = m.builtin_id.as_deref() == Some("ground-terrain");
+            if !is_mountain && !is_ground {
+                continue;
+            }
+            let sc = m.scale.unwrap_or(1.0);
+            let rx = (m.width * sc * 0.5).max(12.0);
+            let ry = (m.depth * sc * 0.5).max(12.0);
+            let (cx, cy, rot) = (m.transform.x, m.transform.y, m.transform.rotation);
+
+            if is_ground {
+                let (fr, fg, fb) = if opts.monochrome {
+                    (0.95, 0.95, 0.95)
+                } else {
+                    match m.ground_terrain_type.as_deref().unwrap_or("grass") {
+                        "water" => (0.87, 0.95, 0.99),
+                        "sand" => (0.98, 0.95, 0.87),
+                        "dirt" => (0.94, 0.90, 0.85),
+                        _ => (0.92, 0.97, 0.91),
+                    }
+                };
+                let _ = writeln!(s, "{fr:.3} {fg:.3} {fb:.3} rg");
+                if let Some(nodes) = &m.mountain_path {
+                    if !nodes.is_empty() {
+                        for nd in nodes {
+                            let rp = rotate(Vec2 { x: nd.x, y: nd.y }, rot);
+                            let r = nd.radius.max(10.0);
+                            write_ellipse(&mut s, cx + rp.x, cy + rp.y, r, r, 0.0, "f");
+                        }
+                        continue;
+                    }
+                }
+                write_ellipse(&mut s, cx, cy, rx, ry, rot, "f");
+            } else {
+                // Mountain: soft airy topographic fill + inner contour rings (Höhenlinien) UNDERNEATH tracks
+                let (fr, fg, fb) = if opts.monochrome { (0.94, 0.94, 0.94) } else { (0.93, 0.96, 0.92) };
+                let (cr, cg, cb) = if opts.monochrome { (0.68, 0.70, 0.72) } else { (0.52, 0.67, 0.50) };
+                let _ = writeln!(s, "{fr:.3} {fg:.3} {fb:.3} rg");
+                if let Some(nodes) = &m.mountain_path {
+                    if !nodes.is_empty() {
+                        for nd in nodes {
+                            let rp = rotate(Vec2 { x: nd.x, y: nd.y }, rot);
+                            let r = nd.radius.max(12.0);
+                            write_ellipse(&mut s, cx + rp.x, cy + rp.y, r, r, 0.0, "f");
+                        }
+                        // Inner topographic contour rings on each ridge node
+                        let _ = writeln!(s, "{cr:.3} {cg:.3} {cb:.3} RG 0.45 w [2.5 2.0] 0 d");
+                        for nd in nodes {
+                            let rp = rotate(Vec2 { x: nd.x, y: nd.y }, rot);
+                            let r = nd.radius.max(12.0);
+                            write_ellipse(&mut s, cx + rp.x, cy + rp.y, r * 0.68, r * 0.68, 0.0, "S");
+                            write_ellipse(&mut s, cx + rp.x, cy + rp.y, r * 0.36, r * 0.36, 0.0, "S");
+                        }
+                        let _ = writeln!(s, "[] 0 d");
+                        continue;
+                    }
+                }
+                write_ellipse(&mut s, cx, cy, rx, ry, rot, "f");
+                let _ = writeln!(s, "{cr:.3} {cg:.3} {cb:.3} RG 0.45 w [2.5 2.0] 0 d");
+                write_ellipse(&mut s, cx, cy, rx * 0.70, ry * 0.70, rot, "S");
+                write_ellipse(&mut s, cx, cy, rx * 0.40, ry * 0.40, rot, "S");
+                let _ = writeln!(s, "[] 0 d");
+            }
         }
     }
 
@@ -99,10 +334,9 @@ pub(super) fn draw_pdf_plan_page(
                     let _ = writeln!(st, "h {op}");
                 };
                 if ghost {
-                    let _ = writeln!(stream, "0.88 0.90 0.93 rg 0.72 0.75 0.80 RG 0.8 w");
+                    let _ = writeln!(stream, "0.90 0.92 0.95 rg 0.78 0.81 0.86 RG 0.7 w");
                     stroke_circle(stream, outer_r, "B");
-                    let _ = writeln!(stream, "0.80 0.84 0.88 rg 0.68 0.72 0.76 RG 0.7 w");
-                    stroke_circle(stream, pit_r, "B");
+                    stroke_circle(stream, pit_r, "S");
                 } else {
                     if opts.monochrome {
                         let _ = writeln!(stream, "0.78 0.81 0.85 rg 0.30 0.35 0.42 RG 0.9 w");
@@ -118,11 +352,8 @@ pub(super) fn draw_pdf_plan_page(
                     stroke_circle(stream, pit_r, "B");
                     let _ = writeln!(stream, "0.58 0.64 0.72 RG 0.7 w");
                     stroke_circle(stream, ring_rail_r, "S");
-                    if opts.monochrome {
-                        let _ = writeln!(stream, "0.08 0.10 0.14 RG 0.8 w");
-                    } else {
-                        let _ = writeln!(stream, "0.02 0.45 0.76 RG 0.9 w");
-                    }
+                    let (tr, tg, tb) = pdf_track_color(kind, false, false, false, opts.monochrome);
+                    let _ = writeln!(stream, "{tr:.3} {tg:.3} {tb:.3} RG 0.9 w");
                     for br in sample_track_branches_world(p, entry) {
                         if br.len() < 2 {
                             continue;
@@ -143,7 +374,7 @@ pub(super) fn draw_pdf_plan_page(
                         }
                         let _ = writeln!(
                             stream,
-                            "BT /F1 5.5 Tf {lx:.1} {ly:.1} Td ({}) Tj ET",
+                            "BT /F2 5.5 Tf {lx:.1} {ly:.1} Td ({}) Tj ET",
                             pdf_escape(&p.catalog_id)
                         );
                     }
@@ -167,10 +398,9 @@ pub(super) fn draw_pdf_plan_page(
                     let _ = writeln!(st, "h {op}");
                 };
                 if ghost {
-                    let _ = writeln!(stream, "0.88 0.90 0.93 rg 0.72 0.75 0.80 RG 0.8 w");
+                    let _ = writeln!(stream, "0.90 0.92 0.95 rg 0.78 0.81 0.86 RG 0.7 w");
                     write_poly(stream, &outer_cs, "B");
-                    let _ = writeln!(stream, "0.80 0.84 0.88 rg 0.68 0.72 0.76 RG 0.7 w");
-                    write_poly(stream, &pit_cs, "B");
+                    write_poly(stream, &pit_cs, "S");
                 } else {
                     if opts.monochrome {
                         let _ = writeln!(stream, "0.78 0.81 0.85 rg 0.30 0.35 0.42 RG 0.9 w");
@@ -184,14 +414,10 @@ pub(super) fn draw_pdf_plan_page(
                         let _ = writeln!(stream, "0.12 0.16 0.23 rg 0.38 0.45 0.54 RG 0.8 w");
                     }
                     write_poly(stream, &pit_cs, "B");
-
                     let (_, l, top_z, bot_z) = crate::turntables_3d::transfer_table_local_bounds(entry);
                     let to_w = |lx: f64, ly: f64| -> Vec2 {
                         let rp = rotate(Vec2 { x: lx, y: ly }, p.transform.rotation);
-                        Vec2 {
-                            x: p.transform.x + rp.x,
-                            y: p.transform.y + rp.y,
-                        }
+                        Vec2 { x: p.transform.x + rp.x, y: p.transform.y + rp.y }
                     };
                     let _ = writeln!(stream, "0.58 0.64 0.72 RG 0.7 w");
                     for &rx in &[80.0, l * 0.5, l - 80.0] {
@@ -201,12 +427,8 @@ pub(super) fn draw_pdf_plan_page(
                         let (bx, by) = to_pdf(b.x, b.y);
                         let _ = writeln!(stream, "{ax:.2} {ay:.2} m {bx:.2} {by:.2} l S");
                     }
-
-                    if opts.monochrome {
-                        let _ = writeln!(stream, "0.08 0.10 0.14 RG 0.8 w");
-                    } else {
-                        let _ = writeln!(stream, "0.02 0.45 0.76 RG 0.9 w");
-                    }
+                    let (tr, tg, tb) = pdf_track_color(kind, false, false, false, opts.monochrome);
+                    let _ = writeln!(stream, "{tr:.3} {tg:.3} {tb:.3} RG 0.9 w");
                     for br in sample_track_branches_world(p, entry) {
                         if br.len() < 2 {
                             continue;
@@ -229,7 +451,7 @@ pub(super) fn draw_pdf_plan_page(
                         }
                         let _ = writeln!(
                             stream,
-                            "BT /F1 5.5 Tf {lx:.1} {ly:.1} Td ({}) Tj ET",
+                            "BT /F2 5.5 Tf {lx:.1} {ly:.1} Td ({}) Tj ET",
                             pdf_escape(&p.catalog_id)
                         );
                     }
@@ -237,16 +459,28 @@ pub(super) fn draw_pdf_plan_page(
                 continue;
             }
 
+            let (tr, tg, tb) = pdf_track_color(
+                kind,
+                is_road,
+                p.has_bridge == Some(true),
+                p.has_tunnel == Some(true),
+                opts.monochrome,
+            );
             if ghost {
-                let _ = writeln!(stream, "1 J 0.84 0.87 0.90 RG {ballast_w:.2} w");
+                let _ = writeln!(stream, "1 J 0.87 0.89 0.92 RG {ballast_w:.2} w");
             } else if opts.monochrome {
-                let _ = writeln!(stream, "1 J 0.72 0.75 0.80 RG {ballast_w:.2} w");
+                let _ = writeln!(stream, "1 J 0.78 0.80 0.84 RG {ballast_w:.2} w");
             } else if is_road {
-                let _ = writeln!(stream, "1 J 0.32 0.37 0.44 RG {ballast_w:.2} w");
+                let _ = writeln!(stream, "1 J 0.34 0.39 0.46 RG {ballast_w:.2} w");
             } else {
-                let _ = writeln!(stream, "1 J 0.45 0.52 0.60 RG {ballast_w:.2} w");
+                // Soft tinted roadbed halo matching track type color
+                let br = 0.72 + tr * 0.22;
+                let bg = 0.74 + tg * 0.20;
+                let bb = 0.78 + tb * 0.18;
+                let _ = writeln!(stream, "1 J {br:.3} {bg:.3} {bb:.3} RG {ballast_w:.2} w");
             }
-            for br in sample_track_branches_world(p, entry) {
+            let branches = sample_track_branches_world(p, entry);
+            for br in &branches {
                 if br.len() < 2 {
                     continue;
                 }
@@ -257,12 +491,14 @@ pub(super) fn draw_pdf_plan_page(
                 let _ = writeln!(stream, "S");
             }
             if !ghost {
-                if opts.monochrome {
-                    let _ = writeln!(stream, "0.08 0.10 0.14 RG 0.7 w");
+                let rail_w = (ballast_w * 0.26).clamp(0.7, 1.8);
+                let is_tun = p.has_tunnel == Some(true);
+                if is_tun {
+                    let _ = writeln!(stream, "{tr:.3} {tg:.3} {tb:.3} RG {rail_w:.2} w [3.5 2.5] 0 d");
                 } else {
-                    let _ = writeln!(stream, "0.02 0.45 0.76 RG 0.8 w");
+                    let _ = writeln!(stream, "{tr:.3} {tg:.3} {tb:.3} RG {rail_w:.2} w");
                 }
-                for br in sample_track_branches_world(p, entry) {
+                for br in &branches {
                     if br.len() < 2 {
                         continue;
                     }
@@ -272,15 +508,29 @@ pub(super) fn draw_pdf_plan_page(
                     }
                     let _ = writeln!(stream, "S");
                 }
+                if is_tun {
+                    let _ = writeln!(stream, "[] 0 d");
+                }
                 if opts.show_labels && p.connectors.len() >= 2 && scale >= 0.08 {
                     let (lx, ly) = to_pdf(
                         (p.connectors[0].x + p.connectors[1].x) * 0.5,
                         (p.connectors[0].y + p.connectors[1].y) * 0.5,
                     );
+                    let lbl = &p.catalog_id;
+                    let pill_w = (lbl.len() as f64 * 3.3 + 4.0).max(16.0);
+                    let pill_h = 7.5_f64;
                     let _ = writeln!(
                         stream,
-                        "0.08 0.12 0.20 rg BT /F1 5.5 Tf {lx:.1} {ly:.1} Td ({}) Tj ET",
-                        pdf_escape(&p.catalog_id)
+                        "1 1 1 rg 0.82 0.85 0.90 RG 0.35 w {:.1} {:.1} {pill_w:.1} {pill_h:.1} re B",
+                        lx - pill_w * 0.5,
+                        ly - pill_h * 0.5
+                    );
+                    let _ = writeln!(
+                        stream,
+                        "0.06 0.09 0.16 rg BT /F2 5.2 Tf {:.1} {:.1} Td ({}) Tj ET",
+                        lx - pill_w * 0.5 + 2.0,
+                        ly - 1.8,
+                        pdf_escape(lbl)
                     );
                 }
             }
@@ -300,115 +550,267 @@ pub(super) fn draw_pdf_plan_page(
                     continue;
                 }
             }
-            let cs = model_corners_world(m);
-            let _ = write!(s, "0.86 0.91 0.98 rg 0.22 0.30 0.42 RG 0.8 w ");
-            for (k, pt) in cs.iter().enumerate() {
-                let (px, py) = to_pdf(pt.x, pt.y);
-                let _ = write!(s, "{px:.2} {py:.2} {} ", if k == 0 { "m" } else { "l" });
+            if m.builtin_id.as_deref() == Some("ground-terrain") {
+                continue;
             }
-            let _ = writeln!(s, "h B");
+            if m.builtin_id.as_deref() == Some("mountain") {
+                // Stroke-only dashed topographic outline on top (NO fill!) so tracks underneath remain 100% visible
+                let sc = m.scale.unwrap_or(1.0);
+                let rx = (m.width * sc * 0.5).max(12.0);
+                let ry = (m.depth * sc * 0.5).max(12.0);
+                let (cx, cy, rot) = (m.transform.x, m.transform.y, m.transform.rotation);
+                let (or, og, ob) = if opts.monochrome { (0.32, 0.35, 0.38) } else { (0.24, 0.45, 0.26) };
+                let _ = writeln!(s, "{or:.3} {og:.3} {ob:.3} RG 0.9 w [4.0 2.5] 0 d");
+                if let Some(nodes) = &m.mountain_path {
+                    if !nodes.is_empty() {
+                        for nd in nodes {
+                            let rp = rotate(Vec2 { x: nd.x, y: nd.y }, rot);
+                            let r = nd.radius.max(12.0);
+                            write_ellipse(&mut s, cx + rp.x, cy + rp.y, r, r, 0.0, "S");
+                        }
+                    } else {
+                        write_ellipse(&mut s, cx, cy, rx, ry, rot, "S");
+                    }
+                } else {
+                    write_ellipse(&mut s, cx, cy, rx, ry, rot, "S");
+                }
+                let _ = writeln!(s, "[] 0 d");
+                continue;
+            }
+            if !opts.show_models {
+                continue;
+            }
+            // Render real 2D top-view architectural building mesh (matches 2D canvas view!)
+            let top_mesh = crate::canvas2d::build_model_top_view_mesh_2d(m);
+            if !top_mesh.tris.is_empty() {
+                let rad = m.transform.rotation.to_radians();
+                let (sin_r, cos_r) = rad.sin_cos();
+                for (pts, cols) in &top_mesh.tris {
+                    let r_avg = (cols[0].r() as f64 + cols[1].r() as f64 + cols[2].r() as f64) / 765.0;
+                    let g_avg = (cols[0].g() as f64 + cols[1].g() as f64 + cols[2].g() as f64) / 765.0;
+                    let b_avg = (cols[0].b() as f64 + cols[1].b() as f64 + cols[2].b() as f64) / 765.0;
+                    let (cr, cg, cb) = if opts.monochrome {
+                        let lum = (0.299 * r_avg + 0.587 * g_avg + 0.114 * b_avg).clamp(0.12, 0.96);
+                        (lum, lum, lum)
+                    } else {
+                        (r_avg, g_avg, b_avg)
+                    };
+                    let mut p2 = [(0.0_f64, 0.0_f64); 3];
+                    for k in 0..3 {
+                        let lx = pts[k][0] as f64;
+                        let ly = pts[k][1] as f64;
+                        let wx = m.transform.x + lx * cos_r - ly * sin_r;
+                        let wy = m.transform.y + lx * sin_r + ly * cos_r;
+                        p2[k] = to_pdf(wx, wy);
+                    }
+                    let _ = writeln!(
+                        s,
+                        "{cr:.3} {cg:.3} {cb:.3} rg {:.2} {:.2} m {:.2} {:.2} l {:.2} {:.2} l h f",
+                        p2[0].0, p2[0].1, p2[1].0, p2[1].1, p2[2].0, p2[2].1
+                    );
+                }
+            } else {
+                let cs = model_corners_world(m);
+                let _ = write!(s, "0.90 0.94 0.99 rg 0.25 0.33 0.45 RG 0.8 w ");
+                for (k, pt) in cs.iter().enumerate() {
+                    let (px, py) = to_pdf(pt.x, pt.y);
+                    let _ = write!(s, "{px:.2} {py:.2} {} ", if k == 0 { "m" } else { "l" });
+                }
+                let _ = writeln!(s, "h B");
+            }
         }
     }
+
+    // Scale Bar (Maßstabsbalken) in bottom-left of plan viewport (matches Electron print.ts:200-210)
+    let bar_mm = if span_x > 1500.0 { 500.0 } else { 200.0 };
+    let bar_pt = (bar_mm * scale).clamp(32.0, 140.0);
+    let bx = body_x + 12.0;
+    let by = body_y + 12.0;
+    let _ = writeln!(
+        s,
+        "0.20 0.25 0.33 RG 1.2 w {bx:.1} {by:.1} m {:.1} {by:.1} l {bx:.1} {:.1} m {bx:.1} {:.1} l {:.1} {:.1} m {:.1} {:.1} l S",
+        bx + bar_pt,
+        by - 3.5,
+        by + 3.5,
+        bx + bar_pt,
+        by - 3.5,
+        bx + bar_pt,
+        by + 3.5
+    );
+    let _ = writeln!(
+        s,
+        "0.20 0.25 0.33 rg BT /F2 7 Tf {:.1} {:.1} Td ({:.0} mm) Tj ET",
+        bx + bar_pt + 5.0,
+        by - 2.3,
+        bar_mm
+    );
 
     s
 }
 
-pub(super) fn draw_pdf_bom_page(
+/// Renders one or more styled Bill of Materials pages matching Electron's print-pdf.ts table layout.
+pub(super) fn draw_pdf_bom_pages(
     layout: &Layout,
     catalogs: &[Catalog],
     page_w: f64,
     page_h: f64,
     is_de: bool,
-    page_footer: &str,
-) -> String {
+    start_page_num: usize,
+    total_pages_hint: usize,
+) -> Vec<String> {
     let sum = get_piece_list_summary(layout, catalogs, is_de);
-    let margin = 40.0_f64;
-    let mut s = String::new();
-    let heading = pdf_escape(&format!("{} - Bill of Materials ({})", layout.name, layout.scale));
-    let _ = writeln!(
-        s,
-        "0.08 0.11 0.18 rg BT /F1 13 Tf {margin:.1} {:.1} Td ({heading}) Tj ET",
-        page_h - 34.0
-    );
-    let sub = pdf_escape(&format!(
-        "Tracks: {} ({:.2} m) | Roads: {} ({:.2} m) | Models: {} | {}",
-        sum.tracks.total_pieces,
-        sum.tracks.total_length_meters,
-        sum.roads.total_pieces,
-        sum.roads.total_length_meters,
-        sum.total_buildings,
-        page_footer
-    ));
-    let _ = writeln!(
-        s,
-        "0.35 0.42 0.50 rg BT /F1 9 Tf {margin:.1} {:.1} Td ({sub}) Tj ET",
-        page_h - 49.0
-    );
+    let margin = 28.0_f64;
 
-    let mut y = page_h - 72.0;
-    let _ = writeln!(
-        s,
-        "0.92 0.94 0.97 rg {margin:.1} {:.1} {:.1} 16 re f",
-        y - 4.0,
-        page_w - margin * 2.0
-    );
-    let _ = writeln!(
-        s,
-        "0.08 0.12 0.20 rg BT /F1 9 Tf {:.1} {y:.1} Td (Part No.) Tj ET BT /F1 9 Tf {:.1} {y:.1} Td (Description) Tj ET BT /F1 9 Tf {:.1} {y:.1} Td (Spec) Tj ET BT /F1 9 Tf {:.1} {y:.1} Td (Qty) Tj ET BT /F1 9 Tf {:.1} {y:.1} Td (Length) Tj ET",
-        margin + 6.0,
-        margin + 90.0,
-        margin + 320.0,
-        page_w - margin - 105.0,
-        page_w - margin - 52.0
-    );
-    y -= 18.0;
-
+    // Collect unified table rows: (part_no, desc, category, spec, qty_str, len_str)
+    let mut rows: Vec<(String, String, String, String, String, String)> = Vec::new();
     for it in sum.tracks.items.iter().chain(sum.roads.items.iter()) {
-        if y < 44.0 {
-            break;
-        }
-        let desc = it.name.chars().take(38).collect::<String>();
-        let spec = it.specification.chars().take(24).collect::<String>();
-        let _ = writeln!(
-            s,
-            "0.12 0.16 0.24 rg BT /F1 8.5 Tf {:.1} {y:.1} Td ({}) Tj ET BT /F1 8.5 Tf {:.1} {y:.1} Td ({}) Tj ET BT /F1 8.5 Tf {:.1} {y:.1} Td ({}) Tj ET BT /F1 8.5 Tf {:.1} {y:.1} Td ({}x) Tj ET BT /F1 8.5 Tf {:.1} {y:.1} Td ({:.2} m) Tj ET",
-            margin + 6.0,
-            pdf_escape(&it.catalog_id),
-            margin + 90.0,
-            pdf_escape(&desc),
-            margin + 320.0,
-            pdf_escape(&spec),
-            page_w - margin - 105.0,
-            it.count,
-            page_w - margin - 52.0,
-            it.total_length_meters
-        );
-        y -= 14.0;
+        rows.push((
+            it.catalog_id.clone(),
+            it.name.chars().take(40).collect(),
+            it.category.chars().take(18).collect(),
+            it.specification.chars().take(24).collect(),
+            format!("{}", it.count),
+            format!("{:.2} m", it.total_length_meters),
+        ));
     }
-
     for bm in &sum.buildings {
-        if y < 44.0 {
-            break;
-        }
-        let desc = bm.name.chars().take(38).collect::<String>();
-        let _ = writeln!(
-            s,
-            "0.22 0.28 0.36 rg BT /F1 8.5 Tf {:.1} {y:.1} Td (3D) Tj ET BT /F1 8.5 Tf {:.1} {y:.1} Td ({}) Tj ET BT /F1 8.5 Tf {:.1} {y:.1} Td ({}) Tj ET BT /F1 8.5 Tf {:.1} {y:.1} Td ({}x) Tj ET",
-            margin + 6.0,
-            margin + 90.0,
-            pdf_escape(&desc),
-            margin + 320.0,
-            pdf_escape(&bm.dimensions),
-            page_w - margin - 105.0,
-            bm.count
-        );
-        y -= 14.0;
+        rows.push((
+            "3D".into(),
+            bm.name.chars().take(40).collect(),
+            bm.category.chars().take(18).collect(),
+            bm.dimensions.chars().take(24).collect(),
+            format!("{}", bm.count),
+            "-".into(),
+        ));
     }
 
-    s
+    let grand_pieces = sum.tracks.total_pieces + sum.roads.total_pieces + sum.total_buildings;
+    let grand_meters = sum.tracks.total_length_meters + sum.roads.total_length_meters;
+
+    let row_h = 16.0_f64;
+    let header_h = 20.0_f64;
+    let total_row_h = 20.0_f64;
+    let table_top_y = page_h - margin - 54.0;
+    let table_bottom_min = margin + 32.0 + total_row_h;
+    let max_rows_per_page = (((table_top_y - header_h - table_bottom_min) / row_h).floor() as usize).max(1);
+
+    let chunks: Vec<&[(String, String, String, String, String, String)]> = if rows.is_empty() {
+        vec![&[]]
+    } else {
+        rows.chunks(max_rows_per_page).collect()
+    };
+
+    let actual_total = total_pages_hint + chunks.len().saturating_sub(1);
+    let mut pages = Vec::with_capacity(chunks.len());
+
+    let table_w = page_w - margin * 2.0;
+    let col_part = margin + 6.0;
+    let col_desc = margin + 72.0;
+    let col_cat = margin + table_w * 0.44;
+    let col_spec = margin + table_w * 0.60;
+    let col_qty = page_w - margin - 88.0;
+    let col_len = page_w - margin - 42.0;
+
+    for (chunk_idx, chunk) in chunks.iter().enumerate() {
+        let mut s = String::with_capacity(4096);
+        let _ = writeln!(s, "1 1 1 rg 0 0 {page_w:.1} {page_h:.1} re f");
+
+        let title = if is_de {
+            format!("{} - Stueckliste", layout.name)
+        } else {
+            format!("{} - Bill of Materials", layout.name)
+        };
+        let subtitle = format!(
+            "Scale: {}  |  Feed Voltage: {:.0} V",
+            layout.scale,
+            layout.feed_voltage.unwrap_or(16.0)
+        );
+        let badge = PdfBadge {
+            name: if is_de { "Stueckliste / Inventar" } else { "Bill of Materials" },
+            color_rgb: (0.06, 0.73, 0.51),
+            elev_line: format!("{grand_pieces} Pieces Total"),
+            count_line: format!("{grand_meters:.2} m total length"),
+        };
+        let _ = write_pdf_page_header(&mut s, page_w, page_h, margin, &title, &subtitle, &badge);
+
+        let footer_left = format!(
+            "Layout: {} ({})  |  Feed Voltage: {:.0}V",
+            layout.name,
+            layout.scale,
+            layout.feed_voltage.unwrap_or(16.0)
+        );
+        let page_str = format!("Page {} of {}", start_page_num + chunk_idx, actual_total);
+        let _ = write_pdf_page_footer(&mut s, page_w, margin, &footer_left, &page_str);
+
+        // Table Header (#f1f5f9 fill, #cbd5e1 border)
+        let mut y = table_top_y;
+        let _ = writeln!(
+            s,
+            "0.95 0.96 0.98 rg 0.80 0.84 0.88 RG 0.7 w {margin:.1} {:.1} {table_w:.1} {header_h:.1} re B",
+            y - header_h
+        );
+        let ty = y - 13.5;
+        let (h_part, h_desc, h_cat, h_spec, h_qty, h_len) = if is_de {
+            ("Art.-Nr.", "Bezeichnung", "Kategorie", "Geometrie / Mass", "Menge", "Laenge")
+        } else {
+            ("Part No.", "Description", "Category", "Specification", "Qty", "Length")
+        };
+        let _ = writeln!(
+            s,
+            "0.06 0.09 0.16 rg BT /F2 8.2 Tf {col_part:.1} {ty:.1} Td ({h_part}) Tj ET BT /F2 8.2 Tf {col_desc:.1} {ty:.1} Td ({h_desc}) Tj ET BT /F2 8.2 Tf {col_cat:.1} {ty:.1} Td ({h_cat}) Tj ET BT /F2 8.2 Tf {col_spec:.1} {ty:.1} Td ({h_spec}) Tj ET BT /F2 8.2 Tf {col_qty:.1} {ty:.1} Td ({h_qty}) Tj ET BT /F2 8.2 Tf {col_len:.1} {ty:.1} Td ({h_len}) Tj ET"
+        );
+        y -= header_h;
+
+        // Zebra-striped table rows
+        for (idx, (part, desc, cat, spec, qty, len)) in chunk.iter().enumerate() {
+            let row_bottom = y - row_h;
+            if idx % 2 == 1 {
+                let _ = writeln!(
+                    s,
+                    "0.97 0.98 0.99 rg 0.89 0.91 0.94 RG 0.45 w {margin:.1} {row_bottom:.1} {table_w:.1} {row_h:.1} re B"
+                );
+            } else {
+                let _ = writeln!(
+                    s,
+                    "0.89 0.91 0.94 RG 0.45 w {margin:.1} {row_bottom:.1} {table_w:.1} {row_h:.1} re S"
+                );
+            }
+            let rty = y - 11.2;
+            let _ = writeln!(
+                s,
+                "0.06 0.09 0.16 rg BT /F2 7.8 Tf {col_part:.1} {rty:.1} Td ({}) Tj ET 0.20 0.25 0.33 rg BT /F1 7.8 Tf {col_desc:.1} {rty:.1} Td ({}) Tj ET BT /F1 7.5 Tf {col_cat:.1} {rty:.1} Td ({}) Tj ET BT /F1 7.5 Tf {col_spec:.1} {rty:.1} Td ({}) Tj ET 0.06 0.09 0.16 rg BT /F2 7.8 Tf {col_qty:.1} {rty:.1} Td ({}) Tj ET 0.20 0.25 0.33 rg BT /F1 7.8 Tf {col_len:.1} {rty:.1} Td ({}) Tj ET",
+                pdf_escape(part),
+                pdf_escape(desc),
+                pdf_escape(cat),
+                pdf_escape(spec),
+                pdf_escape(qty),
+                pdf_escape(len)
+            );
+            y -= row_h;
+        }
+
+        // Grand Total row on last BOM page (#e2e8f0 fill, dark #0f172a border)
+        if chunk_idx + 1 == chunks.len() {
+            let tot_bottom = y - total_row_h;
+            let _ = writeln!(
+                s,
+                "0.89 0.91 0.94 rg 0.06 0.09 0.16 RG 1.0 w {margin:.1} {tot_bottom:.1} {table_w:.1} {total_row_h:.1} re B"
+            );
+            let tty = y - 13.5;
+            let grand_lbl = if is_de { "Gesamtsumme:" } else { "Grand Total:" };
+            let _ = writeln!(
+                s,
+                "0.06 0.09 0.16 rg BT /F2 8.5 Tf {col_part:.1} {tty:.1} Td ({grand_lbl}) Tj ET BT /F2 8.5 Tf {col_qty:.1} {tty:.1} Td ({grand_pieces}) Tj ET BT /F2 8.5 Tf {col_len:.1} {tty:.1} Td ({grand_meters:.2} m) Tj ET"
+            );
+        }
+
+        pages.push(s);
+    }
+
+    pages
 }
 
-/// Pure-Rust Multi-Page Vector PDF 1.4 Blueprint & Parts List Exporter.
+/// Pure-Rust Multi-Page Vector PDF 1.4 Blueprint & Parts List Exporter (Electron-parity layout).
 pub fn export_layout_pdf_with_options(
     layout: &Layout,
     catalogs: &[Catalog],
@@ -421,8 +823,7 @@ pub fn export_layout_pdf_with_options(
         (595.0_f64, 842.0_f64)
     };
 
-    let mut page_streams: Vec<String> = Vec::new();
-    let mut layer_pages_meta: Vec<(String, String, f64)> = Vec::new();
+    let mut layer_pages_meta: Vec<(String, String, f64, String)> = Vec::new();
     if opts.include_layer_pages {
         if let Some(layers) = &layout.layers {
             let mut sorted: Vec<_> = layers
@@ -442,61 +843,144 @@ pub fn export_layout_pdf_with_options(
                     .unwrap_or(std::cmp::Ordering::Equal)
             });
             for l in sorted {
-                layer_pages_meta.push((l.id.clone(), l.name.clone(), l.height_mm.unwrap_or(0.0)));
+                layer_pages_meta.push((
+                    l.id.clone(),
+                    l.name.clone(),
+                    l.height_mm.unwrap_or(0.0),
+                    l.color.clone().unwrap_or_else(|| "#38bdf8".into()),
+                ));
             }
         }
     }
 
-    let total_pages = (opts.include_overview as usize)
-        + layer_pages_meta.len()
-        + (opts.include_bom_page as usize);
-    let total_pages = total_pages.max(1);
+    let include_overview = opts.include_overview || (layer_pages_meta.is_empty() && !opts.include_bom_page);
+    let plan_page_count = (include_overview as usize) + layer_pages_meta.len();
+    let bom_pages = if opts.include_bom_page {
+        draw_pdf_bom_pages(
+            layout,
+            catalogs,
+            page_w,
+            page_h,
+            is_de,
+            plan_page_count + 1,
+            plan_page_count + 1,
+        )
+    } else {
+        Vec::new()
+    };
+    let total_pages = (plan_page_count + bom_pages.len()).max(1);
+
+    let mut page_streams: Vec<String> = Vec::with_capacity(total_pages);
     let mut page_num = 1usize;
 
-    if opts.include_overview || (layer_pages_meta.is_empty() && !opts.include_bom_page) {
-        let footer = format!("Page {page_num}/{total_pages}");
+    if include_overview {
+        let sum = get_piece_list_summary(layout, catalogs, is_de);
+        let layer_cnt = layout.layers.as_ref().map_or(1, Vec::len);
+        let total_len = sum.tracks.total_length_meters + sum.roads.total_length_meters;
+        let total_pcs = sum.tracks.total_pieces + sum.roads.total_pieces;
+        let badge = PdfBadge {
+            name: if is_de { "Alle Ebenen kombiniert" } else { "All Layers Combined" },
+            color_rgb: (0.01, 0.52, 0.78),
+            elev_line: if is_de { format!("{layer_cnt} Ebenen") } else { format!("{layer_cnt} Layers") },
+            count_line: format!("{total_pcs} tracks  |  {total_len:.2} m total"),
+        };
+        let active_layers_str = layout
+            .layers
+            .as_ref()
+            .map(|ls| {
+                ls.iter()
+                    .map(|l| format!("{} ({:.0} mm)", l.name, l.height_mm.unwrap_or(0.0)))
+                    .collect::<Vec<_>>()
+                    .join("  |  ")
+            })
+            .unwrap_or_else(|| "Layer 1 (0 mm)".into());
+        let footer_left = if is_de {
+            format!("Aktive Ebenen: {active_layers_str}")
+        } else {
+            format!("Active Layers: {active_layers_str}")
+        };
+        let subtitle = if is_de {
+            format!("Gesamtuebersicht  |  Spur {}", layout.scale)
+        } else {
+            format!("Overall Layout Overview  |  Scale {}", layout.scale)
+        };
+        let footer_right = format!("Page {page_num} of {total_pages}");
         page_streams.push(draw_pdf_plan_page(
             layout,
             catalogs,
             opts,
             None,
-            "Overview",
-            &footer,
+            &subtitle,
+            &badge,
+            &footer_left,
+            &footer_right,
             page_w,
             page_h,
         ));
         page_num += 1;
     }
 
-    for (lid, lname, lh) in &layer_pages_meta {
-        let sub = format!("Layer: {lname} ({lh:.0} mm)");
-        let footer = format!("Page {page_num}/{total_pages}");
+    for (lid, lname, lh, lcol) in &layer_pages_meta {
+        let lsum = get_layer_piece_list_summary(layout, catalogs, lid, is_de);
+        let h_sign = if *lh > 0.0 {
+            format!("+{lh:.0}")
+        } else {
+            format!("{lh:.0}")
+        };
+        let badge = PdfBadge {
+            name: lname,
+            color_rgb: hex_to_pdf_rgb(lcol),
+            elev_line: if is_de {
+                format!("Hoehe: {h_sign} mm")
+            } else {
+                format!("Height: {h_sign} mm")
+            },
+            count_line: format!("{} tracks  |  {:.2} m", lsum.total_pieces, lsum.total_length_meters),
+        };
+        let chips = lsum
+            .items
+            .iter()
+            .take(10)
+            .map(|it| format!("{}: {}x", it.catalog_id, it.count))
+            .collect::<Vec<_>>()
+            .join("   ");
+        let footer_left = if chips.is_empty() {
+            if is_de { "Keine Gleise auf dieser Ebene".into() } else { "No tracks assigned to this layer".into() }
+        } else if is_de {
+            format!("Teile auf dieser Ebene: {chips}")
+        } else {
+            format!("Parts on this level: {chips}")
+        };
+        let subtitle = if is_de {
+            format!("Ebene: {lname}  |  Spur {}", layout.scale)
+        } else {
+            format!("Layer: {lname}  |  Scale {}", layout.scale)
+        };
+        let footer_right = format!("Page {page_num} of {total_pages}");
         page_streams.push(draw_pdf_plan_page(
             layout,
             catalogs,
             opts,
             Some(lid.as_str()),
-            &sub,
-            &footer,
+            &subtitle,
+            &badge,
+            &footer_left,
+            &footer_right,
             page_w,
             page_h,
         ));
         page_num += 1;
     }
 
-    if opts.include_bom_page {
-        let footer = format!("Page {page_num}/{total_pages}");
-        page_streams.push(draw_pdf_bom_page(
-            layout, catalogs, page_w, page_h, is_de, &footer,
-        ));
-    }
+    page_streams.extend(bom_pages);
 
+    // Assemble PDF 1.4 with both /F1 (Helvetica) and /F2 (Helvetica-Bold)
     let mut pdf = Vec::<u8>::new();
     pdf.extend_from_slice(b"%PDF-1.4\n");
     let mut offsets = Vec::<usize>::new();
 
     let page_ids: Vec<String> = (0..page_streams.len())
-        .map(|i| format!("{} 0 R", 4 + i * 2))
+        .map(|i| format!("{} 0 R", 5 + i * 2))
         .collect();
 
     let mut objects = vec![
@@ -507,13 +991,14 @@ pub fn export_layout_pdf_with_options(
             page_streams.len()
         ),
         "3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n".to_string(),
+        "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>\nendobj\n".to_string(),
     ];
 
     for (i, stream) in page_streams.iter().enumerate() {
-        let page_obj = 4 + i * 2;
+        let page_obj = 5 + i * 2;
         let cont_obj = page_obj + 1;
         objects.push(format!(
-            "{page_obj} 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {page_w:.0} {page_h:.0}] /Resources << /Font << /F1 3 0 R >> >> /Contents {cont_obj} 0 R >>\nendobj\n"
+            "{page_obj} 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {page_w:.0} {page_h:.0}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents {cont_obj} 0 R >>\nendobj\n"
         ));
         objects.push(format!(
             "{cont_obj} 0 obj\n<< /Length {} >>\nstream\n{stream}endstream\nendobj\n",
@@ -539,4 +1024,3 @@ pub fn export_layout_pdf_with_options(
     pdf.extend_from_slice(xref.as_bytes());
     pdf
 }
-

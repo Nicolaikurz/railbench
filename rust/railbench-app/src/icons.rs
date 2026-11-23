@@ -14,6 +14,7 @@ pub enum Icon {
     Palette,
     Tag,
     Zap,
+    #[allow(dead_code)]
     Isolator,
     Box3d,
     Sun,

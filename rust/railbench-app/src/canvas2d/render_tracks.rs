@@ -36,6 +36,8 @@ pub(super) fn draw_track_piece(
 
     let mut ballast_col = if is_road {
         Color32::from_rgb(55, 65, 81)
+    } else if piece_power.is_some_and(|pr| pr.is_short_circuit) {
+        Color32::from_rgb(239, 68, 68)
     } else if power_sim_enabled {
         if let Some(pr) = piece_power {
             match pr.status {

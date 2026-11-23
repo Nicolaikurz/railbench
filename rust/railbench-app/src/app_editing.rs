@@ -59,13 +59,69 @@ impl RailbenchApp {
             }
         }
 
-        let piece = create_piece(id.clone(), entry, tr, self.layout.active_layer_id.clone());
+        let mut piece = create_piece(id.clone(), entry, tr, self.layout.active_layer_id.clone());
+        if crate::catalog::is_feeder_entry(entry) && self.catalog_entry_power_enabled.contains(&entry.id) {
+            piece.power_feed = Some(true);
+        }
+        if crate::catalog::is_isolating_entry(entry) && self.catalog_entry_isolating_enabled.contains(&entry.id) {
+            piece.is_isolator = Some(true);
+            piece.isolated_connector_index = Some(0);
+        }
         self.layout.pieces.push(piece);
         update_layout_connections(&mut self.layout, 4.0, 35.0, 1.0);
         crate::catalog::disconnect_cross_type_connections(&mut self.layout, &self.catalogs);
         self.selected.clear();
         self.selected.insert(id);
         self.last_placed_catalog_id = Some(entry.id.clone());
+        self.mark_layout_dirty();
+    }
+
+    fn active_rail_catalog(&self) -> Option<&Catalog> {
+        let cur = self.catalogs.get(self.selected_catalog_idx);
+        if let Some(cat) = cur {
+            let is_road_cat = cat.entries.first().is_some_and(|e| e.is_road == Some(true));
+            if !is_road_cat {
+                return Some(cat);
+            }
+        }
+        self.catalogs
+            .iter()
+            .find(|c| c.entries.first().map_or(false, |e| e.is_road != Some(true)))
+            .or(cur)
+    }
+
+    /// Adds a Feeder Track from the active rail catalog (auto-snapping to a selected open track
+    /// connector if one is selected) and marks it as an active power feeder.
+    pub fn place_feeder_track(&mut self) {
+        let Some(entry) = self
+            .active_rail_catalog()
+            .and_then(crate::catalog::find_feeder_entry)
+            .cloned()
+        else {
+            return;
+        };
+        self.place_catalog_entry(&entry);
+        if let Some(p) = self.layout.pieces.last_mut() {
+            p.power_feed = Some(true);
+        }
+        self.mark_layout_dirty();
+    }
+
+    /// Adds an Isolating Track from the active rail catalog (auto-snapping to a selected open track
+    /// connector if one is selected) and marks it as an active rail isolator.
+    pub fn place_isolating_track(&mut self) {
+        let Some(entry) = self
+            .active_rail_catalog()
+            .and_then(crate::catalog::find_isolating_entry)
+            .cloned()
+        else {
+            return;
+        };
+        self.place_catalog_entry(&entry);
+        if let Some(p) = self.layout.pieces.last_mut() {
+            p.is_isolator = Some(true);
+            p.isolated_connector_index = Some(0);
+        }
         self.mark_layout_dirty();
     }
 
@@ -88,7 +144,14 @@ impl RailbenchApp {
             y: world_pos.y - cy,
             rotation: 0.0,
         };
-        let piece = create_piece(id.clone(), entry, tr, self.layout.active_layer_id.clone());
+        let mut piece = create_piece(id.clone(), entry, tr, self.layout.active_layer_id.clone());
+        if crate::catalog::is_feeder_entry(entry) && self.catalog_entry_power_enabled.contains(&entry.id) {
+            piece.power_feed = Some(true);
+        }
+        if crate::catalog::is_isolating_entry(entry) && self.catalog_entry_isolating_enabled.contains(&entry.id) {
+            piece.is_isolator = Some(true);
+            piece.isolated_connector_index = Some(0);
+        }
         self.layout.pieces.push(piece);
         self.selected.clear();
         self.selected.insert(id);

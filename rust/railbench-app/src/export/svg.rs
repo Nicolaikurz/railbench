@@ -1,6 +1,6 @@
 use super::*;
 
-pub(super) fn sample_track_branches_world(piece: &TrackPiece, entry: Option<&CatalogEntry>) -> Vec<Vec<Vec2>> {
+pub(crate) fn sample_track_branches_world(piece: &TrackPiece, entry: Option<&CatalogEntry>) -> Vec<Vec<Vec2>> {
     if let Some(e) = entry {
         let to_w = |lx: f64, ly: f64| -> Vec2 {
             let rp = rotate(Vec2 { x: lx, y: ly }, piece.transform.rotation);
@@ -109,7 +109,7 @@ pub(super) fn sample_track_branches_world(piece: &TrackPiece, entry: Option<&Cat
     }
 }
 
-pub(super) fn layout_bounds(layout: &Layout, catalogs: &[Catalog]) -> (f64, f64, f64, f64) {
+pub(crate) fn layout_bounds(layout: &Layout, catalogs: &[Catalog]) -> (f64, f64, f64, f64) {
     let mut min_x = f64::INFINITY;
     let mut max_x = f64::NEG_INFINITY;
     let mut min_y = f64::INFINITY;
@@ -391,9 +391,14 @@ pub fn export_layout_svg_with_options(
                 svg,
                 r##"  <polyline points="{pts_s}" fill="none" stroke="{ballast_col}" stroke-width="{ballast_w}" stroke-linecap="round" stroke-linejoin="round"/>"##
             );
+            let dash = if p.has_tunnel == Some(true) {
+                r#" stroke-dasharray="12 8""#
+            } else {
+                ""
+            };
             let _ = writeln!(
                 svg,
-                r##"  <polyline points="{pts_s}" fill="none" stroke="{rail_col}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>"##
+                r##"  <polyline points="{pts_s}" fill="none" stroke="{rail_col}" stroke-width="3"{dash} stroke-linecap="round" stroke-linejoin="round"/>"##
             );
         }
 
@@ -405,6 +410,46 @@ pub fn export_layout_svg_with_options(
                 r##"  <text x="{mx:.1}" y="{my:.1}" font-family="sans-serif" font-size="13" fill="#0f172a" text-anchor="middle" dominant-baseline="central">{}</text>"##,
                 escape_xml(&p.catalog_id)
             );
+        }
+    }
+
+    if opts.show_models {
+        if let Some(models) = &layout.models {
+            for m in models {
+                if matches!(m.builtin_id.as_deref(), Some("mountain") | Some("ground-terrain")) {
+                    continue;
+                }
+                let top_mesh = crate::canvas2d::build_model_top_view_mesh_2d(m);
+                if !top_mesh.tris.is_empty() {
+                    let rad = m.transform.rotation.to_radians();
+                    let (sin_r, cos_r) = rad.sin_cos();
+                    for (pts, cols) in &top_mesh.tris {
+                        let r_u8 = ((cols[0].r() as u16 + cols[1].r() as u16 + cols[2].r() as u16) / 3) as u8;
+                        let g_u8 = ((cols[0].g() as u16 + cols[1].g() as u16 + cols[2].g() as u16) / 3) as u8;
+                        let b_u8 = ((cols[0].b() as u16 + cols[1].b() as u16 + cols[2].b() as u16) / 3) as u8;
+                        let (r, g, b) = if opts.monochrome {
+                            let lum = ((r_u8 as u16 * 77 + g_u8 as u16 * 150 + b_u8 as u16 * 29) >> 8) as u8;
+                            (lum, lum, lum)
+                        } else {
+                            (r_u8, g_u8, b_u8)
+                        };
+                        let mut p2 = [(0.0_f64, 0.0_f64); 3];
+                        for k in 0..3 {
+                            let lx = pts[k][0] as f64;
+                            let ly = pts[k][1] as f64;
+                            p2[k] = (
+                                m.transform.x + lx * cos_r - ly * sin_r,
+                                m.transform.y + lx * sin_r + ly * cos_r,
+                            );
+                        }
+                        let _ = writeln!(
+                            svg,
+                            r##"  <polygon points="{:.1},{:.1} {:.1},{:.1} {:.1},{:.1}" fill="#{r:02x}{g:02x}{b:02x}"/>"##,
+                            p2[0].0, p2[0].1, p2[1].0, p2[1].1, p2[2].0, p2[2].1
+                        );
+                    }
+                }
+            }
         }
     }
 

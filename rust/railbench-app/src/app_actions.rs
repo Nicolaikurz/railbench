@@ -141,11 +141,18 @@ impl RailbenchApp {
     }
 
     pub fn toggle_selected_feeder(&mut self) {
-        if self.selected.is_empty() { return; }
+        let has_target = self.layout.pieces.iter().any(|p| {
+            self.selected.contains(&p.id) && !crate::catalog::is_road_id(&self.catalogs, &p.catalog_id)
+        });
+        if !has_target { return; }
         self.push_undo();
-        let any_off = self.layout.pieces.iter().any(|p| self.selected.contains(&p.id) && p.power_feed != Some(true));
+        let any_off = self.layout.pieces.iter().any(|p| {
+            self.selected.contains(&p.id)
+                && !crate::catalog::is_road_id(&self.catalogs, &p.catalog_id)
+                && p.power_feed != Some(true)
+        });
         for p in &mut self.layout.pieces {
-            if self.selected.contains(&p.id) {
+            if self.selected.contains(&p.id) && !crate::catalog::is_road_id(&self.catalogs, &p.catalog_id) {
                 p.power_feed = Some(any_off);
             }
         }
@@ -153,12 +160,43 @@ impl RailbenchApp {
     }
 
     pub fn toggle_selected_isolator(&mut self) {
-        if self.selected.is_empty() { return; }
+        let has_target = self.layout.pieces.iter().any(|p| {
+            self.selected.contains(&p.id) && !crate::catalog::is_road_id(&self.catalogs, &p.catalog_id)
+        });
+        if !has_target { return; }
         self.push_undo();
-        let any_off = self.layout.pieces.iter().any(|p| self.selected.contains(&p.id) && p.is_isolator != Some(true));
+        let any_off = self.layout.pieces.iter().any(|p| {
+            self.selected.contains(&p.id)
+                && !crate::catalog::is_road_id(&self.catalogs, &p.catalog_id)
+                && p.is_isolator != Some(true)
+        });
         for p in &mut self.layout.pieces {
-            if self.selected.contains(&p.id) {
+            if self.selected.contains(&p.id) && !crate::catalog::is_road_id(&self.catalogs, &p.catalog_id) {
                 p.is_isolator = Some(any_off);
+                if any_off && p.isolated_connector_index.is_none() {
+                    p.isolated_connector_index = Some(0);
+                }
+            }
+        }
+        self.mark_layout_dirty();
+    }
+
+    pub fn cycle_selected_isolator_connector(&mut self) {
+        let has_target = self.layout.pieces.iter().any(|p| {
+            self.selected.contains(&p.id)
+                && !crate::catalog::is_road_id(&self.catalogs, &p.catalog_id)
+                && p.is_isolator == Some(true)
+        });
+        if !has_target { return; }
+        self.push_undo();
+        for p in &mut self.layout.pieces {
+            if self.selected.contains(&p.id)
+                && !crate::catalog::is_road_id(&self.catalogs, &p.catalog_id)
+                && p.is_isolator == Some(true)
+            {
+                let count = p.connectors.len().max(2);
+                let cur = p.isolated_connector_index.unwrap_or(0);
+                p.isolated_connector_index = Some((cur + 1) % count);
             }
         }
         self.mark_layout_dirty();

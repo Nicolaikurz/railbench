@@ -197,3 +197,31 @@ fn custom_model_file_data_arc_shared_and_undo_budget_bounded() {
         app.undo_stack.len()
     );
 }
+
+#[test]
+fn place_feeder_and_isolating_track_buttons_add_and_snap() {
+    let mut app = make_bare_app();
+    app.place_feeder_track();
+    assert_eq!(app.layout.pieces.len(), 1);
+    assert_eq!(app.layout.pieces[0].power_feed, Some(true));
+
+    // Second click adds an isolating track snapped directly onto the feeder track
+    app.place_isolating_track();
+    assert_eq!(app.layout.pieces.len(), 2);
+    assert_eq!(app.layout.pieces[1].is_isolator, Some(true));
+    assert_eq!(app.layout.pieces[1].isolated_connector_index, Some(0));
+    assert!(app.layout.pieces[1].connectors[0].connected_to.is_some());
+
+    // Electron-parity per-entry catalog card toggles for feeder & isolating tracks
+    let feeder_entry = crate::catalog::find_entry(&app.catalogs, "24088").unwrap().clone();
+    assert!(crate::catalog::is_feeder_entry(&feeder_entry));
+    app.catalog_entry_power_enabled.insert(feeder_entry.id.clone());
+    app.place_catalog_entry(&feeder_entry);
+    assert_eq!(app.layout.pieces.last().unwrap().power_feed, Some(true));
+
+    let iso_entry = crate::catalog::find_entry(&app.catalogs, "24994").unwrap().clone();
+    assert!(crate::catalog::is_isolating_entry(&iso_entry));
+    app.catalog_entry_isolating_enabled.insert(iso_entry.id.clone());
+    app.place_catalog_entry(&iso_entry);
+    assert_eq!(app.layout.pieces.last().unwrap().is_isolator, Some(true));
+}

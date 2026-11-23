@@ -106,6 +106,8 @@ pub struct RailbenchApp {
     pub drag_last_world: Option<Vec2>,
     pub dragging_flex_handle: Option<(String, usize)>,
     pub dragging_catalog_entry: Option<CatalogEntry>,
+    pub catalog_entry_power_enabled: HashSet<String>,
+    pub catalog_entry_isolating_enabled: HashSet<String>,
     pub dark_mode: bool,
     pub lang: Lang,
     pub color_mode: ColorMode,
@@ -211,6 +213,8 @@ impl Default for RailbenchApp {
             drag_last_world: None,
             dragging_flex_handle: None,
             dragging_catalog_entry: None,
+            catalog_entry_power_enabled: HashSet::new(),
+            catalog_entry_isolating_enabled: HashSet::new(),
             dark_mode: true,
             lang: Lang::De,
             color_mode: ColorMode::Types,
@@ -539,19 +543,21 @@ impl eframe::App for RailbenchApp {
             }
         }
 
-        // Refresh cached power simulation whenever power mode or dialog needs it
-        if self.power_sim_enabled || self.show_power_dialog {
+        // Keep cached power & 2-wire short-circuit simulation up to date (recomputes only when layout_version changes)
+        if !self.layout.pieces.is_empty() || self.power_sim_enabled || self.show_power_dialog {
             let _ = self.get_or_update_power_sim();
         }
 
         draw_top_bars(ctx, self);
         draw_left_sidebar(ctx, self);
 
-        let sim_for_canvas = if self.power_sim_enabled {
-            self.power_sim_cache.as_ref().map(|(_, s)| Arc::clone(s))
-        } else {
-            None
-        };
+        let sim_for_canvas = self.power_sim_cache.as_ref().and_then(|(_, s)| {
+            if self.power_sim_enabled || (s.is_two_wire && s.has_short_circuit) {
+                Some(Arc::clone(s))
+            } else {
+                None
+            }
+        });
 
         let central_resp = egui::CentralPanel::default()
             .frame(egui::Frame::NONE)

@@ -604,27 +604,50 @@ pub fn draw_top_bars(ctx: &egui::Context, app: &mut RailbenchApp) {
                         }
                     });
 
-                    // Red Short-Circuit alert pill (clicks straight to the short point!)
-                    if app.power_sim_enabled {
-                        let first_sc = app
-                            .power_sim_cache
-                            .as_ref()
-                            .filter(|(_, s)| s.has_short_circuit)
-                            .map(|(_, s)| (s.short_circuit_points.len(), s.short_circuit_points.first().map(|pt| (pt.x, pt.y))));
-                        if let Some((cnt, maybe_pt)) = first_sc {
-                            let label = if cnt > 0 { format!("⚡ SHORT ({cnt})") } else { "⚡ SHORT".into() };
-                            if ui
-                                .add(
-                                    egui::Button::new(RichText::new(label).strong().size(11.0).color(Color32::WHITE))
-                                        .fill(Color32::from_rgb(220, 38, 38))
-                                        .corner_radius(CornerRadius::same(6)),
-                                )
-                                .on_hover_text("Focus camera on short circuit")
-                                .clicked()
-                            {
-                                if let Some((x, y)) = maybe_pt {
-                                    app.focus_world_point(x, y);
-                                }
+                    let is_de = app.lang == Lang::De;
+
+                    // Red 2-Wire Short-Circuit alert pill (ALWAYS visible on 2-wire shorts, even when Power Overlay is off!)
+                    let first_sc = app
+                        .power_sim_cache
+                        .as_ref()
+                        .filter(|(_, s)| s.has_short_circuit && (s.is_two_wire || app.power_sim_enabled))
+                        .map(|(_, s)| {
+                            (
+                                s.is_two_wire,
+                                s.short_circuit_points.len(),
+                                s.short_circuit_points.first().map(|pt| (pt.x, pt.y)),
+                            )
+                        });
+                    if let Some((is_two_wire, cnt, maybe_pt)) = first_sc {
+                        let label = if is_two_wire {
+                            if is_de {
+                                if cnt > 0 { format!("⚠ 2-LEITER KURZSCHLUSS ({cnt})") } else { "⚠ 2-LEITER KURZSCHLUSS".into() }
+                            } else if cnt > 0 {
+                                format!("⚠ 2-WIRE SHORT ({cnt})")
+                            } else {
+                                "⚠ 2-WIRE SHORT".into()
+                            }
+                        } else if cnt > 0 {
+                            format!("⚡ SHORT ({cnt})")
+                        } else {
+                            "⚡ SHORT".into()
+                        };
+                        if ui
+                            .add(
+                                egui::Button::new(RichText::new(label).strong().size(11.0).color(Color32::WHITE))
+                                    .fill(Color32::from_rgb(220, 38, 38))
+                                    .corner_radius(CornerRadius::same(6)),
+                            )
+                            .on_hover_text(if is_de {
+                                "2-Leiter Kurzschluss! Klicken zum Fokussieren — Trennstellen (Isolator) setzen."
+                            } else {
+                                "2-Wire short circuit detected! Click to focus — place Isolator tracks to break the loop."
+                            })
+                            .clicked()
+                        {
+                            app.power_sim_enabled = true;
+                            if let Some((x, y)) = maybe_pt {
+                                app.focus_world_point(x, y);
                             }
                         }
                     }
@@ -809,3 +832,6 @@ pub use dialogs::{draw_dialogs};
 mod extra_dialogs;
 #[allow(unused_imports)]
 use extra_dialogs::*;
+mod export_dialog;
+#[allow(unused_imports)]
+use export_dialog::*;
