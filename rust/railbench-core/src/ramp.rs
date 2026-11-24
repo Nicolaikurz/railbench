@@ -63,7 +63,7 @@ pub fn check_catenary_mast_clearances(
         grid.entry((cx, cz)).or_default().push(i);
     }
 
-    for i in 0..n_cands {
+    for (i, slot) in blocked.iter_mut().enumerate().take(n_cands) {
         let cb = i * 3;
         let mx = candidates[cb];
         let my = candidates[cb + 1];
@@ -83,7 +83,7 @@ pub fn check_catenary_mast_clearances(
                         let ddz = mz - track_samples[tb + 2];
                         let r = track_samples[tb + 3];
                         if ddx * ddx + ddz * ddz < r * r {
-                            blocked[i] = 1;
+                            *slot = 1;
                             break 'outer;
                         }
                     }

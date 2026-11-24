@@ -12,16 +12,19 @@ pub(super) fn push_track_piece_3d(
     e1: f64,
     color_mode: ColorMode,
     layer_color: Option<[f32; 3]>,
+    turnout_state: usize,
+    turntable_angle_deg: f64,
+    transfer_offset_mm: Option<f64>,
     cat_ctx: &mut CatenaryMast3DContext,
 ) {
     let kind_str = entry.map(|e| e.kind.as_str()).unwrap_or("straight");
     match kind_str {
         "turntable" => {
-            crate::turntables_3d::push_turntable_3d(verts, idxs, piece, entry, e0);
+            crate::turntables_3d::push_turntable_3d(verts, idxs, piece, entry, e0, turntable_angle_deg);
             return;
         }
         "transfer-table" => {
-            crate::turntables_3d::push_transfer_table_3d(verts, idxs, piece, entry, layout, e0);
+            crate::turntables_3d::push_transfer_table_3d(verts, idxs, piece, entry, layout, e0, transfer_offset_mm);
             return;
         }
         _ => {}
@@ -102,8 +105,14 @@ pub(super) fn push_track_piece_3d(
         if pts.len() < 2 {
             continue;
         }
-        push_ballast_bed_polyline_3d(verts, idxs, pts, ballast_top_w, ballast_bot_w, ballast_h, ballast_col);
-        if piece.has_bridge == Some(true) {
+        if br_idx == 0 {
+            push_ballast_bed_polyline_3d(verts, idxs, pts, ballast_top_w, ballast_bot_w, ballast_h, ballast_col);
+        } else {
+            let y_bias = -(br_idx as f32) * 0.025;
+            let biased_pts: Vec<[f32; 3]> = pts.iter().map(|p| [p[0], p[1] + y_bias, p[2]]).collect();
+            push_ballast_bed_polyline_3d(verts, idxs, &biased_pts, ballast_top_w, ballast_bot_w, ballast_h, ballast_col);
+        }
+        if piece.has_bridge == Some(true) && !(kind_str == "double-slip" && br_idx >= 2) {
             crate::bridges_3d::push_railway_bridge_3d(
                 verts,
                 idxs,
@@ -126,10 +135,11 @@ pub(super) fn push_track_piece_3d(
     let plate_half = (gauge / 16.5) * 1.45;
     let plate_thick = 3.2_f32;
     let plate_h = 0.45_f32;
-    for pts in &branches {
+    for (br_idx, pts) in branches.iter().enumerate() {
         if pts.len() < 2 {
             continue;
         }
+        let tie_y_bias = -(br_idx as f32) * 0.02;
         let mut accum = 0.0_f32;
         for w in pts.windows(2) {
             let a = w[0];
@@ -147,8 +157,8 @@ pub(super) fn push_track_piece_3d(
             while d <= seg_len {
                 let u = d / seg_len;
                 let tx = a[0] + dx * u;
-                let ty_base = a[1] + dy * u + ballast_h - tie_embed;
-                let ty_top = a[1] + dy * u + ballast_h + tie_h;
+                let ty_base = a[1] + dy * u + ballast_h - tie_embed + tie_y_bias;
+                let ty_top = a[1] + dy * u + ballast_h + tie_h + tie_y_bias;
                 let tz = a[2] + dz * u;
                 let p0 = [tx + nx * tie_w * 0.5, ty_base, tz + nz * tie_w * 0.5];
                 let p1 = [tx - nx * tie_w * 0.5, ty_base, tz - nz * tie_w * 0.5];
@@ -180,10 +190,11 @@ pub(super) fn push_track_piece_3d(
         let mut right_head_pts = Vec::with_capacity(n_pts);
         let web_h = rail_h * 0.64;
         let head_h = rail_h * 0.36;
+        let rail_y_bias = -(br_idx as f32) * 0.012;
         for i in 0..n_pts {
             let (nx, nz, _) = polyline_miter_normal(pts, i);
             let p = pts[i];
-            let ry_web = p[1] + ballast_h + tie_h;
+            let ry_web = p[1] + ballast_h + tie_h + rail_y_bias;
             let ry_head = ry_web + web_h;
             left_web_pts.push([p[0] + nx * hg, ry_web, p[2] + nz * hg]);
             right_web_pts.push([p[0] - nx * hg, ry_web, p[2] - nz * hg]);
@@ -195,7 +206,7 @@ pub(super) fn push_track_piece_3d(
         push_box_polyline_mat_3d(verts, idxs, &left_head_pts, rail_w, head_h, rail_col, MAT_METAL_RAIL);
         push_box_polyline_mat_3d(verts, idxs, &right_head_pts, rail_w, head_h, rail_col, MAT_METAL_RAIL);
 
-        if piece.has_catenary == Some(true) {
+        if piece.has_catenary == Some(true) && !(kind_str == "double-slip" && br_idx >= 2) {
             let contact_h = 72.0_f32;
             let messenger_h = 85.0_f32;
             let mast_off = if piece.has_bridge == Some(true) {
@@ -233,7 +244,7 @@ pub(super) fn push_track_piece_3d(
 
             // Place exterior masts at open-air ends (tunneled pieces use overhead ceiling brackets inside the bore)
             if piece.has_tunnel != Some(true) {
-                if br_idx == 0 {
+                if br_idx == 0 || (matches!(kind_str, "crossing" | "double-slip") && br_idx == 1) {
                     cat_ctx.try_place_mast(
                         verts,
                         idxs,
@@ -462,6 +473,7 @@ pub(super) fn push_track_piece_3d(
             [tx, ly, tz],
             yaw,
             kind_str,
+            turnout_state,
             piece.has_lantern == Some(true),
             piece.has_decoder == Some(true),
         );
@@ -583,11 +595,19 @@ pub(crate) fn sample_track_branches_3d(
                     v0x * ai.cos() + v0y * ai.sin() < -0.15
                 })
                 .count();
-            if facing_opposite == 3 {
+            let is_three_way = entry.map_or(false, |e| e.kind == "three-way") || facing_opposite == 3;
+            if is_three_way {
                 vec![
                     lift(sample_arc_between_connectors(c[0].x, c[0].y, c[0].angle, c[1].x, c[1].y, c[1].angle, 24)),
                     lift(sample_arc_between_connectors(c[0].x, c[0].y, c[0].angle, c[2].x, c[2].y, c[2].angle, 24)),
                     lift(sample_arc_between_connectors(c[0].x, c[0].y, c[0].angle, c[3].x, c[3].y, c[3].angle, 24)),
+                ]
+            } else if entry.map_or(false, |e| e.kind == "double-slip") {
+                vec![
+                    lift(sample_arc_between_connectors(c[0].x, c[0].y, c[0].angle, c[1].x, c[1].y, c[1].angle, 24)),
+                    lift(sample_arc_between_connectors(c[2].x, c[2].y, c[2].angle, c[3].x, c[3].y, c[3].angle, 24)),
+                    lift(sample_arc_between_connectors(c[0].x, c[0].y, c[0].angle, c[3].x, c[3].y, c[3].angle, 24)),
+                    lift(sample_arc_between_connectors(c[2].x, c[2].y, c[2].angle, c[1].x, c[1].y, c[1].angle, 24)),
                 ]
             } else {
                 vec![

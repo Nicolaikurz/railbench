@@ -219,25 +219,35 @@
     },
     {
       "id": "83816",
-      "name": "Handweiche EW-B1 links (15°)",
-      "kind": "turnout-left",
-      "category": "Weichen",
-      "description": "Länge 166 mm, Abzweig R310 / 15° mit Schotterbett",
-      "length": 166,
-      "branchRadius": 310,
-      "branchAngle": 15,
-      "gauge": 12
-    },
-    {
-      "id": "83817",
       "name": "Handweiche EW-B1 rechts (15°)",
       "kind": "turnout-right",
       "category": "Weichen",
-      "description": "Länge 166 mm, Abzweig R310 / 15° mit Schotterbett",
-      "length": 166,
-      "branchRadius": 310,
+      "description": "Länge 129,5 mm, Abzweig R353 / 15° mit Geradenstück und Schotterbett (Gleisabstand 43 mm)",
+      "length": 129.5,
+      "branchRadius": 353,
       "branchAngle": 15,
-      "gauge": 12
+      "gauge": 12,
+      "localConnectors": [
+        { "x": 0, "y": 0, "angle": 180 },
+        { "x": 129.5, "y": 0, "angle": 0 },
+        { "x": 126.71, "y": 21.5, "angle": 15 }
+      ]
+    },
+    {
+      "id": "83817",
+      "name": "Handweiche EW-B1 links (15°)",
+      "kind": "turnout-left",
+      "category": "Weichen",
+      "description": "Länge 129,5 mm, Abzweig R353 / 15° mit Geradenstück und Schotterbett (Gleisabstand 43 mm)",
+      "length": 129.5,
+      "branchRadius": 353,
+      "branchAngle": 15,
+      "gauge": 12,
+      "localConnectors": [
+        { "x": 0, "y": 0, "angle": 180 },
+        { "x": 129.5, "y": 0, "angle": 0 },
+        { "x": 126.71, "y": -21.5, "angle": 345 }
+      ]
     },
     {
       "id": "83818",

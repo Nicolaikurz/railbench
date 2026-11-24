@@ -199,6 +199,7 @@ fn track_snapping_requires_same_level_and_marks_level_mismatch_yellow() {
         angle: None,
         branch_radius: None,
         branch_angle: None,
+        branch_length: None,
         gauge: Some(16.5),
         has_roadbed: None,
         is_road: None,
@@ -599,4 +600,166 @@ fn snap_selected_flex_track_bridges_both_ends_and_shortens() {
     let expected_a1 = norm_angle_deg(layout.pieces[1].connectors[0].angle + 180.0);
     assert!((f.connectors[1].angle - expected_a1).abs() < 1e-4);
     assert!(f.custom_length.unwrap() < flex_entry.length.unwrap_or(900.0));
+}
+
+#[test]
+fn terrain_2d_mountain_and_ground_never_exceed_table_or_plate() {
+    use railbench_core::types::{Layer, LayerPlate, Model3D};
+
+    let cats = builtin_catalogs();
+    let bb = BaseboardConfig {
+        id: Some("b1".into()),
+        name: Some("Table".into()),
+        enabled: true,
+        shape: Some("rect".into()),
+        custom_polygon: None,
+        triangle_type: None,
+        width: 2000.0,
+        depth: 1000.0,
+        rotation: Some(0.0),
+        l_wing_width: None,
+        l_wing_depth: None,
+        l_side: None,
+        u_left_wing_width: None,
+        u_right_wing_width: None,
+        u_back_depth: None,
+        t_bar_depth: None,
+        t_stem_width: None,
+        position_mode: "center".into(),
+        custom_x: None,
+        custom_y: None,
+        style: "wood".into(),
+        corner_radius: Some(0.0),
+        show_dimensions: None,
+    };
+    let plate = LayerPlate {
+        id: "pl-1".into(),
+        name: Some("Upper".into()),
+        baseboard_id: Some("b1".into()),
+        shape: Some("rect".into()),
+        custom_polygon: None,
+        triangle_type: None,
+        l_wing_width: None,
+        l_wing_depth: None,
+        l_side: None,
+        u_left_wing_width: None,
+        u_right_wing_width: None,
+        u_back_depth: None,
+        t_bar_depth: None,
+        t_stem_width: None,
+        rotation: Some(0.0),
+        width: 400.0,
+        depth: 300.0,
+        x: Some(800.0),
+        y: Some(350.0),
+        thickness_mm: Some(12.0),
+        position_mode: Some("custom".into()),
+        style: None,
+    };
+    let mtn = Model3D {
+        id: "m1".into(),
+        name: "M".into(),
+        category: "terrain".into(),
+        transform: Transform { x: 960.0, y: 0.0, rotation: 0.0 },
+        elevation: Some(0.0),
+        scale: Some(1.0),
+        layer_id: Some("layer-1".into()),
+        width: 600.0,
+        depth: 500.0,
+        height: 220.0,
+        model_type: "builtin".into(),
+        builtin_id: Some("mountain".into()),
+        mountain_style: Some("alpine".into()),
+        mountain_path: None,
+        ground_terrain_type: None,
+        file_data: None,
+        file_name: None,
+    };
+    let water = Model3D {
+        id: "w1".into(),
+        name: "W".into(),
+        category: "terrain".into(),
+        transform: Transform { x: 180.0, y: 0.0, rotation: 0.0 },
+        elevation: Some(0.0),
+        scale: Some(1.0),
+        layer_id: Some("layer-2".into()),
+        width: 400.0,
+        depth: 320.0,
+        height: 8.0,
+        model_type: "builtin".into(),
+        builtin_id: Some("ground-terrain".into()),
+        mountain_style: None,
+        mountain_path: None,
+        ground_terrain_type: Some("water".into()),
+        file_data: None,
+        file_name: None,
+    };
+    let layout = Layout {
+        name: "Clip2D".into(),
+        scale: "H0".into(),
+        pieces: Vec::new(),
+        models: Some(vec![mtn, water]),
+        feed_voltage: None,
+        catenary_feed_voltage: None,
+        catenary_circuit_mode: None,
+        loco_current_ma: None,
+        loco_count: None,
+        train_current_amps: None,
+        turnout_lantern_current_ma: None,
+        turnout_decoder_current_ma: None,
+        layers: Some(vec![
+            Layer {
+                id: "layer-1".into(),
+                name: "Base".into(),
+                color: None,
+                visible: true,
+                locked: false,
+                height_mm: Some(0.0),
+                wood_plate_mode: Some("table".into()),
+                wood_plate_thickness_mm: None,
+                wood_plate_style: None,
+                plates: None,
+            },
+            Layer {
+                id: "layer-2".into(),
+                name: "Upper".into(),
+                color: None,
+                visible: true,
+                locked: false,
+                height_mm: Some(80.0),
+                wood_plate_mode: Some("table".into()),
+                wood_plate_thickness_mm: Some(12.0),
+                wood_plate_style: None,
+                plates: Some(vec![plate]),
+            },
+        ]),
+        active_layer_id: Some("layer-1".into()),
+        baseboard: Some(bb),
+        baseboards: None,
+    };
+
+    let mut cache = Canvas2DCache::default();
+    cache.ensure_fresh(&layout, &cats, 1);
+
+    let m_map = cache.model_mtn_maps[0].as_ref().expect("2D mountain map");
+    assert!(!m_map.tint_quads.is_empty());
+    for (pts, _) in &m_map.tint_quads {
+        for pt in pts {
+            assert!(pt.x.abs() <= 1000.5 && pt.y.abs() <= 500.5, "2D mountain quad pt escaped table: {pt:?}");
+        }
+    }
+    for &(a, b, _) in &m_map.contour_segs {
+        assert!(a.x.abs() <= 1000.5 && b.x.abs() <= 1000.5, "2D contour escaped table");
+    }
+
+    let g_map = cache.model_ground_maps[1].as_ref().expect("2D ground water map");
+    assert!(!g_map.quads.is_empty());
+    for (pts, _) in &g_map.quads {
+        for pt in pts {
+            assert!(pt.x.abs() <= 200.5 && pt.y.abs() <= 150.5, "2D water quad pt escaped upper plate: {pt:?}");
+        }
+    }
+    for &(a, b) in &g_map.contour_segs {
+        assert!(a.x.abs() <= 200.5 && b.x.abs() <= 200.5 && a.y.abs() <= 150.5 && b.y.abs() <= 150.5);
+    }
 }

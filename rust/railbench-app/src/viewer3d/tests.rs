@@ -901,3 +901,258 @@ fn window_msaa_samples_is_enabled_for_2d_antialiasing() {
     assert_eq!(WINDOW_MSAA_SAMPLES, 4);
     assert!(WINDOW_MSAA_SAMPLES.is_power_of_two());
 }
+
+#[test]
+fn terrain_3d_mountain_and_water_never_exceed_table_or_upper_plate() {
+    use railbench_core::types::{Layer, LayerPlate};
+
+    let catalogs = builtin_catalogs();
+    let bb = BaseboardConfig {
+        id: Some("b1".into()),
+        name: Some("Table".into()),
+        enabled: true,
+        shape: Some("rect".into()),
+        custom_polygon: None,
+        triangle_type: None,
+        width: 2400.0,
+        depth: 1200.0,
+        rotation: Some(0.0),
+        l_wing_width: None,
+        l_wing_depth: None,
+        l_side: None,
+        u_left_wing_width: None,
+        u_right_wing_width: None,
+        u_back_depth: None,
+        t_bar_depth: None,
+        t_stem_width: None,
+        position_mode: "center".into(),
+        custom_x: None,
+        custom_y: None,
+        style: "wood".into(),
+        corner_radius: Some(0.0),
+        show_dimensions: None,
+    };
+    let upper_plate = LayerPlate {
+        id: "pl-1".into(),
+        name: Some("Upper".into()),
+        baseboard_id: Some("b1".into()),
+        shape: Some("rect".into()),
+        custom_polygon: None,
+        triangle_type: None,
+        l_wing_width: None,
+        l_wing_depth: None,
+        l_side: None,
+        u_left_wing_width: None,
+        u_right_wing_width: None,
+        u_back_depth: None,
+        t_bar_depth: None,
+        t_stem_width: None,
+        rotation: Some(0.0),
+        width: 500.0,
+        depth: 400.0,
+        x: Some(950.0),
+        y: Some(400.0),
+        thickness_mm: Some(12.0),
+        position_mode: Some("custom".into()),
+        style: None,
+    };
+    let mtn_table = Model3D {
+        id: "mtn-edge".into(),
+        name: "EdgeMtn".into(),
+        category: "terrain".into(),
+        transform: Transform { x: 1180.0, y: 0.0, rotation: 0.0 },
+        elevation: Some(0.0),
+        scale: Some(1.0),
+        layer_id: Some("layer-1".into()),
+        width: 600.0,
+        depth: 500.0,
+        height: 220.0,
+        model_type: "builtin".into(),
+        builtin_id: Some("mountain".into()),
+        mountain_style: Some("alpine".into()),
+        mountain_path: None,
+        ground_terrain_type: None,
+        file_data: None,
+        file_name: None,
+    };
+    let water_edge = Model3D {
+        id: "water-edge".into(),
+        name: "EdgeLake".into(),
+        category: "terrain".into(),
+        transform: Transform { x: -1180.0, y: 0.0, rotation: 0.0 },
+        elevation: Some(0.0),
+        scale: Some(1.0),
+        layer_id: Some("layer-1".into()),
+        width: 500.0,
+        depth: 400.0,
+        height: 8.0,
+        model_type: "builtin".into(),
+        builtin_id: Some("ground-terrain".into()),
+        mountain_style: None,
+        mountain_path: None,
+        ground_terrain_type: Some("water".into()),
+        file_data: None,
+        file_name: None,
+    };
+    let mtn_plate = Model3D {
+        id: "mtn-plate".into(),
+        name: "PlateMtn".into(),
+        category: "terrain".into(),
+        transform: Transform { x: 240.0, y: 0.0, rotation: 0.0 },
+        elevation: Some(0.0),
+        scale: Some(1.0),
+        layer_id: Some("layer-2".into()),
+        width: 450.0,
+        depth: 400.0,
+        height: 150.0,
+        model_type: "builtin".into(),
+        builtin_id: Some("mountain".into()),
+        mountain_style: Some("alpine".into()),
+        mountain_path: None,
+        ground_terrain_type: None,
+        file_data: None,
+        file_name: None,
+    };
+
+    let layout = Layout {
+        name: "Clip3D".into(),
+        scale: "H0".into(),
+        pieces: Vec::new(),
+        models: Some(vec![mtn_table, water_edge, mtn_plate]),
+        feed_voltage: None,
+        catenary_feed_voltage: None,
+        catenary_circuit_mode: None,
+        loco_current_ma: None,
+        loco_count: None,
+        train_current_amps: None,
+        turnout_lantern_current_ma: None,
+        turnout_decoder_current_ma: None,
+        layers: Some(vec![
+            Layer {
+                id: "layer-1".into(),
+                name: "Base".into(),
+                color: None,
+                visible: true,
+                locked: false,
+                height_mm: Some(0.0),
+                wood_plate_mode: Some("table".into()),
+                wood_plate_thickness_mm: None,
+                wood_plate_style: None,
+                plates: None,
+            },
+            Layer {
+                id: "layer-2".into(),
+                name: "Upper".into(),
+                color: None,
+                visible: true,
+                locked: false,
+                height_mm: Some(300.0),
+                wood_plate_mode: Some("table".into()),
+                wood_plate_thickness_mm: Some(12.0),
+                wood_plate_style: None,
+                plates: Some(vec![upper_plate]),
+            },
+        ]),
+        active_layer_id: Some("layer-1".into()),
+        baseboard: Some(bb),
+        baseboards: None,
+    };
+
+    let mut cache = Scene3DCache::default();
+    let bundle = update_scene_3d_cache(&layout, &catalogs, &Scene3DOptions::default(), &mut cache);
+    let terrain = &bundle.terrain.expect("terrain mesh").1;
+    assert!(!terrain.indices.is_empty());
+
+    for &vi in &terrain.indices {
+        let p = terrain.vertices[vi as usize].pos;
+        if p[1] >= 295.0 {
+            // Elevated layer-2 terrain must stay strictly within its 500x400 plate ([-250..250, -200..200])
+            assert!(
+                p[0].abs() <= 250.5 && p[2].abs() <= 200.5,
+                "elevated terrain vertex ({:.1}, {:.1}, {:.1}) escaped plate!",
+                p[0],
+                p[1],
+                p[2]
+            );
+        } else {
+            // Table-level terrain must stay strictly within the 2400x1200 table ([-1200..1200, -600..600])
+            assert!(
+                p[0].abs() <= 1200.5 && p[2].abs() <= 600.5,
+                "table terrain vertex ({:.1}, {:.1}, {:.1}) escaped table!",
+                p[0],
+                p[1],
+                p[2]
+            );
+        }
+    }
+}
+
+#[test]
+fn double_slip_24624_and_crossing_24640_generate_correct_3d_geometry() {
+    let catalogs = builtin_catalogs();
+    let e_dkw = find_entry(&catalogs, "24624").expect("24624 entry");
+    let e_crs = find_entry(&catalogs, "24640").expect("24640 entry");
+    let e_curv_sw = find_entry(&catalogs, "24671").expect("24671 entry");
+
+    let c_dkw = crate::catalog::local_connectors(e_dkw);
+    assert_eq!(c_dkw.len(), 4, "24624 must have 4 local connectors");
+    assert!((c_dkw[0].x - 0.0).abs() < 1e-3 && (c_dkw[0].y - 0.0).abs() < 1e-3 && (c_dkw[0].angle - 180.0).abs() < 1e-3);
+    assert!((c_dkw[1].x - 188.3).abs() < 1e-3 && (c_dkw[1].y - 0.0).abs() < 1e-3 && (c_dkw[1].angle - 0.0).abs() < 1e-3);
+    assert!((c_dkw[2].x - 8.3414).abs() < 1e-2 && (c_dkw[2].y + 38.7441).abs() < 1e-2 && (c_dkw[2].angle - 204.3).abs() < 1e-2);
+    assert!((c_dkw[3].x - 179.9586).abs() < 1e-2 && (c_dkw[3].y - 38.7441).abs() < 1e-2 && (c_dkw[3].angle - 24.3).abs() < 1e-2);
+
+    let c_crs = crate::catalog::local_connectors(e_crs);
+    assert_eq!(c_crs.len(), 4, "24640 must have 4 centered connectors");
+    assert!((c_crs[0].x + 94.15).abs() < 1e-3 && (c_crs[1].x - 94.15).abs() < 1e-3);
+
+    let c_curv = crate::catalog::local_connectors(e_curv_sw);
+    assert_eq!(c_curv.len(), 3, "24671 curved turnout must have 3 connectors");
+
+    let dkw_piece = create_piece("dkw-1".into(), e_dkw, Transform { x: 0.0, y: 0.0, rotation: 0.0 }, None);
+    let branches_dkw = super::tracks::sample_track_branches_3d(&dkw_piece, Some(e_dkw), 0.0, 0.0);
+    assert_eq!(branches_dkw.len(), 4, "24624 must emit 2 crossing straights + 2 curved slip branches");
+    let mid_br2_z = branches_dkw[2][branches_dkw[2].len() / 2][2];
+    let mid_br3_z = branches_dkw[3][branches_dkw[3].len() / 2][2];
+    assert!(
+        mid_br2_z.abs() > 8.5 && mid_br3_z.abs() > 8.5,
+        "24624 curved slip branches must bow at midpoint (got z={mid_br2_z}, {mid_br3_z})"
+    );
+
+    let crs_piece = create_piece("crs-1".into(), e_crs, Transform { x: 0.0, y: 0.0, rotation: 0.0 }, None);
+    let branches_crs = super::tracks::sample_track_branches_3d(&crs_piece, Some(e_crs), 0.0, 0.0);
+    assert_eq!(branches_crs.len(), 2, "24640 crossing must emit 2 straight branches");
+
+    let layout = Layout {
+        name: "DKW24624".into(),
+        scale: "H0".into(),
+        pieces: vec![dkw_piece],
+        models: None,
+        feed_voltage: None,
+        catenary_feed_voltage: None,
+        catenary_circuit_mode: None,
+        loco_current_ma: None,
+        loco_count: None,
+        train_current_amps: None,
+        turnout_lantern_current_ma: None,
+        turnout_decoder_current_ma: None,
+        layers: None,
+        active_layer_id: None,
+        baseboard: None,
+        baseboards: None,
+    };
+
+    let scene = build_scene_mesh_3d(&layout, &catalogs, &Scene3DOptions::default());
+    let dkw_proto = scene
+        .instanced_tracks
+        .iter()
+        .find(|p| p.catalog_id == "24624")
+        .expect("24624 should produce an instanced 3D prototype");
+    assert!(!dkw_proto.vertices.is_empty() && !dkw_proto.indices.is_empty());
+    let min_z = dkw_proto.vertices.iter().map(|v| v.pos[2]).fold(f32::INFINITY, f32::min);
+    let max_z = dkw_proto.vertices.iter().map(|v| v.pos[2]).fold(f32::NEG_INFINITY, f32::max);
+    assert!(
+        min_z < -40.0 && max_z > 40.0,
+        "24624 3D prototype must span both crossing arms & slips (got z range [{min_z}, {max_z}])"
+    );
+    assert!(dkw_proto.vertices.iter().all(|v| v.pos[0].is_finite() && v.pos[1].is_finite() && v.pos[2].is_finite()));
+}

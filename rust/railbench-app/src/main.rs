@@ -18,12 +18,13 @@ mod theme;
 mod tunnels_3d;
 mod turntables_3d;
 mod ui_panels;
+mod vehicle_sim;
 mod viewer3d;
 mod app_actions;
 mod app_editing;
 mod app_io;
 
-use std::collections::{HashSet, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
 
 use eframe::egui;
@@ -70,6 +71,14 @@ pub fn is_turnout_kind(kind: &str) -> bool {
             | "curved-turnout-left"
             | "curved-turnout-right"
     )
+}
+
+pub fn turnout_state_count(kind: &str, connector_count: usize) -> usize {
+    match kind {
+        "double-slip" => 2,
+        "three-way" => 3,
+        _ => connector_count.saturating_sub(1).max(2),
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -163,7 +172,7 @@ pub struct RailbenchApp {
     pub time_of_day: f32,
     pub day_night_speed: f32,
     pub last_3d_frame_time: Option<std::time::Instant>,
-    pub mesh_3d_key: (u64, bool, u8, bool, u8, usize),
+    pub mesh_3d_key: (u64, bool, u8, bool, u8, usize, u64),
     pub scene_3d_cache: viewer3d::Scene3DCache,
     pub perf_monitor: perf_monitor::PerfMonitor,
     pub app_settings: AppSettings,
@@ -173,6 +182,18 @@ pub struct RailbenchApp {
     pub show_demo_dialog: bool,
     pub show_settings_dialog: bool,
     pub show_export_dialog: bool,
+    pub show_cab_window: bool,
+    pub cab_view_layout: u8,
+    pub stellwerk_zoom: f32,
+    pub stellwerk_pan: [f32; 2],
+    pub stellwerk_split_layers: bool,
+    pub stellwerk_selected_layer: Option<String>,
+    pub stellwerk_layer_views: HashMap<String, (f32, [f32; 2])>,
+    pub cab_camera_mode: viewer3d::CabCameraMode,
+    pub cab_look_yaw: f32,
+    pub cab_look_pitch: f32,
+    pub vehicle_sim: vehicle_sim::VehicleSimState,
+    pub last_vehicle_step: Option<std::time::Instant>,
     pub settings_tab: u8,
     pub help_tab: u8,
     pub keymap_search: String,
@@ -270,7 +291,7 @@ impl Default for RailbenchApp {
             time_of_day: 14.0,
             day_night_speed: 1.0,
             last_3d_frame_time: None,
-            mesh_3d_key: (u64::MAX, true, 0, true, 0, 0),
+            mesh_3d_key: (u64::MAX, true, 0, true, 0, 0, 0),
             scene_3d_cache: viewer3d::Scene3DCache::default(),
             perf_monitor: perf_monitor::PerfMonitor::default(),
             app_settings: AppSettings::default(),
@@ -280,6 +301,18 @@ impl Default for RailbenchApp {
             show_demo_dialog: false,
             show_settings_dialog: false,
             show_export_dialog: false,
+            show_cab_window: false,
+            cab_view_layout: 2,
+            stellwerk_zoom: 1.0,
+            stellwerk_pan: [0.0, 0.0],
+            stellwerk_split_layers: true,
+            stellwerk_selected_layer: None,
+            stellwerk_layer_views: HashMap::new(),
+            cab_camera_mode: viewer3d::CabCameraMode::Cab,
+            cab_look_yaw: 0.0,
+            cab_look_pitch: 0.0,
+            vehicle_sim: vehicle_sim::VehicleSimState::default(),
+            last_vehicle_step: None,
             settings_tab: 0,
             help_tab: 0,
             keymap_search: String::new(),
@@ -548,6 +581,25 @@ impl eframe::App for RailbenchApp {
             let _ = self.get_or_update_power_sim();
         }
 
+        // Advance active locomotives, road vehicles & animated turntable/transfer-table bridges (0% idle CPU when paused)
+        let active_drive = (self.vehicle_sim.running && !self.vehicle_sim.vehicles.is_empty())
+            || self.vehicle_sim.has_moving_bridges();
+        if active_drive {
+            let now = std::time::Instant::now();
+            let dt = self
+                .last_vehicle_step
+                .map(|prev| (now - prev).as_secs_f64().clamp(0.0, 0.1))
+                .unwrap_or(0.016);
+            self.last_vehicle_step = Some(now);
+            self.vehicle_sim.step_bridges(dt, &self.layout, &self.catalogs);
+            if self.vehicle_sim.running && !self.vehicle_sim.vehicles.is_empty() {
+                self.vehicle_sim.step(dt, &self.layout, &self.catalogs);
+            }
+            ctx.request_repaint();
+        } else {
+            self.last_vehicle_step = None;
+        }
+
         draw_top_bars(ctx, self);
         draw_left_sidebar(ctx, self);
 
@@ -576,10 +628,21 @@ impl eframe::App for RailbenchApp {
                     self.ensure_mesh_3d();
                     self.gpu_3d_resident = true;
                     let sc_pts = self.current_short_circuit_points();
+                    let vehicles_mesh = if !self.vehicle_sim.vehicles.is_empty() {
+                        let (verts, idxs) = self.vehicle_sim.build_vehicles_mesh_3d(&self.layout.scale);
+                        if !idxs.is_empty() {
+                            Some(Arc::new(viewer3d::SceneMesh3D::from_raw(verts, idxs)))
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    };
                     draw_viewport_3d(
                         ui,
                         &mut self.camera_3d,
                         &self.scene_3d_bundle,
+                        vehicles_mesh,
                         &self.layout,
                         &mut self.viewer3d_env,
                         &mut self.day_night_active,
@@ -651,6 +714,7 @@ impl eframe::App for RailbenchApp {
                         &mut self.sketcher,
                         &mut self.dragging_model_rot,
                         ramp_overlay,
+                        &self.vehicle_sim,
                     );
                     if let Some((drop_world, snap_r)) = res.drop_catalog_at {
                         if let Some(entry) = self.dragging_catalog_entry.take() {
@@ -730,6 +794,11 @@ impl eframe::App for RailbenchApp {
         // Floating layers panel & dialogs overlay on top of the full-width 2D/3D viewport
         draw_right_sidebar(ctx, self, viewport_rect);
         draw_dialogs(ctx, self);
+
+        // Separate OS Window: Unified Drive, 3D Cab View & Signal Box (Stellwerk)
+        if self.show_cab_window {
+            ui_panels::draw_cab_view_window(ctx, self);
+        }
 
         // Floating drag badge while dragging a catalog piece (before/outside canvas)
         if let Some(entry) = &self.dragging_catalog_entry {

@@ -163,6 +163,18 @@ pub fn local_connectors(entry: &CatalogEntry) -> Vec<Connector> {
     }
 
     match entry.kind.as_str() {
+        "transfer-table" => {
+            let l = entry.length.unwrap_or(360.0);
+            let spacing = 77.4;
+            let count = 5;
+            let mut conns = Vec::with_capacity(count * 2);
+            for i in 0..count {
+                let y = i as f64 * spacing;
+                conns.push(Connector { x: 0.0, y, angle: 180.0, connected_to: None });
+                conns.push(Connector { x: l, y, angle: 0.0, connected_to: None });
+            }
+            conns
+        }
         "curve" => {
             let r = entry.radius.unwrap_or(437.5);
             let a = entry.angle.unwrap_or(30.0);
@@ -175,18 +187,115 @@ pub fn local_connectors(entry: &CatalogEntry) -> Vec<Connector> {
                 Connector { x: ex, y: ey, angle: norm_angle_deg(dir * a.abs()), connected_to: None },
             ]
         }
+        "feeder" | "flex" if entry.radius.is_some() && entry.angle.is_some_and(|a| a.abs() > 0.1) => {
+            let r = entry.radius.unwrap();
+            let a = entry.angle.unwrap();
+            let dir = if a < 0.0 { -1.0 } else { 1.0 };
+            let rad = deg2rad(a.abs());
+            let ex = r * rad.sin();
+            let ey = dir * r * (1.0 - rad.cos());
+            vec![
+                Connector { x: 0.0, y: 0.0, angle: 180.0, connected_to: None },
+                Connector { x: ex, y: ey, angle: norm_angle_deg(dir * a.abs()), connected_to: None },
+            ]
+        }
+        "curved-turnout-left" | "curved-turnout-right" => {
+            let dir = if entry.kind == "curved-turnout-left" { -1.0 } else { 1.0 };
+            let r1 = entry.radius.unwrap_or(360.0);
+            let a1 = entry.angle.unwrap_or(30.0);
+            let lead = entry.branch_length.unwrap_or_else(|| {
+                entry.branch_radius.filter(|&br| br > r1).map_or(0.0, |br| br - r1)
+            });
+            let r2 = if entry.branch_length.is_some() {
+                entry.branch_radius.unwrap_or(r1)
+            } else if entry.branch_radius.is_some_and(|br| br > r1) {
+                r1
+            } else {
+                entry.branch_radius.unwrap_or(r1)
+            };
+            let a2 = entry.branch_angle.unwrap_or(30.0);
+            let rad1 = deg2rad(a1);
+            let rad2 = deg2rad(a2);
+            vec![
+                Connector { x: 0.0, y: 0.0, angle: 180.0, connected_to: None },
+                Connector { x: r1 * rad1.sin(), y: dir * r1 * (1.0 - rad1.cos()), angle: norm_angle_deg(dir * a1), connected_to: None },
+                Connector { x: lead + r2 * rad2.sin(), y: dir * r2 * (1.0 - rad2.cos()), angle: norm_angle_deg(dir * a2), connected_to: None },
+            ]
+        }
         "turnout-left" | "turnout-right" => {
+            let dir = if entry.kind == "turnout-left" { -1.0 } else { 1.0 };
+            if entry.radius.is_some() && entry.length.is_none() {
+                let r1 = entry.radius.unwrap_or(360.0);
+                let a1 = entry.angle.unwrap_or(30.0);
+                let lead = entry.branch_length.unwrap_or_else(|| {
+                    entry.branch_radius.filter(|&br| br > r1).map_or(0.0, |br| br - r1)
+                });
+                let r2 = if entry.branch_length.is_some() {
+                    entry.branch_radius.unwrap_or(r1)
+                } else if entry.branch_radius.is_some_and(|br| br > r1) {
+                    r1
+                } else {
+                    entry.branch_radius.unwrap_or(r1)
+                };
+                let a2 = entry.branch_angle.unwrap_or(30.0);
+                let rad1 = deg2rad(a1);
+                let rad2 = deg2rad(a2);
+                vec![
+                    Connector { x: 0.0, y: 0.0, angle: 180.0, connected_to: None },
+                    Connector { x: r1 * rad1.sin(), y: dir * r1 * (1.0 - rad1.cos()), angle: norm_angle_deg(dir * a1), connected_to: None },
+                    Connector { x: lead + r2 * rad2.sin(), y: dir * r2 * (1.0 - rad2.cos()), angle: norm_angle_deg(dir * a2), connected_to: None },
+                ]
+            } else {
+                let len = entry.length.unwrap_or(188.3);
+                let br = entry.branch_radius.unwrap_or(437.5);
+                let ba = entry.branch_angle.unwrap_or(24.3);
+                let rad = deg2rad(ba);
+                let bx = br * rad.sin();
+                let by = dir * br * (1.0 - rad.cos());
+                vec![
+                    Connector { x: 0.0, y: 0.0, angle: 180.0, connected_to: None },
+                    Connector { x: len, y: 0.0, angle: 0.0, connected_to: None },
+                    Connector { x: bx, y: by, angle: norm_angle_deg(dir * ba), connected_to: None },
+                ]
+            }
+        }
+        "three-way" => {
             let len = entry.length.unwrap_or(188.3);
             let br = entry.branch_radius.unwrap_or(437.5);
             let ba = entry.branch_angle.unwrap_or(24.3);
-            let dir = if entry.kind == "turnout-left" { -1.0 } else { 1.0 };
             let rad = deg2rad(ba);
             let bx = br * rad.sin();
-            let by = dir * br * (1.0 - rad.cos());
+            let by = br * (1.0 - rad.cos());
             vec![
                 Connector { x: 0.0, y: 0.0, angle: 180.0, connected_to: None },
                 Connector { x: len, y: 0.0, angle: 0.0, connected_to: None },
-                Connector { x: bx, y: by, angle: norm_angle_deg(dir * ba), connected_to: None },
+                Connector { x: bx, y: -by, angle: norm_angle_deg(-ba), connected_to: None },
+                Connector { x: bx, y: by, angle: norm_angle_deg(ba), connected_to: None },
+            ]
+        }
+        "crossing" => {
+            let len = entry.length.unwrap_or(188.3);
+            let a = entry.angle.unwrap_or(24.3);
+            let rad = deg2rad(a);
+            let h = len * 0.5;
+            vec![
+                Connector { x: -h, y: 0.0, angle: 180.0, connected_to: None },
+                Connector { x: h, y: 0.0, angle: 0.0, connected_to: None },
+                Connector { x: -h * rad.cos(), y: -h * rad.sin(), angle: norm_angle_deg(180.0 + a), connected_to: None },
+                Connector { x: h * rad.cos(), y: h * rad.sin(), angle: norm_angle_deg(a), connected_to: None },
+            ]
+        }
+        "double-slip" => {
+            let len = entry.length.unwrap_or(188.3);
+            let a = entry.angle.or(entry.branch_angle).unwrap_or(24.3);
+            let rad = deg2rad(a);
+            let h = len * 0.5;
+            let cx = h;
+            vec![
+                Connector { x: 0.0, y: 0.0, angle: 180.0, connected_to: None },
+                Connector { x: len, y: 0.0, angle: 0.0, connected_to: None },
+                Connector { x: cx - h * rad.cos(), y: -h * rad.sin(), angle: norm_angle_deg(180.0 + a), connected_to: None },
+                Connector { x: cx + h * rad.cos(), y: h * rad.sin(), angle: norm_angle_deg(a), connected_to: None },
             ]
         }
         "buffer" => vec![Connector { x: 0.0, y: 0.0, angle: 180.0, connected_to: None }],

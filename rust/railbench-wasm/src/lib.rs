@@ -89,6 +89,7 @@ pub fn carve_ground_terrain_grid(
 }
 
 #[wasm_bindgen]
+#[allow(clippy::too_many_arguments)]
 pub fn evaluate_mountain_track_samples(
     pts_xye: &[f32],
     m_x: f64,

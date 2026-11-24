@@ -203,7 +203,7 @@ pub(super) fn piece_branches_world(piece: &TrackPiece, entry: Option<&CatalogEnt
         ],
         4 => {
             // Distinguish 3-way turnout (1 entry + 3 exits facing away from c0)
-            // vs crossing / double-slip (2 opposite pairs).
+            // vs double-slip (4 branches) vs plain crossing (2 opposite pairs).
             let a0 = c[0].angle.to_radians();
             let v0x = a0.cos();
             let v0y = a0.sin();
@@ -214,15 +214,24 @@ pub(super) fn piece_branches_world(piece: &TrackPiece, entry: Option<&CatalogEnt
                     v0x * ai.cos() + v0y * ai.sin() < -0.15
                 })
                 .count();
-            if facing_opposite == 3 {
+            let is_three_way = entry.map_or(false, |e| e.kind == "three-way") || facing_opposite == 3;
+            if is_three_way {
                 // 3-way turnout
                 vec![
                     sample_arc_between_connectors(c[0].x, c[0].y, c[0].angle, c[1].x, c[1].y, c[1].angle, 36),
                     sample_arc_between_connectors(c[0].x, c[0].y, c[0].angle, c[2].x, c[2].y, c[2].angle, 36),
                     sample_arc_between_connectors(c[0].x, c[0].y, c[0].angle, c[3].x, c[3].y, c[3].angle, 36),
                 ]
+            } else if entry.map_or(false, |e| e.kind == "double-slip") {
+                // Double slip: 2 crossing straights + 2 curved slip branches
+                vec![
+                    sample_arc_between_connectors(c[0].x, c[0].y, c[0].angle, c[1].x, c[1].y, c[1].angle, 36),
+                    sample_arc_between_connectors(c[2].x, c[2].y, c[2].angle, c[3].x, c[3].y, c[3].angle, 36),
+                    sample_arc_between_connectors(c[0].x, c[0].y, c[0].angle, c[3].x, c[3].y, c[3].angle, 36),
+                    sample_arc_between_connectors(c[2].x, c[2].y, c[2].angle, c[1].x, c[1].y, c[1].angle, 36),
+                ]
             } else {
-                // Crossing or double-slip
+                // Plain crossing
                 vec![
                     sample_arc_between_connectors(c[0].x, c[0].y, c[0].angle, c[1].x, c[1].y, c[1].angle, 36),
                     sample_arc_between_connectors(c[2].x, c[2].y, c[2].angle, c[3].x, c[3].y, c[3].angle, 36),
@@ -284,6 +293,8 @@ pub(super) fn draw_model_2d(
     camera: &Camera2D,
     m: &Model3D,
     top_mesh: Option<&CachedModelTopMesh2D>,
+    mtn_map: Option<&CachedMountainMap2D>,
+    ground_map: Option<&CachedGroundMap2D>,
     is_sel: bool,
     is_active_layer: bool,
     show_labels: bool,
@@ -328,199 +339,235 @@ pub(super) fn draw_model_2d(
     let sel_stroke = Color32::from_rgb(56, 189, 248);
 
     if is_ground {
-        let (mut outer_col, mut inner_col, mut stroke_col) = match g_type {
+        let (mut outer_col, mut mid_col, mut inner_col, mut stroke_col) = match g_type {
             "water" => (
-                Color32::from_rgba_unmultiplied(2, 132, 199, 115),
-                Color32::from_rgba_unmultiplied(56, 189, 248, 130),
-                Color32::from_rgb(3, 105, 161),
+                Color32::from_rgba_unmultiplied(14, 165, 233, 54),
+                Color32::from_rgba_unmultiplied(2, 132, 199, 64),
+                Color32::from_rgba_unmultiplied(3, 105, 161, 74),
+                Color32::from_rgba_unmultiplied(56, 189, 248, 195),
             ),
             "sand" => (
-                Color32::from_rgba_unmultiplied(214, 185, 124, 132),
-                Color32::from_rgba_unmultiplied(231, 211, 163, 145),
+                Color32::from_rgba_unmultiplied(214, 185, 124, 88),
+                Color32::from_rgba_unmultiplied(226, 202, 148, 96),
+                Color32::from_rgba_unmultiplied(237, 219, 173, 104),
                 Color32::from_rgb(161, 130, 74),
             ),
             "dirt" => (
-                Color32::from_rgba_unmultiplied(107, 76, 48, 132),
-                Color32::from_rgba_unmultiplied(133, 96, 62, 145),
-                Color32::from_rgb(74, 51, 31),
+                Color32::from_rgba_unmultiplied(107, 76, 48, 88),
+                Color32::from_rgba_unmultiplied(124, 89, 57, 96),
+                Color32::from_rgba_unmultiplied(142, 103, 68, 104),
+                Color32::from_rgb(92, 64, 40),
             ),
             _ => (
-                Color32::from_rgba_unmultiplied(77, 124, 15, 122),
-                Color32::from_rgba_unmultiplied(101, 163, 13, 135),
-                Color32::from_rgb(54, 83, 20),
+                Color32::from_rgba_unmultiplied(77, 124, 15, 76),
+                Color32::from_rgba_unmultiplied(92, 148, 18, 84),
+                Color32::from_rgba_unmultiplied(112, 174, 24, 92),
+                Color32::from_rgb(77, 124, 15),
             ),
         };
         if is_sel {
             stroke_col = sel_stroke;
         } else if !is_active_layer {
             outer_col = desaturate_color(outer_col, 0.78, 0.72);
+            mid_col = desaturate_color(mid_col, 0.78, 0.72);
             inner_col = desaturate_color(inner_col, 0.78, 0.72);
             stroke_col = desaturate_color(stroke_col, 0.78, 0.72);
         }
 
-        if let Some(nodes) = m.mountain_path.as_ref().filter(|p| !p.is_empty()) {
-            let avg_r = (nodes.iter().map(|n| n.radius).sum::<f64>() / nodes.len() as f64) * scale;
-            let pts_scr: Vec<Pos2> = nodes
-                .iter()
-                .map(|n| {
-                    let rp = rotate(Vec2 { x: n.x * scale, y: n.y * scale }, rot);
-                    camera.world_to_screen(rect, m.transform.x + rp.x, m.transform.y + rp.y)
-                })
-                .collect();
-            if pts_scr.len() >= 2 {
-                let w_outer = (avg_r as f32 * 2.0 * camera.zoom).max(8.0);
-                let w_inner = (avg_r as f32 * 1.3 * camera.zoom).max(4.0);
-                painter.add(egui::Shape::line(pts_scr.clone(), Stroke::new(w_outer, outer_col)));
-                painter.add(egui::Shape::line(pts_scr, Stroke::new(w_inner, inner_col)));
-            } else {
-                let r_scr = ((nodes[0].radius * scale) as f32 * camera.zoom).max(8.0);
-                painter.circle_filled(pts_scr[0], r_scr, outer_col);
-                painter.circle_filled(pts_scr[0], r_scr * 0.65, inner_col);
+        if let Some(gm) = ground_map {
+            let band_cols = [outer_col, mid_col, inner_col];
+            if !gm.quads.is_empty() {
+                let mut mesh = egui::Mesh::default();
+                mesh.vertices.reserve(gm.quads.len() * 4);
+                mesh.indices.reserve(gm.quads.len() * 6);
+                for &(pts, band) in &gm.quads {
+                    let col = band_cols[(band as usize).min(2)];
+                    let base = mesh.vertices.len() as u32;
+                    for pt in pts {
+                        mesh.vertices.push(egui::epaint::Vertex {
+                            pos: camera.world_to_screen(rect, pt.x, pt.y),
+                            uv: egui::epaint::WHITE_UV,
+                            color: col,
+                        });
+                    }
+                    mesh.indices
+                        .extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
+                }
+                painter.add(egui::Shape::mesh(mesh));
             }
-            if is_sel {
-                painter.add(egui::Shape::closed_line(spts, Stroke::new(2.0_f32, sel_stroke)));
+            let edge_stroke = Stroke::new(if is_sel { 2.2_f32 } else { 1.4_f32 }, stroke_col);
+            for &(a, b) in &gm.contour_segs {
+                painter.line_segment(
+                    [
+                        camera.world_to_screen(rect, a.x, a.y),
+                        camera.world_to_screen(rect, b.x, b.y),
+                    ],
+                    edge_stroke,
+                );
             }
-        } else {
-            let ellipse_pts = |sx: f64, sy: f64| -> Vec<Pos2> {
-                let steps = 56usize;
-                (0..steps)
-                    .map(|k| {
-                        let a = (k as f64 / steps as f64) * std::f64::consts::TAU;
-                        let rp = rotate(Vec2 { x: hw * sx * a.cos(), y: hd * sy * a.sin() }, rot);
-                        camera.world_to_screen(rect, m.transform.x + rp.x, m.transform.y + rp.y)
-                    })
-                    .collect()
-            };
-            painter.add(egui::Shape::convex_polygon(
-                ellipse_pts(1.0, 1.0),
-                outer_col,
-                Stroke::new(if is_sel { 2.4_f32 } else { 1.4_f32 }, stroke_col),
-            ));
-            painter.add(egui::Shape::convex_polygon(
-                ellipse_pts(0.68, 0.68),
-                inner_col,
-                Stroke::new(1.0_f32, Color32::from_rgba_unmultiplied(stroke_col.r(), stroke_col.g(), stroke_col.b(), 115)),
-            ));
-            if g_type == "water" {
-                for ry in [-0.25, 0.0, 0.25] {
-                    let p0 = rotate(Vec2 { x: -hw * 0.35, y: hd * ry }, rot);
-                    let p1 = rotate(Vec2 { x: hw * 0.35, y: hd * ry }, rot);
+            if g_type == "water" && !gm.ripple_segs.is_empty() {
+                let ripple_col = Color32::from_rgba_unmultiplied(224, 242, 254, 155);
+                let ripple_stroke = Stroke::new(1.2_f32, ripple_col);
+                for &(a, b) in &gm.ripple_segs {
                     painter.line_segment(
                         [
-                            camera.world_to_screen(rect, m.transform.x + p0.x, m.transform.y + p0.y),
-                            camera.world_to_screen(rect, m.transform.x + p1.x, m.transform.y + p1.y),
+                            camera.world_to_screen(rect, a.x, a.y),
+                            camera.world_to_screen(rect, b.x, b.y),
                         ],
-                        Stroke::new(1.2_f32, Color32::from_rgba_unmultiplied(224, 242, 254, 145)),
+                        ripple_stroke,
                     );
                 }
             }
+            if is_sel {
+                painter.add(egui::Shape::closed_line(spts, Stroke::new(1.8_f32, sel_stroke)));
+            }
         }
     } else if is_mtn {
+        // Authentic Swiss/German Topographic Map (TK25 / Swisstopo) rendering:
+        // ultra-light translucent hypsometric wash + real Marching-Squares elevation contours
+        // + downhill slope hachures (Schraffen) + summit triangulation marker (▲ height)
         let style = m.mountain_style.as_deref().unwrap_or("alpine");
-        let (mut c_base, mut c_mid, mut c_upper, mut c_peak) = match style {
+        let (mut band_cols, mut idx_col, mut sub_col, mut hach_col, mut peak_col) = match style {
             "forest" => (
-                Color32::from_rgba_unmultiplied(20, 83, 45, 170),
-                Color32::from_rgba_unmultiplied(22, 101, 52, 185),
-                Color32::from_rgba_unmultiplied(87, 83, 78, 198),
-                Color32::from_rgba_unmultiplied(168, 162, 158, 224),
+                [
+                    Color32::from_rgba_unmultiplied(34, 139, 68, 22),
+                    Color32::from_rgba_unmultiplied(46, 152, 78, 30),
+                    Color32::from_rgba_unmultiplied(116, 138, 92, 36),
+                    Color32::from_rgba_unmultiplied(186, 178, 158, 44),
+                ],
+                Color32::from_rgba_unmultiplied(120, 92, 56, 205),
+                Color32::from_rgba_unmultiplied(120, 92, 56, 120),
+                Color32::from_rgba_unmultiplied(110, 84, 52, 145),
+                Color32::from_rgb(241, 245, 249),
             ),
             "meadow" => (
-                Color32::from_rgba_unmultiplied(54, 83, 20, 170),
-                Color32::from_rgba_unmultiplied(77, 124, 15, 185),
-                Color32::from_rgba_unmultiplied(101, 163, 13, 198),
-                Color32::from_rgba_unmultiplied(132, 204, 22, 224),
+                [
+                    Color32::from_rgba_unmultiplied(101, 163, 13, 20),
+                    Color32::from_rgba_unmultiplied(132, 184, 42, 28),
+                    Color32::from_rgba_unmultiplied(168, 198, 76, 34),
+                    Color32::from_rgba_unmultiplied(214, 218, 126, 40),
+                ],
+                Color32::from_rgba_unmultiplied(146, 108, 52, 200),
+                Color32::from_rgba_unmultiplied(146, 108, 52, 118),
+                Color32::from_rgba_unmultiplied(138, 100, 48, 140),
+                Color32::from_rgb(241, 245, 249),
             ),
             "rocky" => (
-                Color32::from_rgba_unmultiplied(41, 37, 36, 174),
-                Color32::from_rgba_unmultiplied(68, 64, 60, 185),
-                Color32::from_rgba_unmultiplied(120, 113, 108, 200),
-                Color32::from_rgba_unmultiplied(214, 211, 209, 226),
+                [
+                    Color32::from_rgba_unmultiplied(120, 113, 108, 22),
+                    Color32::from_rgba_unmultiplied(148, 140, 134, 30),
+                    Color32::from_rgba_unmultiplied(180, 174, 168, 38),
+                    Color32::from_rgba_unmultiplied(218, 214, 210, 46),
+                ],
+                Color32::from_rgba_unmultiplied(168, 152, 136, 210),
+                Color32::from_rgba_unmultiplied(156, 142, 128, 125),
+                Color32::from_rgba_unmultiplied(148, 134, 120, 150),
+                Color32::from_rgb(248, 250, 252),
             ),
             _ => (
-                Color32::from_rgba_unmultiplied(41, 37, 36, 174),
-                Color32::from_rgba_unmultiplied(68, 64, 60, 185),
-                Color32::from_rgba_unmultiplied(120, 113, 108, 200),
-                Color32::from_rgba_unmultiplied(248, 250, 252, 228),
+                // Classic Swisstopo / Alpine sepia-ochre contour map with snow peak tint
+                [
+                    Color32::from_rgba_unmultiplied(161, 132, 92, 20),
+                    Color32::from_rgba_unmultiplied(148, 126, 98, 28),
+                    Color32::from_rgba_unmultiplied(148, 163, 184, 36),
+                    Color32::from_rgba_unmultiplied(241, 245, 249, 48),
+                ],
+                Color32::from_rgba_unmultiplied(180, 126, 74, 215),
+                Color32::from_rgba_unmultiplied(176, 124, 74, 125),
+                Color32::from_rgba_unmultiplied(168, 118, 70, 155),
+                Color32::from_rgb(248, 250, 252),
             ),
         };
-        let mut border_col = if is_sel { sel_stroke } else { Color32::from_rgb(68, 64, 60) };
-        if !is_active_layer && !is_sel {
-            c_base = desaturate_color(c_base, 0.78, 0.72);
-            c_mid = desaturate_color(c_mid, 0.78, 0.72);
-            c_upper = desaturate_color(c_upper, 0.78, 0.72);
-            c_peak = desaturate_color(c_peak, 0.78, 0.72);
-            border_col = desaturate_color(border_col, 0.78, 0.72);
+        if is_sel {
+            idx_col = sel_stroke;
+            sub_col = Color32::from_rgba_unmultiplied(56, 189, 248, 165);
+        } else if !is_active_layer {
+            for c in &mut band_cols {
+                *c = desaturate_color(*c, 0.78, 0.72);
+            }
+            idx_col = desaturate_color(idx_col, 0.78, 0.72);
+            sub_col = desaturate_color(sub_col, 0.78, 0.72);
+            hach_col = desaturate_color(hach_col, 0.78, 0.72);
+            peak_col = desaturate_color(peak_col, 0.78, 0.72);
         }
 
-        if let Some(nodes) = m.mountain_path.as_ref().filter(|p| !p.is_empty()) {
-            let avg_r = (nodes.iter().map(|n| n.radius).sum::<f64>() / nodes.len() as f64) * scale;
-            let tiers = [(1.0_f32, c_base), (0.68, c_mid), (0.38, c_upper), (0.18, c_peak)];
-            if nodes.len() >= 2 {
-                let pts_scr: Vec<Pos2> = nodes
-                    .iter()
-                    .map(|n| {
-                        let rp = rotate(Vec2 { x: n.x * scale, y: n.y * scale }, rot);
-                        camera.world_to_screen(rect, m.transform.x + rp.x, m.transform.y + rp.y)
-                    })
-                    .collect();
-                for (t_sc, t_col) in tiers {
-                    let sw = (avg_r as f32 * 2.0 * t_sc * camera.zoom).max(4.0);
-                    painter.add(egui::Shape::line(pts_scr.clone(), Stroke::new(sw, t_col)));
+        if let Some(map) = mtn_map {
+            // 1. Single batched translucent hypsometric wash mesh (fast & never hides tracks underneath)
+            if !map.tint_quads.is_empty() {
+                let mut mesh = egui::Mesh::default();
+                mesh.vertices.reserve(map.tint_quads.len() * 4);
+                mesh.indices.reserve(map.tint_quads.len() * 6);
+                for &(pts, band) in &map.tint_quads {
+                    let col = band_cols[(band as usize).min(3)];
+                    let base = mesh.vertices.len() as u32;
+                    for pt in pts {
+                        let sp = camera.world_to_screen(rect, pt.x, pt.y);
+                        mesh.vertices.push(egui::epaint::Vertex {
+                            pos: sp,
+                            uv: egui::epaint::WHITE_UV,
+                            color: col,
+                        });
+                    }
+                    mesh.indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
                 }
-            } else {
-                let n0 = &nodes[0];
-                let rp = rotate(Vec2 { x: n0.x * scale, y: n0.y * scale }, rot);
-                let sp = camera.world_to_screen(rect, m.transform.x + rp.x, m.transform.y + rp.y);
-                for (t_sc, t_col) in tiers {
-                    let r_scr = ((n0.radius * scale) as f32 * t_sc * camera.zoom).max(4.0);
-                    painter.circle_filled(sp, r_scr, t_col);
+                painter.add(egui::Shape::mesh(mesh));
+            }
+
+            // 2. Cartographic downhill slope hachures (Schraffen)
+            let hach_stroke = Stroke::new((0.9_f32 * camera.zoom.sqrt()).clamp(0.7, 1.3), hach_col);
+            for &(p0, p1) in &map.hachures {
+                painter.line_segment(
+                    [
+                        camera.world_to_screen(rect, p0.x, p0.y),
+                        camera.world_to_screen(rect, p1.x, p1.y),
+                    ],
+                    hach_stroke,
+                );
+            }
+
+            // 3. Topographic contour lines: fine intermediate contours + bolder index contours (Haupthoehenlinien)
+            let sub_stroke = Stroke::new((0.85_f32 * camera.zoom.sqrt()).clamp(0.65, 1.25), sub_col);
+            let idx_stroke = Stroke::new(
+                if is_sel { 2.0_f32 } else { (1.45_f32 * camera.zoom.sqrt()).clamp(1.1, 2.1) },
+                idx_col,
+            );
+            for &(p0, p1, is_index) in &map.contour_segs {
+                painter.line_segment(
+                    [
+                        camera.world_to_screen(rect, p0.x, p0.y),
+                        camera.world_to_screen(rect, p1.x, p1.y),
+                    ],
+                    if is_index { idx_stroke } else { sub_stroke },
+                );
+            }
+
+            // 4. Cartographic summit triangulation markers (▲) + elevation height labels
+            let tri_r = (5.2_f32 * camera.zoom.sqrt()).clamp(3.6, 7.5);
+            for &(pk, ph) in &map.peaks {
+                let sp = camera.world_to_screen(rect, pk.x, pk.y);
+                let tri = vec![
+                    Pos2::new(sp.x, sp.y - tri_r),
+                    Pos2::new(sp.x + tri_r * 0.88, sp.y + tri_r * 0.65),
+                    Pos2::new(sp.x - tri_r * 0.88, sp.y + tri_r * 0.65),
+                ];
+                painter.add(egui::Shape::convex_polygon(
+                    tri,
+                    peak_col,
+                    Stroke::new(1.1_f32, idx_col),
+                ));
+                if show_labels && camera.zoom >= 0.22 {
+                    painter.text(
+                        Pos2::new(sp.x + tri_r + 4.0, sp.y - 1.0),
+                        egui::Align2::LEFT_CENTER,
+                        format!("{:.0} mm", ph),
+                        FontId::monospace(9.5),
+                        peak_col,
+                    );
                 }
             }
             if is_sel {
-                painter.add(egui::Shape::closed_line(spts, Stroke::new(2.0_f32, sel_stroke)));
+                painter.add(egui::Shape::closed_line(spts, Stroke::new(1.8_f32, sel_stroke)));
             }
-        } else {
-            let ellipse_pts = |sx: f64, sy: f64| -> Vec<Pos2> {
-                let steps = 56usize;
-                (0..steps)
-                    .map(|k| {
-                        let a = (k as f64 / steps as f64) * std::f64::consts::TAU;
-                        let rp = rotate(Vec2 { x: hw * sx * a.cos(), y: hd * sy * a.sin() }, rot);
-                        camera.world_to_screen(rect, m.transform.x + rp.x, m.transform.y + rp.y)
-                    })
-                    .collect()
-            };
-            painter.add(egui::Shape::convex_polygon(
-                ellipse_pts(1.0, 1.0),
-                c_base,
-                Stroke::new(if is_sel { 2.4_f32 } else { 1.5_f32 }, border_col),
-            ));
-            painter.add(egui::Shape::convex_polygon(ellipse_pts(0.68, 0.68), c_mid, Stroke::NONE));
-            painter.add(egui::Shape::convex_polygon(ellipse_pts(0.38, 0.38), c_upper, Stroke::NONE));
-            painter.add(egui::Shape::convex_polygon(
-                ellipse_pts(0.18, 0.18),
-                c_peak,
-                Stroke::new(1.0_f32, Color32::from_rgba_unmultiplied(226, 232, 240, 200)),
-            ));
-            let cx0 = rotate(Vec2 { x: -hw * 0.25, y: 0.0 }, rot);
-            let cx1 = rotate(Vec2 { x: hw * 0.25, y: 0.0 }, rot);
-            let cy0 = rotate(Vec2 { x: 0.0, y: -hd * 0.22 }, rot);
-            let cy1 = rotate(Vec2 { x: 0.0, y: hd * 0.22 }, rot);
-            let x_col = Color32::from_rgba_unmultiplied(255, 255, 255, 210);
-            painter.line_segment(
-                [
-                    camera.world_to_screen(rect, m.transform.x + cx0.x, m.transform.y + cx0.y),
-                    camera.world_to_screen(rect, m.transform.x + cx1.x, m.transform.y + cx1.y),
-                ],
-                Stroke::new(1.3_f32, x_col),
-            );
-            painter.line_segment(
-                [
-                    camera.world_to_screen(rect, m.transform.x + cy0.x, m.transform.y + cy0.y),
-                    camera.world_to_screen(rect, m.transform.x + cy1.x, m.transform.y + cy1.y),
-                ],
-                Stroke::new(1.3_f32, x_col),
-            );
         }
     } else if let Some(tm) = top_mesh.filter(|tm| !tm.tris.is_empty()) {
         // Authentic orthographic top-down projection of the 3D viewer mesh

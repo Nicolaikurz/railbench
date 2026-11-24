@@ -115,6 +115,9 @@ pub(super) fn build_local_track_prototype_3d(
         0.0,
         ColorMode::Off,
         None,
+        0,
+        0.0,
+        None,
         &mut dummy_cat,
     );
     (Arc::new(pv), Arc::new(pi))
@@ -133,7 +136,20 @@ pub(super) fn compute_submesh_signatures(
         h_env = hash_f64(h_env, b.custom_x.unwrap_or(0.0));
         h_env = hash_f64(h_env, b.custom_y.unwrap_or(0.0));
         h_env = hash_f64(h_env, b.rotation.unwrap_or(0.0));
+        h_env = hash_f64(h_env, b.l_wing_width.unwrap_or(0.0));
+        h_env = hash_f64(h_env, b.l_wing_depth.unwrap_or(0.0));
+        h_env = hash_f64(h_env, b.u_left_wing_width.unwrap_or(0.0));
+        h_env = hash_f64(h_env, b.u_right_wing_width.unwrap_or(0.0));
+        h_env = hash_f64(h_env, b.u_back_depth.unwrap_or(0.0));
+        h_env = hash_f64(h_env, b.t_bar_depth.unwrap_or(0.0));
+        h_env = hash_f64(h_env, b.t_stem_width.unwrap_or(0.0));
         h_env = fnv1a_u64(h_env, b.shape.as_deref().unwrap_or("rect").as_bytes());
+        if let Some(poly) = &b.custom_polygon {
+            for pt in poly {
+                h_env = hash_f64(h_env, pt.x);
+                h_env = hash_f64(h_env, pt.y);
+            }
+        }
     }
 
     let mut max_deck_elev = if boards.iter().any(|b| b.enabled) {
@@ -173,6 +189,14 @@ pub(super) fn compute_submesh_signatures(
                     h_boards = hash_f64(h_boards, pl.depth);
                     h_boards = hash_f64(h_boards, pl.x.unwrap_or(0.0));
                     h_boards = hash_f64(h_boards, pl.y.unwrap_or(0.0));
+                    h_boards = hash_f64(h_boards, pl.rotation.unwrap_or(0.0));
+                    h_boards = fnv1a_u64(h_boards, pl.shape.as_deref().unwrap_or("rect").as_bytes());
+                    if let Some(poly) = &pl.custom_polygon {
+                        for pt in poly {
+                            h_boards = hash_f64(h_boards, pt.x);
+                            h_boards = hash_f64(h_boards, pt.y);
+                        }
+                    }
                 }
             }
         }
@@ -229,6 +253,7 @@ pub(super) fn compute_submesh_signatures(
                     mountains.push(m);
                 }
                 h_terrain = fnv1a_u64(h_terrain, m.id.as_bytes());
+                h_terrain = fnv1a_u64(h_terrain, m.layer_id.as_deref().unwrap_or("").as_bytes());
                 h_terrain = hash_f64(h_terrain, m.transform.x);
                 h_terrain = hash_f64(h_terrain, m.transform.y);
                 h_terrain = hash_f64(h_terrain, m.transform.rotation);
@@ -249,6 +274,7 @@ pub(super) fn compute_submesh_signatures(
         }
     }
     if has_terrain_models {
+        h_terrain = fnv1a_u64(h_terrain, &h_boards.to_le_bytes());
         for p in &layout.pieces {
             h_terrain = fnv1a_u64(h_terrain, p.id.as_bytes());
             h_terrain = hash_f64(h_terrain, p.transform.x);
@@ -310,6 +336,16 @@ pub(super) fn compute_submesh_signatures(
             | (((p.has_decoder == Some(true)) as u8) << 6)
             | (((p.has_signal == Some(true)) as u8) << 7);
         h_tracks = fnv1a_u64(h_tracks, &[flags, (p.power_feed == Some(true)) as u8, (p.is_isolator == Some(true)) as u8]);
+        if p.has_lantern == Some(true) {
+            let sw_state = opts.turnout_states.get(&p.id).copied().unwrap_or(0) as u64;
+            h_tracks = fnv1a_u64(h_tracks, &sw_state.to_le_bytes());
+        }
+        if let Some(&ang) = opts.turntable_angles_deg.get(&p.id) {
+            h_tracks = hash_f64(h_tracks, ang);
+        }
+        if let Some(&off) = opts.transfer_offsets_mm.get(&p.id) {
+            h_tracks = hash_f64(h_tracks, off);
+        }
         if p.has_bridge == Some(true) || p.has_tunnel == Some(true) {
             for c in &p.connectors {
                 h_tracks = fnv1a_u64(

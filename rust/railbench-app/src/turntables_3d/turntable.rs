@@ -6,6 +6,7 @@ pub(crate) fn push_turntable_3d(
     piece: &TrackPiece,
     entry: Option<&CatalogEntry>,
     e0: f64,
+    bridge_angle_deg: f64,
 ) {
     let outer_r = entry.and_then(|e| e.radius).unwrap_or(189.0) as f32;
     let scale_f = (outer_r / 189.0).clamp(0.4, 2.5);
@@ -146,7 +147,15 @@ pub(crate) fn push_turntable_3d(
         b.obox([lock_r * ca, 6.55, lock_r * sa], [2.4 * scale_f, 0.8, gauge * 0.52], [0.0, -rad, 0.0], p.bronze);
     }
 
-    // 6. DB 23 m Fish-Belly Tapered Plate-Girder Bridge (along X axis)
+    // 6. DB 23 m Fish-Belly Tapered Plate-Girder Bridge (rotated by live `bridge_angle_deg`)
+    let mut b = ModelBuilder::new(
+        verts,
+        idxs,
+        [piece.transform.x as f32, e0 as f32, piece.transform.y as f32],
+        ((piece.transform.rotation + bridge_angle_deg) as f32).to_radians(),
+        [1.0, 1.0, 1.0],
+        [1.0, 1.0, 1.0],
+    );
     let half_b = bridge_l * 0.5;
     let girder_x_end = half_b - 1.2 * scale_f;
     let bell_profile: [(f32, f32); 6] = [
@@ -288,8 +297,16 @@ pub(crate) fn push_turntable_3d(
     // 10. Cantilevered steel-braced Wärterhaus operator cabin
     build_operator_cabin(&mut b, cab_cx, cab_cz, cab_w, cab_d, girder_z, 5.5, -8.2 * scale_f, scale_f, &p);
 
-    // 11. Drehscheiben-Spinne overhead catenary spider (when has_catenary is true)
+    // 11. Drehscheiben-Spinne overhead catenary spider (stationary on outer pit rim, does NOT rotate with bridge)
     if piece.has_catenary == Some(true) {
+        let mut b = ModelBuilder::new(
+            verts,
+            idxs,
+            [piece.transform.x as f32, e0 as f32, piece.transform.y as f32],
+            (piece.transform.rotation as f32).to_radians(),
+            [1.0, 1.0, 1.0],
+            [1.0, 1.0, 1.0],
+        );
         let contact_h = 72.0_f32;
         let upper_h = 85.0_f32;
         let spider_r = 22.0 * scale_f;

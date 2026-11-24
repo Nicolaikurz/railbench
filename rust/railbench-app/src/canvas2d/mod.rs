@@ -255,6 +255,7 @@ pub fn draw_canvas_2d(
     sketcher: &mut BoardSketcherState,
     dragging_model_rot: &mut Option<String>,
     ramp_overlay: Option<(&mut crate::ramp_tools::RampSelectionState, f64, f64)>,
+    vehicle_sim: &crate::vehicle_sim::VehicleSimState,
 ) -> CanvasInteraction {
     let mut interaction = CanvasInteraction::default();
 
@@ -359,7 +360,7 @@ pub fn draw_canvas_2d(
             );
         }
 
-        // 2.5A. Ground terrain (lakes, rivers, meadows) renders BELOW tracks
+        // 2.5A. Ground terrain (lakes, rivers, meadows) & topographic mountains render BELOW tracks so tracks under mountains/water stay visible
         if let Some(m_indices) = cache.layer_ground_models.get(lid.as_str()) {
             for &mi in m_indices {
                 if !aabb_intersects(
@@ -379,6 +380,8 @@ pub fn draw_canvas_2d(
                     camera,
                     m,
                     cache.model_top_meshes.get(mi).map(|arc| arc.as_ref()),
+                    cache.model_mtn_maps.get(mi).and_then(|o| o.as_deref()),
+                    cache.model_ground_maps.get(mi).and_then(|o| o.as_deref()),
                     is_sel,
                     is_active_layer,
                     show_labels,
@@ -430,11 +433,14 @@ pub fn draw_canvas_2d(
                     show_labels,
                     power_sim_enabled,
                     piece_power,
+                    vehicle_sim.turnout_states.get(&piece.id).copied().unwrap_or(0),
+                    vehicle_sim.turntable_angles_deg.get(&piece.id).copied().unwrap_or(0.0),
+                    vehicle_sim.transfer_offsets_mm.get(&piece.id).copied(),
                 );
             }
         }
 
-        // 3.5. Buildings, trees, signals, lamps & mountains render ABOVE tracks on this layer
+        // 3.5. Buildings, trees, signals & lamps render ABOVE tracks on this layer
         if let Some(m_indices) = cache.layer_top_models.get(lid.as_str()) {
             for &mi in m_indices {
                 if !aabb_intersects(
@@ -454,6 +460,8 @@ pub fn draw_canvas_2d(
                     camera,
                     m,
                     cache.model_top_meshes.get(mi).map(|arc| arc.as_ref()),
+                    cache.model_mtn_maps.get(mi).and_then(|o| o.as_deref()),
+                    cache.model_ground_maps.get(mi).and_then(|o| o.as_deref()),
                     is_sel,
                     is_active_layer,
                     show_labels,
@@ -461,6 +469,9 @@ pub fn draw_canvas_2d(
             }
         }
     }
+
+    // 3.8. Live vehicles (locomotives, coupled wagons, cars, trucks, buses)
+    render_vehicles::draw_vehicles_2d(&painter, rect, camera, vehicle_sim, &layout.scale);
 
     // Short-circuit warning markers & banner: ALWAYS visible on 2-wire short circuits (even when Power Overlay is off)
     if let Some(sim) = power_sim {
@@ -940,10 +951,12 @@ mod render_models;
 use render_models::*;
 #[allow(unused_imports)]
 pub use render_models::{is_layer_editable_with_protection};
+mod render_vehicles;
 mod snapping;
 #[allow(unused_imports)]
 use snapping::*;
 #[allow(unused_imports)]
 pub use snapping::{snap_selected_pieces};
+mod terrain_maps;
 #[cfg(test)]
 mod tests;

@@ -334,6 +334,8 @@ pub struct CatalogEntry {
     pub branch_radius: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub branch_angle: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub branch_length: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub gauge: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]

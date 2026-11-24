@@ -316,8 +316,10 @@ pub(super) struct Gpu3DState {
     slot_boards: GpuMeshSlot,
     slot_terrain: GpuMeshSlot,
     slot_tracks: GpuMeshSlot,
+    slot_vehicles: GpuMeshSlot,
     celestial_slot: GpuCelestialSlot,
     offscreen: Option<OffscreenTarget>,
+    offscreen_cab: Option<OffscreenTarget>,
 }
 
 impl Gpu3DState {
@@ -517,8 +519,10 @@ impl Gpu3DState {
             slot_boards: GpuMeshSlot::default(),
             slot_terrain: GpuMeshSlot::default(),
             slot_tracks: GpuMeshSlot::default(),
+            slot_vehicles: GpuMeshSlot::default(),
             celestial_slot: GpuCelestialSlot::default(),
             offscreen: None,
+            offscreen_cab: None,
         }
     }
 
@@ -527,21 +531,26 @@ impl Gpu3DState {
         self.slot_boards.clear();
         self.slot_terrain.clear();
         self.slot_tracks.clear();
+        self.slot_vehicles.clear();
         self.celestial_slot.clear();
         if let Some(old) = self.offscreen.take() {
             old.destroy();
         }
+        if let Some(old) = self.offscreen_cab.take() {
+            old.destroy();
+        }
     }
 
-    fn ensure_offscreen(&mut self, device: &wgpu::Device, width: u32, height: u32) {
+    fn ensure_offscreen(&mut self, device: &wgpu::Device, width: u32, height: u32, is_cab_view: bool) {
         let w = width.clamp(16, 4096);
         let h = height.clamp(16, 4096);
-        if let Some(ref cur) = self.offscreen {
+        let slot = if is_cab_view { &mut self.offscreen_cab } else { &mut self.offscreen };
+        if let Some(ref cur) = *slot {
             if cur.size == [w, h] {
                 return;
             }
         }
-        if let Some(old) = self.offscreen.take() {
+        if let Some(old) = slot.take() {
             old.destroy();
         }
         let msaa_tex = device.create_texture(&wgpu::TextureDescriptor {
@@ -595,7 +604,8 @@ impl Gpu3DState {
             ],
         });
 
-        self.offscreen = Some(OffscreenTarget {
+        let target_slot = if is_cab_view { &mut self.offscreen_cab } else { &mut self.offscreen };
+        *target_slot = Some(OffscreenTarget {
             size: [w, h],
             msaa_tex,
             msaa_view,
@@ -611,10 +621,12 @@ impl Gpu3DState {
 pub(super) struct Viewport3DCallback {
     pub(super) uniforms: Uniforms3D,
     pub(super) bundle: Option<Scene3DBundle>,
+    pub(super) vehicles_mesh: Option<Arc<SceneMesh3D>>,
     pub(super) time_of_day: f32,
     pub(super) env_mode: Viewer3DEnv,
     pub(super) viewport_px: [u32; 2],
     pub(super) clear_color: [f64; 3],
+    pub(super) is_cab_view: bool,
 }
 
 impl egui_wgpu::CallbackTrait for Viewport3DCallback {
@@ -630,7 +642,7 @@ impl egui_wgpu::CallbackTrait for Viewport3DCallback {
             .entry::<Gpu3DState>()
             .or_insert_with(|| Gpu3DState::new(device, wgpu::TextureFormat::Bgra8Unorm, WINDOW_MSAA_SAMPLES));
 
-        state.ensure_offscreen(device, self.viewport_px[0], self.viewport_px[1]);
+        state.ensure_offscreen(device, self.viewport_px[0], self.viewport_px[1], self.is_cab_view);
         queue.write_buffer(&state.uniform_buf, 0, bytemuck::bytes_of(&self.uniforms));
 
         if let Some(bundle) = &self.bundle {
@@ -639,10 +651,24 @@ impl egui_wgpu::CallbackTrait for Viewport3DCallback {
             state.slot_terrain.sync(device, queue, bundle.terrain.as_ref(), "railbench_3d_terrain");
             state.slot_tracks.sync(device, queue, bundle.tracks.as_ref(), "railbench_3d_tracks");
         }
+        if let Some(vmesh) = &self.vehicles_mesh {
+            static VEHICLE_MESH_SEQ: std::sync::atomic::AtomicU64 =
+                std::sync::atomic::AtomicU64::new(1);
+            let ver = VEHICLE_MESH_SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            let slot_data = (ver, Arc::clone(vmesh));
+            state
+                .slot_vehicles
+                .sync(device, queue, Some(&slot_data), "railbench_3d_vehicles");
+        } else {
+            state
+                .slot_vehicles
+                .sync(device, queue, None, "railbench_3d_vehicles");
+        }
         state.celestial_slot.update(device, queue, self.time_of_day, self.env_mode);
 
         // Render the 3D scene into our 4x MSAA Color + Depth32Float buffer and resolve into color_view
-        if let Some(ref target) = state.offscreen {
+        let offscreen_ref = if self.is_cab_view { &state.offscreen_cab } else { &state.offscreen };
+        if let Some(ref target) = *offscreen_ref {
             let mut rpass = egui_encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("railbench_3d_offscreen_pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -676,6 +702,7 @@ impl egui_wgpu::CallbackTrait for Viewport3DCallback {
             state.slot_boards.draw(&mut rpass, &state.identity_instance_buf);
             state.slot_terrain.draw(&mut rpass, &state.identity_instance_buf);
             state.slot_tracks.draw(&mut rpass, &state.identity_instance_buf);
+            state.slot_vehicles.draw(&mut rpass, &state.identity_instance_buf);
             state.celestial_slot.draw(&mut rpass, &state.identity_instance_buf);
         }
 
@@ -689,7 +716,8 @@ impl egui_wgpu::CallbackTrait for Viewport3DCallback {
         callback_resources: &egui_wgpu::CallbackResources,
     ) {
         if let Some(state) = callback_resources.get::<Gpu3DState>() {
-            if let Some(ref target) = state.offscreen {
+            let offscreen_ref = if self.is_cab_view { &state.offscreen_cab } else { &state.offscreen };
+            if let Some(ref target) = *offscreen_ref {
                 render_pass.set_pipeline(&state.blit_pipeline);
                 render_pass.set_bind_group(0, &target.blit_bg, &[]);
                 render_pass.draw(0..3, 0..1);

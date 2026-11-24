@@ -184,7 +184,7 @@ pub(crate) fn build_special_piece_top_view_mesh_2d(
     let mut idxs = Vec::new();
     match entry.kind.as_str() {
         "turntable" => {
-            crate::turntables_3d::push_turntable_3d(&mut verts, &mut idxs, &local_p, Some(entry), 0.0);
+            crate::turntables_3d::push_turntable_3d(&mut verts, &mut idxs, &local_p, Some(entry), 0.0, 0.0);
         }
         "transfer-table" => {
             let empty_layout = Layout {
@@ -212,6 +212,7 @@ pub(crate) fn build_special_piece_top_view_mesh_2d(
                 Some(entry),
                 &empty_layout,
                 0.0,
+                None,
             );
         }
         _ => return CachedModelTopMesh2D::default(),
@@ -222,6 +223,10 @@ pub(crate) fn build_special_piece_top_view_mesh_2d(
     project_3d_mesh_to_top_view_2d(&verts, &idxs, min_y, max_y)
 }
 
+pub(super) use super::terrain_maps::{
+    build_ground_map_2d, build_mountain_map_2d, CachedGroundMap2D, CachedMountainMap2D,
+};
+
 #[derive(Default)]
 pub struct Canvas2DCache {
     pub(super) version: u64,
@@ -231,6 +236,8 @@ pub struct Canvas2DCache {
     pub(super) piece_id_to_idx: HashMap<String, usize>,
     pub(super) model_bounds: Vec<(f64, f64, f64, f64)>,
     pub(super) model_top_meshes: Vec<Arc<CachedModelTopMesh2D>>,
+    pub(super) model_mtn_maps: Vec<Option<Arc<CachedMountainMap2D>>>,
+    pub(super) model_ground_maps: Vec<Option<Arc<CachedGroundMap2D>>>,
     pub(super) model_proto_cache: HashMap<ModelTopMeshKey, Arc<CachedModelTopMesh2D>>,
     pub(super) piece_top_proto_cache: HashMap<(String, bool), Arc<CachedModelTopMesh2D>>,
     pub(super) layer_piece_indices: HashMap<String, Vec<usize>>,
@@ -252,17 +259,41 @@ pub(super) fn compute_layout_cache_sig(layout: &Layout, layout_version: u64) -> 
     h ^= (layout.models.as_ref().map_or(0, |m| m.len()) as u64).wrapping_mul(0x94D0_49BB_1331_11EB);
     if let Some(ls) = &layout.layers {
         for (i, l) in ls.iter().enumerate() {
-            let bits = ((l.visible as u64) | ((l.locked as u64) << 1))
+            let mut bits = ((l.visible as u64) | ((l.locked as u64) << 1))
                 ^ l.height_mm.map_or(0, |v| v.to_bits());
+            if let Some(ref mode) = l.wood_plate_mode {
+                bits ^= (mode.len() as u64).rotate_left(19);
+            }
+            if let Some(ref plates) = l.plates {
+                bits ^= (plates.len() as u64).rotate_left(11);
+                for pl in plates {
+                    let pb = pl.width.to_bits()
+                        ^ pl.depth.to_bits().rotate_left(9)
+                        ^ pl.x.unwrap_or(0.0).to_bits().rotate_left(21)
+                        ^ pl.y.unwrap_or(0.0).to_bits().rotate_left(33)
+                        ^ pl.rotation.unwrap_or(0.0).to_bits().rotate_left(45);
+                    bits = bits.rotate_left(5) ^ pb;
+                    if let Some(ref poly) = pl.custom_polygon {
+                        bits ^= (poly.len() as u64).rotate_left(15);
+                    }
+                }
+            }
             h = h.rotate_left(7) ^ bits.wrapping_add(i as u64);
         }
     }
     for (i, b) in board_tools::get_baseboards_slice(layout).iter().enumerate() {
         if b.enabled {
-            let bits = b.width.to_bits()
+            let mut bits = b.width.to_bits()
                 ^ b.depth.to_bits().rotate_left(13)
                 ^ b.custom_x.map_or(0, |v| v.to_bits().rotate_left(29))
-                ^ b.custom_y.map_or(0, |v| v.to_bits().rotate_left(41));
+                ^ b.custom_y.map_or(0, |v| v.to_bits().rotate_left(41))
+                ^ b.rotation.unwrap_or(0.0).to_bits().rotate_left(53);
+            if let Some(ref shape) = b.shape {
+                bits ^= (shape.len() as u64).rotate_left(3);
+            }
+            if let Some(ref poly) = b.custom_polygon {
+                bits ^= (poly.len() as u64).rotate_left(17);
+            }
             h = h.rotate_left(5) ^ bits.wrapping_add(i as u64);
         }
     }
@@ -448,9 +479,16 @@ impl Canvas2DCache {
             });
         }
 
-        // 3. Models AABBs, top-down 3D orthographic meshes, layer groups & building doors
+        let enabled_boards: Vec<BaseboardConfig> = board_tools::get_baseboards_slice(layout)
+            .into_iter()
+            .filter(|b| b.enabled)
+            .collect();
+
+        // 3. Models AABBs, top-down 3D orthographic meshes, clipped 2D terrain maps, layer groups & doors
         self.model_bounds.clear();
         self.model_top_meshes.clear();
+        self.model_mtn_maps.clear();
+        self.model_ground_maps.clear();
         self.layer_ground_models.clear();
         self.layer_top_models.clear();
         self.door_positions.clear();
@@ -460,6 +498,8 @@ impl Canvas2DCache {
         if let Some(models) = &layout.models {
             self.model_bounds.reserve(models.len());
             self.model_top_meshes.reserve(models.len());
+            self.model_mtn_maps.reserve(models.len());
+            self.model_ground_maps.reserve(models.len());
             let mut m_doors = Vec::with_capacity(4);
             for (mi, m) in models.iter().enumerate() {
                 let scale = m.scale.unwrap_or(1.0);
@@ -479,6 +519,21 @@ impl Canvas2DCache {
                         .or_insert_with(|| Arc::new(build_model_top_view_mesh_2d(m))),
                 );
                 self.model_top_meshes.push(top_mesh);
+                let is_mtn = m.builtin_id.as_deref() == Some("mountain");
+                let is_gnd = m.builtin_id.as_deref() == Some("ground-terrain");
+                let support_polys = if is_mtn || is_gnd {
+                    crate::terrain_tools::collect_terrain_support_polygons(
+                        layout,
+                        m.layer_id.as_deref(),
+                        &enabled_boards,
+                    )
+                } else {
+                    Vec::new()
+                };
+                self.model_mtn_maps
+                    .push(is_mtn.then(|| Arc::new(build_mountain_map_2d(m, &support_polys))));
+                self.model_ground_maps
+                    .push(is_gnd.then(|| Arc::new(build_ground_map_2d(m, &support_polys))));
                 let hw = m.width * scale * 0.5;
                 let hd = m.depth * scale * 0.5;
                 let rot = m.transform.rotation;
@@ -520,7 +575,7 @@ impl Canvas2DCache {
                     .push((min_x - 32.0, min_y - 32.0, max_x + 32.0, max_y + 32.0));
 
                 let lid = m.layer_id.as_deref().unwrap_or("layer-1");
-                let target_map = if m.builtin_id.as_deref() == Some("ground-terrain") {
+                let target_map = if matches!(m.builtin_id.as_deref(), Some("ground-terrain") | Some("mountain")) {
                     &mut self.layer_ground_models
                 } else {
                     &mut self.layer_top_models
@@ -700,10 +755,6 @@ impl Canvas2DCache {
 
         // 4. Baseboard polygons, track cutouts & ear-clipped triangulations (Parallelized when multiple boards exist)
         self.baseboards.clear();
-        let enabled_boards: Vec<BaseboardConfig> = board_tools::get_baseboards_slice(layout)
-            .into_iter()
-            .filter(|b| b.enabled)
-            .collect();
         let build_cached_bb = |b: BaseboardConfig| -> Option<CachedBaseboard2D> {
             let poly = board_tools::get_baseboard_polygon(&b);
             if poly.len() < 3 {

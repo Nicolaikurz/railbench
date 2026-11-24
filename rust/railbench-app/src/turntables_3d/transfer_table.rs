@@ -7,6 +7,7 @@ pub(crate) fn push_transfer_table_3d(
     entry: Option<&CatalogEntry>,
     layout: &Layout,
     e0: f64,
+    bridge_z_override: Option<f64>,
 ) {
     let l = entry.and_then(|e| e.length).unwrap_or(360.0) as f32;
     let gauge = entry.and_then(|e| e.gauge).unwrap_or(16.5) as f32;
@@ -28,7 +29,9 @@ pub(crate) fn push_transfer_table_3d(
     let pit_depth = 12.0_f32;
     let bridge_l = pit_w - 2.0;
     let bridge_cx = l * 0.5;
-    let bridge_z = track_zs[track_zs.len() / 2];
+    let bridge_z = bridge_z_override
+        .map(|v| v as f32)
+        .unwrap_or(track_zs[track_zs.len() / 2]);
     let rail_xs = [pit_left + 44.0, l * 0.5, pit_right - 44.0];
     let girder_z_off = (hg + 4.2).max(12.6);
 

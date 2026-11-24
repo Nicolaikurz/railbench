@@ -652,6 +652,36 @@ pub fn draw_top_bars(ctx: &egui::Context, app: &mut RailbenchApp) {
                         }
                     }
 
+                // Unified Drive, Cab View & Signal Box Window (for 2nd Monitor)
+                let drive_lbl = if is_de { "🚂 Fahren & Stellwerk" } else { "🚂 Drive & Signal Box" };
+                let drive_active = app.show_cab_window || app.vehicle_sim.running;
+                if ui
+                    .add(
+                        egui::Button::new(
+                            RichText::new(drive_lbl)
+                                .size(11.0)
+                                .strong()
+                                .color(if drive_active { Color32::WHITE } else { p.text_main }),
+                        )
+                        .fill(if app.vehicle_sim.running {
+                            Color32::from_rgb(22, 163, 74)
+                        } else if app.show_cab_window {
+                            Color32::from_rgb(2, 132, 199)
+                        } else {
+                            p.bg_input
+                        })
+                        .corner_radius(CornerRadius::same(6)),
+                    )
+                    .on_hover_text(if is_de {
+                        "Fahrbetrieb, Fuehrerstand & Gleisbildstellwerk in einem Fenster (fuer 2. Monitor)"
+                    } else {
+                        "Open Drive, 3D Cab View & Signal Box (Stellwerk) in one window (for a 2nd monitor)"
+                    })
+                    .clicked()
+                {
+                    app.show_cab_window = !app.show_cab_window;
+                }
+
                 // 3D Toggle
                 if tb_icon(ui, Icon::Box3d, app.is_3d_mode, "3D View (3)") {
                     app.toggle_3d();
@@ -835,3 +865,6 @@ use extra_dialogs::*;
 mod export_dialog;
 #[allow(unused_imports)]
 use export_dialog::*;
+mod cab_window;
+pub use cab_window::draw_cab_view_window;
+mod stellwerk_panel;

@@ -2,8 +2,8 @@ use crate::geometry::{is_point_in_any_polygon, smoothstep};
 
 #[inline]
 pub fn mountain_noise(nx: f64, nz: f64) -> f64 {
-    let s1 = (nx * 3.1415 + 0.5).sin() * (nz * 3.1415 + 0.3).cos();
-    let s2 = (nx * 6.28 + nz * 4.71).sin() * 0.35;
+    let s1 = (nx * std::f64::consts::PI + 0.5).sin() * (nz * std::f64::consts::PI + 0.3).cos();
+    let s2 = (nx * std::f64::consts::TAU + nz * 4.71).sin() * 0.35;
     let s3 = (nx * 9.42 - nz * 7.85).cos() * 0.15;
     s1 + s2 + s3
 }
@@ -114,7 +114,7 @@ pub fn evaluate_mountain_heightfield(
     let threads = 1usize;
 
     if threads > 1 && rows * cols >= 512 {
-        let rows_per_chunk = (rows + threads - 1) / threads;
+        let rows_per_chunk = rows.div_ceil(threads);
         let chunk_elems = rows_per_chunk * cols;
         std::thread::scope(|s| {
             for (chunk_idx, chunk_slice) in heights.chunks_mut(chunk_elems).enumerate() {
@@ -433,7 +433,7 @@ pub fn carve_ground_terrain_grid(
     let threads = 1usize;
 
     if threads > 1 && total >= 512 {
-        let rows_per_chunk = (rows + threads - 1) / threads;
+        let rows_per_chunk = rows.div_ceil(threads);
         let chunk_elems = rows_per_chunk * row_stride;
         std::thread::scope(|s| {
             for (chunk_idx, chunk_slice) in out.chunks_mut(chunk_elems).enumerate() {
@@ -455,6 +455,7 @@ pub fn carve_ground_terrain_grid(
 }
 
 /// Batch world-to-local transform + mountain footprint `norm_r` & surface height evaluation.
+#[allow(clippy::too_many_arguments)]
 pub fn evaluate_mountain_track_samples(
     pts_xye: &[f32],
     m_x: f64,

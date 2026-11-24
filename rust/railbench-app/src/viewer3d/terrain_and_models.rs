@@ -74,46 +74,42 @@ pub(super) fn push_mountain_with_tunnels_3d(
     // Support polygon clipping from tables & layer wood sub-plates
     let support_polys = collect_terrain_support_polygons(layout, m.layer_id.as_deref(), boards);
     let clip_to_support = !support_polys.is_empty();
-    let mut poly_offsets: Vec<u32> = Vec::new();
-    let mut poly_coords: Vec<f32> = Vec::new();
-    if clip_to_support {
-        poly_offsets.push(0);
-        for poly in &support_polys {
-            for pt in poly {
-                poly_coords.push(pt.x as f32);
-                poly_coords.push(pt.y as f32);
-            }
-            poly_offsets.push((poly_coords.len() / 2) as u32);
-        }
-    }
+    let (poly_offsets, poly_coords) = crate::terrain_tools::pack_support_polygons(&support_polys);
 
     let mut heights = vec![0.0_f32; cols * rows];
     let mut inside_support = vec![true; cols * rows];
+    let mut edge_clamped = vec![false; cols * rows];
     let mut norm_r_grid = vec![2.0_f32; cols * rows];
+    let mut wx_grid = vec![0.0_f64; cols * rows];
+    let mut wz_grid = vec![0.0_f64; cols * rows];
 
     let hw_threads = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1);
     let poly_offsets_ref = &poly_offsets;
     let poly_coords_ref = &poly_coords;
 
     if hw_threads > 1 && rows * cols >= 512 {
-        let rows_per_chunk = (rows + hw_threads - 1) / hw_threads;
+        let rows_per_chunk = rows.div_ceil(hw_threads);
         let chunk_elems = rows_per_chunk * cols;
         std::thread::scope(|s| {
             for (
                 chunk_idx,
-                ((h_chunk, sup_chunk), nr_chunk),
+                ((((h_chunk, sup_chunk), nr_chunk), wx_chunk), wz_chunk),
             ) in heights
                 .chunks_mut(chunk_elems)
                 .zip(inside_support.chunks_mut(chunk_elems))
                 .zip(norm_r_grid.chunks_mut(chunk_elems))
+                .zip(wx_grid.chunks_mut(chunk_elems))
+                .zip(wz_grid.chunks_mut(chunk_elems))
                 .enumerate()
             {
                 let row_start = chunk_idx * rows_per_chunk;
                 s.spawn(move || {
-                    for (local_r, ((h_row, sup_row), nr_row)) in h_chunk
+                    for (local_r, ((((h_row, sup_row), nr_row), wx_row), wz_row)) in h_chunk
                         .chunks_mut(cols)
                         .zip(sup_chunk.chunks_mut(cols))
                         .zip(nr_chunk.chunks_mut(cols))
+                        .zip(wx_chunk.chunks_mut(cols))
+                        .zip(wz_chunk.chunks_mut(cols))
                         .enumerate()
                     {
                         let iz = row_start + local_r;
@@ -122,6 +118,8 @@ pub(super) fn push_mountain_with_tunnels_3d(
                             let lx = (ix as f64 / nx as f64 - 0.5) * w as f64;
                             let wx = cx as f64 + (lx * cos_f - lz * sin_f);
                             let wz = cz as f64 + (lx * sin_f + lz * cos_f);
+                            wx_row[ix] = wx;
+                            wz_row[ix] = wz;
                             if clip_to_support && !is_point_in_any_polygon(wx, wz, poly_offsets_ref, poly_coords_ref) {
                                 sup_row[ix] = false;
                                 h_row[ix] = 0.0;
@@ -143,6 +141,8 @@ pub(super) fn push_mountain_with_tunnels_3d(
                 let v_idx = iz * cols + ix;
                 let wx = cx as f64 + (lx * cos_f - lz * sin_f);
                 let wz = cz as f64 + (lx * sin_f + lz * cos_f);
+                wx_grid[v_idx] = wx;
+                wz_grid[v_idx] = wz;
                 if clip_to_support && !is_point_in_any_polygon(wx, wz, &poly_offsets, &poly_coords) {
                     inside_support[v_idx] = false;
                     heights[v_idx] = 0.0;
@@ -151,6 +151,50 @@ pub(super) fn push_mountain_with_tunnels_3d(
                 let (nr, base_h) = evaluate_mountain_local(lx, lz, m);
                 norm_r_grid[v_idx] = nr as f32;
                 heights[v_idx] = base_h as f32;
+            }
+        }
+    }
+
+    // Snap boundary outside vertices adjacent to inside vertices onto the table/plate edge
+    // so cut mountain faces meet the table/plate border cleanly with zero overhang.
+    if clip_to_support {
+        for iz in 0..rows {
+            for ix in 0..cols {
+                let v_idx = iz * cols + ix;
+                if inside_support[v_idx] {
+                    continue;
+                }
+                let mut has_in_nb = false;
+                'nb_mtn: for dz in -1isize..=1 {
+                    for dx in -1isize..=1 {
+                        if dx == 0 && dz == 0 {
+                            continue;
+                        }
+                        let nx_i = ix as isize + dx;
+                        let nz_i = iz as isize + dz;
+                        if nx_i >= 0 && nx_i < cols as isize && nz_i >= 0 && nz_i < rows as isize {
+                            if inside_support[nz_i as usize * cols + nx_i as usize] {
+                                has_in_nb = true;
+                                break 'nb_mtn;
+                            }
+                        }
+                    }
+                }
+                if has_in_nb {
+                    let clamped = crate::terrain_tools::clamp_point_to_support_polygons(
+                        Vec2 { x: wx_grid[v_idx], y: wz_grid[v_idx] },
+                        &support_polys,
+                        &poly_offsets,
+                        &poly_coords,
+                    );
+                    wx_grid[v_idx] = clamped.x;
+                    wz_grid[v_idx] = clamped.y;
+                    let (slx, slz) = crate::terrain_tools::world_to_mountain_local(clamped.x, clamped.y, m);
+                    let (nr, base_h) = evaluate_mountain_local(slx, slz, m);
+                    norm_r_grid[v_idx] = nr as f32;
+                    heights[v_idx] = base_h as f32;
+                    edge_clamped[v_idx] = true;
+                }
             }
         }
     }
@@ -263,15 +307,27 @@ pub(super) fn push_mountain_with_tunnels_3d(
     if !prepared.is_empty() {
         let prepared_ref = &prepared;
         let inside_sup_ref = &inside_support;
+        let edge_clamped_ref = &edge_clamped;
+        let wx_grid_ref = &wx_grid;
+        let wz_grid_ref = &wz_grid;
         let norm_r_ref = &norm_r_grid;
         let carve_mtn_row = |iz: usize, h_row: &mut [f32]| {
-            let lz = (iz as f32 / nz as f32 - 0.5) * d;
+            let lz_nom = (iz as f32 / nz as f32 - 0.5) * d;
             for (ix, h_cell) in h_row.iter_mut().enumerate() {
-                let lx = (ix as f32 / nx as f32 - 0.5) * w;
                 let v_idx = iz * cols + ix;
-                if !inside_sup_ref[v_idx] {
+                if !inside_sup_ref[v_idx] && !edge_clamped_ref[v_idx] {
                     continue;
                 }
+                let (lx, lz) = if edge_clamped_ref[v_idx] {
+                    let (slx, slz) = crate::terrain_tools::world_to_mountain_local(
+                        wx_grid_ref[v_idx],
+                        wz_grid_ref[v_idx],
+                        m,
+                    );
+                    (slx as f32, slz as f32)
+                } else {
+                    ((ix as f32 / nx as f32 - 0.5) * w, lz_nom)
+                };
                 let r_dist = norm_r_ref[v_idx];
                 if r_dist >= 0.999 {
                     continue;
@@ -428,9 +484,7 @@ pub(super) fn push_mountain_with_tunnels_3d(
     let base_v = verts.len() as u32;
 
     for iz in 0..rows {
-        let lz = (iz as f32 / nz as f32 - 0.5) * d;
         for ix in 0..cols {
-            let lx = (ix as f32 / nx as f32 - 0.5) * w;
             let v_idx = iz * cols + ix;
             let mh = heights[v_idx];
             let hl = heights[iz * cols + ix.saturating_sub(1)];
@@ -440,16 +494,30 @@ pub(super) fn push_mountain_with_tunnels_3d(
             let normal = normalize3([(hl - hr) / (2.0 * step_x), 1.0, (hd - hu) / (2.0 * step_z)]);
             let ratio = (mh / h.max(1.0)).clamp(0.0, 1.0);
             let col = mountain_biome_color(ratio, m.mountain_style.as_deref());
-            let (rx, rz) = rot_xz(lx, lz, rot_rad);
             let (rnx, rnz) = rot_xz(normal[0], normal[2], rot_rad);
             verts.push(Vertex3D::new(
-                [cx + rx, y0 + mh + 0.5, cz + rz],
+                [wx_grid[v_idx] as f32, y0 + mh + 0.5, wz_grid[v_idx] as f32],
                 [rnx, normal[1], rnz],
                 col,
                 MAT_TERRAIN,
             ));
         }
     }
+
+    let valid_mtn_tri = |ia: usize, ib: usize, ic: usize| -> bool {
+        if !(inside_support[ia] || edge_clamped[ia])
+            || !(inside_support[ib] || edge_clamped[ib])
+            || !(inside_support[ic] || edge_clamped[ic])
+        {
+            return false;
+        }
+        if !clip_to_support {
+            return true;
+        }
+        let tri_cx = (wx_grid[ia] + wx_grid[ib] + wx_grid[ic]) / 3.0;
+        let tri_cz = (wz_grid[ia] + wz_grid[ib] + wz_grid[ic]) / 3.0;
+        is_point_in_any_polygon(tri_cx, tri_cz, &poly_offsets, &poly_coords)
+    };
 
     for iz in 0..nz {
         for ix in 0..nx {
@@ -464,29 +532,54 @@ pub(super) fn push_mountain_with_tunnels_3d(
             if is_entrance_curtain_quad(i_a, i_b, i_c, i_d) {
                 continue;
             }
-            if (ha > 0.1 || hc > 0.1 || hb > 0.1)
-                && inside_support[i_a]
-                && inside_support[i_c]
-                && inside_support[i_b]
-            {
+            if (ha > 0.1 || hc > 0.1 || hb > 0.1) && valid_mtn_tri(i_a, i_c, i_b) {
                 idxs.extend_from_slice(&[base_v + i_a as u32, base_v + i_c as u32, base_v + i_b as u32]);
+                for &(u, v) in &[(i_a, i_c), (i_c, i_b), (i_b, i_a)] {
+                    if edge_clamped[u] && edge_clamped[v] && heights[u].max(heights[v]) > 0.5 {
+                        push_diorama_skirt_quad(
+                            verts,
+                            idxs,
+                            wx_grid[u] as f32,
+                            wz_grid[u] as f32,
+                            y0 + heights[u] + 0.5,
+                            wx_grid[v] as f32,
+                            wz_grid[v] as f32,
+                            y0 + heights[v] + 0.5,
+                            y0,
+                        );
+                    }
+                }
             }
-            if (hb > 0.1 || hc > 0.1 || hd > 0.1)
-                && inside_support[i_b]
-                && inside_support[i_c]
-                && inside_support[i_d]
-            {
+            if (hb > 0.1 || hc > 0.1 || hd > 0.1) && valid_mtn_tri(i_b, i_c, i_d) {
                 idxs.extend_from_slice(&[base_v + i_b as u32, base_v + i_c as u32, base_v + i_d as u32]);
+                for &(u, v) in &[(i_b, i_c), (i_c, i_d), (i_d, i_b)] {
+                    if edge_clamped[u] && edge_clamped[v] && heights[u].max(heights[v]) > 0.5 {
+                        push_diorama_skirt_quad(
+                            verts,
+                            idxs,
+                            wx_grid[u] as f32,
+                            wz_grid[u] as f32,
+                            y0 + heights[u] + 0.5,
+                            wx_grid[v] as f32,
+                            wz_grid[v] as f32,
+                            y0 + heights[v] + 0.5,
+                            y0,
+                        );
+                    }
+                }
             }
         }
     }
 
-    // 2. Arched Stone Portals (skip overlap-suppressed interior joins)
+    // 2. Arched Stone Portals (skip overlap-suppressed interior joins or portals outside table/plate)
     for po in &all_portals {
         if po.suppressed_by_overlap {
             continue;
         }
         let (pwx, pwz) = mountain_local_to_world(po.at.lx, po.at.lz, Some(m));
+        if clip_to_support && !is_point_in_any_polygon(pwx, pwz, &poly_offsets, &poly_coords) {
+            continue;
+        }
         let dwx = po.dir_xz[0] * cos_f - po.dir_xz[1] * sin_f;
         let dwz = po.dir_xz[0] * sin_f + po.dir_xz[1] * cos_f;
         crate::tunnels_3d::push_arched_tunnel_portal_3d(
@@ -499,7 +592,7 @@ pub(super) fn push_mountain_with_tunnels_3d(
         );
     }
 
-    // 3. Vaulted Interior Tunnel Linings along all runs
+    // 3. Vaulted Interior Tunnel Linings along all runs (clipped cleanly inside table/plate)
     for tr in &tunnel_runs {
         if tr.pts.len() < 2 {
             continue;
@@ -531,12 +624,64 @@ pub(super) fn push_mountain_with_tunnels_3d(
         let mut path_xyz = Vec::with_capacity(pts.len() * 3);
         for p in &pts {
             let (wx, wz) = mountain_local_to_world(p.lx, p.lz, Some(m));
-            path_xyz.push(wx as f32);
-            path_xyz.push(y0 + p.rel_elev as f32);
-            path_xyz.push(wz as f32);
+            if !clip_to_support || is_point_in_any_polygon(wx, wz, &poly_offsets, &poly_coords) {
+                path_xyz.push(wx as f32);
+                path_xyz.push(y0 + p.rel_elev as f32);
+                path_xyz.push(wz as f32);
+            } else if path_xyz.len() >= 6 {
+                crate::tunnels_3d::push_tunnel_bore_3d(verts, idxs, &path_xyz, &tr.prof);
+                path_xyz.clear();
+            } else {
+                path_xyz.clear();
+            }
         }
-        crate::tunnels_3d::push_tunnel_bore_3d(verts, idxs, &path_xyz, &tr.prof);
+        if path_xyz.len() >= 6 {
+            crate::tunnels_3d::push_tunnel_bore_3d(verts, idxs, &path_xyz, &tr.prof);
+        }
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn push_diorama_skirt_quad(
+    verts: &mut Vec<Vertex3D>,
+    idxs: &mut Vec<u32>,
+    x0: f32,
+    z0: f32,
+    top0: f32,
+    x1: f32,
+    z1: f32,
+    top1: f32,
+    y_bot: f32,
+) {
+    let dx = x1 - x0;
+    let dz = z1 - z0;
+    let len = dx.hypot(dz);
+    if len < 0.05 {
+        return;
+    }
+    let nx = dz / len;
+    let nz = -dx / len;
+    let col = [0.30, 0.27, 0.24];
+    let base = verts.len() as u32;
+    verts.push(Vertex3D::new([x0, y_bot, z0], [nx, 0.0, nz], col, MAT_TERRAIN));
+    verts.push(Vertex3D::new([x1, y_bot, z1], [nx, 0.0, nz], col, MAT_TERRAIN));
+    verts.push(Vertex3D::new([x1, top1.max(y_bot), z1], [nx, 0.0, nz], col, MAT_TERRAIN));
+    verts.push(Vertex3D::new([x0, top0.max(y_bot), z0], [nx, 0.0, nz], col, MAT_TERRAIN));
+    // Emit double-sided skirt so diorama cut-away edge looks solid from either side
+    idxs.extend_from_slice(&[
+        base,
+        base + 1,
+        base + 2,
+        base,
+        base + 2,
+        base + 3,
+        base,
+        base + 2,
+        base + 1,
+        base,
+        base + 3,
+        base + 2,
+    ]);
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -592,18 +737,8 @@ pub(super) fn push_ground_terrain_3d(
 
     // Support polygon from tables + active layer wood plates
     let support_polys = collect_terrain_support_polygons(layout, m.layer_id.as_deref(), boards);
-    let mut poly_offsets: Vec<u32> = Vec::new();
-    let mut poly_coords: Vec<f32> = Vec::new();
-    if !support_polys.is_empty() {
-        poly_offsets.push(0);
-        for poly in &support_polys {
-            for pt in poly {
-                poly_coords.push(pt.x as f32);
-                poly_coords.push(pt.y as f32);
-            }
-            poly_offsets.push((poly_coords.len() / 2) as u32);
-        }
-    }
+    let clip_to_support = !support_polys.is_empty();
+    let (poly_offsets, poly_coords) = crate::terrain_tools::pack_support_polygons(&support_polys);
 
     // Buildings to flatten ground underneath
     let mut buildings: Vec<f32> = Vec::new();
@@ -683,6 +818,77 @@ pub(super) fn push_ground_terrain_3d(
         &corridor_pts,
     );
 
+    let mut wx_g = vec![0.0_f64; cols * rows];
+    let mut wz_g = vec![0.0_f64; cols * rows];
+    let mut gh_g = vec![0.0_f32; cols * rows];
+    let mut in_ok = vec![false; cols * rows];
+    let mut edge_clamped = vec![false; cols * rows];
+    let mut is_w_g = vec![false; cols * rows];
+    let mut flat_g = vec![0.0_f32; cols * rows];
+
+    for iz in 0..rows {
+        let lz = (iz as f64 / segs_z as f64 - 0.5) * depth;
+        for ix in 0..cols {
+            let lx = (ix as f64 / segs_x as f64 - 0.5) * width;
+            let v_idx = iz * cols + ix;
+            wx_g[v_idx] = mx + (lx * cos_m - lz * sin_m);
+            wz_g[v_idx] = mz + (lx * sin_m + lz * cos_m);
+            gh_g[v_idx] = grid[v_idx * 4];
+            in_ok[v_idx] = grid[v_idx * 4 + 1] > 0.5;
+            is_w_g[v_idx] = grid[v_idx * 4 + 2] > 0.5;
+            flat_g[v_idx] = grid[v_idx * 4 + 3];
+        }
+    }
+
+    if clip_to_support {
+        for iz in 0..rows {
+            for ix in 0..cols {
+                let v_idx = iz * cols + ix;
+                if in_ok[v_idx] {
+                    continue;
+                }
+                let mut sum_h = 0.0_f32;
+                let mut sum_flat = 0.0_f32;
+                let mut w_votes = 0usize;
+                let mut nb_cnt = 0usize;
+                for dz in -1isize..=1 {
+                    for dx in -1isize..=1 {
+                        if dx == 0 && dz == 0 {
+                            continue;
+                        }
+                        let nxi = ix as isize + dx;
+                        let nzi = iz as isize + dz;
+                        if nxi >= 0 && nxi < cols as isize && nzi >= 0 && nzi < rows as isize {
+                            let ni = nzi as usize * cols + nxi as usize;
+                            if in_ok[ni] {
+                                sum_h += gh_g[ni];
+                                sum_flat += flat_g[ni];
+                                if is_w_g[ni] {
+                                    w_votes += 1;
+                                }
+                                nb_cnt += 1;
+                            }
+                        }
+                    }
+                }
+                if nb_cnt > 0 {
+                    let clamped = crate::terrain_tools::clamp_point_to_support_polygons(
+                        Vec2 { x: wx_g[v_idx], y: wz_g[v_idx] },
+                        &support_polys,
+                        &poly_offsets,
+                        &poly_coords,
+                    );
+                    wx_g[v_idx] = clamped.x;
+                    wz_g[v_idx] = clamped.y;
+                    gh_g[v_idx] = sum_h / nb_cnt as f32;
+                    flat_g[v_idx] = sum_flat / nb_cnt as f32;
+                    is_w_g[v_idx] = w_votes > 0;
+                    edge_clamped[v_idx] = true;
+                }
+            }
+        }
+    }
+
     let step_x = (width / segs_x as f64) as f32;
     let step_z = (depth / segs_z as f64) as f32;
     let base_v = verts.len() as u32;
@@ -695,14 +901,14 @@ pub(super) fn push_ground_terrain_3d(
             let nx = lx / (width * 0.5);
             let n_col = (mountain_noise(nx * 1.4, nz * 1.4) * 0.04) as f32;
             let v_idx = iz * cols + ix;
-            let gh = grid[v_idx * 4];
-            let is_w = grid[v_idx * 4 + 2] > 0.5;
-            let flat = grid[v_idx * 4 + 3];
+            let gh = gh_g[v_idx];
+            let is_w = is_w_g[v_idx];
+            let flat = flat_g[v_idx];
 
-            let hl = grid[(iz * cols + ix.saturating_sub(1)) * 4];
-            let hr = grid[(iz * cols + (ix + 1).min(segs_x)) * 4];
-            let hd = grid[(iz.saturating_sub(1) * cols + ix) * 4];
-            let hu = grid[((iz + 1).min(segs_z) * cols + ix) * 4];
+            let hl = gh_g[iz * cols + ix.saturating_sub(1)];
+            let hr = gh_g[iz * cols + (ix + 1).min(segs_x)];
+            let hd = gh_g[iz.saturating_sub(1) * cols + ix];
+            let hu = gh_g[(iz + 1).min(segs_z) * cols + ix];
             let norm = normalize3([(hl - hr) / (2.0 * step_x), 1.0, (hd - hu) / (2.0 * step_z)]);
             let (rnx, rnz) = rot_xz(norm[0], norm[2], rot_rad as f32);
 
@@ -732,10 +938,8 @@ pub(super) fn push_ground_terrain_3d(
                 ],
             };
 
-            let wx = mx + (lx * cos_m - lz * sin_m);
-            let wz = mz + (lx * sin_m + lz * cos_m);
             verts.push(Vertex3D::new(
-                [wx as f32, y0 + gh + 0.3, wz as f32],
+                [wx_g[v_idx] as f32, y0 + gh + 0.3, wz_g[v_idx] as f32],
                 [rnx, norm[1], rnz],
                 col,
                 MAT_TERRAIN,
@@ -743,63 +947,99 @@ pub(super) fn push_ground_terrain_3d(
         }
     }
 
+    let valid_gnd_tri = |ia: usize, ib: usize, ic: usize| -> bool {
+        if !(in_ok[ia] || edge_clamped[ia])
+            || !(in_ok[ib] || edge_clamped[ib])
+            || !(in_ok[ic] || edge_clamped[ic])
+        {
+            return false;
+        }
+        if !clip_to_support {
+            return true;
+        }
+        let tri_cx = (wx_g[ia] + wx_g[ib] + wx_g[ic]) / 3.0;
+        let tri_cz = (wz_g[ia] + wz_g[ib] + wz_g[ic]) / 3.0;
+        is_point_in_any_polygon(tri_cx, tri_cz, &poly_offsets, &poly_coords)
+    };
+
     for iz in 0..segs_z {
         for ix in 0..segs_x {
             let i_a = iz * cols + ix;
             let i_b = i_a + 1;
             let i_c = (iz + 1) * cols + ix;
             let i_d = i_c + 1;
-            let in_poly = |vi: usize| grid[vi * 4 + 1] > 0.5;
-            let vis_h = |vi: usize| grid[vi * 4] > 0.08;
-            if in_poly(i_a)
-                && in_poly(i_b)
-                && in_poly(i_c)
-                && in_poly(i_d)
-                && (vis_h(i_a) || vis_h(i_b) || vis_h(i_c) || vis_h(i_d))
-            {
-                let a = base_v + i_a as u32;
-                let b = base_v + i_b as u32;
-                let c = base_v + i_c as u32;
-                let d_i = base_v + i_d as u32;
-                idxs.extend_from_slice(&[a, c, b, b, c, d_i]);
+            let vis_h = |vi: usize| gh_g[vi] > 0.08;
+            if (vis_h(i_a) || vis_h(i_b) || vis_h(i_c)) && valid_gnd_tri(i_a, i_c, i_b) {
+                idxs.extend_from_slice(&[base_v + i_a as u32, base_v + i_c as u32, base_v + i_b as u32]);
+                if !is_water {
+                    for &(u, v) in &[(i_a, i_c), (i_c, i_b), (i_b, i_a)] {
+                        if edge_clamped[u] && edge_clamped[v] && gh_g[u].max(gh_g[v]) > 0.5 {
+                            push_diorama_skirt_quad(
+                                verts,
+                                idxs,
+                                wx_g[u] as f32,
+                                wz_g[u] as f32,
+                                y0 + gh_g[u] + 0.3,
+                                wx_g[v] as f32,
+                                wz_g[v] as f32,
+                                y0 + gh_g[v] + 0.3,
+                                y0,
+                            );
+                        }
+                    }
+                }
+            }
+            if (vis_h(i_b) || vis_h(i_c) || vis_h(i_d)) && valid_gnd_tri(i_b, i_c, i_d) {
+                idxs.extend_from_slice(&[base_v + i_b as u32, base_v + i_c as u32, base_v + i_d as u32]);
+                if !is_water {
+                    for &(u, v) in &[(i_b, i_c), (i_c, i_d), (i_d, i_b)] {
+                        if edge_clamped[u] && edge_clamped[v] && gh_g[u].max(gh_g[v]) > 0.5 {
+                            push_diorama_skirt_quad(
+                                verts,
+                                idxs,
+                                wx_g[u] as f32,
+                                wz_g[u] as f32,
+                                y0 + gh_g[u] + 0.3,
+                                wx_g[v] as f32,
+                                wz_g[v] as f32,
+                                y0 + gh_g[v] + 0.3,
+                                y0,
+                            );
+                        }
+                    }
+                }
             }
         }
     }
 
-    // Reflective cyan water surface over water basin cells (spares tracks, roads & buildings)
+    // Reflective cyan water surface over water basin cells (strictly clipped to table/plate)
     if is_water {
         let water_base_v = verts.len() as u32;
         let water_y = y0 + 1.85;
         let water_col = [0.06, 0.56, 0.84];
-        for iz in 0..rows {
-            let lz = (iz as f64 / segs_z as f64 - 0.5) * depth;
-            for ix in 0..cols {
-                let lx = (ix as f64 / segs_x as f64 - 0.5) * width;
-                let wx = mx + (lx * cos_m - lz * sin_m);
-                let wz = mz + (lx * sin_m + lz * cos_m);
-                verts.push(Vertex3D::new(
-                    [wx as f32, water_y, wz as f32],
-                    [0.0, 1.0, 0.0],
-                    water_col,
-                    MAT_WATER,
-                ));
-            }
+        for v_idx in 0..(cols * rows) {
+            verts.push(Vertex3D::new(
+                [wx_g[v_idx] as f32, water_y, wz_g[v_idx] as f32],
+                [0.0, 1.0, 0.0],
+                water_col,
+                MAT_WATER,
+            ));
         }
+        let is_wat = |vi: usize| (in_ok[vi] || edge_clamped[vi]) && is_w_g[vi];
         for iz in 0..segs_z {
             for ix in 0..segs_x {
                 let i_a = iz * cols + ix;
                 let i_b = i_a + 1;
                 let i_c = (iz + 1) * cols + ix;
                 let i_d = i_c + 1;
-                let is_wat = |vi: usize| grid[vi * 4 + 1] > 0.5 && grid[vi * 4 + 2] > 0.5;
-                if is_wat(i_a) && is_wat(i_b) && is_wat(i_c) {
+                if is_wat(i_a) && is_wat(i_b) && is_wat(i_c) && valid_gnd_tri(i_a, i_c, i_b) {
                     idxs.extend_from_slice(&[
                         water_base_v + i_a as u32,
                         water_base_v + i_c as u32,
                         water_base_v + i_b as u32,
                     ]);
                 }
-                if is_wat(i_b) && is_wat(i_c) && is_wat(i_d) {
+                if is_wat(i_b) && is_wat(i_c) && is_wat(i_d) && valid_gnd_tri(i_b, i_c, i_d) {
                     idxs.extend_from_slice(&[
                         water_base_v + i_b as u32,
                         water_base_v + i_c as u32,

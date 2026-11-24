@@ -186,6 +186,7 @@ pub(super) fn draw_turntable_2d(
     show_labels: bool,
     power_sim_enabled: bool,
     piece_power: Option<&PiecePowerResult>,
+    bridge_angle_deg: f64,
 ) {
     let outer_r = crate::turntables_3d::turntable_outer_radius(piece, entry);
     let scale_f = (outer_r / 189.0).clamp(0.4, 2.5);
@@ -196,6 +197,10 @@ pub(super) fn draw_turntable_2d(
     let center = camera.world_to_screen(rect, piece.transform.x, piece.transform.y);
     let to_scr = |lx: f64, ly: f64| -> Pos2 {
         let rp = rotate(Vec2 { x: lx, y: ly }, piece.transform.rotation);
+        camera.world_to_screen(rect, piece.transform.x + rp.x, piece.transform.y + rp.y)
+    };
+    let to_scr_bridge = |lx: f64, ly: f64| -> Pos2 {
+        let rp = rotate(Vec2 { x: lx, y: ly }, piece.transform.rotation + bridge_angle_deg);
         camera.world_to_screen(rect, piece.transform.x + rp.x, piece.transform.y + rp.y)
     };
 
@@ -219,6 +224,21 @@ pub(super) fn draw_turntable_2d(
             is_selected,
             is_active_layer,
             piece.has_tunnel == Some(true),
+        );
+    }
+
+    // When bridge has rotated away from 0°, mask out the static 0° bridge inside the pit so ONLY the live bridge renders!
+    let bridge_moved = (bridge_angle_deg % 360.0).abs() > 0.05;
+    if bridge_moved {
+        painter.circle_filled(
+            center,
+            ((pit_r - 0.5) as f32) * camera.zoom,
+            Color32::from_rgb(51, 65, 85),
+        );
+        painter.circle_filled(
+            center,
+            ((24.0 * scale_f) as f32) * camera.zoom,
+            Color32::from_rgb(30, 41, 59),
         );
     }
 
@@ -254,10 +274,37 @@ pub(super) fn draw_turntable_2d(
     };
     painter.circle_stroke(center, (outer_r as f32) * camera.zoom, Stroke::new(rim_w, rim_col));
 
-    // Rotating bridge twin rails
+    // Rotating bridge plate girders, operator cabin & twin rails at live `bridge_angle_deg`
+    if bridge_moved {
+        let gw = (hg + 10.5).max(18.5);
+        let deck_poly = vec![
+            to_scr_bridge(-half_b, -gw),
+            to_scr_bridge(half_b, -gw),
+            to_scr_bridge(half_b, gw),
+            to_scr_bridge(-half_b, gw),
+        ];
+        painter.add(egui::Shape::convex_polygon(
+            deck_poly,
+            Color32::from_rgb(54, 74, 70),
+            Stroke::new(1.2, Color32::from_rgb(31, 41, 55)),
+        ));
+        let cab_cx = -half_b + 36.0 * scale_f;
+        let cab_hw = 17.0 * scale_f;
+        let cab_poly = vec![
+            to_scr_bridge(cab_cx - cab_hw, gw),
+            to_scr_bridge(cab_cx + cab_hw, gw),
+            to_scr_bridge(cab_cx + cab_hw, gw + 18.0 * scale_f),
+            to_scr_bridge(cab_cx - cab_hw, gw + 18.0 * scale_f),
+        ];
+        painter.add(egui::Shape::convex_polygon(
+            cab_poly,
+            Color32::from_rgb(63, 76, 89),
+            Stroke::new(1.0, Color32::from_rgb(30, 41, 59)),
+        ));
+    }
     for side in [-1.0_f64, 1.0] {
         painter.line_segment(
-            [to_scr(-half_b, side * hg), to_scr(half_b, side * hg)],
+            [to_scr_bridge(-half_b, side * hg), to_scr_bridge(half_b, side * hg)],
             Stroke::new(rail_w, rail_col),
         );
     }
@@ -369,6 +416,7 @@ pub(super) fn draw_transfer_table_2d(
     show_labels: bool,
     power_sim_enabled: bool,
     piece_power: Option<&PiecePowerResult>,
+    bridge_z_override: Option<f64>,
 ) {
     let (_, l, top_z, bot_z) = crate::turntables_3d::transfer_table_local_bounds(entry);
     let pit_left = 36.0;
@@ -377,7 +425,9 @@ pub(super) fn draw_transfer_table_2d(
     let pit_bot = bot_z - 6.0;
     let track_zs = crate::turntables_3d::extract_transfer_track_zs(entry);
     let bridge_cx = l * 0.5;
-    let bridge_z = track_zs[track_zs.len() / 2] as f64;
+    let default_bridge_z = track_zs[track_zs.len() / 2] as f64;
+    let bridge_z = bridge_z_override.unwrap_or(default_bridge_z);
+    let bridge_shifted = (bridge_z - default_bridge_z).abs() > 0.2;
     let hg = gauge * 0.5;
     let girder_z_off = (hg + 4.2).max(12.6);
     let rail_z_off = girder_z_off + 7.7;
@@ -415,6 +465,13 @@ pub(super) fn draw_transfer_table_2d(
     }
 
     // Pass C: Crisp zoom-invariant 2D CAD overlays
+    if bridge_shifted {
+        painter.add(egui::Shape::convex_polygon(
+            quad_pts(pit_left + 0.5, pit_right - 0.5, pit_top + 0.5, pit_bot - 0.5),
+            Color32::from_rgb(51, 65, 85),
+            Stroke::NONE,
+        ));
+    }
     let mut coping_stroke_col = Color32::from_rgb(71, 85, 105);
     let mut running_rail_col = Color32::from_rgba_unmultiplied(186, 198, 212, 210);
     if !is_active_layer && !is_selected {
@@ -441,6 +498,14 @@ pub(super) fn draw_transfer_table_2d(
             painter.line_segment([to_scr(-0.30, rz), to_scr(pit_left, rz)], Stroke::new(rail_w, rail_col));
             painter.line_segment([to_scr(pit_right, rz), to_scr(l + 0.30, rz)], Stroke::new(rail_w, rail_col));
         }
+    }
+    if bridge_shifted {
+        let gw = (hg + 10.5).max(18.5);
+        painter.add(egui::Shape::convex_polygon(
+            quad_pts(pit_left + 1.0, pit_right - 1.0, bridge_z - gw, bridge_z + gw),
+            Color32::from_rgb(54, 74, 70),
+            Stroke::new(1.2, Color32::from_rgb(31, 41, 55)),
+        ));
     }
     for side in [-1.0_f64, 1.0] {
         let rz = bridge_z + side * hg;

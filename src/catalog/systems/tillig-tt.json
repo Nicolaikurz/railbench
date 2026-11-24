@@ -296,11 +296,17 @@
       "name": "Dreiwegweiche DWW symmetrisch",
       "kind": "three-way",
       "category": "Weichen",
-      "description": "Länge 166 mm, symmetrisch je R = 353 mm / 15° links & rechts",
+      "description": "Länge 166 mm, symmetrisch je R = 353 mm / 15° mit Geradenstück links & rechts",
       "length": 166,
       "branchRadius": 353,
       "branchAngle": 15,
-      "gauge": 12
+      "gauge": 12,
+      "localConnectors": [
+        { "x": 0, "y": 0, "angle": 180 },
+        { "x": 166, "y": 0, "angle": 0 },
+        { "x": 162.05, "y": -30.97, "angle": 345 },
+        { "x": 162.05, "y": 30.97, "angle": 15 }
+      ]
     },
     {
       "id": "83300",
@@ -328,69 +334,163 @@
     },
     {
       "id": "83321",
-      "name": "Weiche EW1 links 15°",
-      "kind": "turnout-left",
-      "category": "Weichen",
-      "description": "Länge 129,5 mm, Abzweig R = 353 mm / 15°",
-      "length": 129.5,
-      "branchRadius": 353,
-      "branchAngle": 15,
-      "gauge": 12
-    },
-    {
-      "id": "83322",
       "name": "Weiche EW1 rechts 15°",
       "kind": "turnout-right",
       "category": "Weichen",
-      "description": "Länge 129,5 mm, Abzweig R = 353 mm / 15°",
+      "description": "Länge 129,5 mm, Abzweig R = 353 mm / 15° mit Geradenstück (Gleisabstand 43 mm)",
       "length": 129.5,
       "branchRadius": 353,
       "branchAngle": 15,
-      "gauge": 12
+      "gauge": 12,
+      "localConnectors": [
+        { "x": 0, "y": 0, "angle": 180 },
+        { "x": 129.5, "y": 0, "angle": 0 },
+        { "x": 126.71, "y": 21.5, "angle": 15 }
+      ]
+    },
+    {
+      "id": "83322",
+      "name": "Weiche EW1 links 15°",
+      "kind": "turnout-left",
+      "category": "Weichen",
+      "description": "Länge 129,5 mm, Abzweig R = 353 mm / 15° mit Geradenstück (Gleisabstand 43 mm)",
+      "length": 129.5,
+      "branchRadius": 353,
+      "branchAngle": 15,
+      "gauge": 12,
+      "localConnectors": [
+        { "x": 0, "y": 0, "angle": 180 },
+        { "x": 129.5, "y": 0, "angle": 0 },
+        { "x": 126.71, "y": -21.5, "angle": 345 }
+      ]
+    },
+    {
+      "id": "83328",
+      "name": "Weiche EW1 rechts 15° (neu)",
+      "kind": "turnout-right",
+      "category": "Weichen",
+      "description": "Länge 129,5 mm, Abzweig R = 353 mm / 15° mit Geradenstück (Gleisabstand 43 mm)",
+      "length": 129.5,
+      "branchRadius": 353,
+      "branchAngle": 15,
+      "gauge": 12,
+      "localConnectors": [
+        { "x": 0, "y": 0, "angle": 180 },
+        { "x": 129.5, "y": 0, "angle": 0 },
+        { "x": 126.71, "y": 21.5, "angle": 15 }
+      ]
+    },
+    {
+      "id": "83329",
+      "name": "Weiche EW1 links 15° (neu)",
+      "kind": "turnout-left",
+      "category": "Weichen",
+      "description": "Länge 129,5 mm, Abzweig R = 353 mm / 15° mit Geradenstück (Gleisabstand 43 mm)",
+      "length": 129.5,
+      "branchRadius": 353,
+      "branchAngle": 15,
+      "gauge": 12,
+      "localConnectors": [
+        { "x": 0, "y": 0, "angle": 180 },
+        { "x": 129.5, "y": 0, "angle": 0 },
+        { "x": 126.71, "y": -21.5, "angle": 345 }
+      ]
     },
     {
       "id": "83323",
-      "name": "Modellweiche EW2 links 12°",
-      "kind": "turnout-left",
+      "name": "Modellweiche EW2 rechts 15° (alt)",
+      "kind": "turnout-right",
       "category": "Weichen",
-      "description": "Länge 166 mm, Abzweig R = 631 mm / 12°, Federzungen & polarisierbares Herzstück",
+      "description": "Länge 166 mm, Abzweig R = 631 mm / 15°, Federzungen & polarisierbares Herzstück",
       "length": 166,
       "branchRadius": 631,
-      "branchAngle": 12,
-      "gauge": 12
+      "branchAngle": 15,
+      "gauge": 12,
+      "localConnectors": [
+        { "x": 0, "y": 0, "angle": 180 },
+        { "x": 166, "y": 0, "angle": 0 },
+        { "x": 163.31, "y": 21.5, "angle": 15 }
+      ]
     },
     {
       "id": "83324",
-      "name": "Modellweiche EW2 rechts 12°",
-      "kind": "turnout-right",
+      "name": "Modellweiche EW2 links 15° (alt)",
+      "kind": "turnout-left",
       "category": "Weichen",
-      "description": "Länge 166 mm, Abzweig R = 631 mm / 12°, Federzungen & polarisierbares Herzstück",
+      "description": "Länge 166 mm, Abzweig R = 631 mm / 15°, Federzungen & polarisierbares Herzstück",
       "length": 166,
       "branchRadius": 631,
-      "branchAngle": 12,
-      "gauge": 12
+      "branchAngle": 15,
+      "gauge": 12,
+      "localConnectors": [
+        { "x": 0, "y": 0, "angle": 180 },
+        { "x": 166, "y": 0, "angle": 0 },
+        { "x": 163.31, "y": -21.5, "angle": 345 }
+      ]
+    },
+    {
+      "id": "83331",
+      "name": "Modellweiche EW2 rechts 15°",
+      "kind": "turnout-right",
+      "category": "Weichen",
+      "description": "Länge 166 mm, Abzweig R = 631 mm / 15°, Federzungen & polarisierbares Herzstück",
+      "length": 166,
+      "branchRadius": 631,
+      "branchAngle": 15,
+      "gauge": 12,
+      "localConnectors": [
+        { "x": 0, "y": 0, "angle": 180 },
+        { "x": 166, "y": 0, "angle": 0 },
+        { "x": 163.31, "y": 21.5, "angle": 15 }
+      ]
+    },
+    {
+      "id": "83332",
+      "name": "Modellweiche EW2 links 15°",
+      "kind": "turnout-left",
+      "category": "Weichen",
+      "description": "Länge 166 mm, Abzweig R = 631 mm / 15°, Federzungen & polarisierbares Herzstück",
+      "length": 166,
+      "branchRadius": 631,
+      "branchAngle": 15,
+      "gauge": 12,
+      "localConnectors": [
+        { "x": 0, "y": 0, "angle": 180 },
+        { "x": 166, "y": 0, "angle": 0 },
+        { "x": 163.31, "y": -21.5, "angle": 345 }
+      ]
     },
     {
       "id": "83341",
-      "name": "Modellweiche EW3 links 9°",
-      "kind": "turnout-left",
+      "name": "Modellweiche EW3 rechts 12°",
+      "kind": "turnout-right",
       "category": "Weichen",
-      "description": "Länge 207 mm, Abzweig R = 984 mm / 9°, schlanke Weiche mit Federzungen",
+      "description": "Länge 207 mm, Abzweig R = 984 mm / 12°, schlanke Weiche mit Federzungen",
       "length": 207,
       "branchRadius": 984,
-      "branchAngle": 9,
-      "gauge": 12
+      "branchAngle": 12,
+      "gauge": 12,
+      "localConnectors": [
+        { "x": 0, "y": 0, "angle": 180 },
+        { "x": 207, "y": 0, "angle": 0 },
+        { "x": 204.59, "y": 21.5, "angle": 12 }
+      ]
     },
     {
       "id": "83342",
-      "name": "Modellweiche EW3 rechts 9°",
-      "kind": "turnout-right",
+      "name": "Modellweiche EW3 links 12°",
+      "kind": "turnout-left",
       "category": "Weichen",
-      "description": "Länge 207 mm, Abzweig R = 984 mm / 9°, schlanke Weiche mit Federzungen",
+      "description": "Länge 207 mm, Abzweig R = 984 mm / 12°, schlanke Weiche mit Federzungen",
       "length": 207,
       "branchRadius": 984,
-      "branchAngle": 9,
-      "gauge": 12
+      "branchAngle": 12,
+      "gauge": 12,
+      "localConnectors": [
+        { "x": 0, "y": 0, "angle": 180 },
+        { "x": 207, "y": 0, "angle": 0 },
+        { "x": 204.59, "y": -21.5, "angle": 348 }
+      ]
     },
     {
       "id": "83361",
@@ -457,33 +557,49 @@
       "name": "Außenbogenweiche ABW 15° (2x 7,5°)",
       "kind": "turnout-left",
       "category": "Weichen",
-      "description": "Symmetrische Außenbogenweiche 15° (2x 7,5°), R = 353 mm",
-      "length": 129.5,
-      "branchRadius": 353,
-      "branchAngle": 15,
-      "gauge": 12
+      "description": "Symmetrische Außenbogenweiche 15° (2x 7,5°), Länge 167 mm, R = 1273 mm",
+      "length": 167,
+      "branchRadius": 1273,
+      "branchAngle": 7.5,
+      "gauge": 12,
+      "localConnectors": [
+        { "x": 0, "y": 0, "angle": 180 },
+        { "x": 166.16, "y": -10.89, "angle": 352.5 },
+        { "x": 166.16, "y": 10.89, "angle": 7.5 }
+      ]
     },
     {
       "id": "83382",
       "name": "Außenbogenweiche ABW 12° (2x 6°)",
       "kind": "turnout-left",
       "category": "Weichen",
-      "description": "Symmetrische Außenbogenweiche 12° (2x 6°), R = 631 mm",
-      "length": 166,
-      "branchRadius": 631,
-      "branchAngle": 12,
-      "gauge": 12
+      "description": "Symmetrische Außenbogenweiche 12° (2x 6°), Länge 208 mm, R = 1986 mm",
+      "length": 208,
+      "branchRadius": 1986,
+      "branchAngle": 6,
+      "gauge": 12,
+      "localConnectors": [
+        { "x": 0, "y": 0, "angle": 180 },
+        { "x": 207.59, "y": -10.88, "angle": 354 },
+        { "x": 207.59, "y": 10.88, "angle": 6 }
+      ]
     },
     {
       "id": "83391",
       "name": "Dreiwegweiche DWW",
       "kind": "three-way",
       "category": "Weichen",
-      "description": "Länge 166 mm, symmetrisch, je R = 353 mm / 15° links & rechts",
+      "description": "Länge 166 mm, symmetrisch je R = 353 mm / 15° mit Geradenstück links & rechts",
       "length": 166,
       "branchRadius": 353,
       "branchAngle": 15,
-      "gauge": 12
+      "gauge": 12,
+      "localConnectors": [
+        { "x": 0, "y": 0, "angle": 180 },
+        { "x": 166, "y": 0, "angle": 0 },
+        { "x": 162.05, "y": -30.97, "angle": 345 },
+        { "x": 162.05, "y": 30.97, "angle": 15 }
+      ]
     },
     {
       "id": "83440",

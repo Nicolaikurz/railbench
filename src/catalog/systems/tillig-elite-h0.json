@@ -248,113 +248,227 @@
     },
     {
       "id": "85321",
-      "name": "Einfache Weiche EW1 links 15°",
-      "kind": "turnout-left",
+      "name": "Einfache Weiche EW2 rechts 15° (alt)",
+      "kind": "turnout-right",
       "category": "Weichen",
-      "description": "Federzungenweiche, Länge 166 mm, Abzweig R484 / 15°",
-      "length": 166,
+      "description": "Länge 178 mm, Abzweig R484 / 15° mit Geradenstück (Gleisabstand 59 mm)",
+      "length": 178,
       "branchRadius": 484,
       "branchAngle": 15,
-      "gauge": 16.5
+      "gauge": 16.5,
+      "localConnectors": [
+        { "x": 0, "y": 0, "angle": 180 },
+        { "x": 178, "y": 0, "angle": 0 },
+        { "x": 173.82, "y": 29.5, "angle": 15 }
+      ]
     },
     {
       "id": "85322",
-      "name": "Einfache Weiche EW1 rechts 15°",
-      "kind": "turnout-right",
+      "name": "Einfache Weiche EW2 links 15° (alt)",
+      "kind": "turnout-left",
       "category": "Weichen",
-      "description": "Federzungenweiche, Länge 166 mm, Abzweig R484 / 15°",
-      "length": 166,
+      "description": "Länge 178 mm, Abzweig R484 / 15° mit Geradenstück (Gleisabstand 59 mm)",
+      "length": 178,
       "branchRadius": 484,
       "branchAngle": 15,
-      "gauge": 16.5
+      "gauge": 16.5,
+      "localConnectors": [
+        { "x": 0, "y": 0, "angle": 180 },
+        { "x": 178, "y": 0, "angle": 0 },
+        { "x": 173.82, "y": -29.5, "angle": 345 }
+      ]
     },
     {
       "id": "85323",
-      "name": "Einfache Weiche EW2 links 15°",
-      "kind": "turnout-left",
-      "category": "Weichen",
-      "description": "Gelenkzungenweiche mit Metallherzstück, Länge 166 mm, Abzweig R484 / 15°",
-      "length": 166,
-      "branchRadius": 484,
-      "branchAngle": 15,
-      "gauge": 16.5
-    },
-    {
-      "id": "85324",
       "name": "Einfache Weiche EW2 rechts 15°",
       "kind": "turnout-right",
       "category": "Weichen",
-      "description": "Gelenkzungenweiche mit Metallherzstück, Länge 166 mm, Abzweig R484 / 15°",
-      "length": 166,
+      "description": "Länge 178 mm, Abzweig R484 / 15° mit Geradenstück und Metallherzstück (Gleisabstand 59 mm)",
+      "length": 178,
       "branchRadius": 484,
       "branchAngle": 15,
-      "gauge": 16.5
+      "gauge": 16.5,
+      "localConnectors": [
+        { "x": 0, "y": 0, "angle": 180 },
+        { "x": 178, "y": 0, "angle": 0 },
+        { "x": 173.82, "y": 29.5, "angle": 15 }
+      ]
+    },
+    {
+      "id": "85324",
+      "name": "Einfache Weiche EW2 links 15°",
+      "kind": "turnout-left",
+      "category": "Weichen",
+      "description": "Länge 178 mm, Abzweig R484 / 15° mit Geradenstück und Metallherzstück (Gleisabstand 59 mm)",
+      "length": 178,
+      "branchRadius": 484,
+      "branchAngle": 15,
+      "gauge": 16.5,
+      "localConnectors": [
+        { "x": 0, "y": 0, "angle": 180 },
+        { "x": 178, "y": 0, "angle": 0 },
+        { "x": 173.82, "y": -29.5, "angle": 345 }
+      ]
     },
     {
       "id": "85341",
-      "name": "Einfache Weiche EW3 links 12°",
-      "kind": "turnout-left",
+      "name": "Einfache Weiche EW1 rechts 15° (alt)",
+      "kind": "turnout-right",
       "category": "Weichen",
-      "description": "Federzungenweiche, Länge 207 mm, Abzweig R966 / 12°",
-      "length": 207,
-      "branchRadius": 966,
-      "branchAngle": 12,
-      "gauge": 16.5
+      "description": "Federzungenweiche, Länge 228 mm, Abzweig R866 / 15° (Gleisabstand 59 mm)",
+      "length": 228,
+      "branchRadius": 866,
+      "branchAngle": 15,
+      "gauge": 16.5,
+      "localConnectors": [
+        { "x": 0, "y": 0, "angle": 180 },
+        { "x": 228, "y": 0, "angle": 0 },
+        { "x": 224.14, "y": 29.5, "angle": 15 }
+      ]
     },
     {
       "id": "85342",
-      "name": "Einfache Weiche EW3 rechts 12°",
-      "kind": "turnout-right",
-      "category": "Weichen",
-      "description": "Federzungenweiche, Länge 207 mm, Abzweig R966 / 12°",
-      "length": 207,
-      "branchRadius": 966,
-      "branchAngle": 12,
-      "gauge": 16.5
-    },
-    {
-      "id": "85351",
-      "name": "Einfache Weiche EW5 links 9,34°",
+      "name": "Einfache Weiche EW1 links 15° (alt)",
       "kind": "turnout-left",
       "category": "Weichen",
-      "description": "Schlanke Modellweiche, Länge 284 mm, Abzweig R1350 / 9,34°",
-      "length": 284,
-      "branchRadius": 1350,
-      "branchAngle": 9.34,
-      "gauge": 16.5
+      "description": "Federzungenweiche, Länge 228 mm, Abzweig R866 / 15° (Gleisabstand 59 mm)",
+      "length": 228,
+      "branchRadius": 866,
+      "branchAngle": 15,
+      "gauge": 16.5,
+      "localConnectors": [
+        { "x": 0, "y": 0, "angle": 180 },
+        { "x": 228, "y": 0, "angle": 0 },
+        { "x": 224.14, "y": -29.5, "angle": 345 }
+      ]
     },
     {
-      "id": "85352",
-      "name": "Einfache Weiche EW5 rechts 9,34°",
+      "id": "85343",
+      "name": "Einfache Weiche EW1 rechts 15°",
       "kind": "turnout-right",
       "category": "Weichen",
-      "description": "Schlanke Modellweiche, Länge 284 mm, Abzweig R1350 / 9,34°",
-      "length": 284,
-      "branchRadius": 1350,
-      "branchAngle": 9.34,
-      "gauge": 16.5
+      "description": "Federzungenweiche mit Metallherzstück, Länge 228 mm, Abzweig R866 / 15° (Gleisabstand 59 mm)",
+      "length": 228,
+      "branchRadius": 866,
+      "branchAngle": 15,
+      "gauge": 16.5,
+      "localConnectors": [
+        { "x": 0, "y": 0, "angle": 180 },
+        { "x": 228, "y": 0, "angle": 0 },
+        { "x": 224.14, "y": 29.5, "angle": 15 }
+      ]
     },
     {
-      "id": "85353",
-      "name": "Einfache Weiche EW6 links 6,34°",
+      "id": "85344",
+      "name": "Einfache Weiche EW1 links 15°",
       "kind": "turnout-left",
       "category": "Weichen",
-      "description": "Vorbildgetreue Weiche 1:9, Länge 389 mm, Abzweig R2200 / 6,34°",
-      "length": 389,
-      "branchRadius": 2200,
-      "branchAngle": 6.34,
-      "gauge": 16.5
+      "description": "Federzungenweiche mit Metallherzstück, Länge 228 mm, Abzweig R866 / 15° (Gleisabstand 59 mm)",
+      "length": 228,
+      "branchRadius": 866,
+      "branchAngle": 15,
+      "gauge": 16.5,
+      "localConnectors": [
+        { "x": 0, "y": 0, "angle": 180 },
+        { "x": 228, "y": 0, "angle": 0 },
+        { "x": 224.14, "y": -29.5, "angle": 345 }
+      ]
     },
     {
-      "id": "85354",
+      "id": "85346",
       "name": "Einfache Weiche EW6 rechts 6,34°",
       "kind": "turnout-right",
       "category": "Weichen",
-      "description": "Vorbildgetreue Weiche 1:9, Länge 389 mm, Abzweig R2200 / 6,34°",
-      "length": 389,
+      "description": "Vorbildgetreue Weiche 1:9, Länge 388 mm, Abzweig R2200 / 6,34° mit Geradenstück (Gleisabstand 59 mm)",
+      "length": 388,
       "branchRadius": 2200,
       "branchAngle": 6.34,
-      "gauge": 16.5
+      "gauge": 16.5,
+      "localConnectors": [
+        { "x": 0, "y": 0, "angle": 180 },
+        { "x": 388, "y": 0, "angle": 0 },
+        { "x": 387.35, "y": 29.5, "angle": 6.34 }
+      ]
+    },
+    {
+      "id": "85347",
+      "name": "Einfache Weiche EW6 links 6,34°",
+      "kind": "turnout-left",
+      "category": "Weichen",
+      "description": "Vorbildgetreue Weiche 1:9, Länge 388 mm, Abzweig R2200 / 6,34° mit Geradenstück (Gleisabstand 59 mm)",
+      "length": 388,
+      "branchRadius": 2200,
+      "branchAngle": 6.34,
+      "gauge": 16.5,
+      "localConnectors": [
+        { "x": 0, "y": 0, "angle": 180 },
+        { "x": 388, "y": 0, "angle": 0 },
+        { "x": 387.35, "y": -29.5, "angle": 353.66 }
+      ]
+    },
+    {
+      "id": "85351",
+      "name": "Einfache Weiche EW3 rechts 12° (alt)",
+      "kind": "turnout-right",
+      "category": "Weichen",
+      "description": "Schlanke Modellweiche, Länge 284 mm, Abzweig R1350 / 12° (Gleisabstand 59 mm)",
+      "length": 284,
+      "branchRadius": 1350,
+      "branchAngle": 12,
+      "gauge": 16.5,
+      "localConnectors": [
+        { "x": 0, "y": 0, "angle": 180 },
+        { "x": 284, "y": 0, "angle": 0 },
+        { "x": 280.68, "y": 29.5, "angle": 12 }
+      ]
+    },
+    {
+      "id": "85352",
+      "name": "Einfache Weiche EW3 links 12° (alt)",
+      "kind": "turnout-left",
+      "category": "Weichen",
+      "description": "Schlanke Modellweiche, Länge 284 mm, Abzweig R1350 / 12° (Gleisabstand 59 mm)",
+      "length": 284,
+      "branchRadius": 1350,
+      "branchAngle": 12,
+      "gauge": 16.5,
+      "localConnectors": [
+        { "x": 0, "y": 0, "angle": 180 },
+        { "x": 284, "y": 0, "angle": 0 },
+        { "x": 280.68, "y": -29.5, "angle": 348 }
+      ]
+    },
+    {
+      "id": "85353",
+      "name": "Einfache Weiche EW3 rechts 12°",
+      "kind": "turnout-right",
+      "category": "Weichen",
+      "description": "Schlanke Modellweiche mit Metallherzstück, Länge 284 mm, Abzweig R1350 / 12° (Gleisabstand 59 mm)",
+      "length": 284,
+      "branchRadius": 1350,
+      "branchAngle": 12,
+      "gauge": 16.5,
+      "localConnectors": [
+        { "x": 0, "y": 0, "angle": 180 },
+        { "x": 284, "y": 0, "angle": 0 },
+        { "x": 280.68, "y": 29.5, "angle": 12 }
+      ]
+    },
+    {
+      "id": "85354",
+      "name": "Einfache Weiche EW3 links 12°",
+      "kind": "turnout-left",
+      "category": "Weichen",
+      "description": "Schlanke Modellweiche mit Metallherzstück, Länge 284 mm, Abzweig R1350 / 12° (Gleisabstand 59 mm)",
+      "length": 284,
+      "branchRadius": 1350,
+      "branchAngle": 12,
+      "gauge": 16.5,
+      "localConnectors": [
+        { "x": 0, "y": 0, "angle": 180 },
+        { "x": 284, "y": 0, "angle": 0 },
+        { "x": 280.68, "y": -29.5, "angle": 348 }
+      ]
     },
     {
       "id": "85361",

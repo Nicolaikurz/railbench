@@ -95,7 +95,7 @@ pub fn match_connectors_spatial(
 
     // Only pay OS thread-spawn overhead on very large connector sets where parallel scan wins.
     if threads > 1 && count >= 32_768 {
-        let items_per_chunk = (count + threads - 1) / threads;
+        let items_per_chunk = count.div_ceil(threads);
         let chunk_elems = items_per_chunk * 2;
         std::thread::scope(|s| {
             for (chunk_idx, chunk_slice) in out.chunks_mut(chunk_elems).enumerate() {

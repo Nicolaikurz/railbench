@@ -4,7 +4,7 @@ impl RailbenchApp {
     pub fn release_3d_cpu_memory(&mut self) {
         self.scene_3d_bundle = None;
         self.scene_3d_cache.clear();
-        self.mesh_3d_key = (u64::MAX, true, 0, true, 0, 0);
+        self.mesh_3d_key = (u64::MAX, true, 0, true, 0, 0, 0);
     }
 
     fn trim_undo_stack(&mut self) {
@@ -304,6 +304,9 @@ impl RailbenchApp {
             self.dark_mode,
             cm_u8,
             sc_pts.len(),
+            self.vehicle_sim
+                .turnout_version
+                .wrapping_add(self.vehicle_sim.bridge_mesh_version.wrapping_mul(31)),
         );
         if self.mesh_3d_key != key || self.scene_3d_bundle.is_none() {
             let opts = Scene3DOptions {
@@ -313,6 +316,9 @@ impl RailbenchApp {
                 color_mode: self.color_mode,
                 time_of_day: self.time_of_day,
                 short_circuit_points: sc_pts,
+                turnout_states: self.vehicle_sim.turnout_states.clone(),
+                turntable_angles_deg: self.vehicle_sim.turntable_angles_deg.clone(),
+                transfer_offsets_mm: self.vehicle_sim.transfer_offsets_mm.clone(),
             };
             self.scene_3d_bundle = Some(viewer3d::update_scene_3d_cache(
                 &self.layout,

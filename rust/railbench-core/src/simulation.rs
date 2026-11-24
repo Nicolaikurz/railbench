@@ -158,7 +158,7 @@ pub fn solve_short_circuit_dsu(
         }
     }
 
-    for e in 0..edge_count {
+    for (e, slot) in out.iter_mut().enumerate().take(edge_count) {
         let b = e * 4;
         let n1l = edges[b] as usize;
         let n1r = edges[b + 1] as usize;
@@ -178,7 +178,7 @@ pub fn solve_short_circuit_dsu(
 
         let will_short = r1l == r2l || r1r == r2r || r1l == r1r || r2l == r2r;
         if will_short && r1l != r2r {
-            out[e] = 1;
+            *slot = 1;
         }
         union(&mut parent, &mut rank, n1l, n2r);
         union(&mut parent, &mut rank, n1r, n2l);

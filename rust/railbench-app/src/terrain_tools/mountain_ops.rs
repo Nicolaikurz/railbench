@@ -421,7 +421,7 @@ pub fn is_point_inside_any_mountain(
     false
 }
 
-/// Collects active table / layer sub-plate polygons for clipping 3D terrain so no overhang escapes baseboard edges.
+/// Collects active table / layer sub-plate polygons for clipping 2D & 3D terrain so no overhang escapes baseboard edges.
 pub fn collect_terrain_support_polygons(
     layout: &Layout,
     layer_id: Option<&str>,
@@ -467,11 +467,9 @@ pub fn collect_terrain_support_polygons(
         }
     }
 
-    let need_tables = polys.is_empty()
-        || layer.map_or(true, |l| {
-            l.height_mm.unwrap_or(0.0).abs() < 1e-6 || l.wood_plate_mode.as_deref() == Some("table")
-        });
-    if need_tables {
+    let has_layer_plates = !polys.is_empty();
+    let is_base_level = layer.map_or(true, |l| l.height_mm.unwrap_or(0.0).abs() < 1e-6);
+    if !has_layer_plates || is_base_level {
         for bb in active_boards {
             let poly = board_tools::get_baseboard_polygon(bb);
             if poly.len() >= 3 {
@@ -481,6 +479,122 @@ pub fn collect_terrain_support_polygons(
     }
 
     polys
+}
+
+/// Packs 2D polygons into `(poly_offsets, flat_xy_coords)` for fast `is_point_in_any_polygon` checks.
+pub fn pack_support_polygons(polys: &[Vec<Vec2>]) -> (Vec<u32>, Vec<f32>) {
+    if polys.is_empty() {
+        return (Vec::new(), Vec::new());
+    }
+    let mut offsets = Vec::with_capacity(polys.len() + 1);
+    let mut coords = Vec::with_capacity(polys.iter().map(|p| p.len() * 2).sum());
+    offsets.push(0);
+    for poly in polys {
+        for pt in poly {
+            coords.push(pt.x as f32);
+            coords.push(pt.y as f32);
+        }
+        offsets.push((coords.len() / 2) as u32);
+    }
+    (offsets, coords)
+}
+
+/// Clamps `pt` to stay inside `polys` (or snaps to the closest point on any polygon edge when outside).
+pub fn clamp_point_to_support_polygons(
+    pt: Vec2,
+    polys: &[Vec<Vec2>],
+    offsets: &[u32],
+    coords: &[f32],
+) -> Vec2 {
+    if polys.is_empty()
+        || offsets.len() < 2
+        || railbench_core::geometry::is_point_in_any_polygon(pt.x, pt.y, offsets, coords)
+    {
+        return pt;
+    }
+    let mut best = pt;
+    let mut best_d2 = f64::INFINITY;
+    for poly in polys {
+        let n = poly.len();
+        if n < 2 {
+            continue;
+        }
+        for i in 0..n {
+            let a = poly[i];
+            let b = poly[(i + 1) % n];
+            let dx = b.x - a.x;
+            let dy = b.y - a.y;
+            let len2 = dx * dx + dy * dy;
+            let t = if len2 > 1e-9 {
+                (((pt.x - a.x) * dx + (pt.y - a.y) * dy) / len2).clamp(0.0, 1.0)
+            } else {
+                0.0
+            };
+            let cx = a.x + dx * t;
+            let cy = a.y + dy * t;
+            let d2 = (pt.x - cx) * (pt.x - cx) + (pt.y - cy) * (pt.y - cy);
+            if d2 < best_d2 {
+                best_d2 = d2;
+                best = Vec2 { x: cx, y: cy };
+            }
+        }
+    }
+    best
+}
+
+/// Clips segment `(a, b)` cleanly to `polys`, binary-searching any boundary crossing.
+pub fn clip_segment_to_support(
+    a: Vec2,
+    b: Vec2,
+    offsets: &[u32],
+    coords: &[f32],
+) -> Option<(Vec2, Vec2)> {
+    if offsets.len() < 2 {
+        return Some((a, b));
+    }
+    let in_a = railbench_core::geometry::is_point_in_any_polygon(a.x, a.y, offsets, coords);
+    let in_b = railbench_core::geometry::is_point_in_any_polygon(b.x, b.y, offsets, coords);
+    if in_a && in_b {
+        return Some((a, b));
+    }
+    if !in_a && !in_b {
+        let mid_x = (a.x + b.x) * 0.5;
+        let mid_y = (a.y + b.y) * 0.5;
+        if !railbench_core::geometry::is_point_in_any_polygon(mid_x, mid_y, offsets, coords) {
+            return None;
+        }
+        // Segment crosses through a corner of the polygon: clip both halves
+        let mid = Vec2 { x: mid_x, y: mid_y };
+        let h1 = clip_segment_to_support(a, mid, offsets, coords);
+        let h2 = clip_segment_to_support(mid, b, offsets, coords);
+        return match (h1, h2) {
+            (Some((p0, _)), Some((_, p1))) => Some((p0, p1)),
+            (Some(s), None) | (None, Some(s)) => Some(s),
+            (None, None) => None,
+        };
+    }
+    let (inside, outside, swap) = if in_a { (a, b, false) } else { (b, a, true) };
+    let mut lo = 0.0_f64;
+    let mut hi = 1.0_f64;
+    for _ in 0..9 {
+        let mid = (lo + hi) * 0.5;
+        let px = inside.x + (outside.x - inside.x) * mid;
+        let py = inside.y + (outside.y - inside.y) * mid;
+        if railbench_core::geometry::is_point_in_any_polygon(px, py, offsets, coords) {
+            lo = mid;
+        } else {
+            hi = mid;
+        }
+    }
+    let boundary = Vec2 {
+        x: inside.x + (outside.x - inside.x) * lo,
+        y: inside.y + (outside.y - inside.y) * lo,
+    };
+    if swap {
+        Some((boundary, inside))
+    } else {
+        Some((inside, boundary))
+    }
 }
 
 #[derive(Debug, Clone, Copy)]

@@ -314,6 +314,9 @@ pub struct Scene3DOptions {
     pub color_mode: ColorMode,
     pub time_of_day: f32,
     pub short_circuit_points: Vec<Vec2>,
+    pub turnout_states: std::collections::HashMap<String, usize>,
+    pub turntable_angles_deg: std::collections::HashMap<String, f64>,
+    pub transfer_offsets_mm: std::collections::HashMap<String, f64>,
 }
 
 impl Default for Scene3DOptions {
@@ -325,6 +328,9 @@ impl Default for Scene3DOptions {
             color_mode: ColorMode::Off,
             time_of_day: 11.5,
             short_circuit_points: Vec::new(),
+            turnout_states: std::collections::HashMap::new(),
+            turntable_angles_deg: std::collections::HashMap::new(),
+            transfer_offsets_mm: std::collections::HashMap::new(),
         }
     }
 }
@@ -621,6 +627,14 @@ pub struct SceneMesh3D {
 }
 
 impl SceneMesh3D {
+    pub fn from_raw(vertices: Vec<Vertex3D>, indices: Vec<u32>) -> Self {
+        Self {
+            vertices,
+            indices,
+            instanced_tracks: Vec::new(),
+        }
+    }
+
     pub fn vertex_count(&self) -> usize {
         self.vertices.len()
             + self
@@ -749,7 +763,7 @@ mod viewport;
 #[allow(unused_imports)]
 use viewport::*;
 #[allow(unused_imports)]
-pub use viewport::{draw_viewport_3d};
+pub use viewport::{draw_cab_viewport_3d, draw_viewport_3d, CabCameraMode};
 mod environment;
 #[allow(unused_imports)]
 use environment::*;

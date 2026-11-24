@@ -18,6 +18,9 @@ pub(super) fn draw_track_piece(
     show_labels: bool,
     power_sim_enabled: bool,
     piece_power: Option<&PiecePowerResult>,
+    turnout_state: usize,
+    turntable_angle_deg: f64,
+    transfer_offset_mm: Option<f64>,
 ) {
     let kind = entry.map(|e| e.kind.as_str()).unwrap_or("straight");
     let is_special = matches!(kind, "turntable" | "transfer-table");
@@ -117,6 +120,7 @@ pub(super) fn draw_track_piece(
             show_labels,
             power_sim_enabled,
             piece_power,
+            turntable_angle_deg,
         );
         return;
     }
@@ -141,6 +145,7 @@ pub(super) fn draw_track_piece(
             show_labels,
             power_sim_enabled,
             piece_power,
+            transfer_offset_mm,
         );
         return;
     }
@@ -645,14 +650,25 @@ pub(super) fn draw_track_piece(
             painter.rect_filled(r, 2.0, Color32::from_rgb(11, 17, 32));
             painter.rect_stroke(r, 2.0, Stroke::new(1.1_f32, Color32::from_rgb(100, 116, 139)), egui::StrokeKind::Inside);
 
-            // Illuminated milk-glass DB Wn 1 / Wn 2 symbol rotated with the turnout
+            // Illuminated milk-glass DB Wn 1 / Wn 2 symbol aligned to the active turnout route
             let milk = Color32::from_rgb(254, 249, 195);
             let bar_len = sz * 0.34;
             let bar_w = (sz * 0.20).clamp(1.4, 2.6);
             let sym_ang = (piece.transform.rotation as f32).to_radians()
-                + if is_left_turnout {
+                + if kind == "double-slip" {
+                    if turnout_state % 2 == 0 {
+                        0.0
+                    } else {
+                        std::f32::consts::FRAC_PI_4
+                    }
+                } else if turnout_state == 0 {
+                    // Wn 1: Straight route
+                    0.0
+                } else if is_left_turnout || (kind == "three-way" && turnout_state == 1) {
+                    // Wn 2a: Diverging left
                     -std::f32::consts::FRAC_PI_4
-                } else if is_right_turnout {
+                } else if is_right_turnout || kind == "three-way" {
+                    // Wn 2a: Diverging right
                     std::f32::consts::FRAC_PI_4
                 } else {
                     0.0

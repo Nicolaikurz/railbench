@@ -227,3 +227,100 @@ fn overlapping_mountains_suppress_interior_portal() {
     assert!(!runs_m1[0].start_portal.as_ref().unwrap().suppressed_by_overlap);
     assert!(runs_m1[0].end_portal.as_ref().unwrap().suppressed_by_overlap);
 }
+
+#[test]
+fn elevated_layer_plate_clips_terrain_without_falling_back_to_lower_table() {
+    use railbench_core::types::{Layer, LayerPlate};
+
+    let bb = BaseboardConfig {
+        id: Some("b1".into()),
+        name: Some("Table".into()),
+        enabled: true,
+        shape: Some("rect".into()),
+        custom_polygon: None,
+        triangle_type: None,
+        width: 2400.0,
+        depth: 1200.0,
+        rotation: Some(0.0),
+        l_wing_width: None,
+        l_wing_depth: None,
+        l_side: None,
+        u_left_wing_width: None,
+        u_right_wing_width: None,
+        u_back_depth: None,
+        t_bar_depth: None,
+        t_stem_width: None,
+        position_mode: "center".into(),
+        custom_x: None,
+        custom_y: None,
+        style: "wood".into(),
+        corner_radius: Some(0.0),
+        show_dimensions: None,
+    };
+    let plate = LayerPlate {
+        id: "pl-1".into(),
+        name: Some("Upper".into()),
+        baseboard_id: Some("b1".into()),
+        shape: Some("rect".into()),
+        custom_polygon: None,
+        triangle_type: None,
+        l_wing_width: None,
+        l_wing_depth: None,
+        l_side: None,
+        u_left_wing_width: None,
+        u_right_wing_width: None,
+        u_back_depth: None,
+        t_bar_depth: None,
+        t_stem_width: None,
+        rotation: Some(0.0),
+        width: 600.0,
+        depth: 400.0,
+        x: Some(900.0),
+        y: Some(400.0),
+        thickness_mm: Some(12.0),
+        position_mode: Some("custom".into()),
+        style: None,
+    };
+    let mut layout = empty_test_layout();
+    layout.baseboard = Some(bb.clone());
+    layout.layers = Some(vec![
+        Layer {
+            id: "layer-1".into(),
+            name: "Base".into(),
+            color: None,
+            visible: true,
+            locked: false,
+            height_mm: Some(0.0),
+            wood_plate_mode: Some("table".into()),
+            wood_plate_thickness_mm: None,
+            wood_plate_style: None,
+            plates: None,
+        },
+        Layer {
+            id: "layer-2".into(),
+            name: "Upper".into(),
+            color: None,
+            visible: true,
+            locked: false,
+            height_mm: Some(80.0),
+            wood_plate_mode: Some("table".into()),
+            wood_plate_thickness_mm: Some(12.0),
+            wood_plate_style: None,
+            plates: Some(vec![plate]),
+        },
+    ]);
+
+    let polys_l2 = collect_terrain_support_polygons(&layout, Some("layer-2"), &[bb]);
+    assert_eq!(polys_l2.len(), 1, "elevated layer with plates must clip strictly to its plates");
+    let max_x = polys_l2[0].iter().map(|p| p.x).fold(f64::NEG_INFINITY, f64::max);
+    assert!((max_x - 300.0).abs() < 1e-6);
+
+    // Brush stroke outside table bounds must clamp cleanly onto the table edge
+    let mut seq = 1u64;
+    let mut brush = TerrainBrushState::default();
+    brush.set_active(true, Some(TerrainBrushMode::Stamp), None);
+    brush.start_stroke(Vec2 { x: 5000.0, y: 0.0 }, &mut layout);
+    let mtn_id = brush.finish_stroke(&mut layout, &mut seq, Some("layer-1"), false).unwrap();
+    let m = layout.models.as_ref().unwrap().iter().find(|m| m.id == mtn_id).unwrap();
+    assert!((m.transform.x - 1200.0).abs() <= 1.0, "stamp outside table must clamp to x=1200, got {}", m.transform.x);
+}

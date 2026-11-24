@@ -176,10 +176,7 @@ impl TerrainBrushState {
             self.stroke_points.clear();
             return erase_terrain_at(wpos, self.radius, layout);
         }
-        let snapped = Vec2 {
-            x: wpos.x.round(),
-            y: wpos.y.round(),
-        };
+        let snapped = clamp_brush_pt(layout, None, Vec2 { x: wpos.x.round(), y: wpos.y.round() });
         self.stroke_points = vec![snapped];
         false
     }
@@ -192,10 +189,7 @@ impl TerrainBrushState {
         if self.mode == TerrainBrushMode::Erase {
             return erase_terrain_at(wpos, self.radius, layout);
         }
-        let snapped = Vec2 {
-            x: wpos.x.round(),
-            y: wpos.y.round(),
-        };
+        let snapped = clamp_brush_pt(layout, None, Vec2 { x: wpos.x.round(), y: wpos.y.round() });
         if self.mode == TerrainBrushMode::Stamp {
             self.stroke_points = vec![snapped];
             return false;
@@ -204,7 +198,7 @@ impl TerrainBrushState {
         let push = self
             .stroke_points
             .last()
-            .map_or(true, |last| (wpos.x - last.x).hypot(wpos.y - last.y) >= min_step);
+            .map_or(true, |last| (snapped.x - last.x).hypot(snapped.y - last.y) >= min_step);
         if push {
             self.stroke_points.push(snapped);
         }
@@ -228,19 +222,23 @@ impl TerrainBrushState {
             return None;
         }
 
-        let pts = if self.mode == TerrainBrushMode::Stamp {
-            vec![*self.stroke_points.last().unwrap()]
-        } else {
-            self.stroke_points.clone()
-        };
-        self.stroke_points.clear();
-
-        let r = self.radius.round().max(60.0);
-        let h = self.height.round().max(40.0);
         let layer_id = active_layer_id
             .map(str::to_string)
             .or_else(|| layout.active_layer_id.clone())
             .or_else(|| layout.layers.as_ref().and_then(|ls| ls.first()).map(|l| l.id.clone()));
+
+        let mut pts = if self.mode == TerrainBrushMode::Stamp {
+            vec![*self.stroke_points.last().unwrap()]
+        } else {
+            self.stroke_points.clone()
+        };
+        for p in &mut pts {
+            *p = clamp_brush_pt(layout, layer_id.as_deref(), *p);
+        }
+        self.stroke_points.clear();
+
+        let r = self.radius.round().max(60.0);
+        let h = self.height.round().max(40.0);
 
         if self.mode == TerrainBrushMode::Ground {
             let (mut min_x, mut max_x, mut min_y, mut max_y) =
@@ -460,6 +458,27 @@ impl TerrainBrushState {
     }
 }
 
+fn clamp_brush_pt(layout: &Layout, layer_id: Option<&str>, pt: Vec2) -> Vec2 {
+    let eff_lid = layer_id
+        .map(str::to_string)
+        .or_else(|| layout.active_layer_id.clone())
+        .or_else(|| layout.layers.as_ref().and_then(|ls| ls.first()).map(|l| l.id.clone()));
+    let boards: Vec<BaseboardConfig> = board_tools::get_baseboards_slice(layout)
+        .into_iter()
+        .filter(|b| b.enabled)
+        .collect();
+    let polys = collect_terrain_support_polygons(layout, eff_lid.as_deref(), &boards);
+    if polys.is_empty() {
+        return pt;
+    }
+    let (offsets, coords) = pack_support_polygons(&polys);
+    let c = clamp_point_to_support_polygons(pt, &polys, &offsets, &coords);
+    Vec2 {
+        x: c.x.round(),
+        y: c.y.round(),
+    }
+}
+
 #[inline]
 pub fn world_to_mountain_local(wx: f64, wy: f64, mountain: &Model3D) -> (f64, f64) {
     let rad = deg2rad(-mountain.transform.rotation);
@@ -578,7 +597,13 @@ mod mountain_ops;
 #[allow(unused_imports)]
 use mountain_ops::*;
 #[allow(unused_imports)]
-pub use mountain_ops::{evaluate_mountain_local, recompute_mountain_bounds_from_world_nodes, smooth_mountain_path, erase_terrain_at, apply_auto_tunnel_for_mountain, apply_auto_tunnel_all_mountains, is_point_inside_other_mountain, is_point_inside_any_mountain, collect_terrain_support_polygons, TunnelProfile};
+pub use mountain_ops::{
+    apply_auto_tunnel_all_mountains, apply_auto_tunnel_for_mountain,
+    clamp_point_to_support_polygons, clip_segment_to_support, collect_terrain_support_polygons,
+    erase_terrain_at, evaluate_mountain_local, is_point_inside_any_mountain,
+    is_point_inside_other_mountain, pack_support_polygons,
+    recompute_mountain_bounds_from_world_nodes, smooth_mountain_path, TunnelProfile,
+};
 mod corridors;
 #[allow(unused_imports)]
 use corridors::*;

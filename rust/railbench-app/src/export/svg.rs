@@ -79,19 +79,35 @@ pub(crate) fn sample_track_branches_world(piece: &TrackPiece, entry: Option<&Cat
             sample_arc_between_connectors(c[0].x, c[0].y, c[0].angle, c[2].x, c[2].y, c[2].angle, 12),
         ],
         4 => {
-            let d13 = (c[1].x - c[3].x).hypot(c[1].y - c[3].y);
-            let d02 = (c[0].x - c[2].x).hypot(c[0].y - c[2].y);
-            if (d13 - d02).abs() > 30.0 {
+            let is_three_way = entry.map_or(false, |e| e.kind == "three-way") || {
+                let a0 = c[0].angle.to_radians();
+                let (v0x, v0y) = (a0.cos(), a0.sin());
+                c[1..4]
+                    .iter()
+                    .filter(|ci| {
+                        let ai = ci.angle.to_radians();
+                        v0x * ai.cos() + v0y * ai.sin() < -0.15
+                    })
+                    .count()
+                    == 3
+            };
+            if is_three_way {
                 vec![
-                    sample_arc_between_connectors(c[0].x, c[0].y, c[0].angle, c[1].x, c[1].y, c[1].angle, 10),
-                    sample_arc_between_connectors(c[2].x, c[2].y, c[2].angle, c[3].x, c[3].y, c[3].angle, 10),
+                    sample_arc_between_connectors(c[0].x, c[0].y, c[0].angle, c[1].x, c[1].y, c[1].angle, 16),
+                    sample_arc_between_connectors(c[0].x, c[0].y, c[0].angle, c[2].x, c[2].y, c[2].angle, 16),
+                    sample_arc_between_connectors(c[0].x, c[0].y, c[0].angle, c[3].x, c[3].y, c[3].angle, 16),
+                ]
+            } else if entry.map_or(false, |e| e.kind == "double-slip") {
+                vec![
+                    sample_arc_between_connectors(c[0].x, c[0].y, c[0].angle, c[1].x, c[1].y, c[1].angle, 16),
+                    sample_arc_between_connectors(c[2].x, c[2].y, c[2].angle, c[3].x, c[3].y, c[3].angle, 16),
+                    sample_arc_between_connectors(c[0].x, c[0].y, c[0].angle, c[3].x, c[3].y, c[3].angle, 16),
+                    sample_arc_between_connectors(c[2].x, c[2].y, c[2].angle, c[1].x, c[1].y, c[1].angle, 16),
                 ]
             } else {
                 vec![
-                    sample_arc_between_connectors(c[0].x, c[0].y, c[0].angle, c[1].x, c[1].y, c[1].angle, 8),
-                    sample_arc_between_connectors(c[2].x, c[2].y, c[2].angle, c[3].x, c[3].y, c[3].angle, 8),
-                    sample_arc_between_connectors(c[0].x, c[0].y, c[0].angle, c[3].x, c[3].y, c[3].angle, 8),
-                    sample_arc_between_connectors(c[2].x, c[2].y, c[2].angle, c[1].x, c[1].y, c[1].angle, 8),
+                    sample_arc_between_connectors(c[0].x, c[0].y, c[0].angle, c[1].x, c[1].y, c[1].angle, 12),
+                    sample_arc_between_connectors(c[2].x, c[2].y, c[2].angle, c[3].x, c[3].y, c[3].angle, 12),
                 ]
             }
         }

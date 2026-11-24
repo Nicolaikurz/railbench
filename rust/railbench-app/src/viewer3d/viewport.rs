@@ -5,6 +5,7 @@ pub fn draw_viewport_3d(
     ui: &mut egui::Ui,
     camera: &mut Camera3D,
     cached_bundle: &Option<Scene3DBundle>,
+    vehicles_mesh: Option<Arc<SceneMesh3D>>,
     layout: &Layout,
     env_mode: &mut Viewer3DEnv,
     day_night_active: &mut bool,
@@ -74,10 +75,12 @@ pub fn draw_viewport_3d(
         Viewport3DCallback {
             uniforms,
             bundle: cached_bundle.clone(),
+            vehicles_mesh,
             time_of_day: *time_of_day,
             env_mode: *env_mode,
             viewport_px: [px_w, px_h],
             clear_color: sky.clear_color,
+            is_cab_view: false,
         },
     );
     ui.painter().add(cb);
@@ -405,6 +408,143 @@ pub(super) fn draw_viewcube_widget(
                     });
                 });
         });
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CabCameraMode {
+    Cab,
+    Roof,
+    Chase,
+}
+
+/// Renders a first-person locomotive Cab View (or Roof / Chase camera) into the secondary OS window.
+/// Uses its own offscreen GPU target (`is_cab_view: true`) so both main 3D view and 2nd-monitor Cab View
+/// can render simultaneously at independent resolutions while sharing all scene geometry on the GPU.
+#[allow(clippy::too_many_arguments)]
+pub fn draw_cab_viewport_3d(
+    ui: &mut egui::Ui,
+    cached_bundle: &Option<Scene3DBundle>,
+    vehicles_mesh: Option<Arc<SceneMesh3D>>,
+    eye: [f32; 3],
+    target: [f32; 3],
+    fov_deg: f32,
+    env_mode: Viewer3DEnv,
+    time_of_day: f32,
+    dark_mode: bool,
+    show_windshield_frame: bool,
+    look_yaw_offset: &mut f32,
+    look_pitch_offset: &mut f32,
+    hud_info: Option<(&str, f64, f64, bool, bool)>,
+    is_de: bool,
+) {
+    let avail = ui.available_size();
+    let (rect, response) = ui.allocate_exact_size(avail, Sense::click_and_drag());
+
+    // Drag inside cab viewport to look around; double-click to recenter forward
+    if response.dragged_by(egui::PointerButton::Primary) {
+        let d = response.drag_delta();
+        *look_yaw_offset = (*look_yaw_offset + d.x * 0.005).clamp(-1.8, 1.8);
+        *look_pitch_offset = (*look_pitch_offset - d.y * 0.004).clamp(-0.75, 0.75);
+    }
+    if response.double_clicked() {
+        *look_yaw_offset = 0.0;
+        *look_pitch_offset = 0.0;
+    }
+
+    let ppp = ui.ctx().pixels_per_point();
+    let px_w = ((rect.width() * ppp).round() as u32).max(16);
+    let px_h = ((rect.height() * ppp).round() as u32).max(16);
+    let aspect = rect.width() / rect.height().max(1.0);
+    let sky = eval_sky_state(time_of_day, env_mode, dark_mode);
+
+    let view = mat4_look_at(eye, target, [0.0, 1.0, 0.0]);
+    let proj = mat4_perspective(fov_deg.to_radians(), aspect.max(0.1), 2.5, 100000.0);
+    let uniforms = Uniforms3D {
+        view_proj: mat4_mul(proj, view),
+        sun_dir: sky.sun_dir,
+        cam_pos: [eye[0], eye[1], eye[2], 1.0],
+        fog_color: sky.fog_color,
+        sun_color_int: sky.sun_color_int,
+        hemi_sky_int: sky.hemi_sky_int,
+        hemi_ground_pad: sky.hemi_ground_pad,
+    };
+
+    let cb = egui_wgpu::Callback::new_paint_callback(
+        rect,
+        Viewport3DCallback {
+            uniforms,
+            bundle: cached_bundle.clone(),
+            vehicles_mesh,
+            time_of_day,
+            env_mode,
+            viewport_px: [px_w, px_h],
+            clear_color: sky.clear_color,
+            is_cab_view: true,
+        },
+    );
+    ui.painter().add(cb);
+
+    let painter = ui.painter_at(rect);
+
+    // Realistic translucent cab windshield frame & dashboard silhouette when in Cab mode
+    if show_windshield_frame {
+        let frame_col = Color32::from_rgba_unmultiplied(12, 16, 24, 195);
+        let rim_col = Color32::from_rgba_unmultiplied(71, 85, 105, 160);
+        let top_h = (rect.height() * 0.065).clamp(18.0, 44.0);
+        let bot_h = (rect.height() * 0.135).clamp(44.0, 88.0);
+        let side_w = (rect.width() * 0.025).clamp(10.0, 24.0);
+        // Top sun-visor, bottom dashboard sill, left/right cab pillars
+        painter.rect_filled(Rect::from_min_max(rect.min, Pos2::new(rect.max.x, rect.min.y + top_h)), 0.0, frame_col);
+        painter.rect_filled(Rect::from_min_max(Pos2::new(rect.min.x, rect.max.y - bot_h), rect.max), 0.0, frame_col);
+        painter.rect_filled(Rect::from_min_max(rect.min, Pos2::new(rect.min.x + side_w, rect.max.y)), 0.0, frame_col);
+        painter.rect_filled(Rect::from_min_max(Pos2::new(rect.max.x - side_w, rect.min.y), rect.max), 0.0, frame_col);
+        // Subtle center windshield mullion
+        let cx = rect.center().x;
+        painter.rect_filled(
+            Rect::from_min_max(Pos2::new(cx - 2.5, rect.min.y + top_h), Pos2::new(cx + 2.5, rect.max.y - bot_h)),
+            0.0,
+            Color32::from_rgba_unmultiplied(15, 23, 42, 115),
+        );
+        // Inner metallic window gasket
+        let win_rect = Rect::from_min_max(
+            Pos2::new(rect.min.x + side_w, rect.min.y + top_h),
+            Pos2::new(rect.max.x - side_w, rect.max.y - bot_h),
+        );
+        painter.rect_stroke(win_rect, 6.0, Stroke::new(2.0_f32, rim_col), egui::StrokeKind::Inside);
+    }
+
+    // Bottom-center digital cab instrument HUD (Speed, Direction, Grade, Headlights)
+    if let Some((name, kmh, grade_pct, rev, lights)) = hud_info {
+        let hud_w = 380.0_f32.min(rect.width() - 24.0);
+        let hud_h = 44.0_f32;
+        let hud_rect = Rect::from_center_size(
+            Pos2::new(rect.center().x, rect.max.y - hud_h * 0.5 - 10.0),
+            egui::vec2(hud_w, hud_h),
+        );
+        painter.rect_filled(hud_rect, 8.0, Color32::from_rgba_unmultiplied(15, 23, 42, 232));
+        painter.rect_stroke(
+            hud_rect,
+            8.0,
+            Stroke::new(1.2_f32, Color32::from_rgb(56, 189, 248)),
+            egui::StrokeKind::Inside,
+        );
+        let dir_txt = if rev {
+            if is_de { "◂ RUECK" } else { "◂ REV" }
+        } else if is_de {
+            "▸ VOR"
+        } else {
+            "▸ FWD"
+        };
+        let light_txt = if lights { "💡" } else { "○" };
+        let line1 = format!("{name}   |   {kmh:.0} km/h   |   {dir_txt}   |   {grade_pct:+.1}%   {light_txt}");
+        painter.text(
+            hud_rect.center(),
+            egui::Align2::CENTER_CENTER,
+            line1,
+            FontId::monospace(12.5),
+            Color32::from_rgb(248, 250, 252),
+        );
+    }
 }
 
 // ============================================================================

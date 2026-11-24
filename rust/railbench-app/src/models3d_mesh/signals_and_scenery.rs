@@ -75,6 +75,7 @@ pub(crate) fn build_turnout_accessories_3d(
     track_rod_start: [f32; 3],
     yaw: f32,
     kind_str: &str,
+    turnout_state: usize,
     has_lantern: bool,
     has_decoder: bool,
 ) {
@@ -112,13 +113,26 @@ pub(crate) fn build_turnout_accessories_3d(
         b.rbox([0.0, hc_y - 2.85, 0.0], [5.8, 0.45, 5.8], frame_trim);
         b.rbox([0.0, hc_y + 2.85, 0.0], [5.8, 0.45, 5.8], frame_trim);
 
-        // 4. Authentic DB Wn 1 / Wn 2 illuminated milk-glass symbols on all 4 faces:
+        // 4. Authentic DB Wn 1 / Wn 2 illuminated milk-glass symbols on all 4 faces,
+        //    rotated to match the active turnout direction (`turnout_state`):
         //    Face +X (heel / Ferse), Face -X (toe / Spitze), Face +Z (right side), Face -Z (left side)
         //    0 = Wn 1 vertical bar (Geradeaus), 1 = Wn 2b round disc (Fersenansicht),
         //    2 = Wn 2a diagonal bar sloping left (\), 3 = Wn 2a diagonal bar sloping right (/)
-        let (sym_pos_x, sym_neg_x, sym_pos_z, sym_neg_z) = if is_left {
+        let (sym_pos_x, sym_neg_x, sym_pos_z, sym_neg_z) = if kind_str == "double-slip" {
+            if turnout_state % 2 == 0 {
+                (0u8, 0u8, 1u8, 1u8)
+            } else {
+                (1u8, 3u8, 0u8, 0u8)
+            }
+        } else if turnout_state == 0 {
+            // Straight route (Wn 1): vertical white bar visible from both toe (-X) and heel (+X)
+            let idle_div = if is_left { 2u8 } else if is_right { 3u8 } else { 1u8 };
+            (0u8, 0u8, idle_div, 1u8)
+        } else if is_left || (kind_str == "three-way" && turnout_state == 1) {
+            // Diverging left (Wn 2a left at toe -X, Wn 2b disc at heel +X)
             (1u8, 2u8, 0u8, 0u8)
-        } else if is_right {
+        } else if is_right || kind_str == "three-way" {
+            // Diverging right (Wn 2a right at toe -X, Wn 2b disc at heel +X)
             (1u8, 3u8, 0u8, 0u8)
         } else {
             (0u8, 0u8, 3u8, 2u8)

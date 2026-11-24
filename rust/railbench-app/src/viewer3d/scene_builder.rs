@@ -514,6 +514,9 @@ pub fn update_scene_3d_cache(
                                         e1,
                                         opts.color_mode,
                                         layer_col,
+                                        opts.turnout_states.get(&piece.id).copied().unwrap_or(0),
+                                        opts.turntable_angles_deg.get(&piece.id).copied().unwrap_or(0.0),
+                                        opts.transfer_offsets_mm.get(&piece.id).copied(),
                                         &mut dummy_cat,
                                     );
                                     if piece.has_tunnel == Some(true) && piece.connectors.len() < 6 {
@@ -580,6 +583,9 @@ pub fn update_scene_3d_cache(
                             e1,
                             opts.color_mode,
                             layer_col,
+                            opts.turnout_states.get(&piece.id).copied().unwrap_or(0),
+                            opts.turntable_angles_deg.get(&piece.id).copied().unwrap_or(0.0),
+                            opts.transfer_offsets_mm.get(&piece.id).copied(),
                             &mut dummy_cat,
                         );
                         if piece.has_tunnel == Some(true) && piece.connectors.len() < 6 {
@@ -613,6 +619,9 @@ pub fn update_scene_3d_cache(
                         e1,
                         opts.color_mode,
                         layer_col,
+                        opts.turnout_states.get(&piece.id).copied().unwrap_or(0),
+                        opts.turntable_angles_deg.get(&piece.id).copied().unwrap_or(0.0),
+                        opts.transfer_offsets_mm.get(&piece.id).copied(),
                         &mut cat_ctx,
                     );
                     if piece.has_tunnel == Some(true) && piece.connectors.len() < 6 {

@@ -144,6 +144,7 @@ pub(crate) struct ModelBuilder<'a> {
     idxs: &'a mut Vec<u32>,
     origin: [f32; 3],
     rot_rad: f32,
+    pitch_rad: f32,
     scale: [f32; 3],
     inv_scale: [f32; 3],
 }
@@ -165,25 +166,45 @@ impl<'a> ModelBuilder<'a> {
             idxs,
             origin,
             rot_rad,
+            pitch_rad: 0.0,
             scale: [sx, sy, sz],
             inv_scale: [1.0 / sx, 1.0 / sy, 1.0 / sz],
         }
     }
 
+    pub(crate) fn with_pitch(mut self, pitch_rad: f32) -> Self {
+        self.pitch_rad = pitch_rad;
+        self
+    }
+
     #[inline]
     fn xform_pos(&self, p: [f32; 3]) -> [f32; 3] {
-        let sx = p[0] * self.scale[0];
-        let sy = p[1] * self.scale[1];
+        let mut sx = p[0] * self.scale[0];
+        let mut sy = p[1] * self.scale[1];
         let sz = p[2] * self.scale[2];
+        if self.pitch_rad.abs() > 1e-5 {
+            let (sp, cp) = self.pitch_rad.sin_cos();
+            let nx = sx * cp - sy * sp;
+            let ny = sx * sp + sy * cp;
+            sx = nx;
+            sy = ny;
+        }
         let (rx, rz) = rot_xz(sx, sz, self.rot_rad);
         [self.origin[0] + rx, self.origin[1] + sy, self.origin[2] + rz]
     }
 
     #[inline]
     fn xform_norm(&self, n: [f32; 3]) -> [f32; 3] {
-        let nx = n[0] * self.inv_scale[0];
-        let ny = n[1] * self.inv_scale[1];
+        let mut nx = n[0] * self.inv_scale[0];
+        let mut ny = n[1] * self.inv_scale[1];
         let nz = n[2] * self.inv_scale[2];
+        if self.pitch_rad.abs() > 1e-5 {
+            let (sp, cp) = self.pitch_rad.sin_cos();
+            let rnx = nx * cp - ny * sp;
+            let rny = nx * sp + ny * cp;
+            nx = rnx;
+            ny = rny;
+        }
         let (rx, rz) = rot_xz(nx, nz, self.rot_rad);
         normalize3([rx, ny, rz])
     }
@@ -897,6 +918,16 @@ pub(crate) fn push_builtin_model_3d(verts: &mut Vec<Vertex3D>, idxs: &mut Vec<u3
         Some("platform") | Some("bahnsteig") => build_platform(verts, idxs, origin, rot_rad, [w, h, d]),
         Some("skyscraper") => build_skyscraper(verts, idxs, origin, rot_rad, [w, h, d]),
         Some("industry-building") => build_industry_building(verts, idxs, origin, rot_rad, [w, h, d]),
+        Some(
+            id @ ("loco-steam"
+            | "loco-electric"
+            | "loco-diesel"
+            | "wagon-passenger"
+            | "wagon-freight"
+            | "car-sedan"
+            | "car-truck"
+            | "car-bus"),
+        ) => push_vehicle_3d(verts, idxs, id, origin, rot_rad, 0.0, [w, h, d], 0.0, [0.68, 0.14, 0.16], true, false),
         _ => build_generic_building(verts, idxs, origin, rot_rad, [w, h, d]),
     }
 }
@@ -910,6 +941,9 @@ use service_buildings::*;
 mod signals_and_scenery;
 #[allow(unused_imports)]
 use signals_and_scenery::*;
+mod vehicles;
+#[allow(unused_imports)]
+pub(crate) use vehicles::push_vehicle_3d;
 #[allow(unused_imports)]
 pub(crate) use signals_and_scenery::{build_light_signal, build_turnout_accessories_3d, build_buffer_stop_with_signal};
 #[cfg(test)]
