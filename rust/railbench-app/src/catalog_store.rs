@@ -30,15 +30,35 @@ pub struct ImportCatalogResult {
 }
 
 /// Returns the per-user directory where imported/updated track catalogs are persisted
-/// (`$XDG_CONFIG_HOME/railbench/catalogs` or `$HOME/.config/railbench/catalogs`).
+/// (`$XDG_CONFIG_HOME/railbench/catalogs`, `%APPDATA%\railbench\catalogs` on Windows,
+/// `~/Library/Application Support/railbench/catalogs` on macOS, or `$HOME/.config/railbench/catalogs`).
 pub fn catalogs_dir() -> Option<PathBuf> {
     if let Some(xdg) = std::env::var_os("XDG_CONFIG_HOME") {
         return Some(PathBuf::from(xdg).join("railbench").join("catalogs"));
     }
-    if let Some(home) = std::env::var_os("HOME") {
-        return Some(PathBuf::from(home).join(".config").join("railbench").join("catalogs"));
+    #[cfg(target_os = "windows")]
+    {
+        if let Some(appdata) = std::env::var_os("APPDATA") {
+            return Some(PathBuf::from(appdata).join("railbench").join("catalogs"));
+        }
+        return std::env::var_os("USERPROFILE")
+            .map(|p| PathBuf::from(p).join(".config").join("railbench").join("catalogs"));
     }
-    std::env::var_os("APPDATA").map(|a| PathBuf::from(a).join("railbench").join("catalogs"))
+    #[cfg(target_os = "macos")]
+    {
+        return std::env::var_os("HOME").map(|h| {
+            PathBuf::from(h)
+                .join("Library")
+                .join("Application Support")
+                .join("railbench")
+                .join("catalogs")
+        });
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        std::env::var_os("HOME")
+            .map(|h| PathBuf::from(h).join(".config").join("railbench").join("catalogs"))
+    }
 }
 
 fn sanitize_catalog_filename(id: &str) -> String {

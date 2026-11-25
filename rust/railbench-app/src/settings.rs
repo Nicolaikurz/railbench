@@ -649,8 +649,29 @@ impl AppSettings {
         if let Some(xdg) = std::env::var_os("XDG_CONFIG_HOME") {
             return Some(PathBuf::from(xdg).join("railbench").join("settings.json"));
         }
-        std::env::var_os("HOME")
-            .map(|h| PathBuf::from(h).join(".config").join("railbench").join("settings.json"))
+        #[cfg(target_os = "windows")]
+        {
+            if let Some(appdata) = std::env::var_os("APPDATA") {
+                return Some(PathBuf::from(appdata).join("railbench").join("settings.json"));
+            }
+            return std::env::var_os("USERPROFILE")
+                .map(|p| PathBuf::from(p).join(".config").join("railbench").join("settings.json"));
+        }
+        #[cfg(target_os = "macos")]
+        {
+            return std::env::var_os("HOME").map(|h| {
+                PathBuf::from(h)
+                    .join("Library")
+                    .join("Application Support")
+                    .join("railbench")
+                    .join("settings.json")
+            });
+        }
+        #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+        {
+            std::env::var_os("HOME")
+                .map(|h| PathBuf::from(h).join(".config").join("railbench").join("settings.json"))
+        }
     }
 
     pub fn effective_key(&self, action: KeyAction) -> String {

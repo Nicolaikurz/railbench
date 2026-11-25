@@ -1,3 +1,5 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 mod blueprint_colors;
 mod board_tools;
 mod bridges_3d;
