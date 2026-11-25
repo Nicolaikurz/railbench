@@ -652,9 +652,28 @@ pub fn draw_top_bars(ctx: &egui::Context, app: &mut RailbenchApp) {
                         }
                     }
 
-                // 3D Toggle
+                // 3D Toggle + Separate 3D Train Mode
                 if tb_icon(ui, Icon::Box3d, app.is_3d_mode, "3D View (3)") {
                     app.toggle_3d();
+                }
+                let tr_active = app.is_3d_mode && app.train_3d.active;
+                let tr_btn_lbl = if app.lang == Lang::De { "Zuege 3D" } else { "Trains 3D" };
+                if pill_btn(ui, tr_btn_lbl, tr_active)
+                    .on_hover_text(if app.lang == Lang::De {
+                        "Separater 3D Zug-Modus (BR 243, BR 96 Mallet, V 60)"
+                    } else {
+                        "Separate 3D Train Mode (BR 243, BR 96 Mallet, V 60)"
+                    })
+                    .clicked()
+                {
+                    if tr_active {
+                        app.train_3d.active = false;
+                    } else {
+                        if !app.is_3d_mode {
+                            app.toggle_3d();
+                        }
+                        app.train_3d.enter_mode(&app.layout, &app.catalogs, &mut app.camera_3d);
+                    }
                 }
 
                 // Right-aligned utilities (matches TS toolbar-right: DE/EN, Collab, Theme, Layers)

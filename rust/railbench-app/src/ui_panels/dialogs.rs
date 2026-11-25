@@ -688,33 +688,271 @@ pub fn draw_dialogs(ctx: &egui::Context, app: &mut RailbenchApp) {
 
     if app.show_collab_dialog {
         let mut open = app.show_collab_dialog;
-        egui::Window::new("Live Collaboration (WebSocket)")
+        let is_de = app.lang == Lang::De;
+        let title = if is_de {
+            "Live-Zusammenarbeit (WebSocket)"
+        } else {
+            "Live Collaboration (WebSocket)"
+        };
+        egui::Window::new(title)
             .open(&mut open)
-            .resizable(false)
+            .resizable(true)
+            .default_width(390.0)
             .show(ctx, |ui| {
+                // Status & Error banner
                 ui.horizontal(|ui| {
-                    ui.label("Server:");
-                    ui.text_edit_singleline(&mut app.collab.server_url);
-                });
-                ui.horizontal(|ui| {
-                    ui.label("Room:");
-                    ui.text_edit_singleline(&mut app.collab.room_id);
-                });
-                ui.horizontal(|ui| {
-                    ui.label("User:");
-                    ui.text_edit_singleline(&mut app.collab.user_name);
-                });
-                ui.separator();
-                ui.horizontal(|ui| {
-                    if app.collab.connected {
-                        if ui.button("Disconnect").clicked() {
-                            app.collab.disconnect();
-                        }
-                    } else if ui.button("Connect").clicked() {
-                        app.collab.connect();
+                    let dot_color = if app.collab.connected {
+                        Color32::from_rgb(16, 185, 129)
+                    } else if app.collab.connecting || app.collab.is_server_running() {
+                        Color32::from_rgb(245, 158, 11)
+                    } else {
+                        Color32::from_rgb(148, 163, 184)
+                    };
+                    let (rect, _) = ui.allocate_exact_size(egui::vec2(10.0, 10.0), egui::Sense::hover());
+                    ui.painter().circle_filled(rect.center(), 4.5, dot_color);
+                    ui.strong(&app.collab.status);
+                    if app.collab.is_server_running() {
+                        ui.weak(if is_de { "[Host aktiv]" } else { "[Hosting]" });
                     }
-                    ui.weak(&app.collab.status);
                 });
+                if let Some(err) = &app.collab.error_message {
+                    ui.colored_label(Color32::from_rgb(239, 68, 68), err);
+                }
+                ui.separator();
+
+                // Mode tabs: Host embedded server vs Join external server (Node server.mjs / LAN host)
+                ui.horizontal(|ui| {
+                    let host_lbl = if is_de { "Server hosten" } else { "Host Server" };
+                    let join_lbl = if is_de { "Beitreten" } else { "Join Server" };
+                    if ui
+                        .selectable_label(app.collab.dialog_tab == crate::collab::CollabDialogTab::Host, host_lbl)
+                        .clicked()
+                    {
+                        app.collab.dialog_tab = crate::collab::CollabDialogTab::Host;
+                    }
+                    if ui
+                        .selectable_label(app.collab.dialog_tab == crate::collab::CollabDialogTab::Join, join_lbl)
+                        .clicked()
+                    {
+                        app.collab.dialog_tab = crate::collab::CollabDialogTab::Join;
+                    }
+                });
+                ui.add_space(4.0);
+
+                egui::Grid::new("collab_fields_grid")
+                    .num_columns(2)
+                    .spacing([8.0, 6.0])
+                    .show(ui, |ui| {
+                        match app.collab.dialog_tab {
+                            crate::collab::CollabDialogTab::Host => {
+                                ui.label("Port:");
+                                let mut port_u32 = app.collab.host_port as u32;
+                                if ui
+                                    .add(
+                                        egui::DragValue::new(&mut port_u32)
+                                            .range(1024..=65535)
+                                            .speed(1.0),
+                                    )
+                                    .changed()
+                                {
+                                    app.collab.host_port = port_u32 as u16;
+                                }
+                                ui.end_row();
+                            }
+                            crate::collab::CollabDialogTab::Join => {
+                                ui.label(if is_de { "Server-URL:" } else { "Server URL:" });
+                                ui.add(
+                                    egui::TextEdit::singleline(&mut app.collab.server_url)
+                                        .desired_width(230.0)
+                                        .hint_text("ws://localhost:3000/collab"),
+                                );
+                                ui.end_row();
+                            }
+                        }
+
+                        ui.label(if is_de { "Raum:" } else { "Room:" });
+                        ui.add(
+                            egui::TextEdit::singleline(&mut app.collab.room_id)
+                                .desired_width(230.0)
+                                .hint_text("default"),
+                        );
+                        ui.end_row();
+
+                        ui.label(if is_de { "Passwort:" } else { "Password:" });
+                        ui.horizontal(|ui| {
+                            ui.add(
+                                egui::TextEdit::singleline(&mut app.collab.password)
+                                    .password(!app.collab.show_password)
+                                    .desired_width(185.0)
+                                    .hint_text(if is_de { "optional" } else { "optional" }),
+                            );
+                            let eye_lbl = if app.collab.show_password { "Hide" } else { "Show" };
+                            if ui.small_button(eye_lbl).clicked() {
+                                app.collab.show_password = !app.collab.show_password;
+                            }
+                        });
+                        ui.end_row();
+
+                        ui.label(if is_de { "Name:" } else { "User:" });
+                        ui.add(
+                            egui::TextEdit::singleline(&mut app.collab.user_name)
+                                .desired_width(230.0),
+                        );
+                        ui.end_row();
+                    });
+
+                // User color picker
+                ui.horizontal(|ui| {
+                    ui.label(if is_de { "Farbe:" } else { "Color:" });
+                    for &hex in crate::collab::COLLAB_COLORS {
+                        let c = parse_hex_color(Some(hex)).unwrap_or(Color32::from_rgb(59, 130, 246));
+                        let selected = app.collab.user_color == hex;
+                        let (rect, resp) =
+                            ui.allocate_exact_size(egui::vec2(18.0, 18.0), egui::Sense::click());
+                        ui.painter().circle_filled(rect.center(), 7.5, c);
+                        if selected {
+                            ui.painter().circle_stroke(
+                                rect.center(),
+                                8.5,
+                                egui::Stroke::new(2.0_f32, Color32::WHITE),
+                            );
+                        }
+                        if resp.clicked() {
+                            app.collab.user_color = hex.to_string();
+                        }
+                    }
+                });
+
+                ui.add_space(6.0);
+                ui.horizontal(|ui| {
+                    match app.collab.dialog_tab {
+                        crate::collab::CollabDialogTab::Host => {
+                            if app.collab.is_server_running() {
+                                let stop_lbl = if is_de {
+                                    "Server stoppen & trennen"
+                                } else {
+                                    "Stop Server & Disconnect"
+                                };
+                                if ui.button(stop_lbl).clicked() {
+                                    app.collab.stop_host_and_disconnect();
+                                }
+                            } else {
+                                let start_lbl = if is_de {
+                                    "Server starten & verbinden"
+                                } else {
+                                    "Start Server & Connect"
+                                };
+                                if ui.button(start_lbl).clicked() {
+                                    app.collab.start_host_and_connect(Some(&app.layout));
+                                }
+                            }
+                        }
+                        crate::collab::CollabDialogTab::Join => {
+                            if app.collab.connected || app.collab.connecting {
+                                let disc_lbl = if is_de { "Trennen" } else { "Disconnect" };
+                                if ui.button(disc_lbl).clicked() {
+                                    app.collab.disconnect();
+                                }
+                            } else {
+                                let conn_lbl = if is_de { "Verbinden" } else { "Connect" };
+                                if ui.button(conn_lbl).clicked() {
+                                    app.collab.connect_with_layout(Some(&app.layout));
+                                }
+                            }
+                        }
+                    }
+                });
+
+                if let Some((local_ws, lan_ws)) = app.collab.server_urls() {
+                    ui.add_space(6.0);
+                    let share_url = lan_ws.unwrap_or(local_ws);
+                    ui.group(|ui| {
+                        ui.label(if is_de {
+                            "Einladungs-URL (WebSocket):"
+                        } else {
+                            "Invite URL (WebSocket):"
+                        });
+                        ui.horizontal(|ui| {
+                            ui.monospace(&share_url);
+                            if ui.small_button(if is_de { "Kopieren" } else { "Copy" }).clicked() {
+                                ui.ctx().copy_text(share_url.clone());
+                            }
+                        });
+                    });
+                }
+
+                if app.collab.connected {
+                    ui.separator();
+                    let p_title = if is_de {
+                        format!("Teilnehmer ({})", 1 + app.collab.users.len())
+                    } else {
+                        format!("Participants ({})", 1 + app.collab.users.len())
+                    };
+                    ui.strong(p_title);
+                    ui.horizontal_wrapped(|ui| {
+                        let me_col = parse_hex_color(Some(&app.collab.user_color))
+                            .unwrap_or(Color32::from_rgb(59, 130, 246));
+                        ui.colored_label(
+                            me_col,
+                            format!(
+                                "● {} ({})",
+                                app.collab.user_name,
+                                if is_de { "Du" } else { "You" }
+                            ),
+                        );
+                        for u in &app.collab.users {
+                            let uc = parse_hex_color(Some(&u.color))
+                                .unwrap_or(Color32::from_rgb(59, 130, 246));
+                            ui.colored_label(uc, format!("● {}", u.name));
+                        }
+                    });
+
+                    ui.add_space(6.0);
+                    ui.strong("Chat");
+                    egui::ScrollArea::vertical()
+                        .max_height(110.0)
+                        .stick_to_bottom(true)
+                        .show(ui, |ui| {
+                            if app.collab.chat_messages.is_empty() {
+                                ui.weak(if is_de {
+                                    "Noch keine Nachrichten."
+                                } else {
+                                    "No messages yet."
+                                });
+                            }
+                            for m in &app.collab.chat_messages {
+                                ui.horizontal_wrapped(|ui| {
+                                    ui.colored_label(
+                                        parse_hex_color(Some(&m.user_color))
+                                            .unwrap_or(Color32::from_rgb(59, 130, 246)),
+                                        format!("{}:", m.user_name),
+                                    );
+                                    ui.label(&m.text);
+                                });
+                            }
+                        });
+
+                    ui.horizontal(|ui| {
+                        let resp = ui.add(
+                            egui::TextEdit::singleline(&mut app.collab.chat_draft)
+                                .desired_width(280.0)
+                                .hint_text(if is_de {
+                                    "Nachricht schreiben..."
+                                } else {
+                                    "Type message..."
+                                }),
+                        );
+                        let send_enter =
+                            resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+                        let send_btn = ui
+                            .button(if is_de { "Senden" } else { "Send" })
+                            .clicked();
+                        if send_enter || send_btn {
+                            let draft = std::mem::take(&mut app.collab.chat_draft);
+                            app.collab.send_chat(&draft);
+                        }
+                    });
+                }
             });
         app.show_collab_dialog = open;
     }

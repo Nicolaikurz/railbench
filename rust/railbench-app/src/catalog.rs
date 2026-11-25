@@ -36,6 +36,9 @@ fn builtin_index() -> &'static BuiltinCatalogIndex {
 }
 
 fn is_builtin_slice(catalogs: &[Catalog], idx: &BuiltinCatalogIndex) -> bool {
+    if crate::catalog_store::has_custom_catalogs() {
+        return false;
+    }
     catalogs.len() == idx.catalog_sig.len()
         && catalogs
             .iter()
@@ -253,13 +256,14 @@ pub fn create_piece(id: String, entry: &CatalogEntry, tr: Transform, layer_id: O
 
 pub fn find_entry<'a>(catalogs: &'a [Catalog], catalog_id: &str) -> Option<&'a CatalogEntry> {
     let idx = builtin_index();
-    if let Some(&(ci, ei)) = idx.first_entry.get(catalog_id) {
-        if let Some(entry) = catalogs.get(ci).and_then(|c| c.entries.get(ei)) {
-            if entry.id == catalog_id {
-                return Some(entry);
+    if is_builtin_slice(catalogs, idx) {
+        if let Some(&(ci, ei)) = idx.first_entry.get(catalog_id) {
+            if let Some(entry) = catalogs.get(ci).and_then(|c| c.entries.get(ei)) {
+                if entry.id == catalog_id {
+                    return Some(entry);
+                }
             }
         }
-    } else if is_builtin_slice(catalogs, idx) {
         return None;
     }
 

@@ -316,6 +316,7 @@ pub(super) struct Gpu3DState {
     slot_boards: GpuMeshSlot,
     slot_terrain: GpuMeshSlot,
     slot_tracks: GpuMeshSlot,
+    slot_trains: GpuMeshSlot,
     celestial_slot: GpuCelestialSlot,
     offscreen: Option<OffscreenTarget>,
 }
@@ -517,6 +518,7 @@ impl Gpu3DState {
             slot_boards: GpuMeshSlot::default(),
             slot_terrain: GpuMeshSlot::default(),
             slot_tracks: GpuMeshSlot::default(),
+            slot_trains: GpuMeshSlot::default(),
             celestial_slot: GpuCelestialSlot::default(),
             offscreen: None,
         }
@@ -527,6 +529,7 @@ impl Gpu3DState {
         self.slot_boards.clear();
         self.slot_terrain.clear();
         self.slot_tracks.clear();
+        self.slot_trains.clear();
         self.celestial_slot.clear();
         if let Some(old) = self.offscreen.take() {
             old.destroy();
@@ -611,6 +614,7 @@ impl Gpu3DState {
 pub(super) struct Viewport3DCallback {
     pub(super) uniforms: Uniforms3D,
     pub(super) bundle: Option<Scene3DBundle>,
+    pub(super) trains_mesh: Option<(u64, Arc<SceneMesh3D>)>,
     pub(super) time_of_day: f32,
     pub(super) env_mode: Viewer3DEnv,
     pub(super) viewport_px: [u32; 2],
@@ -639,6 +643,7 @@ impl egui_wgpu::CallbackTrait for Viewport3DCallback {
             state.slot_terrain.sync(device, queue, bundle.terrain.as_ref(), "railbench_3d_terrain");
             state.slot_tracks.sync(device, queue, bundle.tracks.as_ref(), "railbench_3d_tracks");
         }
+        state.slot_trains.sync(device, queue, self.trains_mesh.as_ref(), "railbench_3d_trains");
         state.celestial_slot.update(device, queue, self.time_of_day, self.env_mode);
 
         // Render the 3D scene into our 4x MSAA Color + Depth32Float buffer and resolve into color_view
@@ -676,6 +681,7 @@ impl egui_wgpu::CallbackTrait for Viewport3DCallback {
             state.slot_boards.draw(&mut rpass, &state.identity_instance_buf);
             state.slot_terrain.draw(&mut rpass, &state.identity_instance_buf);
             state.slot_tracks.draw(&mut rpass, &state.identity_instance_buf);
+            state.slot_trains.draw(&mut rpass, &state.identity_instance_buf);
             state.celestial_slot.draw(&mut rpass, &state.identity_instance_buf);
         }
 

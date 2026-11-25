@@ -5,6 +5,8 @@ pub fn draw_viewport_3d(
     ui: &mut egui::Ui,
     camera: &mut Camera3D,
     cached_bundle: &Option<Scene3DBundle>,
+    trains_mesh: Option<(u64, Arc<SceneMesh3D>)>,
+    train_mode_active: &mut bool,
     layout: &Layout,
     env_mode: &mut Viewer3DEnv,
     day_night_active: &mut bool,
@@ -74,6 +76,7 @@ pub fn draw_viewport_3d(
         Viewport3DCallback {
             uniforms,
             bundle: cached_bundle.clone(),
+            trains_mesh,
             time_of_day: *time_of_day,
             env_mode: *env_mode,
             viewport_px: [px_w, px_h],
@@ -138,6 +141,18 @@ pub fn draw_viewport_3d(
                         let wood_lbl = if is_de { "Holzplatten" } else { "Wood Plates" };
                         if ui.selectable_label(*show_wood_plates, wood_lbl).clicked() {
                             *show_wood_plates = !*show_wood_plates;
+                        }
+                        let tr_lbl = if is_de { "Zuege" } else { "Trains" };
+                        if ui
+                            .selectable_label(*train_mode_active, tr_lbl)
+                            .on_hover_text(if is_de {
+                                "Separaten 3D Zug-Modus ein/ausschalten (BR 243, BR 96 Mallet, V 60)"
+                            } else {
+                                "Toggle separate 3D Train Mode (BR 243, BR 96 Mallet, V 60)"
+                            })
+                            .clicked()
+                        {
+                            *train_mode_active = !*train_mode_active;
                         }
 
                         ui.separator();

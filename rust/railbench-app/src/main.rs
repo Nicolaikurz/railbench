@@ -3,6 +3,7 @@ mod bridges_3d;
 mod building_snap;
 mod canvas2d;
 mod catalog;
+mod catalog_store;
 mod collab;
 mod export;
 mod i18n;
@@ -15,6 +16,7 @@ mod ramp_tools;
 mod settings;
 mod terrain_tools;
 mod theme;
+mod trains_3d;
 mod tunnels_3d;
 mod turntables_3d;
 mod ui_panels;
@@ -35,7 +37,7 @@ use railbench_core::types::{
 };
 
 use crate::canvas2d::{draw_canvas_2d, Camera2D, Canvas2DCache, ColorMode};
-use crate::catalog::{builtin_catalogs, create_piece};
+use crate::catalog::create_piece;
 use crate::collab::CollabClient;
 use crate::export::{
     export_bom_csv, export_layout_pdf_with_options, export_layout_svg_with_options,
@@ -165,6 +167,7 @@ pub struct RailbenchApp {
     pub last_3d_frame_time: Option<std::time::Instant>,
     pub mesh_3d_key: (u64, bool, u8, bool, u8, usize),
     pub scene_3d_cache: viewer3d::Scene3DCache,
+    pub train_3d: trains_3d::Train3DState,
     pub perf_monitor: perf_monitor::PerfMonitor,
     pub app_settings: AppSettings,
     pub persist_settings: bool,
@@ -184,7 +187,7 @@ pub struct RailbenchApp {
 
 impl Default for RailbenchApp {
     fn default() -> Self {
-        let catalogs = builtin_catalogs();
+        let catalogs = crate::catalog_store::load_all_catalogs();
         let first_road = catalogs
             .iter()
             .position(|c| c.is_road == Some(true))
@@ -272,6 +275,7 @@ impl Default for RailbenchApp {
             last_3d_frame_time: None,
             mesh_3d_key: (u64::MAX, true, 0, true, 0, 0),
             scene_3d_cache: viewer3d::Scene3DCache::default(),
+            train_3d: trains_3d::Train3DState::default(),
             perf_monitor: perf_monitor::PerfMonitor::default(),
             app_settings: AppSettings::default(),
             persist_settings: false,
@@ -364,9 +368,12 @@ impl eframe::App for RailbenchApp {
         if let Some(incoming) = self.collab.poll() {
             self.layout = incoming;
             self.layout_version = self.layout_version.wrapping_add(1);
+            if let Some(by) = self.collab.last_remote_update_by.take() {
+                self.status_message = Some(format!("Collab: updated by {by}"));
+            }
         }
-        if self.collab.connected {
-            ctx.request_repaint_after(std::time::Duration::from_millis(120));
+        if self.collab.is_active() {
+            ctx.request_repaint_after(std::time::Duration::from_millis(80));
         }
 
         let dropped_paths: Vec<std::path::PathBuf> = ctx.input(|i| {
@@ -575,11 +582,22 @@ impl eframe::App for RailbenchApp {
                     }
                     self.ensure_mesh_3d();
                     self.gpu_3d_resident = true;
+                    if self.train_3d.active {
+                        self.train_3d.update(&self.layout, &self.catalogs, dt, &mut self.camera_3d);
+                    }
+                    let trains_mesh = if self.train_3d.active {
+                        self.train_3d.build_mesh(&self.layout, &self.catalogs)
+                    } else {
+                        None
+                    };
+                    let mut train_toggle = self.train_3d.active;
                     let sc_pts = self.current_short_circuit_points();
                     draw_viewport_3d(
                         ui,
                         &mut self.camera_3d,
                         &self.scene_3d_bundle,
+                        trains_mesh,
+                        &mut train_toggle,
                         &self.layout,
                         &mut self.viewer3d_env,
                         &mut self.day_night_active,
@@ -591,7 +609,12 @@ impl eframe::App for RailbenchApp {
                         self.lang,
                         dt,
                     );
-                    if self.day_night_active {
+                    if train_toggle && !self.train_3d.active {
+                        self.train_3d.enter_mode(&self.layout, &self.catalogs, &mut self.camera_3d);
+                    } else if !train_toggle && self.train_3d.active {
+                        self.train_3d.active = false;
+                    }
+                    if self.day_night_active || self.train_3d.needs_repaint() {
                         ctx.request_repaint();
                     }
                 } else {
@@ -729,6 +752,17 @@ impl eframe::App for RailbenchApp {
 
         // Floating layers panel & dialogs overlay on top of the full-width 2D/3D viewport
         draw_right_sidebar(ctx, self, viewport_rect);
+        if self.is_3d_mode && self.train_3d.active {
+            self.train_3d.draw_hud(
+                ctx,
+                viewport_rect,
+                &self.layout,
+                &self.catalogs,
+                &mut self.camera_3d,
+                self.dark_mode,
+                self.lang,
+            );
+        }
         draw_dialogs(ctx, self);
 
         // Floating drag badge while dragging a catalog piece (before/outside canvas)

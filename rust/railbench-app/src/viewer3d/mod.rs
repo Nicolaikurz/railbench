@@ -621,6 +621,14 @@ pub struct SceneMesh3D {
 }
 
 impl SceneMesh3D {
+    pub(crate) fn from_parts(vertices: Vec<Vertex3D>, indices: Vec<u32>) -> Self {
+        Self {
+            vertices,
+            indices,
+            instanced_tracks: Vec::new(),
+        }
+    }
+
     pub fn vertex_count(&self) -> usize {
         self.vertices.len()
             + self
