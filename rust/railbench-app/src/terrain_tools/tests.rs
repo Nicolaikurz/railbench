@@ -20,6 +20,7 @@ fn empty_test_layout() -> Layout {
         active_layer_id: None,
         baseboard: None,
         baseboards: None,
+        terrain_field: None,
     }
 }
 
@@ -295,6 +296,7 @@ fn elevated_layer_plate_clips_terrain_without_falling_back_to_lower_table() {
             wood_plate_thickness_mm: None,
             wood_plate_style: None,
             plates: None,
+            terrain_field: None,
         },
         Layer {
             id: "layer-2".into(),
@@ -307,6 +309,7 @@ fn elevated_layer_plate_clips_terrain_without_falling_back_to_lower_table() {
             wood_plate_thickness_mm: Some(12.0),
             wood_plate_style: None,
             plates: Some(vec![plate]),
+            terrain_field: None,
         },
     ]);
 
@@ -323,4 +326,284 @@ fn elevated_layer_plate_clips_terrain_without_falling_back_to_lower_table() {
     let mtn_id = brush.finish_stroke(&mut layout, &mut seq, Some("layer-1"), false).unwrap();
     let m = layout.models.as_ref().unwrap().iter().find(|m| m.id == mtn_id).unwrap();
     assert!((m.transform.x - 1200.0).abs() <= 1.0, "stamp outside table must clamp to x=1200, got {}", m.transform.x);
+}
+
+#[test]
+fn unified_heightfield_raise_lower_smooth_flatten_biome_and_board_clipping() {
+    let mut layout = empty_test_layout();
+    let bb = BaseboardConfig {
+        id: Some("b1".into()),
+        name: None,
+        enabled: true,
+        shape: Some("rect".into()),
+        custom_polygon: None,
+        triangle_type: None,
+        width: 1200.0,
+        depth: 800.0,
+        rotation: None,
+        l_wing_width: None,
+        l_wing_depth: None,
+        l_side: None,
+        u_left_wing_width: None,
+        u_right_wing_width: None,
+        u_back_depth: None,
+        t_bar_depth: None,
+        t_stem_width: None,
+        position_mode: "center".into(),
+        custom_x: Some(0.0),
+        custom_y: Some(0.0),
+        style: "wood".into(),
+        corner_radius: None,
+        show_dimensions: None,
+    };
+    layout.baseboard = Some(bb.clone());
+    layout.baseboards = Some(vec![bb]);
+
+    let catalogs = builtin_catalogs();
+    let entry = find_entry(&catalogs, "24188").unwrap();
+    let p = create_piece(
+        "buried-track".into(),
+        entry,
+        Transform { x: -90.0, y: 0.0, rotation: 0.0 },
+        None,
+    );
+    layout.pieces.push(p);
+
+    // 1. Raise a 90mm+ mountain peak over the track at origin
+    for _ in 0..5 {
+        assert!(apply_heightfield_brush(
+            &mut layout,
+            SculptOp::Raise,
+            Vec2 { x: 0.0, y: 0.0 },
+            200.0,
+            0.85,
+            240.0,
+            railbench_core::terrain::BIOME_AUTO,
+        ));
+    }
+    let h_peak = {
+        let hf = layout.terrain_field.as_ref().unwrap();
+        railbench_core::terrain::sample_heightfield_bilinear(hf, 0.0, 0.0)
+    };
+    assert!(h_peak > 75.0, "expected raised peak > 75mm, got {h_peak}");
+
+    // 2. Brush centered outside the board boundary (x=700 vs half-width=600) must leave far edge clipped cleanly
+    apply_heightfield_brush(
+        &mut layout,
+        SculptOp::Raise,
+        Vec2 { x: 590.0, y: 0.0 },
+        180.0,
+        0.9,
+        240.0,
+        railbench_core::terrain::BIOME_ROCK,
+    );
+    assert!(apply_auto_tunnel_for_heightfield(&mut layout) >= 1);
+    assert_eq!(layout.pieces[0].has_tunnel, Some(true));
+
+    // 3. Smooth, Flatten, Lower, Biome(Water), and Reset
+    assert!(apply_heightfield_brush(
+        &mut layout,
+        SculptOp::Smooth,
+        Vec2 { x: 0.0, y: 0.0 },
+        180.0,
+        0.8,
+        240.0,
+        0,
+    ));
+    assert!(apply_heightfield_brush(
+        &mut layout,
+        SculptOp::Flatten(45.0),
+        Vec2 { x: 0.0, y: 0.0 },
+        160.0,
+        1.0,
+        240.0,
+        0,
+    ));
+    let h_flat = railbench_core::terrain::sample_heightfield_bilinear(
+        layout.terrain_field.as_ref().unwrap(),
+        0.0,
+        0.0,
+    );
+    assert!((h_flat - 45.0).abs() < 28.0, "flatten should pull peak toward 45mm, got {h_flat}");
+
+    assert!(apply_heightfield_brush(
+        &mut layout,
+        SculptOp::PaintBiome(railbench_core::terrain::BIOME_WATER),
+        Vec2 { x: -300.0, y: 200.0 },
+        140.0,
+        0.8,
+        240.0,
+        railbench_core::terrain::BIOME_WATER,
+    ));
+    assert_eq!(
+        railbench_core::terrain::sample_heightfield_material(
+            layout.terrain_field.as_ref().unwrap(),
+            -300.0,
+            200.0,
+        ),
+        railbench_core::terrain::BIOME_WATER
+    );
+    assert!(apply_heightfield_brush(
+        &mut layout,
+        SculptOp::Reset,
+        Vec2 { x: -300.0, y: 200.0 },
+        160.0,
+        1.0,
+        240.0,
+        0,
+    ));
+}
+
+#[test]
+fn terrain_modifiers_only_affect_active_layer_and_respect_lock() {
+    let mut layout = empty_test_layout();
+    let bb = BaseboardConfig {
+        id: Some("b1".into()),
+        name: None,
+        enabled: true,
+        shape: Some("rect".into()),
+        custom_polygon: None,
+        triangle_type: None,
+        width: 1200.0,
+        depth: 800.0,
+        rotation: None,
+        l_wing_width: None,
+        l_wing_depth: None,
+        l_side: None,
+        u_left_wing_width: None,
+        u_right_wing_width: None,
+        u_back_depth: None,
+        t_bar_depth: None,
+        t_stem_width: None,
+        position_mode: "center".into(),
+        custom_x: Some(0.0),
+        custom_y: Some(0.0),
+        style: "wood".into(),
+        corner_radius: None,
+        show_dimensions: None,
+    };
+    layout.baseboard = Some(bb.clone());
+    layout.baseboards = Some(vec![bb]);
+    layout.layers = Some(vec![
+        railbench_core::types::Layer {
+            id: "layer-1".into(),
+            name: "Base".into(),
+            color: None,
+            visible: true,
+            locked: false,
+            height_mm: Some(0.0),
+            wood_plate_mode: None,
+            wood_plate_thickness_mm: None,
+            wood_plate_style: None,
+            plates: None,
+            terrain_field: None,
+        },
+        railbench_core::types::Layer {
+            id: "layer-2".into(),
+            name: "Upper".into(),
+            color: None,
+            visible: true,
+            locked: false,
+            height_mm: Some(80.0),
+            wood_plate_mode: Some("custom".into()),
+            wood_plate_thickness_mm: Some(10.0),
+            wood_plate_style: Some("wood".into()),
+            plates: Some(vec![railbench_core::types::LayerPlate {
+                id: "plate-l2".into(),
+                name: None,
+                baseboard_id: Some("b1".into()),
+                shape: Some("rect".into()),
+                custom_polygon: None,
+                triangle_type: None,
+                l_wing_width: None,
+                l_wing_depth: None,
+                l_side: None,
+                u_left_wing_width: None,
+                u_right_wing_width: None,
+                u_back_depth: None,
+                t_bar_depth: None,
+                t_stem_width: None,
+                rotation: Some(0.0),
+                width: 400.0,
+                depth: 300.0,
+                x: Some(400.0),
+                y: Some(250.0),
+                thickness_mm: Some(10.0),
+                position_mode: Some("custom".into()),
+                style: Some("wood".into()),
+            }]),
+            terrain_field: None,
+        },
+    ]);
+
+    // Sculpt on layer-2 only affects layer-2 inside its 400x300 plate
+    layout.active_layer_id = Some("layer-2".into());
+    assert!(apply_heightfield_brush(
+        &mut layout,
+        SculptOp::Raise,
+        Vec2 { x: 0.0, y: 0.0 },
+        120.0,
+        1.0,
+        240.0,
+        0,
+    ));
+    let layers = layout.layers.as_ref().unwrap();
+    assert!(layers[0].terrain_field.is_none(), "layer-1 must stay untouched");
+    let hf2 = layers[1].terrain_field.as_ref().expect("layer-2 heightfield created");
+    assert!(
+        railbench_core::terrain::sample_heightfield_bilinear(hf2, 0.0, 0.0) > 10.0,
+        "center of layer-2 plate should rise"
+    );
+    // Outside layer-2 plate bounds (x=450 is on baseboard but off layer-2 400x300 plate)
+    assert!(!apply_heightfield_brush(
+        &mut layout,
+        SculptOp::Raise,
+        Vec2 { x: 450.0, y: 0.0 },
+        40.0,
+        1.0,
+        240.0,
+        0,
+    ));
+
+    // Switch back to layer-1 and sculpt at (-300, 200); layer-2 must remain unchanged
+    let h2_before = railbench_core::terrain::sample_heightfield_bilinear(
+        layout.layers.as_ref().unwrap()[1].terrain_field.as_ref().unwrap(),
+        0.0,
+        0.0,
+    );
+    layout.active_layer_id = Some("layer-1".into());
+    assert!(apply_heightfield_brush(
+        &mut layout,
+        SculptOp::Raise,
+        Vec2 { x: -300.0, y: 200.0 },
+        120.0,
+        1.0,
+        240.0,
+        0,
+    ));
+    let h2_after = railbench_core::terrain::sample_heightfield_bilinear(
+        layout.layers.as_ref().unwrap()[1].terrain_field.as_ref().unwrap(),
+        0.0,
+        0.0,
+    );
+    assert!((h2_before - h2_after).abs() < 1e-4, "layer-2 must not change when layer-1 is edited");
+
+    // Lock layer-2 and verify fill, smooth, clear, and sculpt return false cleanly
+    layout.active_layer_id = Some("layer-2".into());
+    layout.layers.as_mut().unwrap()[1].locked = true;
+    assert!(!apply_heightfield_brush(
+        &mut layout,
+        SculptOp::Raise,
+        Vec2 { x: 0.0, y: 0.0 },
+        100.0,
+        1.0,
+        240.0,
+        0,
+    ));
+    assert!(!fill_heightfield_biome(
+        &mut layout,
+        railbench_core::terrain::BIOME_ROCK,
+    ));
+    assert!(!smooth_entire_heightfield(&mut layout));
+    assert!(!clear_heightfield(&mut layout));
 }

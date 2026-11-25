@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::io::ErrorKind;
 use std::net::{TcpListener, TcpStream, UdpSocket};
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex};
@@ -76,6 +77,11 @@ pub enum CollabEvent {
     SelectionReceived {
         user_id: String,
         selected_ids: Vec<String>,
+    },
+    ProfileUpdated {
+        user_id: String,
+        name: String,
+        color: String,
     },
     ChatReceived(CollabChatMessage),
 }
@@ -215,7 +221,41 @@ struct ServerRoom {
 struct ServerRoomsState {
     default_room: String,
     default_password: Option<String>,
+    persist_dir: Option<PathBuf>,
     rooms: HashMap<String, ServerRoom>,
+}
+
+fn default_saved_plans_dir() -> Option<PathBuf> {
+    let home = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE"))?;
+    Some(PathBuf::from(home).join(".railbench").join("saved_plans"))
+}
+
+fn room_plan_path(persist_dir: Option<&Path>, room_name: &str) -> Option<PathBuf> {
+    let dir = persist_dir?;
+    Some(dir.join(format!("{}.railbench", sanitize_room_name(room_name))))
+}
+
+fn load_room_layout_from_disk(persist_dir: Option<&Path>, room_name: &str) -> Option<Value> {
+    let path = room_plan_path(persist_dir, room_name)?;
+    let raw = std::fs::read_to_string(path).ok()?;
+    let val: Value = serde_json::from_str(&raw).ok()?;
+    if val.is_object() {
+        Some(val)
+    } else {
+        None
+    }
+}
+
+fn save_room_layout_to_disk(persist_dir: Option<&Path>, room_name: &str, layout_val: &Value) {
+    let Some(path) = room_plan_path(persist_dir, room_name) else {
+        return;
+    };
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    if let Ok(json) = serde_json::to_string(layout_val) {
+        let _ = std::fs::write(path, json);
+    }
 }
 
 impl ServerRoom {
@@ -257,6 +297,7 @@ pub struct EmbeddedCollabServer {
     accept_thread: Option<thread::JoinHandle<()>>,
     pub actual_port: u16,
     pub lan_ip: Option<String>,
+    pub persist_dir: Option<PathBuf>,
 }
 
 impl Default for EmbeddedCollabServer {
@@ -266,11 +307,13 @@ impl Default for EmbeddedCollabServer {
             state: Arc::new(Mutex::new(ServerRoomsState {
                 default_room: "default".to_string(),
                 default_password: None,
+                persist_dir: default_saved_plans_dir(),
                 rooms: HashMap::new(),
             })),
             accept_thread: None,
             actual_port: 0,
             lan_ip: None,
+            persist_dir: default_saved_plans_dir(),
         }
     }
 }
@@ -300,8 +343,28 @@ impl EmbeddedCollabServer {
     ) -> Result<u16, String> {
         self.stop();
 
-        let listener = TcpListener::bind(("0.0.0.0", port))
-            .map_err(|e| format!("Failed to bind port {port}: {e}"))?;
+        let listener = if port == 0 {
+            TcpListener::bind(("0.0.0.0", 0))
+                .map_err(|e| format!("Failed to bind ephemeral port: {e}"))?
+        } else {
+            let mut bound = None;
+            let mut last_err = None;
+            for candidate in port..=port.saturating_add(20) {
+                match TcpListener::bind(("0.0.0.0", candidate)) {
+                    Ok(l) => {
+                        bound = Some(l);
+                        break;
+                    }
+                    Err(e) => last_err = Some(e),
+                }
+            }
+            bound.ok_or_else(|| {
+                let err = last_err
+                    .map(|e| e.to_string())
+                    .unwrap_or_else(|| "unknown error".into());
+                format!("Failed to bind ports {port}..={}: {err}", port.saturating_add(20))
+            })?
+        };
         let bound_port = listener
             .local_addr()
             .map_err(|e| format!("Failed to read bound port: {e}"))?
@@ -319,6 +382,7 @@ impl EmbeddedCollabServer {
         let state = Arc::new(Mutex::new(ServerRoomsState {
             default_room: clean_default_room,
             default_password: clean_pwd,
+            persist_dir: self.persist_dir.clone(),
             rooms: HashMap::new(),
         }));
 
@@ -421,6 +485,7 @@ fn handle_server_client(
 
                             let default_room_name = guard.default_room.clone();
                             let default_pwd = guard.default_password.clone();
+                            let persist_dir = guard.persist_dir.clone();
                             let room = guard.rooms.entry(room_name.clone()).or_insert_with(|| {
                                 let initial_pass = req_pass.clone().or_else(|| {
                                     if room_name == default_room_name {
@@ -429,9 +494,11 @@ fn handle_server_client(
                                         None
                                     }
                                 });
+                                let persisted_layout =
+                                    load_room_layout_from_disk(persist_dir.as_deref(), &room_name);
                                 ServerRoom {
                                     password: initial_pass,
-                                    layout: None,
+                                    layout: persisted_layout,
                                     clients: HashMap::new(),
                                 }
                             });
@@ -540,6 +607,7 @@ fn handle_server_client(
                                 continue;
                             };
                             let mut guard = state.lock().unwrap();
+                            let persist_dir = guard.persist_dir.clone();
                             if let Some(room) = guard.rooms.get_mut(rname) {
                                 let (uid, uname) = room
                                     .clients
@@ -547,6 +615,7 @@ fn handle_server_client(
                                     .map(|c| (c.user.id.clone(), c.user.name.clone()))
                                     .unwrap_or_default();
                                 room.layout = Some(layout_val.clone());
+                                save_room_layout_to_disk(persist_dir.as_deref(), rname, layout_val);
                                 room.broadcast(
                                     &serde_json::json!({
                                         "type": "layout_update",
@@ -608,6 +677,44 @@ fn handle_server_client(
                                             "type": "selection",
                                             "userId": uid,
                                             "selectedIds": ids,
+                                        }),
+                                        Some(conn_id),
+                                    );
+                                }
+                            }
+                        }
+                        "profile" => {
+                            let Some(ref rname) = joined_room else {
+                                continue;
+                            };
+                            let new_name = msg
+                                .get("name")
+                                .and_then(|s| s.as_str())
+                                .map(|s| s.trim().chars().take(32).collect::<String>())
+                                .filter(|s| !s.is_empty());
+                            let new_color = msg
+                                .get("color")
+                                .and_then(|s| s.as_str())
+                                .map(|s| s.trim().to_string())
+                                .filter(|s| !s.is_empty());
+                            let mut guard = state.lock().unwrap();
+                            if let Some(room) = guard.rooms.get_mut(rname) {
+                                if let Some(client) = room.clients.get_mut(&conn_id) {
+                                    if let Some(n) = new_name {
+                                        client.user.name = n;
+                                    }
+                                    if let Some(c) = new_color {
+                                        client.user.color = c;
+                                    }
+                                    let uid = client.user.id.clone();
+                                    let uname = client.user.name.clone();
+                                    let ucol = client.user.color.clone();
+                                    room.broadcast(
+                                        &serde_json::json!({
+                                            "type": "profile",
+                                            "userId": uid,
+                                            "name": uname,
+                                            "color": ucol,
                                         }),
                                         Some(conn_id),
                                     );
@@ -708,6 +815,7 @@ pub struct CollabClient {
     pub users: Vec<CollabUser>,
     pub chat_messages: Vec<CollabChatMessage>,
     pub chat_draft: String,
+    pub pending_chat_toasts: Vec<(String, String)>,
     pub last_remote_update_by: Option<String>,
     server: EmbeddedCollabServer,
 }
@@ -736,6 +844,7 @@ impl Default for CollabClient {
             users: Vec::new(),
             chat_messages: Vec::new(),
             chat_draft: String::new(),
+            pending_chat_toasts: Vec::new(),
             last_remote_update_by: None,
             server: EmbeddedCollabServer::default(),
         }
@@ -1000,6 +1109,27 @@ impl CollabClient {
                                         });
                                     }
                                 }
+                                "profile" => {
+                                    let from_id =
+                                        val.get("userId").and_then(|s| s.as_str()).unwrap_or("");
+                                    if from_id != uid && !from_id.is_empty() {
+                                        let name = val
+                                            .get("name")
+                                            .and_then(|s| s.as_str())
+                                            .unwrap_or("Planner")
+                                            .to_string();
+                                        let color = val
+                                            .get("color")
+                                            .and_then(|s| s.as_str())
+                                            .unwrap_or("#3b82f6")
+                                            .to_string();
+                                        let _ = in_tx.send(CollabEvent::ProfileUpdated {
+                                            user_id: from_id.to_string(),
+                                            name,
+                                            color,
+                                        });
+                                    }
+                                }
                                 "chat" => {
                                     let chat = CollabChatMessage {
                                         id: val
@@ -1109,7 +1239,26 @@ impl CollabClient {
         }
     }
 
-    #[allow(dead_code)]
+    pub fn send_profile_update(&self) {
+        if !self.connected {
+            return;
+        }
+        if let Some(tx) = &self.out_tx {
+            let uname = if self.user_name.trim().is_empty() {
+                "Planner"
+            } else {
+                self.user_name.trim()
+            };
+            let msg = serde_json::json!({
+                "type": "profile",
+                "name": uname,
+                "color": self.user_color,
+            })
+            .to_string();
+            let _ = tx.send(msg);
+        }
+    }
+
     pub fn send_selection(&self, selected_ids: &[String]) {
         if !self.connected {
             return;
@@ -1124,7 +1273,6 @@ impl CollabClient {
         }
     }
 
-    #[allow(dead_code)]
     pub fn send_cursor(&self, x: f64, y: f64) {
         if !self.connected {
             return;
@@ -1207,7 +1355,21 @@ impl CollabClient {
                         u.selected_ids = selected_ids;
                     }
                 }
+                CollabEvent::ProfileUpdated {
+                    user_id,
+                    name,
+                    color,
+                } => {
+                    if let Some(u) = self.users.iter_mut().find(|u| u.id == user_id) {
+                        u.name = name;
+                        u.color = color;
+                    }
+                }
                 CollabEvent::ChatReceived(chat) => {
+                    if chat.user_id != self.user_id {
+                        self.pending_chat_toasts
+                            .push((chat.user_name.clone(), chat.text.clone()));
+                    }
                     self.chat_messages.push(chat);
                     if self.chat_messages.len() > 100 {
                         self.chat_messages.remove(0);
@@ -1289,9 +1451,11 @@ mod tests {
             active_layer_id: None,
             baseboard: None,
             baseboards: None,
+            terrain_field: None,
         };
 
         let mut host = CollabClient::default();
+        host.server.persist_dir = None;
         host.host_port = 0;
         host.room_id = "test-room".into();
         host.user_name = "Alice".into();
@@ -1397,6 +1561,7 @@ mod tests {
     #[test]
     fn embedded_server_enforces_room_password() {
         let mut host = CollabClient::default();
+        host.server.persist_dir = None;
         host.host_port = 0;
         host.room_id = "locked-room".into();
         host.password = "bahn123".into();
@@ -1437,5 +1602,79 @@ mod tests {
             guest.error_message
         );
         host.stop_host_and_disconnect();
+    }
+
+    #[test]
+    fn room_persistence_port_fallback_and_live_profile_sync() {
+        let dir = std::env::temp_dir().join(format!("railbench-collab-test-{}", epoch_millis()));
+        let _ = std::fs::create_dir_all(&dir);
+
+        let catalogs = builtin_catalogs();
+        let e24188 = find_entry(&catalogs, "24188").expect("24188");
+        let p0 = create_piece("p0".into(), e24188, Transform { x: 0.0, y: 0.0, rotation: 0.0 }, None);
+        let init_layout = Layout {
+            name: "RoomPersist".into(),
+            scale: "H0".into(),
+            pieces: vec![p0],
+            models: None,
+            feed_voltage: None,
+            catenary_feed_voltage: None,
+            catenary_circuit_mode: None,
+            loco_current_ma: None,
+            loco_count: None,
+            train_current_amps: None,
+            turnout_lantern_current_ma: None,
+            turnout_decoder_current_ma: None,
+            layers: None,
+            active_layer_id: None,
+            baseboard: None,
+            baseboards: None,
+            terrain_field: None,
+        };
+
+        // Occupy a port to exercise free-port fallback on host start
+        let occupied = TcpListener::bind(("0.0.0.0", 0)).expect("bind dummy");
+        let base_port = occupied.local_addr().unwrap().port();
+
+        let mut host = CollabClient::default();
+        host.server.persist_dir = Some(dir.clone());
+        host.host_port = base_port;
+        host.room_id = "clubroom".into();
+        host.start_host_and_connect(Some(&init_layout));
+        assert!(host.server.actual_port > base_port && host.server.actual_port <= base_port + 20);
+        drop(occupied);
+
+        assert!(wait_until(3000, || {
+            host.poll();
+            host.connected
+        }));
+
+        let mut guest = CollabClient::default();
+        guest.server_url = host.server_urls().unwrap().0;
+        guest.room_id = "clubroom".into();
+        guest.user_name = "Alice".into();
+        guest.connect();
+        assert!(wait_until(3000, || {
+            host.poll();
+            guest.poll();
+            guest.connected && !host.users.is_empty()
+        }));
+
+        // Live profile update propagates
+        guest.user_name = "AliceUpdated".into();
+        guest.send_profile_update();
+        assert!(wait_until(3000, || {
+            host.poll();
+            host.users.iter().any(|u| u.name == "AliceUpdated")
+        }));
+
+        // Trigger layout update so server writes clubroom.railbench
+        host.send_layout(&init_layout);
+        let plan_file = dir.join("clubroom.railbench");
+        assert!(wait_until(3000, || plan_file.exists()));
+
+        guest.disconnect();
+        host.stop_host_and_disconnect();
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

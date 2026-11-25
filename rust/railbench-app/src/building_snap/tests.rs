@@ -93,6 +93,7 @@ fn track_piece_snaps_to_engine_shed_door() {
         active_layer_id: None,
         baseboard: None,
         baseboards: None,
+        terrain_field: None,
     };
     assert!(snap_selected_pieces_to_buildings(&mut layout, &catalogs, &selected, 45.0));
     let door_c = &layout.pieces[0].connectors[1];
@@ -271,6 +272,7 @@ fn building_and_track_snapping_requires_same_world_height() {
         system: None,
         gauge: Some(16.5),
         is_road: None,
+        has_roadbed: None,
         conductors: None,
         entries: vec![straight_entry.clone(), tt_entry.clone()],
     }];
@@ -337,6 +339,7 @@ fn building_and_track_snapping_requires_same_world_height() {
             active_layer_id: None,
             baseboard: None,
             baseboards: None,
+            terrain_field: None,
         };
         let sel: HashSet<String> = ["m1".to_string()].into_iter().collect();
 
@@ -364,6 +367,7 @@ fn building_and_track_snapping_requires_same_world_height() {
                 wood_plate_thickness_mm: None,
                 wood_plate_style: None,
                 plates: None,
+                terrain_field: None,
             },
         ]);
         layout.pieces[0].layer_id = Some("l1".to_string());
@@ -412,6 +416,7 @@ fn building_and_track_snapping_requires_same_world_height() {
             active_layer_id: None,
             baseboard: None,
             baseboards: None,
+            terrain_field: None,
         };
         let mut doors = Vec::new();
         collect_model_door_positions(&layout, &model, &mut doors);

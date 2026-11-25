@@ -21,9 +21,9 @@ pub enum VehicleDomain {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VehicleKind {
-    SteamLoco,
-    ElectricLoco,
-    DieselLoco,
+    Br243,
+    Br96Mallet,
+    V60Diesel,
     PassengerCoach,
     FreightCar,
     Sedan,
@@ -34,9 +34,9 @@ pub enum VehicleKind {
 impl VehicleKind {
     pub fn id(self) -> &'static str {
         match self {
-            Self::SteamLoco => "loco-steam",
-            Self::ElectricLoco => "loco-electric",
-            Self::DieselLoco => "loco-diesel",
+            Self::Br243 => "loco-br243",
+            Self::Br96Mallet => "loco-br96",
+            Self::V60Diesel => "loco-v60",
             Self::PassengerCoach => "wagon-passenger",
             Self::FreightCar => "wagon-freight",
             Self::Sedan => "car-sedan",
@@ -47,9 +47,9 @@ impl VehicleKind {
 
     pub fn domain(self) -> VehicleDomain {
         match self {
-            Self::SteamLoco
-            | Self::ElectricLoco
-            | Self::DieselLoco
+            Self::Br243
+            | Self::Br96Mallet
+            | Self::V60Diesel
             | Self::PassengerCoach
             | Self::FreightCar => VehicleDomain::Rail,
             Self::Sedan | Self::Truck | Self::Bus => VehicleDomain::Road,
@@ -57,7 +57,16 @@ impl VehicleKind {
     }
 
     pub fn is_locomotive(self) -> bool {
-        matches!(self, Self::SteamLoco | Self::ElectricLoco | Self::DieselLoco)
+        matches!(self, Self::Br243 | Self::Br96Mallet | Self::V60Diesel)
+    }
+
+    pub fn train_loco_kind(self) -> Option<crate::trains_3d::TrainLocoKind> {
+        match self {
+            Self::Br243 => Some(crate::trains_3d::TrainLocoKind::Br243),
+            Self::Br96Mallet => Some(crate::trains_3d::TrainLocoKind::Br96Mallet),
+            Self::V60Diesel => Some(crate::trains_3d::TrainLocoKind::V60Diesel),
+            _ => None,
+        }
     }
 
     pub fn def(self) -> &'static VehicleCatalogDef {
@@ -94,46 +103,46 @@ pub const ROAD_TOP_Y_MM: f64 = 2.2;
 
 pub const VEHICLE_CATALOG: &[VehicleCatalogDef] = &[
     VehicleCatalogDef {
-        kind: VehicleKind::SteamLoco,
-        name_de: "Dampflok BR 01",
-        name_en: "Steam Loco BR 01",
-        length_h0_mm: 258.0,
-        width_h0_mm: 35.0,
-        height_h0_mm: 50.0,
-        bogie_half_span_h0_mm: 82.0,
-        max_speed_mm_s: 260.0,
-        mass_tons: 110.0,
-        tractive_kn: 155.0,
-        brake_kn: 135.0,
-        default_rgb: [0.12, 0.14, 0.18],
+        kind: VehicleKind::Br243,
+        name_de: "E-Lok BR 243",
+        name_en: "Electric Loco BR 243",
+        length_h0_mm: 191.3,
+        width_h0_mm: 34.2,
+        height_h0_mm: 44.1,
+        bogie_half_span_h0_mm: 48.0,
+        max_speed_mm_s: 280.0,
+        mass_tons: 82.5,
+        tractive_kn: 248.0,
+        brake_kn: 175.0,
+        default_rgb: [0.49, 0.11, 0.15],
     },
     VehicleCatalogDef {
-        kind: VehicleKind::ElectricLoco,
-        name_de: "E-Lok BR 103",
-        name_en: "Electric Loco BR 103",
-        length_h0_mm: 224.0,
-        width_h0_mm: 35.0,
-        height_h0_mm: 50.0,
-        bogie_half_span_h0_mm: 63.0,
-        max_speed_mm_s: 360.0,
-        mass_tons: 114.0,
-        tractive_kn: 312.0,
-        brake_kn: 210.0,
-        default_rgb: [0.58, 0.10, 0.13],
-    },
-    VehicleCatalogDef {
-        kind: VehicleKind::DieselLoco,
-        name_de: "Diesellok BR 218",
-        name_en: "Diesel Loco BR 218",
-        length_h0_mm: 189.0,
-        width_h0_mm: 34.5,
-        height_h0_mm: 48.0,
+        kind: VehicleKind::Br96Mallet,
+        name_de: "Dampflok BR 96 Mallet",
+        name_en: "Steam Loco BR 96 Mallet",
+        length_h0_mm: 203.4,
+        width_h0_mm: 35.6,
+        height_h0_mm: 51.5,
         bogie_half_span_h0_mm: 50.0,
-        max_speed_mm_s: 300.0,
-        mass_tons: 80.0,
-        tractive_kn: 240.0,
-        brake_kn: 165.0,
-        default_rgb: [0.76, 0.13, 0.16],
+        max_speed_mm_s: 180.0,
+        mass_tons: 127.0,
+        tractive_kn: 215.0,
+        brake_kn: 150.0,
+        default_rgb: [0.10, 0.11, 0.13],
+    },
+    VehicleCatalogDef {
+        kind: VehicleKind::V60Diesel,
+        name_de: "Diesellok V 60",
+        name_en: "Diesel Shunter V 60",
+        length_h0_mm: 120.1,
+        width_h0_mm: 35.6,
+        height_h0_mm: 48.3,
+        bogie_half_span_h0_mm: 28.0,
+        max_speed_mm_s: 195.0,
+        mass_tons: 53.0,
+        tractive_kn: 160.0,
+        brake_kn: 115.0,
+        default_rgb: [0.62, 0.11, 0.14],
     },
     VehicleCatalogDef {
         kind: VehicleKind::PassengerCoach,
@@ -225,6 +234,12 @@ pub struct VehicleRenderPose {
     pub headlights: bool,
     pub driving_backward: bool,
     pub throttle_pct: f32,
+    pub wheel_angle: f32,
+    pub pantograph_up: bool,
+    pub steam_on: bool,
+    pub steam_time: f32,
+    pub speed_norm: f32,
+    pub mallet_articulation_rad: f32,
 }
 
 #[derive(Debug, Clone)]
@@ -255,6 +270,11 @@ pub struct VehicleInstance {
     /// True when automatic collision avoidance is holding this vehicle behind another train, wagon, or car.
     pub blocked_ahead: bool,
     pub headlights: bool,
+    pub wheel_angle: f32,
+    pub pantograph_up: bool,
+    pub steam_on: bool,
+    pub steam_time: f32,
+    pub mallet_articulation_rad: f32,
     pub livery_rgb: [f32; 3],
     pub coupled_cars: Vec<VehicleKind>,
     pub world_x: f64,
@@ -358,6 +378,11 @@ impl VehicleSimState {
             coupler_strain: 0.0,
             blocked_ahead: false,
             headlights: true,
+            wheel_angle: 0.0,
+            pantograph_up: true,
+            steam_on: true,
+            steam_time: 0.0,
+            mallet_articulation_rad: 0.0,
             livery_rgb: def.default_rgb,
             coupled_cars: Vec::new(),
             world_x: 0.0,
@@ -461,19 +486,44 @@ impl VehicleSimState {
             } else {
                 ROAD_TOP_Y_MM
             };
-            crate::models3d_mesh::push_vehicle_3d(
-                &mut verts,
-                &mut idxs,
-                p.kind.id(),
-                [p.x as f32, (p.z + y_off) as f32, p.y as f32],
-                (p.heading_deg as f32).to_radians(),
-                p.pitch_rad as f32,
-                [p.length_mm as f32, p.height_mm as f32, p.width_mm as f32],
-                p.gauge_mm as f32,
-                p.livery_rgb,
-                p.headlights,
-                p.driving_backward,
-            );
+            let origin = [p.x as f32, (p.z + y_off) as f32, p.y as f32];
+            if let Some(loco_kind) = p.kind.train_loco_kind() {
+                crate::trains_3d::push_locomotive_3d(
+                    &mut verts,
+                    &mut idxs,
+                    loco_kind,
+                    crate::trains_3d::TrainPose {
+                        pos: origin,
+                        yaw_rad: (p.heading_deg as f32).to_radians(),
+                        pitch_rad: p.pitch_rad as f32,
+                        scale: (p.gauge_mm / 16.5).max(0.25) as f32,
+                    },
+                    crate::trains_3d::LocoAnimState {
+                        wheel_angle: p.wheel_angle,
+                        forward_lights: !p.driving_backward,
+                        headlights_on: p.headlights,
+                        pantograph_up: p.pantograph_up,
+                        steam_on: p.steam_on,
+                        steam_time: p.steam_time,
+                        speed_norm: p.speed_norm,
+                        mallet_articulation_rad: p.mallet_articulation_rad,
+                    },
+                );
+            } else {
+                crate::models3d_mesh::push_vehicle_3d(
+                    &mut verts,
+                    &mut idxs,
+                    p.kind.id(),
+                    origin,
+                    (p.heading_deg as f32).to_radians(),
+                    p.pitch_rad as f32,
+                    [p.length_mm as f32, p.height_mm as f32, p.width_mm as f32],
+                    p.gauge_mm as f32,
+                    p.livery_rgb,
+                    p.headlights,
+                    p.driving_backward,
+                );
+            }
         }
         (verts, idxs)
     }

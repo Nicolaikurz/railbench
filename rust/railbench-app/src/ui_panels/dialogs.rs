@@ -4,6 +4,18 @@ pub fn draw_dialogs(ctx: &egui::Context, app: &mut RailbenchApp) {
     let t = tr(app.lang);
 
     if app.show_power_dialog {
+        if app.power_draft.is_none() {
+            app.power_draft = Some(crate::PowerDraft {
+                feed_voltage: app.layout.feed_voltage,
+                catenary_feed_voltage: app.layout.catenary_feed_voltage,
+                catenary_circuit_mode: app.layout.catenary_circuit_mode.clone(),
+                loco_current_ma: app.layout.loco_current_ma,
+                loco_count: app.layout.loco_count,
+                turnout_lantern_current_ma: app.layout.turnout_lantern_current_ma,
+                turnout_decoder_current_ma: app.layout.turnout_decoder_current_ma,
+                power_sim_enabled: app.power_sim_enabled,
+            });
+        }
         let mut open = app.show_power_dialog;
         let is_de = app.lang == Lang::De;
         let sim_snapshot = app.power_sim_cache.as_ref().map(|(_, s)| std::sync::Arc::clone(s));
@@ -13,6 +25,8 @@ pub fn draw_dialogs(ctx: &egui::Context, app: &mut RailbenchApp) {
         let mut do_add_feeder = false;
         let mut do_add_isolator = false;
         let mut do_cycle_iso_end = false;
+        let mut cancel_revert = false;
+        let mut apply_close = false;
 
         let sel_has_iso = app.layout.pieces.iter().any(|pc| {
             app.selected.contains(&pc.id)
@@ -141,6 +155,12 @@ pub fn draw_dialogs(ctx: &egui::Context, app: &mut RailbenchApp) {
                         app.layout.loco_current_ma = Some(ma);
                         param_changed = true;
                     }
+                    for (plbl, pma) in [("100", 100.0), ("300", 300.0), ("450", 450.0), ("800", 800.0)] {
+                        if ui.small_button(plbl).clicked() {
+                            app.layout.loco_current_ma = Some(pma);
+                            param_changed = true;
+                        }
+                    }
                 });
                 ui.horizontal(|ui| {
                     ui.label(if is_de { "Aktive Loks:" } else { "Locos running:" });
@@ -187,6 +207,12 @@ pub fn draw_dialogs(ctx: &egui::Context, app: &mut RailbenchApp) {
                         {
                             app.layout.catenary_feed_voltage = Some(cat_v);
                             param_changed = true;
+                        }
+                        for pv in [12.0, 14.0, 16.0, 18.0, 24.0] {
+                            if ui.small_button(format!("{pv:.0}V")).clicked() {
+                                app.layout.catenary_feed_voltage = Some(pv);
+                                param_changed = true;
+                            }
                         }
                     });
                 }
@@ -251,12 +277,25 @@ pub fn draw_dialogs(ctx: &egui::Context, app: &mut RailbenchApp) {
                     ui.separator();
                     ui.label(
                         RichText::new(format!(
-                            "System: {}  |  Load: {:.2} A",
+                            "System: {}  |  Total: {:.2} A (Turnouts: {:.2} A)",
                             if sim.is_two_wire { "2-Wire (DCC/DC)" } else { "3-Wire AC" },
-                            sim.total_current_a
+                            sim.total_current_a,
+                            sim.turnout_current_a
                         ))
                         .strong(),
                     );
+                    if sim.total_current_a > 3.0 {
+                        ui.label(
+                            RichText::new(if is_de {
+                                "⚠ Booster-Ueberlast (>3.0 A)! Zusatzeinspeisung / Booster einplanen."
+                            } else {
+                                "⚠ Booster Overload Risk (>3.0 A)! Consider a second booster district."
+                            })
+                            .strong()
+                            .size(11.5)
+                            .color(Color32::from_rgb(245, 158, 11)),
+                        );
+                    }
                     ui.label(format!(
                         "Feeders: {}  |  Isolators: {}  |  Min Voltage: {:.2} V (Drop {:.1}%)",
                         sim.feeder_count, sim.isolator_count, sim.min_voltage, sim.max_drop_pct
@@ -267,6 +306,9 @@ pub fn draw_dialogs(ctx: &egui::Context, app: &mut RailbenchApp) {
                         ui.label(RichText::new(format!("Crit {}", sim.critical_count)).color(Color32::from_rgb(239, 68, 68)));
                         ui.label(RichText::new(format!("Dead {}", sim.disconnected_count)).color(Color32::from_rgb(148, 163, 184)));
                     });
+                    if !sim.catenary_recommendation.is_empty() {
+                        ui.small(&sim.catenary_recommendation);
+                    }
                     if sim.has_short_circuit {
                         ui.add_space(6.0);
                         egui::Frame::NONE
@@ -308,8 +350,41 @@ pub fn draw_dialogs(ctx: &egui::Context, app: &mut RailbenchApp) {
                     ui.add_space(4.0);
                     ui.label(RichText::new(&sim.recommendation).size(11.5));
                 }
+                ui.separator();
+                ui.horizontal(|ui| {
+                    if ui.button(if is_de { "Abbrechen" } else { "Cancel" }).clicked() {
+                        cancel_revert = true;
+                    }
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui
+                            .add(
+                                egui::Button::new(RichText::new(if is_de { "Uebernehmen" } else { "Apply" }).color(Color32::WHITE))
+                                    .fill(Color32::from_rgb(2, 132, 199)),
+                            )
+                            .clicked()
+                        {
+                            apply_close = true;
+                        }
+                    });
+                });
             });
-        app.show_power_dialog = open;
+        if cancel_revert || !open {
+            if let Some(draft) = app.power_draft.take() {
+                app.layout.feed_voltage = draft.feed_voltage;
+                app.layout.catenary_feed_voltage = draft.catenary_feed_voltage;
+                app.layout.catenary_circuit_mode = draft.catenary_circuit_mode;
+                app.layout.loco_current_ma = draft.loco_current_ma;
+                app.layout.loco_count = draft.loco_count;
+                app.layout.turnout_lantern_current_ma = draft.turnout_lantern_current_ma;
+                app.layout.turnout_decoder_current_ma = draft.turnout_decoder_current_ma;
+                app.power_sim_enabled = draft.power_sim_enabled;
+                app.mark_layout_dirty();
+            }
+            app.show_power_dialog = false;
+        } else if apply_close {
+            app.power_draft = None;
+            app.show_power_dialog = false;
+        }
         if do_add_feeder {
             app.place_feeder_track();
         }
@@ -327,28 +402,41 @@ pub fn draw_dialogs(ctx: &egui::Context, app: &mut RailbenchApp) {
         if let Some((x, y)) = focus_pt {
             app.focus_world_point(x, y);
         }
+    } else {
+        app.power_draft = None;
     }
 
     if app.show_height_dialog {
         let mut open = app.show_height_dialog;
+        let is_de = app.lang == Lang::De;
         let nem_h = min_clearance_for_scale(&app.layout.scale);
         let scale_label = app.layout.scale.clone();
+        let layers_list: Vec<(String, String, f64)> = app
+            .layout
+            .layers
+            .as_ref()
+            .map(|ls| {
+                ls.iter()
+                    .map(|l| (l.id.clone(), l.name.clone(), l.height_mm.unwrap_or(0.0)))
+                    .collect()
+            })
+            .unwrap_or_else(|| vec![("layer-1".into(), "Ebene 0".into(), 0.0)]);
         egui::Window::new(t.height_dialog)
             .open(&mut open)
             .resizable(false)
-            .default_width(350.0)
+            .default_width(390.0)
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    ui.selectable_value(&mut app.height_tab, 0, "Flat Height");
+                    ui.selectable_value(&mut app.height_tab, 0, if is_de { "Feste Hoehe" } else { "Flat Height" });
                     ui.selectable_value(&mut app.height_tab, 1, "Auto-Ramp");
-                    ui.selectable_value(&mut app.height_tab, 2, "Ramp / Helix Gen");
+                    ui.selectable_value(&mut app.height_tab, 2, if is_de { "Rampe / Wendel Gen" } else { "Ramp / Helix Gen" });
                 });
                 ui.separator();
 
                 match app.height_tab {
                     0 => {
                         ui.horizontal(|ui| {
-                            ui.label("Elevation:");
+                            ui.label(if is_de { "Hoehe:" } else { "Elevation:" });
                             ui.add(egui::DragValue::new(&mut app.batch_elevation_mm).speed(2.0).suffix(" mm"));
                             if ui.small_button(format!("NEM 102 ({nem_h:.0} mm {scale_label})")).clicked() {
                                 app.batch_elevation_mm = nem_h;
@@ -356,7 +444,14 @@ pub fn draw_dialogs(ctx: &egui::Context, app: &mut RailbenchApp) {
                         });
                         ui.add_space(4.0);
                         if ui
-                            .add_enabled(!app.selected.is_empty(), egui::Button::new("Apply flat height to selected"))
+                            .add_enabled(
+                                !app.selected.is_empty(),
+                                egui::Button::new(if is_de {
+                                    "Feste Hoehe auf Auswahl anwenden"
+                                } else {
+                                    "Apply flat height to selected"
+                                }),
+                            )
                             .clicked()
                         {
                             app.push_undo();
@@ -380,7 +475,6 @@ pub fn draw_dialogs(ctx: &egui::Context, app: &mut RailbenchApp) {
                         }
                     }
                     1 => {
-                        let is_de = app.lang == Lang::De;
                         let single_sel_id = if app.selected.len() == 1 {
                             app.selected.iter().next().cloned()
                         } else {
@@ -487,6 +581,18 @@ pub fn draw_dialogs(ctx: &egui::Context, app: &mut RailbenchApp) {
                                     app.ramp_sel.end_piece = chain.first().map(|(id, _)| id.clone());
                                 }
                             }
+                            if !app.selected.is_empty()
+                                && ui
+                                    .small_button(if is_de { "Nachbarn erkennen" } else { "Infer Neighbors" })
+                                    .clicked()
+                            {
+                                if let Some((_, sh, eh)) =
+                                    crate::ramp_tools::calculate_auto_ramp(&app.layout, &app.selected, &app.catalogs)
+                                {
+                                    app.ramp_start_h = sh;
+                                    app.ramp_end_h = eh;
+                                }
+                            }
                             if (app.ramp_sel.start_piece.is_some() || app.ramp_sel.end_piece.is_some())
                                 && ui.small_button(if is_de { "Zurücksetzen" } else { "Clear" }).clicked()
                             {
@@ -500,13 +606,59 @@ pub fn draw_dialogs(ctx: &egui::Context, app: &mut RailbenchApp) {
                         ui.horizontal(|ui| {
                             ui.label("Start (A):");
                             ui.add(egui::DragValue::new(&mut app.ramp_start_h).speed(2.0).suffix(" mm"));
-                            ui.label("End (B):");
+                            ui.label(if is_de { "Ende (B):" } else { "End (B):" });
                             ui.add(egui::DragValue::new(&mut app.ramp_end_h).speed(2.0).suffix(" mm"));
                         });
                         ui.horizontal(|ui| {
-                            ui.label("Profile:");
+                            ui.label(if is_de { "Max Steigung:" } else { "Max Grade:" });
+                            ui.add(egui::DragValue::new(&mut app.ramp_max_grade_limit).range(0.5..=10.0).speed(0.1).suffix(" %"));
+                            if !chain.is_empty()
+                                && ui
+                                    .small_button(if is_de { "Aus Steigung ber." } else { "Calc End H" })
+                                    .clicked()
+                            {
+                                app.ramp_end_h = crate::ramp_tools::calculate_end_height_from_max_gradient(
+                                    &app.layout,
+                                    &app.catalogs,
+                                    &chain,
+                                    app.ramp_start_h,
+                                    app.ramp_max_grade_limit,
+                                    app.ramp_end_h >= app.ramp_start_h,
+                                    app.ramp_profile,
+                                );
+                            }
+                        });
+                        ui.horizontal(|ui| {
+                            ui.label(if is_de { "Profil:" } else { "Profile:" });
                             ui.radio_value(&mut app.ramp_profile, RampProfile::Linear, "Linear");
-                            ui.radio_value(&mut app.ramp_profile, RampProfile::Eased, "Eased (S-Curve)");
+                            ui.radio_value(&mut app.ramp_profile, RampProfile::Eased, if is_de { "Sanft (S-Kurve)" } else { "Eased (S-Curve)" });
+                        });
+
+                        ui.horizontal(|ui| {
+                            ui.label(if is_de { "Ziel-Ebene:" } else { "Target Layer:" });
+                            let cur_tl_lbl = app
+                                .ramp_target_layer_id
+                                .as_deref()
+                                .and_then(|id| layers_list.iter().find(|(lid, _, _)| lid == id))
+                                .map(|(_, n, _)| n.clone())
+                                .unwrap_or_else(|| if is_de { "Unveraendert" } else { "Unchanged" }.into());
+                            egui::ComboBox::from_id_salt("ramp_target_layer_cb")
+                                .width(130.0)
+                                .selected_text(cur_tl_lbl)
+                                .show_ui(ui, |ui| {
+                                    ui.selectable_value(&mut app.ramp_target_layer_id, None, if is_de { "Unveraendert" } else { "Unchanged" });
+                                    for (lid, lname, lh) in &layers_list {
+                                        ui.selectable_value(
+                                            &mut app.ramp_target_layer_id,
+                                            Some(lid.clone()),
+                                            format!("{lname} ({lh:.0} mm)"),
+                                        );
+                                    }
+                                });
+                            if ui.small_button("+ Ebene").clicked() {
+                                let new_id = app.add_layer_immediate();
+                                app.ramp_target_layer_id = Some(new_id);
+                            }
                         });
 
                         if let Some(sum) = preview_auto_ramp_for_chain(
@@ -517,27 +669,99 @@ pub fn draw_dialogs(ctx: &egui::Context, app: &mut RailbenchApp) {
                             app.ramp_end_h,
                             app.ramp_profile,
                         ) {
-                            let grade_col = if sum.max_gradient_pct <= 3.0 {
-                                Color32::from_rgb(34, 197, 94)
-                            } else if sum.max_gradient_pct <= 4.0 {
+                            let exceeds = sum.effective_max_pct > app.ramp_max_grade_limit + 0.05;
+                            let grade_col = if exceeds || sum.max_gradient_pct > 4.0 {
+                                Color32::from_rgb(239, 68, 68)
+                            } else if sum.max_gradient_pct > 3.0 {
                                 Color32::from_rgb(245, 158, 11)
                             } else {
-                                Color32::from_rgb(239, 68, 68)
+                                Color32::from_rgb(34, 197, 94)
                             };
                             let dir_text = format!(
-                                "A ({:.0} mm)  →  B ({:.0} mm)  •  {} pieces",
-                                app.ramp_start_h, app.ramp_end_h, sum.piece_count
+                                "A ({:.0} mm)  →  B ({:.0} mm)  •  {} {}",
+                                app.ramp_start_h,
+                                app.ramp_end_h,
+                                sum.piece_count,
+                                if is_de { "Gleise" } else { "pieces" }
                             );
                             ui.label(RichText::new(dir_text).small().color(Color32::from_rgb(56, 189, 248)));
                             ui.label(format!(
-                                "Length: {:.1} mm  •  Rise: {:.1} mm",
-                                sum.total_length_mm, sum.total_rise_mm
+                                "{}: {:.1} mm  •  {}: {:.1} mm",
+                                if is_de { "Laenge" } else { "Length" },
+                                sum.total_length_mm,
+                                if is_de { "Hub" } else { "Rise" },
+                                sum.total_rise_mm
                             ));
                             ui.label(
-                                RichText::new(format!("Peak grade: {:.1}% (avg {:.1}%)", sum.max_gradient_pct, sum.avg_gradient_pct))
-                                    .strong()
-                                    .color(grade_col),
+                                RichText::new(format!(
+                                    "{}: {:.1}% ({} {:.1}%)",
+                                    if is_de { "Max Steigung" } else { "Peak grade" },
+                                    sum.max_gradient_pct,
+                                    if is_de { "Ø" } else { "avg" },
+                                    sum.avg_gradient_pct
+                                ))
+                                .strong()
+                                .color(grade_col),
                             );
+                            if sum.has_s_curve {
+                                ui.label(
+                                    RichText::new(if is_de {
+                                        format!("⚠ Gegenbogen/S-Kurve erkannt: eff. Reibungssteigung {:.1}% (1.5×)", sum.effective_max_pct)
+                                    } else {
+                                        format!("⚠ S-Curve detected: effective gradient {:.1}% (1.5× factor)", sum.effective_max_pct)
+                                    })
+                                    .size(11.0)
+                                    .color(Color32::from_rgb(245, 158, 11)),
+                                );
+                            }
+                            if exceeds {
+                                ui.label(
+                                    RichText::new(if is_de {
+                                        format!("⚠ Ueberschreitet Ziel-Steigung ({:.1}% > {:.1}%)", sum.effective_max_pct, app.ramp_max_grade_limit)
+                                    } else {
+                                        format!("⚠ Exceeds max grade limit ({:.1}% > {:.1}%)", sum.effective_max_pct, app.ramp_max_grade_limit)
+                                    })
+                                    .size(11.0)
+                                    .color(Color32::from_rgb(239, 68, 68)),
+                                );
+                            }
+
+                            let rows = crate::ramp_tools::build_ramp_breakdown(
+                                &app.layout,
+                                &app.catalogs,
+                                &chain,
+                                app.ramp_start_h,
+                                app.ramp_end_h,
+                                app.ramp_profile,
+                            );
+                            if !rows.is_empty() {
+                                ui.collapsing(
+                                    if is_de { "Gleis-Detailtabelle" } else { "Per-Track Breakdown" },
+                                    |ui| {
+                                        egui::ScrollArea::vertical().max_height(130.0).show(ui, |ui| {
+                                            egui::Grid::new("ramp_breakdown_tbl").num_columns(4).striped(true).show(ui, |ui| {
+                                                ui.strong("#");
+                                                ui.strong(if is_de { "Laenge" } else { "Len" });
+                                                ui.strong("Start→End");
+                                                ui.strong(if is_de { "Steig." } else { "Grade" });
+                                                ui.end_row();
+                                                for r in &rows {
+                                                    ui.label(&r.catalog_id).on_hover_text(format!("ID: {}", r.piece_id));
+                                                    ui.label(format!("{:.0}", r.length_mm));
+                                                    ui.label(format!("{:.0}→{:.0}", r.start_h_mm, r.end_h_mm));
+                                                    let gtxt = if r.is_s_curve {
+                                                        format!("{:.1}% (S)", r.effective_grade_pct)
+                                                    } else {
+                                                        format!("{:.1}%", r.grade_pct)
+                                                    };
+                                                    ui.label(gtxt);
+                                                    ui.end_row();
+                                                }
+                                            });
+                                        });
+                                    },
+                                );
+                            }
                         } else if app.ramp_sel.start_piece.is_some() && app.ramp_sel.end_piece.is_some() {
                             ui.label(
                                 RichText::new(if is_de {
@@ -556,10 +780,20 @@ pub fn draw_dialogs(ctx: &egui::Context, app: &mut RailbenchApp) {
                         }
                         ui.add_space(4.0);
                         if ui
-                            .add_enabled(!chain.is_empty(), egui::Button::new("Apply Auto-Ramp"))
+                            .add_enabled(
+                                !chain.is_empty(),
+                                egui::Button::new(if is_de { "Auto-Rampe anwenden" } else { "Apply Auto-Ramp" }),
+                            )
                             .clicked()
                         {
                             app.push_undo();
+                            if let Some(ref tl) = app.ramp_target_layer_id {
+                                for (pid, _) in &chain {
+                                    if let Some(pc) = app.layout.pieces.iter_mut().find(|p| &p.id == pid) {
+                                        pc.layer_id = Some(tl.clone());
+                                    }
+                                }
+                            }
                             match apply_auto_ramp_for_chain(
                                 &mut app.layout,
                                 &app.catalogs,
@@ -571,10 +805,11 @@ pub fn draw_dialogs(ctx: &egui::Context, app: &mut RailbenchApp) {
                                 Ok(sum) => {
                                     app.ramp_sel.pick_mode = None;
                                     app.mark_layout_dirty();
-                                    app.status_message = Some(format!(
-                                        "Applied ramp over {} pieces ({:.1}% peak grade)",
-                                        sum.piece_count, sum.max_gradient_pct
-                                    ));
+                                    app.show_toast(if is_de {
+                                        format!("Rampe auf {} Gleise angewendet ({:.1}%)", sum.piece_count, sum.max_gradient_pct)
+                                    } else {
+                                        format!("Applied ramp over {} pieces ({:.1}% peak grade)", sum.piece_count, sum.max_gradient_pct)
+                                    });
                                 }
                                 Err(e) => app.status_message = Some(e),
                             }
@@ -588,78 +823,179 @@ pub fn draw_dialogs(ctx: &egui::Context, app: &mut RailbenchApp) {
                         };
                         if single_sel.is_none() {
                             ui.label(
-                                RichText::new("Select 1 anchor track with an open connector to generate from.")
-                                    .color(Color32::from_rgb(245, 158, 11)),
+                                RichText::new(if is_de {
+                                    "1 Startgleis mit offenem Verbinder auswaehlen."
+                                } else {
+                                    "Select 1 anchor track with an open connector to generate from."
+                                })
+                                .color(Color32::from_rgb(245, 158, 11)),
                             );
+                        } else if let Some(ref aid) = single_sel {
+                            let open_conns = crate::ramp_tools::available_open_connectors_for_piece(&app.layout, aid);
+                            if open_conns.len() > 1 {
+                                ui.horizontal(|ui| {
+                                    ui.label(if is_de { "Start-Verbinder:" } else { "Start Connector:" });
+                                    for ci in open_conns {
+                                        let active = app.gen_conn_idx.unwrap_or(ci) == ci;
+                                        if ui.selectable_label(active, format!("#{}", ci + 1)).clicked() {
+                                            app.gen_conn_idx = Some(ci);
+                                        }
+                                    }
+                                });
+                            }
                         }
+
                         ui.horizontal(|ui| {
-                            ui.label("Shape:");
-                            ui.radio_value(&mut app.gen_ramp_shape, RampShape::Straight, "Straight");
-                            ui.radio_value(&mut app.gen_ramp_shape, RampShape::Curved, "Curved");
-                            ui.radio_value(&mut app.gen_ramp_shape, RampShape::Helix, "Helix");
+                            ui.label(if is_de { "Form:" } else { "Shape:" });
+                            ui.radio_value(&mut app.gen_ramp_shape, RampShape::Straight, if is_de { "Gerade" } else { "Straight" });
+                            ui.radio_value(&mut app.gen_ramp_shape, RampShape::Curved, if is_de { "Kurve" } else { "Curved" });
+                            ui.radio_value(&mut app.gen_ramp_shape, RampShape::Helix, if is_de { "Wendel" } else { "Helix" });
                         });
                         if app.gen_ramp_shape != RampShape::Straight {
                             ui.horizontal(|ui| {
-                                ui.label("Direction:");
-                                ui.radio_value(&mut app.gen_curve_left, true, "Left");
-                                ui.radio_value(&mut app.gen_curve_left, false, "Right");
+                                ui.label(if is_de { "Richtung:" } else { "Direction:" });
+                                ui.radio_value(&mut app.gen_curve_left, true, if is_de { "Links" } else { "Left" });
+                                ui.radio_value(&mut app.gen_curve_left, false, if is_de { "Rechts" } else { "Right" });
                             });
+                            if app.gen_ramp_shape == RampShape::Curved {
+                                ui.horizontal(|ui| {
+                                    ui.label(if is_de { "Bogenwinkel:" } else { "Arc Angle:" });
+                                    for deg in [90.0, 180.0, 270.0] {
+                                        if ui
+                                            .selectable_label((app.gen_arc_angle_deg - deg).abs() < 1.0, format!("{deg:.0}°"))
+                                            .clicked()
+                                        {
+                                            app.gen_arc_angle_deg = deg;
+                                        }
+                                    }
+                                });
+                            }
                             if let Some(cat) = app.catalogs.get(app.selected_catalog_idx) {
-                                let curves = available_curves_for_catalog(cat);
+                                let curves = crate::ramp_tools::available_curve_radii_dedup(cat);
                                 if !curves.is_empty() {
+                                    let chosen_curve = app
+                                        .gen_curve_id
+                                        .as_deref()
+                                        .and_then(|cid| curves.iter().find(|c| c.id == cid))
+                                        .or_else(|| curves.first());
                                     let sel_label = app
                                         .gen_curve_id
                                         .as_deref()
                                         .and_then(|cid| curves.iter().find(|c| c.id == cid))
                                         .map(|c| format!("{} (R{:.0})", c.id, c.radius.unwrap_or(0.0)))
-                                        .unwrap_or_else(|| "Auto standard curve".into());
+                                        .unwrap_or_else(|| if is_de { "Standard-Radius" } else { "Auto standard curve" }.into());
                                     egui::ComboBox::from_id_salt("gen_curve_combo")
                                         .selected_text(sel_label)
                                         .show_ui(ui, |ui| {
-                                            ui.selectable_value(&mut app.gen_curve_id, None, "Auto standard curve");
-                                            for c in &curves {
+                                            ui.selectable_value(&mut app.gen_curve_id, None, if is_de { "Standard-Radius" } else { "Auto standard curve" });
+                                            for (ri, c) in curves.iter().enumerate() {
                                                 let lbl = format!(
-                                                    "{} • R{:.0} mm ({:.1}°)",
+                                                    "R{} · #{} ({:.0} mm)",
+                                                    ri + 1,
                                                     c.id,
-                                                    c.radius.unwrap_or(0.0),
-                                                    c.angle.unwrap_or(30.0)
+                                                    c.radius.unwrap_or(0.0)
                                                 );
                                                 ui.selectable_value(&mut app.gen_curve_id, Some(c.id.clone()), lbl);
                                             }
                                         });
+                                    if app.gen_ramp_shape == RampShape::Helix {
+                                        if let Some(rc) = chosen_curve.and_then(|c| c.radius) {
+                                            let circ = 2.0 * std::f64::consts::PI * rc;
+                                            ui.small(format!(
+                                                "{}: {:.0} mm ({:.2} m / {})",
+                                                if is_de { "Wendel-Umfang" } else { "Helix circumference" },
+                                                circ,
+                                                circ / 1000.0,
+                                                if is_de { "Umdrehung" } else { "turn" }
+                                            ));
+                                        }
+                                    }
                                 }
                             }
                         }
                         ui.horizontal(|ui| {
-                            ui.label("Target H:");
-                            ui.add(egui::DragValue::new(&mut app.gen_target_h).speed(2.0).suffix(" mm"));
-                            if ui.small_button(format!("+{nem_h:.0}")).clicked() {
-                                app.gen_target_h = nem_h;
+                            ui.label(if is_de { "Richtung:" } else { "Slope:" });
+                            if ui.selectable_label(app.gen_slope_up, if is_de { "↗ Aufwaerts" } else { "↗ Up" }).clicked() {
+                                app.gen_slope_up = true;
+                                app.gen_target_h = app.gen_target_h.abs();
+                            }
+                            if ui.selectable_label(!app.gen_slope_up, if is_de { "↘ Abwaerts" } else { "↘ Down" }).clicked() {
+                                app.gen_slope_up = false;
+                                app.gen_target_h = -app.gen_target_h.abs();
                             }
                         });
                         ui.horizontal(|ui| {
-                            ui.label("Max Grade:");
+                            ui.label(if is_de { "Ziel-Ebene:" } else { "Target Layer:" });
+                            let cur_gtl = app
+                                .gen_target_layer_id
+                                .as_deref()
+                                .and_then(|id| layers_list.iter().find(|(lid, _, _)| lid == id))
+                                .map(|(_, n, lh)| format!("{n} ({lh:.0} mm)"))
+                                .unwrap_or_else(|| if is_de { "Wie Startgleis" } else { "Same as anchor" }.into());
+                            egui::ComboBox::from_id_salt("gen_target_layer_cb")
+                                .width(140.0)
+                                .selected_text(cur_gtl)
+                                .show_ui(ui, |ui| {
+                                    ui.selectable_value(&mut app.gen_target_layer_id, None, if is_de { "Wie Startgleis" } else { "Same as anchor" });
+                                    for (lid, lname, lh) in &layers_list {
+                                        if ui
+                                            .selectable_label(
+                                                app.gen_target_layer_id.as_deref() == Some(lid.as_str()),
+                                                format!("{lname} ({lh:.0} mm)"),
+                                            )
+                                            .clicked()
+                                        {
+                                            app.gen_target_layer_id = Some(lid.clone());
+                                            app.gen_target_h = *lh;
+                                        }
+                                    }
+                                });
+                            if ui.small_button(format!("+{nem_h:.0} mm")).clicked() {
+                                let new_id = app.add_layer_immediate();
+                                app.gen_target_layer_id = Some(new_id);
+                                app.gen_target_h = if app.gen_slope_up { nem_h } else { -nem_h };
+                            }
+                        });
+                        ui.horizontal(|ui| {
+                            ui.label(if is_de { "Zielhoehe:" } else { "Target H:" });
+                            ui.add(egui::DragValue::new(&mut app.gen_target_h).speed(2.0).suffix(" mm"));
+                            if ui.small_button(format!("±{nem_h:.0}")).clicked() {
+                                app.gen_target_h = if app.gen_slope_up { nem_h } else { -nem_h };
+                            }
+                        });
+                        ui.horizontal(|ui| {
+                            ui.label(if is_de { "Max Steigung:" } else { "Max Grade:" });
                             ui.add(egui::DragValue::new(&mut app.gen_max_grade).range(0.5..=8.0).speed(0.1).suffix(" %"));
                             if app.gen_ramp_shape == RampShape::Helix {
-                                ui.label("Turns:");
+                                ui.label(if is_de { "Windungen:" } else { "Turns:" });
                                 ui.add(egui::DragValue::new(&mut app.gen_helix_turns).range(0.5..=6.0).speed(0.25));
                             }
                         });
                         ui.add_space(4.0);
                         if ui
-                            .add_enabled(single_sel.is_some(), egui::Button::new("Generate Ramp / Helix"))
+                            .add_enabled(
+                                single_sel.is_some(),
+                                egui::Button::new(if is_de {
+                                    "Rampe / Wendel erzeugen"
+                                } else {
+                                    "Generate Ramp / Helix"
+                                }),
+                            )
                             .clicked()
                         {
                             if let Some(anchor_id) = single_sel {
                                 app.push_undo();
-                                match generate_ramp_or_helix(
+                                match crate::ramp_tools::generate_ramp_or_helix_ext(
                                     &mut app.layout,
                                     &app.catalogs,
                                     app.selected_catalog_idx,
                                     &mut app.next_piece_seq,
                                     &anchor_id,
+                                    app.gen_conn_idx,
+                                    app.gen_target_layer_id.as_deref(),
                                     app.gen_ramp_shape,
                                     app.gen_curve_left,
+                                    app.gen_arc_angle_deg,
                                     app.gen_target_h,
                                     app.gen_max_grade,
                                     app.gen_helix_turns,
@@ -671,10 +1007,11 @@ pub fn draw_dialogs(ctx: &egui::Context, app: &mut RailbenchApp) {
                                             app.selected.insert(id);
                                         }
                                         app.mark_layout_dirty();
-                                        app.status_message = Some(format!(
-                                            "Generated {} pieces ({:.1}% grade, {:.1} mm rise)",
-                                            sum.piece_count, sum.avg_gradient_pct, sum.total_rise_mm
-                                        ));
+                                        app.show_toast(if is_de {
+                                            format!("{} Gleise erzeugt ({:.1}%, {:.1} mm Hub)", sum.piece_count, sum.avg_gradient_pct, sum.total_rise_mm)
+                                        } else {
+                                            format!("Generated {} pieces ({:.1}% grade, {:.1} mm rise)", sum.piece_count, sum.avg_gradient_pct, sum.total_rise_mm)
+                                        });
                                     }
                                     Err(e) => app.status_message = Some(e),
                                 }
@@ -794,10 +1131,14 @@ pub fn draw_dialogs(ctx: &egui::Context, app: &mut RailbenchApp) {
                         ui.end_row();
 
                         ui.label(if is_de { "Name:" } else { "User:" });
-                        ui.add(
+                        let name_resp = ui.add(
                             egui::TextEdit::singleline(&mut app.collab.user_name)
                                 .desired_width(230.0),
                         );
+                        if name_resp.lost_focus() {
+                            app.collab.send_profile_update();
+                            app.save_current_settings();
+                        }
                         ui.end_row();
                     });
 
@@ -819,6 +1160,8 @@ pub fn draw_dialogs(ctx: &egui::Context, app: &mut RailbenchApp) {
                         }
                         if resp.clicked() {
                             app.collab.user_color = hex.to_string();
+                            app.collab.send_profile_update();
+                            app.save_current_settings();
                         }
                     }
                 });
@@ -876,6 +1219,11 @@ pub fn draw_dialogs(ctx: &egui::Context, app: &mut RailbenchApp) {
                             ui.monospace(&share_url);
                             if ui.small_button(if is_de { "Kopieren" } else { "Copy" }).clicked() {
                                 ui.ctx().copy_text(share_url.clone());
+                                app.show_toast(if is_de {
+                                    "Einladungs-URL in Zwischenablage kopiert"
+                                } else {
+                                    "Invite URL copied to clipboard"
+                                });
                             }
                         });
                     });
@@ -975,6 +1323,30 @@ pub fn draw_dialogs(ctx: &egui::Context, app: &mut RailbenchApp) {
 
     if app.show_help_dialog {
         draw_help_dialog(ctx, app);
+    }
+
+    if app.show_track_props_piece_id.is_some() {
+        draw_track_props_dialog(ctx, app);
+    }
+
+    if app.show_replace_track_piece_id.is_some() {
+        draw_replace_split_dialog(ctx, app);
+    }
+
+    if app.show_layer_dialog {
+        draw_layer_edit_dialog(ctx, app);
+    }
+
+    if app.confirm_delete_layer_id.is_some() {
+        draw_confirm_delete_layer_dialog(ctx, app);
+    }
+
+    if app.pending_confirm_action.is_some() {
+        draw_confirm_unsaved_dialog(ctx, app);
+    }
+
+    if app.show_autosave_recovery {
+        draw_autosave_recovery_dialog(ctx, app);
     }
 }
 

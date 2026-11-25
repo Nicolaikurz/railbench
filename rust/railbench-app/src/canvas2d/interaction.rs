@@ -1,5 +1,54 @@
 use super::*;
 
+fn snap_measure_point(raw: Vec2, layout: &Layout, alt_held: bool, zoom: f32) -> (Vec2, bool) {
+    if !alt_held {
+        return (raw, false);
+    }
+    let thresh = (28.0 / zoom.max(0.25) as f64).clamp(12.0, 90.0);
+    let mut best_d2 = thresh * thresh;
+    let mut best_pt = raw;
+    let mut snapped = false;
+    for p in &layout.pieces {
+        if !is_layer_visible(layout, p.layer_id.as_deref()) {
+            continue;
+        }
+        for c in &p.connectors {
+            let d2 = (c.x - raw.x).powi(2) + (c.y - raw.y).powi(2);
+            if d2 < best_d2 {
+                best_d2 = d2;
+                best_pt = Vec2 { x: c.x, y: c.y };
+                snapped = true;
+            }
+        }
+        let d2 = (p.transform.x - raw.x).powi(2) + (p.transform.y - raw.y).powi(2);
+        if d2 < best_d2 {
+            best_d2 = d2;
+            best_pt = Vec2 {
+                x: p.transform.x,
+                y: p.transform.y,
+            };
+            snapped = true;
+        }
+    }
+    if let Some(models) = &layout.models {
+        for m in models {
+            if !is_layer_visible(layout, m.layer_id.as_deref()) {
+                continue;
+            }
+            let d2 = (m.transform.x - raw.x).powi(2) + (m.transform.y - raw.y).powi(2);
+            if d2 < best_d2 {
+                best_d2 = d2;
+                best_pt = Vec2 {
+                    x: m.transform.x,
+                    y: m.transform.y,
+                };
+                snapped = true;
+            }
+        }
+    }
+    (best_pt, snapped)
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn handle_canvas_interaction(
     ui: &mut egui::Ui,
@@ -17,6 +66,7 @@ pub(super) fn handle_canvas_interaction(
     dragging_flex_handle: &mut Option<(String, usize)>,
     marquee_start: &mut Option<Pos2>,
     measure_points: &mut Option<(Vec2, Vec2)>,
+    measure_locked: &mut bool,
     snapping_enabled: bool,
     layer_protection: bool,
     measure_mode: bool,
@@ -28,14 +78,42 @@ pub(super) fn handle_canvas_interaction(
     board_snap_guides: &mut Vec<BaseboardSnapGuide>,
     sketcher: &mut BoardSketcherState,
     dragging_model_rot: &mut Option<String>,
+    dragging_track_rot: &mut Option<TrackRotationDrag>,
     mut ramp_overlay: Option<(&mut crate::ramp_tools::RampSelectionState, f64, f64)>,
     active_layer_id: &str,
     board_header_rects: &[(String, Rect)],
     plus_buttons: &[(String, usize, Pos2, bool)],
     selected_flex_handles: Option<(String, [Pos2; 5])>,
     selected_model_rot_handle: Option<(String, Pos2)>,
+    selected_track_rot_handle: Option<(Vec2, Pos2, f64, Option<String>, f64)>,
+    rotation_step: f64,
     interaction: &mut CanvasInteraction,
 ) {
+    interaction.hover_world = hover_pos
+        .filter(|sp| rect.contains(*sp))
+        .map(|sp| camera.screen_to_world(rect, sp));
+
+    // Live hover preview while placing Measure Point B (click-A-then-click-B mode)
+    if measure_mode {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::Crosshair);
+        let alt_held = ui.input(|i| i.modifiers.alt);
+        if let Some(hw) = interaction.hover_world {
+            let (snapped, did_snap) = snap_measure_point(hw, layout, alt_held, camera.zoom);
+            if did_snap {
+                let s = camera.world_to_screen(rect, snapped.x, snapped.y);
+                painter.circle_stroke(s, 8.0, Stroke::new(1.8_f32, Color32::from_rgb(245, 158, 11)));
+                painter.circle_filled(s, 3.0, Color32::from_rgb(245, 158, 11));
+            }
+            if !*measure_locked {
+                if let Some((a, _)) = *measure_points {
+                    if response.hovered() && !response.dragged_by(egui::PointerButton::Primary) {
+                        *measure_points = Some((a, snapped));
+                    }
+                }
+            }
+        }
+    }
+
     // 5. Primary click/drag: CAD Board Sketcher OR '+' Quick-Add OR Brush OR Track/Model/Board manipulation
     if sketcher.active {
         ui.ctx().set_cursor_icon(egui::CursorIcon::Crosshair);
@@ -439,9 +517,53 @@ pub(super) fn handle_canvas_interaction(
                 }
             }
         }
+    } else if measure_mode && !ramp_pick_active && response.clicked_by(egui::PointerButton::Primary) {
+        if let Some(sp) = response.interact_pointer_pos() {
+            let alt_held = ui.input(|i| i.modifiers.alt);
+            let raw = camera.screen_to_world(rect, sp);
+            let (pt, _) = snap_measure_point(raw, layout, alt_held, camera.zoom);
+            if measure_points.is_none() || *measure_locked {
+                *measure_points = Some((pt, pt));
+                *measure_locked = false;
+            } else if let Some((a, _)) = *measure_points {
+                *measure_points = Some((a, pt));
+                *measure_locked = true;
+            }
+        }
+    } else if terrain_brush.active
+        && terrain_brush.is_heightfield_mode()
+        && !ramp_pick_active
+        && response.clicked_by(egui::PointerButton::Primary)
+    {
+        if let Some(sp) = response.interact_pointer_pos() {
+            let wp = camera.screen_to_world(rect, sp);
+            let shift_s = ui.input(|i| i.modifiers.shift);
+            let alt_i = ui.input(|i| i.modifiers.alt);
+            terrain_brush.flatten_target_mm = None;
+            terrain_brush.last_sculpt_world = None;
+            interaction.push_undo = true;
+            if terrain_brush.apply_live_sculpt_step(wp, layout, shift_s, alt_i) {
+                interaction.changed = true;
+            }
+            terrain_brush.flatten_target_mm = None;
+            terrain_brush.last_sculpt_world = None;
+            if terrain_brush.auto_tunnel
+                && crate::terrain_tools::apply_auto_tunnel_for_heightfield(layout) > 0
+            {
+                interaction.changed = true;
+            }
+        }
     } else if !terrain_brush.active && !measure_mode && !ramp_pick_active && response.clicked_by(egui::PointerButton::Primary) {
         if let Some(sp) = response.interact_pointer_pos() {
-            if let Some((pid, cidx, _, _)) = plus_buttons
+            let on_rot_knob = selected_track_rot_handle
+                .as_ref()
+                .is_some_and(|(_, hs, _, _, _)| sp.distance(*hs) <= 14.0)
+                || selected_model_rot_handle
+                    .as_ref()
+                    .is_some_and(|(_, hs)| sp.distance(*hs) <= 14.0);
+            if on_rot_knob {
+                // Keep selection intact when clicking directly on the rotation handle
+            } else if let Some((pid, cidx, _, _)) = plus_buttons
                 .iter()
                 .find(|(_, _, ppos, _)| sp.distance(*ppos) <= 13.5)
             {
@@ -460,14 +582,44 @@ pub(super) fn handle_canvas_interaction(
                     })
                     .or_else(|| find_terrain_at(layout, wp, layer_protection));
                 let shift = ui.input(|i| i.modifiers.shift);
+                let alt = ui.input(|i| i.modifiers.alt);
                 if !shift {
                     selected.clear();
                 }
                 if let Some(id) = hit {
-                    if shift && selected.contains(&id) {
-                        selected.remove(&id);
+                    let group_ids: Vec<String> = if !alt {
+                        layout
+                            .pieces
+                            .iter()
+                            .find(|p| p.id == id)
+                            .and_then(|p| p.group_id.clone())
+                            .map(|gid| {
+                                layout
+                                    .pieces
+                                    .iter()
+                                    .filter(|p| {
+                                        p.group_id.as_deref() == Some(gid.as_str())
+                                            && is_layer_editable_with_protection(
+                                                layout,
+                                                p.layer_id.as_deref(),
+                                                layer_protection,
+                                            )
+                                    })
+                                    .map(|p| p.id.clone())
+                                    .collect()
+                            })
+                            .unwrap_or_else(|| vec![id.clone()])
                     } else {
-                        selected.insert(id);
+                        vec![id.clone()]
+                    };
+                    if shift && selected.contains(&id) {
+                        for gid in &group_ids {
+                            selected.remove(gid);
+                        }
+                    } else {
+                        for gid in group_ids {
+                            selected.insert(gid);
+                        }
                     }
                 } else if let Some((bid, _)) = find_board_drag_hit(
                     layout,
@@ -495,7 +647,16 @@ pub(super) fn handle_canvas_interaction(
                     .any(|(_, _, ppos, _)| sp.distance(*ppos) <= 13.5);
             if terrain_brush.active {
                 interaction.push_undo = true;
-                if terrain_brush.start_stroke(wp, layout) {
+                if terrain_brush.is_heightfield_mode() {
+                    let shift_s = ui.input(|i| i.modifiers.shift);
+                    let alt_i = ui.input(|i| i.modifiers.alt);
+                    terrain_brush.is_drawing = true;
+                    terrain_brush.flatten_target_mm = None;
+                    terrain_brush.last_sculpt_world = None;
+                    if terrain_brush.apply_live_sculpt_step(wp, layout, shift_s, alt_i) {
+                        interaction.changed = true;
+                    }
+                } else if terrain_brush.start_stroke(wp, layout) {
                     interaction.changed = true;
                 }
             } else if !on_plus_btn {
@@ -522,11 +683,33 @@ pub(super) fn handle_canvas_interaction(
                             *dragging_model_rot = Some(rot_mid.clone());
                             interaction.push_undo = true;
                         }
+                    } else if let Some((pivot_w, rot_hpos, base_ang, ref single_pid, init_rot)) =
+                        selected_track_rot_handle
+                    {
+                        if sp.distance(rot_hpos) <= 14.5 {
+                            let start_ang =
+                                (wp.y - pivot_w.y).atan2(wp.x - pivot_w.x).to_degrees();
+                            *dragging_track_rot = Some(TrackRotationDrag {
+                                pivot: pivot_w,
+                                start_pointer_angle_deg: start_ang,
+                                applied_delta_deg: 0.0,
+                                base_handle_angle_deg: base_ang,
+                                single_piece_id: single_pid.clone(),
+                                initial_piece_rot_deg: init_rot,
+                            });
+                            interaction.push_undo = true;
+                        }
                     }
                 }
-                if dragging_flex_handle.is_none() && dragging_model_rot.is_none() {
+                if dragging_flex_handle.is_none()
+                    && dragging_model_rot.is_none()
+                    && dragging_track_rot.is_none()
+                {
                     if measure_mode {
-                        *measure_points = Some((wp, wp));
+                        let alt_held = ui.input(|i| i.modifiers.alt);
+                        let (pt, _) = snap_measure_point(wp, layout, alt_held, camera.zoom);
+                        *measure_points = Some((pt, pt));
+                        *measure_locked = false;
                     } else if let Some(hit) = find_building_at(layout, wp, layer_protection)
                         .or_else(|| {
                             find_piece_at(
@@ -540,8 +723,36 @@ pub(super) fn handle_canvas_interaction(
                         .or_else(|| find_terrain_at(layout, wp, layer_protection))
                     {
                         if !selected.contains(&hit) {
+                            let alt = ui.input(|i| i.modifiers.alt);
                             selected.clear();
-                            selected.insert(hit);
+                            let group_ids: Vec<String> = if !alt {
+                                layout
+                                    .pieces
+                                    .iter()
+                                    .find(|p| p.id == hit)
+                                    .and_then(|p| p.group_id.clone())
+                                    .map(|gid| {
+                                        layout
+                                            .pieces
+                                            .iter()
+                                            .filter(|p| {
+                                                p.group_id.as_deref() == Some(gid.as_str())
+                                                    && is_layer_editable_with_protection(
+                                                        layout,
+                                                        p.layer_id.as_deref(),
+                                                        layer_protection,
+                                                    )
+                                            })
+                                            .map(|p| p.id.clone())
+                                            .collect()
+                                    })
+                                    .unwrap_or_else(|| vec![hit.clone()])
+                            } else {
+                                vec![hit]
+                            };
+                            for gid in group_ids {
+                                selected.insert(gid);
+                            }
                         }
                         if layer_protection {
                             let active_lid = active_layer_id;
@@ -600,7 +811,13 @@ pub(super) fn handle_canvas_interaction(
         if response.dragged_by(egui::PointerButton::Primary) {
             if let Some(sp) = response.interact_pointer_pos() {
                 let wp = camera.screen_to_world(rect, sp);
-                if terrain_brush.move_stroke(wp, layout) {
+                if terrain_brush.is_heightfield_mode() {
+                    let shift_s = ui.input(|i| i.modifiers.shift);
+                    let alt_i = ui.input(|i| i.modifiers.alt);
+                    if terrain_brush.apply_live_sculpt_step(wp, layout, shift_s, alt_i) {
+                        interaction.changed = true;
+                    }
+                } else if terrain_brush.move_stroke(wp, layout) {
                     interaction.changed = true;
                 }
             }
@@ -612,7 +829,7 @@ pub(super) fn handle_canvas_interaction(
                 if handle_idx < 3 {
                     // Drag one of the 3 interior bend points (25%, 50%, 75%)
                     if let Some(p) = layout.pieces.iter_mut().find(|pc| &pc.id == fid) {
-                        crate::catalog::apply_flex_spline_offset(p, handle_idx, wp);
+                        crate::catalog::apply_flex_spline_offset(p, catalogs, handle_idx, wp);
                         interaction.changed = true;
                     }
                 } else {
@@ -621,14 +838,42 @@ pub(super) fn handle_canvas_interaction(
                     let alt_bypass = ui.input(|i| i.modifiers.alt);
                     let snap_radius = (30.0 / (camera.zoom as f64).max(0.25)).clamp(22.0, 55.0);
                     let snap_target = if snapping_enabled && !alt_bypass {
-                        find_best_flex_endpoint_snap(layout, catalogs, fid, moving_idx, wp, snap_radius)
+                        find_best_flex_endpoint_snap_with_height(layout, catalogs, fid, moving_idx, wp, snap_radius)
                     } else {
                         None
                     };
 
+                    let flex_layer_h = layout
+                        .pieces
+                        .iter()
+                        .find(|pc| &pc.id == fid)
+                        .and_then(|pc| {
+                            let lid = pc.layer_id.as_deref().unwrap_or("layer-1");
+                            layout
+                                .layers
+                                .as_ref()
+                                .and_then(|ls| ls.iter().find(|l| l.id == lid))
+                                .and_then(|l| l.height_mm)
+                        })
+                        .unwrap_or(0.0);
+
                     if let Some(p) = layout.pieces.iter_mut().find(|pc| &pc.id == fid) {
-                        let snapped = if let Some((tpos, tang)) = snap_target {
-                            crate::catalog::snap_flex_endpoint(p, catalogs, moving_idx, tpos, tang)
+                        let snapped = if let Some((tpos, tang, target_wh)) = snap_target {
+                            if crate::catalog::snap_flex_endpoint(p, catalogs, moving_idx, tpos, tang) {
+                                let rel_target = ((target_wh - flex_layer_h) * 10.0).round() / 10.0;
+                                let mut el = p.elevation.unwrap_or_default();
+                                if moving_idx == 0 {
+                                    el.start = rel_target;
+                                } else {
+                                    el.end = rel_target;
+                                }
+                                if el.start.abs() > 0.05 || el.end.abs() > 0.05 || p.elevation.is_some() {
+                                    p.elevation = Some(el);
+                                }
+                                true
+                            } else {
+                                false
+                            }
                         } else {
                             false
                         };
@@ -685,7 +930,11 @@ pub(super) fn handle_canvas_interaction(
         }
     } else if measure_mode && response.dragged_by(egui::PointerButton::Primary) {
         if let (Some(sp), Some((a, _))) = (response.interact_pointer_pos(), *measure_points) {
-            *measure_points = Some((a, camera.screen_to_world(rect, sp)));
+            let alt_held = ui.input(|i| i.modifiers.alt);
+            let raw = camera.screen_to_world(rect, sp);
+            let (pt, _) = snap_measure_point(raw, layout, alt_held, camera.zoom);
+            *measure_points = Some((a, pt));
+            *measure_locked = false;
         }
     } else if marquee_start.is_some() && response.dragged_by(egui::PointerButton::Primary) {
         if let (Some(start), Some(cur)) = (*marquee_start, response.interact_pointer_pos()) {
@@ -711,6 +960,62 @@ pub(super) fn handle_canvas_interaction(
                         interaction.changed = true;
                     }
                 }
+            }
+        }
+    } else if let Some(ref mut drag) = *dragging_track_rot {
+        if response.dragged_by(egui::PointerButton::Primary) {
+            if let Some(sp) = response.interact_pointer_pos() {
+                let wp = camera.screen_to_world(rect, sp);
+                let cur_ang = (wp.y - drag.pivot.y).atan2(wp.x - drag.pivot.x).to_degrees();
+                let raw_delta = unwrap_drag_angle_delta(
+                    cur_ang,
+                    drag.start_pointer_angle_deg,
+                    drag.applied_delta_deg,
+                );
+                let free_rot = ui.input(|i| i.modifiers.shift);
+                let desired_delta = snap_drag_rotation_delta(raw_delta, rotation_step, free_rot);
+                let step_delta = desired_delta - drag.applied_delta_deg;
+                if step_delta.abs() > 1e-6
+                    && rotate_selection_around_pivot(
+                        layout,
+                        selected,
+                        layer_protection,
+                        drag.pivot,
+                        step_delta,
+                    )
+                {
+                    drag.applied_delta_deg = desired_delta;
+                    interaction.changed = true;
+                }
+                let readout = if drag.single_piece_id.is_some() {
+                    let abs_deg =
+                        norm_angle_deg(drag.initial_piece_rot_deg + drag.applied_delta_deg);
+                    format_rotation_readout(abs_deg, false, free_rot)
+                } else {
+                    format_rotation_readout(drag.applied_delta_deg, true, free_rot)
+                };
+                let pill = Rect::from_min_size(
+                    sp + egui::vec2(16.0, -26.0),
+                    egui::vec2(68.0, 22.0),
+                );
+                painter.rect_filled(
+                    pill,
+                    6.0,
+                    Color32::from_rgba_unmultiplied(15, 23, 42, 225),
+                );
+                painter.rect_stroke(
+                    pill,
+                    6.0,
+                    Stroke::new(1.2_f32, Color32::from_rgb(245, 158, 11)),
+                    egui::StrokeKind::Inside,
+                );
+                painter.text(
+                    pill.center(),
+                    egui::Align2::CENTER_CENTER,
+                    readout,
+                    egui::FontId::proportional(11.5),
+                    Color32::WHITE,
+                );
             }
         }
     } else if let Some((ref bid, start_wp, orig_x, orig_y)) = dragging_board.clone() {
@@ -842,8 +1147,16 @@ pub(super) fn handle_canvas_interaction(
     }
 
     if response.drag_stopped_by(egui::PointerButton::Primary) {
+        if measure_mode {
+            if let Some((a, b)) = *measure_points {
+                if (b.x - a.x).hypot(b.y - a.y) > 4.0 {
+                    *measure_locked = true;
+                }
+            }
+        }
         if terrain_brush.is_drawing {
-            let was_erase = terrain_brush.mode == TerrainBrushMode::Erase;
+            let was_erase_or_hf = terrain_brush.mode == TerrainBrushMode::Erase
+                || terrain_brush.is_heightfield_mode();
             let active_lid = active_layer_id.to_string();
             if let Some(created_id) =
                 terrain_brush.finish_stroke(layout, next_piece_seq, Some(active_lid.as_str()), is_de)
@@ -851,7 +1164,7 @@ pub(super) fn handle_canvas_interaction(
                 selected.clear();
                 selected.insert(created_id);
                 interaction.changed = true;
-            } else if was_erase {
+            } else if was_erase_or_hf {
                 interaction.changed = true;
             }
         }
@@ -894,6 +1207,11 @@ pub(super) fn handle_canvas_interaction(
             if snapping_enabled && !selected.is_empty() {
                 crate::building_snap::snap_selected_models(layout, catalogs, selected);
             }
+            interaction.changed = true;
+        }
+        if dragging_track_rot.take().is_some() {
+            railbench_core::snapping::update_layout_connections(layout, 4.0, 35.0, 1.0);
+            crate::catalog::disconnect_cross_type_connections(layout, catalogs);
             interaction.changed = true;
         }
         if dragging_board.take().is_some() {

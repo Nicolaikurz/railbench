@@ -10,6 +10,7 @@ pub enum StartupAction {
     Recent,
     New,
     Demo,
+    Open,
 }
 
 impl StartupAction {
@@ -19,6 +20,7 @@ impl StartupAction {
             Self::Recent => "recent",
             Self::New => "new",
             Self::Demo => "demo",
+            Self::Open => "open",
         }
     }
 
@@ -27,6 +29,7 @@ impl StartupAction {
             "recent" => Self::Recent,
             "new" => Self::New,
             "demo" => Self::Demo,
+            "open" => Self::Open,
             _ => Self::Ask,
         }
     }
@@ -41,6 +44,8 @@ impl StartupAction {
             (Self::New, false) => "Start Empty Plan",
             (Self::Demo, true) => "Demo-Anlage laden",
             (Self::Demo, false) => "Load Demo Layout",
+            (Self::Open, true) => "Datei-Auswahl beim Start oeffnen",
+            (Self::Open, false) => "Open File Dialog on Startup",
         }
     }
 }
@@ -78,6 +83,10 @@ pub enum KeyAction {
     PanRight,
     RotateCw,
     RotateCcw,
+    FlipSelected,
+    ToggleGroup,
+    SplitReplaceTrack,
+    TrackProperties,
     DeleteSelected,
     Toggle3D,
     ToggleRulers,
@@ -85,6 +94,7 @@ pub enum KeyAction {
     ToggleSnapping,
     TogglePowerSim,
     ToggleMeasure,
+    AutoRamp,
     CycleColorMode,
     ToggleLayersSidebar,
     TogglePerfMonitor,
@@ -274,6 +284,46 @@ pub const KEY_ACTION_DEFS: &[KeyActionDef] = &[
         default_key: "Shift+R",
     },
     KeyActionDef {
+        action: KeyAction::FlipSelected,
+        id: "flipSelected",
+        category: KeyCategory::Edit,
+        label_de: "Gleise spiegeln / wenden",
+        label_en: "Mirror / Flip Selected",
+        desc_de: "Weichen links/rechts spiegeln oder Gleise 180 Grad wenden",
+        desc_en: "Mirror left/right turnouts or flip tracks 180 degrees",
+        default_key: "Alt+F",
+    },
+    KeyActionDef {
+        action: KeyAction::ToggleGroup,
+        id: "toggleGroup",
+        category: KeyCategory::Edit,
+        label_de: "Auswahl gruppieren / loesen",
+        label_en: "Group / Ungroup Selection",
+        desc_de: "Markierte Gleise zu einer Gruppe verbinden oder aufheben",
+        desc_en: "Group selected tracks together or ungroup them",
+        default_key: "G",
+    },
+    KeyActionDef {
+        action: KeyAction::SplitReplaceTrack,
+        id: "splitReplaceTrack",
+        category: KeyCategory::Edit,
+        label_de: "Gleis teilen / ersetzen...",
+        label_en: "Split / Replace Track...",
+        desc_de: "Markiertes Gleis halbieren oder durch Katalogstueck ersetzen",
+        desc_en: "Split selected track in half or replace with catalog piece",
+        default_key: "Ctrl+Shift+T",
+    },
+    KeyActionDef {
+        action: KeyAction::TrackProperties,
+        id: "trackProperties",
+        category: KeyCategory::Edit,
+        label_de: "Gleiseigenschaften / Info...",
+        label_en: "Track Properties / Info...",
+        desc_de: "Detaildatenblatt des markierten Gleises oeffnen",
+        desc_en: "Open detailed specification dialog for selected track",
+        default_key: "Alt+Enter",
+    },
+    KeyActionDef {
         action: KeyAction::DeleteSelected,
         id: "deleteSelected",
         category: KeyCategory::Edit,
@@ -422,6 +472,16 @@ pub const KEY_ACTION_DEFS: &[KeyActionDef] = &[
         desc_de: "Messwerkzeug oder Hoehendialog fuer Auswahl oeffnen",
         desc_en: "Toggle distance measure or open height dialog for selection",
         default_key: "M",
+    },
+    KeyActionDef {
+        action: KeyAction::AutoRamp,
+        id: "autoRamp",
+        category: KeyCategory::Tools,
+        label_de: "Auto-Rampe anwenden",
+        label_en: "Apply Auto-Ramp",
+        desc_de: "Steigung automatisch aus Nachbargleisen interpolieren",
+        desc_en: "Interpolate smooth ramp grade from adjacent connected tracks",
+        default_key: "Shift+M",
     },
     KeyActionDef {
         action: KeyAction::ToggleLayersSidebar,
@@ -748,6 +808,20 @@ pub struct AppSettings {
     pub show_wood_plates: bool,
     pub show_right_sidebar: bool,
     pub rotation_step: f64,
+    pub rotation_snap_locked: bool,
+    pub power_sim_enabled: bool,
+    pub selected_catalog_id: Option<String>,
+    pub active_sidebar_tab: String,
+    pub camera_offset: Option<[f32; 2]>,
+    pub camera_zoom: Option<f32>,
+    pub bars_locked: bool,
+    pub low_gpu_mode: bool,
+    pub window_width: Option<f32>,
+    pub window_height: Option<f32>,
+    pub window_maximized: bool,
+    pub collab_user_name: Option<String>,
+    pub collab_user_color: Option<String>,
+    pub collab_password: Option<String>,
     pub viewer3d_env: String,
     pub startup_action: StartupAction,
     pub last_opened_path: Option<String>,
@@ -770,6 +844,20 @@ impl Default for AppSettings {
             show_wood_plates: true,
             show_right_sidebar: true,
             rotation_step: 30.0,
+            rotation_snap_locked: false,
+            power_sim_enabled: false,
+            selected_catalog_id: None,
+            active_sidebar_tab: "tracks".into(),
+            camera_offset: None,
+            camera_zoom: None,
+            bars_locked: false,
+            low_gpu_mode: false,
+            window_width: None,
+            window_height: None,
+            window_maximized: false,
+            collab_user_name: None,
+            collab_user_color: None,
+            collab_password: None,
             viewer3d_env: "hall-landscape".into(),
             startup_action: StartupAction::Ask,
             last_opened_path: None,
@@ -780,7 +868,23 @@ impl Default for AppSettings {
     }
 }
 
+pub fn detect_os_lang_de() -> bool {
+    for var in ["LC_ALL", "LANG"] {
+        if let Ok(val) = std::env::var(var) {
+            let low = val.trim().to_ascii_lowercase();
+            if !low.is_empty() && low != "c" && low != "posix" {
+                return low.starts_with("de");
+            }
+        }
+    }
+    true
+}
+
 impl AppSettings {
+    pub fn config_dir() -> Option<PathBuf> {
+        Self::config_path()?.parent().map(|p| p.to_path_buf())
+    }
+
     pub fn config_path() -> Option<PathBuf> {
         if let Some(xdg) = std::env::var_os("XDG_CONFIG_HOME") {
             return Some(PathBuf::from(xdg).join("railbench").join("settings.json"));
@@ -872,6 +976,21 @@ impl AppSettings {
         }
     }
 
+    pub fn find_conflicting_action(&self, target: KeyAction, binding: &str) -> Option<&'static KeyActionDef> {
+        let needle = parse_shortcut(binding);
+        KEY_ACTION_DEFS.iter().find(|def| {
+            if def.action == target {
+                return false;
+            }
+            let eff = self.effective_key(def.action);
+            if let (Some(a), Some(b)) = (needle, parse_shortcut(&eff)) {
+                a == b
+            } else {
+                eff.eq_ignore_ascii_case(binding)
+            }
+        })
+    }
+
     pub fn reset_key(&mut self, action: KeyAction) {
         if let Some(def) = KEY_ACTION_DEFS.iter().find(|d| d.action == action) {
             self.custom_keymap.remove(def.id);
@@ -884,8 +1003,16 @@ impl AppSettings {
 
     pub fn reset_personal_defaults(&mut self) {
         let preserved = self.last_opened_path.clone();
+        let favs = self.favorite_tracks.clone();
+        let ww = self.window_width;
+        let wh = self.window_height;
+        let wm = self.window_maximized;
         *self = Self::default();
         self.last_opened_path = preserved;
+        self.favorite_tracks = favs;
+        self.window_width = ww;
+        self.window_height = wh;
+        self.window_maximized = wm;
     }
 
     pub fn to_json_string(&self) -> String {
@@ -901,6 +1028,36 @@ impl AppSettings {
         root.insert("show_wood_plates".into(), Value::Bool(self.show_wood_plates));
         root.insert("show_right_sidebar".into(), Value::Bool(self.show_right_sidebar));
         root.insert("rotation_step".into(), Value::from(self.rotation_step));
+        root.insert("rotation_snap_locked".into(), Value::Bool(self.rotation_snap_locked));
+        root.insert("power_sim_enabled".into(), Value::Bool(self.power_sim_enabled));
+        if let Some(ref cid) = self.selected_catalog_id {
+            root.insert("selected_catalog_id".into(), Value::String(cid.clone()));
+        }
+        root.insert("active_sidebar_tab".into(), Value::String(self.active_sidebar_tab.clone()));
+        if let Some(off) = self.camera_offset {
+            root.insert("camera_offset".into(), Value::Array(vec![Value::from(off[0]), Value::from(off[1])]));
+        }
+        if let Some(z) = self.camera_zoom {
+            root.insert("camera_zoom".into(), Value::from(z));
+        }
+        root.insert("bars_locked".into(), Value::Bool(self.bars_locked));
+        root.insert("low_gpu_mode".into(), Value::Bool(self.low_gpu_mode));
+        if let Some(w) = self.window_width {
+            root.insert("window_width".into(), Value::from(w));
+        }
+        if let Some(h) = self.window_height {
+            root.insert("window_height".into(), Value::from(h));
+        }
+        root.insert("window_maximized".into(), Value::Bool(self.window_maximized));
+        if let Some(ref n) = self.collab_user_name {
+            root.insert("collab_user_name".into(), Value::String(n.clone()));
+        }
+        if let Some(ref c) = self.collab_user_color {
+            root.insert("collab_user_color".into(), Value::String(c.clone()));
+        }
+        if let Some(ref pw) = self.collab_password {
+            root.insert("collab_password".into(), Value::String(pw.clone()));
+        }
         root.insert("viewer3d_env".into(), Value::String(self.viewer3d_env.clone()));
         root.insert("startup_action".into(), Value::String(self.startup_action.as_str().into()));
         root.insert("perf_monitor_visible".into(), Value::Bool(self.perf_monitor_visible));
@@ -975,6 +1132,58 @@ impl AppSettings {
         }
         if let Some(v) = map.get("last_opened_path").and_then(|v| v.as_str()) {
             s.last_opened_path = Some(v.into());
+        }
+        if let Some(v) = map.get("rotation_snap_locked").and_then(|v| v.as_bool()) {
+            s.rotation_snap_locked = v;
+        }
+        if let Some(v) = map.get("power_sim_enabled").and_then(|v| v.as_bool()) {
+            s.power_sim_enabled = v;
+        }
+        if let Some(v) = map.get("selected_catalog_id").and_then(|v| v.as_str()) {
+            s.selected_catalog_id = Some(v.into());
+        }
+        if let Some(v) = map.get("active_sidebar_tab").and_then(|v| v.as_str()) {
+            s.active_sidebar_tab = v.into();
+        }
+        if let Some(arr) = map.get("camera_offset").and_then(|v| v.as_array()) {
+            if arr.len() >= 2 {
+                if let (Some(x), Some(y)) = (arr[0].as_f64(), arr[1].as_f64()) {
+                    s.camera_offset = Some([x as f32, y as f32]);
+                }
+            }
+        }
+        if let Some(v) = map.get("camera_zoom").and_then(|v| v.as_f64()) {
+            if v > 0.02 && v <= 20.0 {
+                s.camera_zoom = Some(v as f32);
+            }
+        }
+        if let Some(v) = map.get("bars_locked").and_then(|v| v.as_bool()) {
+            s.bars_locked = v;
+        }
+        if let Some(v) = map.get("low_gpu_mode").and_then(|v| v.as_bool()) {
+            s.low_gpu_mode = v;
+        }
+        if let Some(v) = map.get("window_width").and_then(|v| v.as_f64()) {
+            if v >= 400.0 {
+                s.window_width = Some(v as f32);
+            }
+        }
+        if let Some(v) = map.get("window_height").and_then(|v| v.as_f64()) {
+            if v >= 300.0 {
+                s.window_height = Some(v as f32);
+            }
+        }
+        if let Some(v) = map.get("window_maximized").and_then(|v| v.as_bool()) {
+            s.window_maximized = v;
+        }
+        if let Some(v) = map.get("collab_user_name").and_then(|v| v.as_str()) {
+            s.collab_user_name = Some(v.into());
+        }
+        if let Some(v) = map.get("collab_user_color").and_then(|v| v.as_str()) {
+            s.collab_user_color = Some(v.into());
+        }
+        if let Some(v) = map.get("collab_password").and_then(|v| v.as_str()) {
+            s.collab_password = Some(v.into());
         }
         if let Some(Value::Object(km)) = map.get("custom_keymap") {
             for (k, v) in km {
@@ -1086,5 +1295,31 @@ mod tests {
         assert_eq!(cfg.effective_key(KeyAction::PanRight), "Right");
         assert_eq!(cfg.effective_key(KeyAction::TogglePerfMonitor), "F3");
         assert_eq!(cfg.effective_key(KeyAction::OpenHelp), "F1");
+        assert_eq!(cfg.effective_key(KeyAction::FlipSelected), "Alt+F");
+        assert_eq!(cfg.effective_key(KeyAction::ToggleGroup), "G");
+        assert_eq!(cfg.effective_key(KeyAction::AutoRamp), "Shift+M");
+    }
+
+    #[test]
+    fn extended_settings_conflicts_and_startup_open() {
+        let mut s = AppSettings::default();
+        s.startup_action = StartupAction::Open;
+        s.rotation_snap_locked = true;
+        s.power_sim_enabled = true;
+        s.viewer3d_env = "minimal".into();
+        s.window_width = Some(1440.0);
+        s.window_height = Some(900.0);
+        let json = s.to_json_string();
+        let de = AppSettings::from_json_str(&json);
+        assert_eq!(de.startup_action, StartupAction::Open);
+        assert!(de.rotation_snap_locked);
+        assert!(de.power_sim_enabled);
+        assert_eq!(de.viewer3d_env, "minimal");
+        assert_eq!(de.window_width, Some(1440.0));
+
+        // Conflict lookup detects `S` belongs to ToggleSnapping when assigning to Undo
+        let conflict = de.find_conflicting_action(KeyAction::Undo, "S").unwrap();
+        assert_eq!(conflict.action, KeyAction::ToggleSnapping);
+        assert!(de.find_conflicting_action(KeyAction::Undo, "Ctrl+Z").is_none());
     }
 }

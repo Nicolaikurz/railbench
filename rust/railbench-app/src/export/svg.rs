@@ -222,6 +222,29 @@ pub fn export_layout_svg_with_options(
   <rect x="{min_x:.1}" y="{min_y:.1}" width="{w:.1}" height="{h:.1}" fill="#ffffff"/>"##
     );
 
+    if opts.show_grid {
+        let mut gx = (min_x / 100.0).floor() * 100.0;
+        while gx <= max_x {
+            let is_major = (gx / 500.0 - (gx / 500.0).round()).abs() < 1e-6;
+            let (col, sw) = if is_major { ("#cbd5e1", "0.8") } else { ("#e2e8f0", "0.4") };
+            let _ = writeln!(
+                svg,
+                r##"  <line x1="{gx:.1}" y1="{min_y:.1}" x2="{gx:.1}" y2="{max_y:.1}" stroke="{col}" stroke-width="{sw}"/>"##
+            );
+            gx += 100.0;
+        }
+        let mut gy = (min_y / 100.0).floor() * 100.0;
+        while gy <= max_y {
+            let is_major = (gy / 500.0 - (gy / 500.0).round()).abs() < 1e-6;
+            let (col, sw) = if is_major { ("#cbd5e1", "0.8") } else { ("#e2e8f0", "0.4") };
+            let _ = writeln!(
+                svg,
+                r##"  <line x1="{min_x:.1}" y1="{gy:.1}" x2="{max_x:.1}" y2="{gy:.1}" stroke="{col}" stroke-width="{sw}"/>"##
+            );
+            gy += 100.0;
+        }
+    }
+
     if opts.show_baseboards {
         for bb in get_baseboards_slice(layout) {
             if !bb.enabled {
@@ -426,6 +449,52 @@ pub fn export_layout_svg_with_options(
                 r##"  <text x="{mx:.1}" y="{my:.1}" font-family="sans-serif" font-size="13" fill="#0f172a" text-anchor="middle" dominant-baseline="central">{}</text>"##,
                 escape_xml(&p.catalog_id)
             );
+        }
+        if opts.show_electrical && !p.connectors.is_empty() {
+            let mx = p.connectors.iter().map(|c| c.x).sum::<f64>() / p.connectors.len() as f64;
+            let my = p.connectors.iter().map(|c| c.y).sum::<f64>() / p.connectors.len() as f64;
+            if p.power_feed == Some(true) {
+                let col = if opts.monochrome { "#0f172a" } else { "#16a34a" };
+                let _ = writeln!(
+                    svg,
+                    r##"  <circle cx="{mx:.1}" cy="{:.1}" r="10" fill="{col}" stroke="#ffffff" stroke-width="2"/><text x="{mx:.1}" y="{:.1}" font-family="sans-serif" font-size="11" fill="#ffffff" text-anchor="middle" dominant-baseline="central">⚡</text>"##,
+                    my - 22.0,
+                    my - 22.0
+                );
+            }
+            if p.is_isolator == Some(true) {
+                let iso_c = p
+                    .connectors
+                    .get(p.isolated_connector_index.unwrap_or(0))
+                    .unwrap_or(&p.connectors[0]);
+                let col = if opts.monochrome { "#0f172a" } else { "#dc2626" };
+                let rad = (iso_c.angle + 90.0).to_radians();
+                let (dx, dy) = (rad.cos() * 14.0, rad.sin() * 14.0);
+                let _ = writeln!(
+                    svg,
+                    r##"  <line x1="{:.1}" y1="{:.1}" x2="{:.1}" y2="{:.1}" stroke="{col}" stroke-width="4" stroke-linecap="round"/>"##,
+                    iso_c.x - dx, iso_c.y - dy, iso_c.x + dx, iso_c.y + dy
+                );
+            }
+            if p.has_signal == Some(true) {
+                let col = if opts.monochrome { "#0f172a" } else { "#d97706" };
+                let _ = writeln!(
+                    svg,
+                    r##"  <polygon points="{:.1},{:.1} {:.1},{:.1} {:.1},{:.1}" fill="{col}" stroke="#ffffff" stroke-width="1.5"/>"##,
+                    mx + 18.0, my - 26.0, mx + 10.0, my - 12.0, mx + 26.0, my - 12.0
+                );
+            }
+            if let Some(el) = p.elevation {
+                let avg_z = (el.start + el.end) * 0.5;
+                if avg_z.abs() >= 1.0 {
+                    let sign = if avg_z >= 0.0 { "+" } else { "" };
+                    let _ = writeln!(
+                        svg,
+                        r##"  <text x="{mx:.1}" y="{:.1}" font-family="sans-serif" font-size="10" fill="#0369a1" text-anchor="middle">{sign}{avg_z:.0}mm</text>"##,
+                        my + 22.0
+                    );
+                }
+            }
         }
     }
 

@@ -45,6 +45,7 @@ fn mountain_with_intersecting_track_generates_tunnel_geometry() {
         active_layer_id: None,
         baseboard: None,
         baseboards: None,
+        terrain_field: None,
     };
     let mut layout_with_tunnel = layout_only_mtn.clone();
     layout_with_tunnel.pieces = vec![p0, p1];
@@ -84,6 +85,7 @@ fn accessories_and_engine_shed_generate_3d_geometry() {
         active_layer_id: None,
         baseboard: None,
         baseboards: None,
+        terrain_field: None,
     };
 
     let opts = Scene3DOptions::default();
@@ -174,6 +176,7 @@ fn l_shape_table_with_cutout_and_upper_layer_plate_generates_3d_mesh() {
         wood_plate_thickness_mm: Some(20.0),
         wood_plate_style: None,
         plates: None,
+        terrain_field: None,
     };
     let layer2 = railbench_core::types::Layer {
         id: "layer-2".into(),
@@ -209,6 +212,7 @@ fn l_shape_table_with_cutout_and_upper_layer_plate_generates_3d_mesh() {
             position_mode: Some("custom".into()),
             style: Some("wood".into()),
         }]),
+        terrain_field: None,
     };
 
     let layout = Layout {
@@ -228,6 +232,7 @@ fn l_shape_table_with_cutout_and_upper_layer_plate_generates_3d_mesh() {
         active_layer_id: Some("layer-2".into()),
         baseboard: Some(l_board.clone()),
         baseboards: Some(vec![l_board]),
+        terrain_field: None,
     };
 
     let mesh_no_plates = build_scene_mesh_3d(
@@ -345,12 +350,44 @@ fn new_builtin_models_custom_glb_and_hall_env_generate_3d_mesh() {
         active_layer_id: None,
         baseboard: None,
         baseboards: None,
+        terrain_field: None,
     };
 
-    let minimal = build_scene_mesh_3d(&layout, &catalogs, &Scene3DOptions { env_mode: Viewer3DEnv::Minimal, ..Default::default() });
-    let hall_land = build_scene_mesh_3d(&layout, &catalogs, &Scene3DOptions { env_mode: Viewer3DEnv::HallLandscape, short_circuit_points: vec![Vec2 { x: 10.0, y: 10.0 }], ..Default::default() });
+    let minimal = build_scene_mesh_3d(
+        &layout,
+        &catalogs,
+        &Scene3DOptions {
+            env_mode: Viewer3DEnv::Minimal,
+            ..Default::default()
+        },
+    );
+    let hall_land = build_scene_mesh_3d(
+        &layout,
+        &catalogs,
+        &Scene3DOptions {
+            env_mode: Viewer3DEnv::HallLandscape,
+            short_circuit_points: vec![[10.0, 80.0, 10.0]],
+            ..Default::default()
+        },
+    );
     assert!(minimal.vertices.len() > 200);
     assert!(hall_land.vertices.len() > minimal.vertices.len());
+    // Hall & Landscape emits horizon-spanning terrain (r > 65000mm) and Alpine peaks
+    assert!(
+        hall_land
+            .vertices
+            .iter()
+            .any(|v| v.pos[0].hypot(v.pos[2]) > 65_000.0 && v.pos[1] > 4000.0),
+        "hall-landscape env missing horizon-spanning alpine terrain"
+    );
+    // Short-circuit beacon raised by 80mm sits above Y = 140
+    assert!(
+        hall_land
+            .vertices
+            .iter()
+            .any(|v| (v.pos[0] - 10.0).abs() < 15.0 && (v.pos[2] - 10.0).abs() < 15.0 && v.pos[1] > 140.0),
+        "elevated short-circuit beacon missing"
+    );
     assert!(
         hall_land
             .vertices
@@ -364,6 +401,61 @@ fn new_builtin_models_custom_glb_and_hall_env_generate_3d_mesh() {
             .iter()
             .any(|v| v.pos[0].abs() > 6000.0 || v.pos[1] > 4500.0),
         "combined env missing surrounding alpine landscape peaks/clouds"
+    );
+
+    // Hall brick walls (above the 1 m wainscot) and glazed windows must exist on the side walls (x = +-4500)
+    let floor_y = -755.0_f32;
+    let side_wall = |lo: f32, hi: f32| {
+        hall_land
+            .vertices
+            .iter()
+            .filter(|v| (v.pos[0].abs() - 4_500.0).abs() < 70.0 && (v.pos[2]).abs() < 4_800.0 && (floor_y + lo..floor_y + hi).contains(&v.pos[1]))
+            .count()
+    };
+    assert!(side_wall(1_700.0, 1_800.0) > 8, "hall brick wall band under windows missing");
+    assert!(side_wall(2_500.0, 2_540.0) > 8, "hall window glazing missing");
+    assert!(side_wall(3_300.0, 3_400.0) > 8, "hall upper brick wall missing");
+
+    // 1:1 real-world sizes (1 unit = 1 mm). Default table => hall 9 x 9.8 m, floor_y = -755, ground g = -779.
+    let g = -779.0_f32;
+    let road_x = -20_500.0_f32;
+    assert!(
+        hall_land.vertices.iter().all(|v| v.pos.iter().all(|c| c.is_finite())
+            && v.pos[0].hypot(v.pos[2]) <= 340_000.0),
+        "landscape must stay finite and inside the 340 m horizon"
+    );
+    // Country road: asphalt carriageway ~7 m wide at z ~ 0 (top surface at g + 200 mm)
+    let road_xs: Vec<f32> = hall_land
+        .vertices
+        .iter()
+        .filter(|v| v.pos[2].abs() < 1_600.0 && (v.pos[0] - road_x).abs() < 4_200.0 && (v.pos[1] - (g + 200.0)).abs() < 12.0)
+        .map(|v| v.pos[0])
+        .collect();
+    assert!(!road_xs.is_empty(), "country road surface missing");
+    let road_w = road_xs.iter().cloned().fold(f32::MIN, f32::max) - road_xs.iter().cloned().fold(f32::MAX, f32::min);
+    assert!(road_w >= 6_800.0, "road should be ~7 m wide, got {road_w} mm");
+    // Alpine chalets (~9.3 m) and chapel steeple (~28 m) east of the hall
+    assert!(
+        hall_land
+            .vertices
+            .iter()
+            .any(|v| v.pos[0] > 18_000.0 && v.pos[0] < 60_000.0 && v.pos[2].abs() < 30_000.0 && v.pos[1] - g >= 9_000.0),
+        "village chalets should reach realistic 9+ m height"
+    );
+    assert!(
+        hall_land
+            .vertices
+            .iter()
+            .any(|v| (v.pos[0] - 34_500.0).abs() < 3_000.0 && (v.pos[2] - 38_000.0).abs() < 12_000.0 && v.pos[1] - g >= 25_000.0),
+        "chapel steeple should reach ~28 m"
+    );
+    // Forest trees 10-23 m tall
+    assert!(
+        hall_land
+            .vertices
+            .iter()
+            .any(|v| v.pos[0] < -30_000.0 && v.pos[0].hypot(v.pos[2]) < 110_000.0 && (10_000.0..23_000.0).contains(&(v.pos[1] - g))),
+        "forest trees should be realistic 10-23 m tall"
     );
 }
 
@@ -411,6 +503,7 @@ fn standalone_tunneled_piece_generates_3d_tube_cover_and_portals() {
         active_layer_id: None,
         baseboard: None,
         baseboards: None,
+        terrain_field: None,
     };
 
     let plain_mesh = build_scene_mesh_3d(&mk_layout(vec![t_plain]), &catalogs, &Scene3DOptions::default());
@@ -505,6 +598,7 @@ fn ground_terrain_brushed_water_and_sand_generate_surface_and_clip() {
         active_layer_id: None,
         baseboard: Some(bb.clone()),
         baseboards: Some(vec![bb]),
+        terrain_field: None,
     };
 
     let mesh = build_scene_mesh_3d(&layout, &catalogs, &Scene3DOptions::default());
@@ -567,6 +661,7 @@ fn turntable_3d_generates_pit_bridge_rails_catenary_and_tight_hole() {
         active_layer_id: None,
         baseboard: Some(bb.clone()),
         baseboards: Some(vec![bb.clone()]),
+        terrain_field: None,
     };
 
     let plain_layout = mk_layout(tt.clone());
@@ -640,6 +735,7 @@ fn transfer_table_3d_generates_pit_bridge_centered_ties_and_rect_hole() {
         active_layer_id: None,
         baseboard: Some(bb.clone()),
         baseboards: Some(vec![bb]),
+        terrain_field: None,
     };
 
     let mesh = build_scene_mesh_3d(&layout, &catalogs, &Scene3DOptions::default());
@@ -714,6 +810,7 @@ fn scene_3d_cache_reuses_unchanged_submeshes_and_parallel_terrain() {
         active_layer_id: None,
         baseboard: None,
         baseboards: None,
+        terrain_field: None,
     };
 
     let mut cache = Scene3DCache::default();
@@ -798,6 +895,7 @@ fn gpu_track_instancing_shares_one_prototype_per_track_type() {
         active_layer_id: None,
         baseboard: None,
         baseboards: None,
+        terrain_field: None,
     };
 
     let opts = Scene3DOptions {
@@ -862,6 +960,7 @@ fn scene_3d_bundle_shares_arcs_and_prunes_unused_prototypes() {
         active_layer_id: None,
         baseboard: None,
         baseboards: None,
+        terrain_field: None,
     };
 
     let mut cache = Scene3DCache::default();
@@ -1039,6 +1138,7 @@ fn terrain_3d_mountain_and_water_never_exceed_table_or_upper_plate() {
                 wood_plate_thickness_mm: None,
                 wood_plate_style: None,
                 plates: None,
+                terrain_field: None,
             },
             Layer {
                 id: "layer-2".into(),
@@ -1051,11 +1151,13 @@ fn terrain_3d_mountain_and_water_never_exceed_table_or_upper_plate() {
                 wood_plate_thickness_mm: Some(12.0),
                 wood_plate_style: None,
                 plates: Some(vec![upper_plate]),
+                terrain_field: None,
             },
         ]),
         active_layer_id: Some("layer-1".into()),
         baseboard: Some(bb),
         baseboards: None,
+        terrain_field: None,
     };
 
     let mut cache = Scene3DCache::default();
@@ -1139,6 +1241,7 @@ fn double_slip_24624_and_crossing_24640_generate_correct_3d_geometry() {
         active_layer_id: None,
         baseboard: None,
         baseboards: None,
+        terrain_field: None,
     };
 
     let scene = build_scene_mesh_3d(&layout, &catalogs, &Scene3DOptions::default());
@@ -1182,6 +1285,7 @@ fn default_turnout_lantern_is_unlit_and_reflects_branch_position() {
         active_layer_id: None,
         baseboard: None,
         baseboards: None,
+        terrain_field: None,
     };
 
     let all_verts = |mesh: &SceneMesh3D| -> Vec<Vertex3D> {
@@ -1231,5 +1335,245 @@ fn default_turnout_lantern_is_unlit_and_reflects_branch_position() {
     assert!(
         v_lit.iter().any(|v| v.mat_f32()[2] > 0.5),
         "equipped turnout lantern should emit warm milk-glass emissive vertices"
+    );
+}
+
+#[test]
+fn unified_heightfield_generates_3d_mesh_with_skirts_water_and_track_carving() {
+    let catalogs = builtin_catalogs();
+    let e24188 = find_entry(&catalogs, "24188").expect("24188 in catalog");
+    let piece = create_piece(
+        "hf-t1".into(),
+        e24188,
+        Transform {
+            x: -94.0,
+            y: 0.0,
+            rotation: 0.0,
+        },
+        None,
+    );
+    let bb = BaseboardConfig {
+        id: Some("hf-board".into()),
+        name: None,
+        enabled: true,
+        shape: Some("rect".into()),
+        custom_polygon: None,
+        triangle_type: None,
+        width: 1000.0,
+        depth: 600.0,
+        rotation: None,
+        l_wing_width: None,
+        l_wing_depth: None,
+        l_side: None,
+        u_left_wing_width: None,
+        u_right_wing_width: None,
+        u_back_depth: None,
+        t_bar_depth: None,
+        t_stem_width: None,
+        position_mode: "center".into(),
+        custom_x: Some(0.0),
+        custom_y: Some(0.0),
+        style: "wood".into(),
+        corner_radius: None,
+        show_dimensions: None,
+    };
+    let mut layout = Layout {
+        name: "UnifiedHF3D".into(),
+        scale: "H0".into(),
+        pieces: vec![piece],
+        models: None,
+        feed_voltage: None,
+        catenary_feed_voltage: None,
+        catenary_circuit_mode: None,
+        loco_current_ma: None,
+        loco_count: None,
+        train_current_amps: None,
+        turnout_lantern_current_ma: None,
+        turnout_decoder_current_ma: None,
+        layers: None,
+        active_layer_id: None,
+        baseboard: Some(bb.clone()),
+        baseboards: Some(vec![bb]),
+        terrain_field: None,
+    };
+
+    // Stamp corner mountain and paint a pond
+    assert!(crate::terrain_tools::stamp_preset_into_heightfield(&mut layout, "corner", 190.0));
+    assert!(crate::terrain_tools::apply_heightfield_brush(
+        &mut layout,
+        crate::terrain_tools::SculptOp::PaintBiome(railbench_core::terrain::BIOME_WATER),
+        Vec2 { x: 240.0, y: 120.0 },
+        140.0,
+        0.9,
+        240.0,
+        railbench_core::terrain::BIOME_WATER,
+    ));
+
+    let opts = Scene3DOptions {
+        env_mode: Viewer3DEnv::Minimal,
+        show_wood_plates: true,
+        ..Default::default()
+    };
+    let mut cache = Scene3DCache::default();
+    let b1 = update_scene_3d_cache(&layout, &catalogs, &opts, &mut cache);
+    let terr1 = &b1.terrain.as_ref().expect("heightfield emits terrain submesh").1;
+    assert!(!terr1.vertices.is_empty());
+    assert!(terr1.vertices.iter().all(|v| {
+        v.pos[0].is_finite()
+            && v.pos[1].is_finite()
+            && v.pos[2].is_finite()
+            && v.pos[0].abs() <= 500.5
+            && v.pos[2].abs() <= 300.5
+    }));
+    // Water surface MAT_WATER should be present
+    assert!(
+        terr1
+            .vertices
+            .iter()
+            .any(|v| (v.mat_f32()[0] - MAT_WATER[0]).abs() < 0.04 && v.color_f32()[2] > 0.5),
+        "expected glossy water surface vertices from BIOME_WATER"
+    );
+
+    // Mutate only heightfield revision via sculpt and confirm Scene3DCache reuses env/boards/tracks!
+    assert!(crate::terrain_tools::apply_heightfield_brush(
+        &mut layout,
+        crate::terrain_tools::SculptOp::Raise,
+        Vec2 { x: -180.0, y: 140.0 },
+        130.0,
+        0.8,
+        220.0,
+        0,
+    ));
+    let b2 = update_scene_3d_cache(&layout, &catalogs, &opts, &mut cache);
+    assert!(std::sync::Arc::ptr_eq(&b1.env.as_ref().unwrap().1, &b2.env.as_ref().unwrap().1));
+    assert!(std::sync::Arc::ptr_eq(&b1.boards.as_ref().unwrap().1, &b2.boards.as_ref().unwrap().1));
+    assert!(std::sync::Arc::ptr_eq(&b1.tracks.as_ref().unwrap().1, &b2.tracks.as_ref().unwrap().1));
+    assert!(!std::sync::Arc::ptr_eq(&b1.terrain.as_ref().unwrap().1, &b2.terrain.as_ref().unwrap().1));
+}
+
+#[test]
+fn per_layer_heightfield_3d_renders_at_layer_elevation_and_clips_to_plate() {
+    let catalogs = builtin_catalogs();
+    let bb = BaseboardConfig {
+        id: Some("hf-board".into()),
+        name: None,
+        enabled: true,
+        shape: Some("rect".into()),
+        custom_polygon: None,
+        triangle_type: None,
+        width: 1000.0,
+        depth: 600.0,
+        rotation: None,
+        l_wing_width: None,
+        l_wing_depth: None,
+        l_side: None,
+        u_left_wing_width: None,
+        u_right_wing_width: None,
+        u_back_depth: None,
+        t_bar_depth: None,
+        t_stem_width: None,
+        position_mode: "center".into(),
+        custom_x: Some(0.0),
+        custom_y: Some(0.0),
+        style: "wood".into(),
+        corner_radius: None,
+        show_dimensions: None,
+    };
+    let mut layout = Layout {
+        name: "LayerHF3D".into(),
+        scale: "H0".into(),
+        pieces: Vec::new(),
+        models: None,
+        feed_voltage: None,
+        catenary_feed_voltage: None,
+        catenary_circuit_mode: None,
+        loco_current_ma: None,
+        loco_count: None,
+        train_current_amps: None,
+        turnout_lantern_current_ma: None,
+        turnout_decoder_current_ma: None,
+        layers: Some(vec![
+            railbench_core::types::Layer {
+                id: "layer-1".into(),
+                name: "Base".into(),
+                color: None,
+                visible: true,
+                locked: false,
+                height_mm: Some(0.0),
+                wood_plate_mode: None,
+                wood_plate_thickness_mm: None,
+                wood_plate_style: None,
+                plates: None,
+                terrain_field: None,
+            },
+            railbench_core::types::Layer {
+                id: "layer-2".into(),
+                name: "Upper".into(),
+                color: None,
+                visible: true,
+                locked: false,
+                height_mm: Some(80.0),
+                wood_plate_mode: Some("custom".into()),
+                wood_plate_thickness_mm: Some(10.0),
+                wood_plate_style: Some("wood".into()),
+                plates: Some(vec![railbench_core::types::LayerPlate {
+                    id: "plate-l2".into(),
+                    name: None,
+                    baseboard_id: Some("hf-board".into()),
+                    shape: Some("rect".into()),
+                    custom_polygon: None,
+                    triangle_type: None,
+                    l_wing_width: None,
+                    l_wing_depth: None,
+                    l_side: None,
+                    u_left_wing_width: None,
+                    u_right_wing_width: None,
+                    u_back_depth: None,
+                    t_bar_depth: None,
+                    t_stem_width: None,
+                    rotation: Some(0.0),
+                    width: 400.0,
+                    depth: 300.0,
+                    x: Some(300.0),
+                    y: Some(150.0),
+                    thickness_mm: Some(10.0),
+                    position_mode: Some("custom".into()),
+                    style: Some("wood".into()),
+                }]),
+                terrain_field: None,
+            },
+        ]),
+        active_layer_id: Some("layer-2".into()),
+        baseboard: Some(bb.clone()),
+        baseboards: Some(vec![bb]),
+        terrain_field: None,
+    };
+
+    assert!(crate::terrain_tools::apply_heightfield_brush(
+        &mut layout,
+        crate::terrain_tools::SculptOp::Raise,
+        Vec2 { x: 0.0, y: 0.0 },
+        180.0,
+        1.0,
+        240.0,
+        0,
+    ));
+
+    let opts = Scene3DOptions {
+        env_mode: Viewer3DEnv::Minimal,
+        show_wood_plates: true,
+        ..Default::default()
+    };
+    let mut cache = Scene3DCache::default();
+    let batch = update_scene_3d_cache(&layout, &catalogs, &opts, &mut cache);
+    let terr = &batch.terrain.as_ref().expect("layer-2 heightfield emits 3D submesh").1;
+    assert!(!terr.vertices.is_empty());
+    assert!(
+        terr.vertices.iter().all(|v| v.pos[0].abs() <= 200.5 && v.pos[2].abs() <= 150.5),
+        "layer-2 3D terrain should clip to its 400x300 plate"
+    );
+    assert!(
+        terr.vertices.iter().any(|v| v.pos[1] > 85.0),
+        "layer-2 3D terrain vertices should rise above its 80mm layer height"
     );
 }

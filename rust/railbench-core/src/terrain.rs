@@ -1,4 +1,16 @@
+use std::sync::Arc;
+
 use crate::geometry::{is_point_in_any_polygon, smoothstep};
+use crate::types::TerrainHeightfield;
+
+pub const BIOME_AUTO: u8 = 0;
+pub const BIOME_GRASS: u8 = 1;
+pub const BIOME_FOREST: u8 = 2;
+pub const BIOME_ROCK: u8 = 3;
+pub const BIOME_SNOW: u8 = 4;
+pub const BIOME_SAND: u8 = 5;
+pub const BIOME_DIRT: u8 = 6;
+pub const BIOME_WATER: u8 = 7;
 
 #[inline]
 pub fn mountain_noise(nx: f64, nz: f64) -> f64 {
@@ -488,6 +500,215 @@ pub fn evaluate_mountain_track_samples(
     out
 }
 
+/// Multi-octave ridged + fractional Brownian noise in `[0.0, 1.0]` for organic terrain sculpting.
+#[inline]
+pub fn ridged_fbm_noise(x: f64, z: f64) -> f64 {
+    let f1 = (x * std::f64::consts::PI + 0.5).sin() * (z * std::f64::consts::PI + 0.3).cos();
+    let f2 = (x * 2.13 * std::f64::consts::PI + z * 1.47).sin() * 0.5;
+    let f3 = (x * 4.31 - z * 3.79).cos() * 0.25;
+    let raw = f1 + f2 + f3; // approx [-1.75, 1.75]
+    let ridged = 1.0 - (f1.abs() * 0.65 + (f2 * 0.7).abs() * 0.35).clamp(0.0, 1.0);
+    let smooth = (raw * 0.28 + 0.5).clamp(0.0, 1.0);
+    (0.55 * smooth + 0.45 * ridged).clamp(0.0, 1.0)
+}
+
+pub fn create_heightfield(
+    min_x: f64,
+    min_z: f64,
+    max_x: f64,
+    max_z: f64,
+    target_cell_mm: f64,
+) -> TerrainHeightfield {
+    let w = (max_x - min_x).max(100.0);
+    let d = (max_z - min_z).max(100.0);
+    let cell = target_cell_mm.max(8.0);
+    let cols = (w / cell).round().clamp(32.0, 128.0) as usize + 1;
+    let rows = (d / cell).round().clamp(32.0, 128.0) as usize + 1;
+    let n = cols * rows;
+    TerrainHeightfield {
+        cols,
+        rows,
+        min_x,
+        min_z,
+        max_x: min_x + w,
+        max_z: min_z + d,
+        heights: Arc::new(vec![0.0_f32; n]),
+        materials: Arc::new(vec![BIOME_AUTO; n]),
+        revision: 1,
+    }
+}
+
+pub fn sample_heightfield_bilinear(hf: &TerrainHeightfield, wx: f64, wz: f64) -> f32 {
+    if hf.cols < 2 || hf.rows < 2 || hf.heights.len() < hf.cols * hf.rows {
+        return 0.0;
+    }
+    let span_x = hf.max_x - hf.min_x;
+    let span_z = hf.max_z - hf.min_z;
+    if span_x <= 1e-6 || span_z <= 1e-6 {
+        return 0.0;
+    }
+    if wx < hf.min_x || wx > hf.max_x || wz < hf.min_z || wz > hf.max_z {
+        return 0.0;
+    }
+    let fx = ((wx - hf.min_x) / span_x).clamp(0.0, 1.0) * (hf.cols - 1) as f64;
+    let fz = ((wz - hf.min_z) / span_z).clamp(0.0, 1.0) * (hf.rows - 1) as f64;
+    let x0 = (fx.floor() as usize).min(hf.cols - 2);
+    let z0 = (fz.floor() as usize).min(hf.rows - 2);
+    let tx = (fx - x0 as f64) as f32;
+    let tz = (fz - z0 as f64) as f32;
+    let h00 = hf.heights[z0 * hf.cols + x0];
+    let h10 = hf.heights[z0 * hf.cols + x0 + 1];
+    let h01 = hf.heights[(z0 + 1) * hf.cols + x0];
+    let h11 = hf.heights[(z0 + 1) * hf.cols + x0 + 1];
+    let a = h00 + (h10 - h00) * tx;
+    let b = h01 + (h11 - h01) * tx;
+    a + (b - a) * tz
+}
+
+pub fn sample_heightfield_material(hf: &TerrainHeightfield, wx: f64, wz: f64) -> u8 {
+    if hf.cols < 2 || hf.rows < 2 || hf.materials.len() < hf.cols * hf.rows {
+        return BIOME_AUTO;
+    }
+    let span_x = hf.max_x - hf.min_x;
+    let span_z = hf.max_z - hf.min_z;
+    if span_x <= 1e-6 || span_z <= 1e-6 {
+        return BIOME_AUTO;
+    }
+    if wx < hf.min_x || wx > hf.max_x || wz < hf.min_z || wz > hf.max_z {
+        return BIOME_AUTO;
+    }
+    let ix = (((wx - hf.min_x) / span_x).clamp(0.0, 1.0) * (hf.cols - 1) as f64)
+        .round() as usize;
+    let iz = (((wz - hf.min_z) / span_z).clamp(0.0, 1.0) * (hf.rows - 1) as f64)
+        .round() as usize;
+    hf.materials[iz.min(hf.rows - 1) * hf.cols + ix.min(hf.cols - 1)]
+}
+
+pub fn resample_heightfield(
+    old: &TerrainHeightfield,
+    min_x: f64,
+    min_z: f64,
+    max_x: f64,
+    max_z: f64,
+    target_cell_mm: f64,
+) -> TerrainHeightfield {
+    let mut fresh = create_heightfield(min_x, min_z, max_x, max_z, target_cell_mm);
+    fresh.revision = old.revision.saturating_add(1);
+    let span_x = fresh.max_x - fresh.min_x;
+    let span_z = fresh.max_z - fresh.min_z;
+    let h_mut = Arc::make_mut(&mut fresh.heights);
+    let m_mut = Arc::make_mut(&mut fresh.materials);
+    for iz in 0..fresh.rows {
+        let wz = fresh.min_z + (iz as f64 / (fresh.rows - 1).max(1) as f64) * span_z;
+        for ix in 0..fresh.cols {
+            let wx = fresh.min_x + (ix as f64 / (fresh.cols - 1).max(1) as f64) * span_x;
+            let idx = iz * fresh.cols + ix;
+            h_mut[idx] = sample_heightfield_bilinear(old, wx, wz);
+            m_mut[idx] = sample_heightfield_material(old, wx, wz);
+        }
+    }
+    fresh
+}
+
+/// Raycasts a 3D viewport cursor ray `(origin, dir)` against the sculpted `TerrainHeightfield`
+/// inside `(min_x, min_z, max_x, max_z)`, returning the exact 3D surface hit `[x, y, z]`.
+pub fn raycast_heightfield_3d(
+    origin: [f32; 3],
+    dir: [f32; 3],
+    hf: Option<&TerrainHeightfield>,
+    bounds: (f64, f64, f64, f64),
+) -> Option<[f32; 3]> {
+    let (bmin_x, bmin_z, bmax_x, bmax_z) = bounds;
+    let hit_plane_fallback = || -> Option<[f32; 3]> {
+        if dir[1].abs() < 1e-4 {
+            return None;
+        }
+        let t = -origin[1] / dir[1];
+        if t <= 0.5 || t > 100_000.0 {
+            return None;
+        }
+        let hx = origin[0] + dir[0] * t;
+        let hz = origin[2] + dir[2] * t;
+        if (hx as f64) < bmin_x
+            || (hx as f64) > bmax_x
+            || (hz as f64) < bmin_z
+            || (hz as f64) > bmax_z
+        {
+            return None;
+        }
+        Some([hx, 0.0, hz])
+    };
+
+    let Some(hf) = hf else {
+        return hit_plane_fallback();
+    };
+
+    // Slab intersection with [min_x..max_x, -40..600, min_z..max_z]
+    let min_b = [bmin_x as f32, -40.0_f32, bmin_z as f32];
+    let max_b = [bmax_x as f32, 600.0_f32, bmax_z as f32];
+    let mut tmin = 0.5_f32;
+    let mut tmax = 100_000.0_f32;
+    for axis in 0..3 {
+        if dir[axis].abs() < 1e-6 {
+            if origin[axis] < min_b[axis] || origin[axis] > max_b[axis] {
+                return hit_plane_fallback();
+            }
+        } else {
+            let inv = 1.0 / dir[axis];
+            let mut t1 = (min_b[axis] - origin[axis]) * inv;
+            let mut t2 = (max_b[axis] - origin[axis]) * inv;
+            if t1 > t2 {
+                std::mem::swap(&mut t1, &mut t2);
+            }
+            tmin = tmin.max(t1);
+            tmax = tmax.min(t2);
+            if tmin > tmax {
+                return hit_plane_fallback();
+            }
+        }
+    }
+
+    let steps = 320usize;
+    let dt = ((tmax - tmin) / steps as f32).clamp(6.0, 28.0);
+    let mut prev_t = tmin;
+    let mut prev_above = true;
+    let mut t = tmin;
+    while t <= tmax + dt * 0.5 {
+        let tc = t.min(tmax);
+        let rx = (origin[0] + dir[0] * tc) as f64;
+        let ry = origin[1] + dir[1] * tc;
+        let rz = (origin[2] + dir[2] * tc) as f64;
+        let surf_y = sample_heightfield_bilinear(hf, rx, rz);
+        if ry <= surf_y {
+            if !prev_above && (tc - tmin) < dt * 0.5 {
+                return Some([rx as f32, surf_y, rz as f32]);
+            }
+            let mut lo = prev_t;
+            let mut hi = tc;
+            for _ in 0..7 {
+                let mid = (lo + hi) * 0.5;
+                let mx = (origin[0] + dir[0] * mid) as f64;
+                let my = origin[1] + dir[1] * mid;
+                let mz = (origin[2] + dir[2] * mid) as f64;
+                if my <= sample_heightfield_bilinear(hf, mx, mz) {
+                    hi = mid;
+                } else {
+                    lo = mid;
+                }
+            }
+            let hx = (origin[0] + dir[0] * hi) as f64;
+            let hz = (origin[2] + dir[2] * hi) as f64;
+            let hy = sample_heightfield_bilinear(hf, hx, hz);
+            return Some([hx as f32, hy, hz as f32]);
+        }
+        prev_t = tc;
+        prev_above = ry > surf_y;
+        t += dt;
+    }
+
+    hit_plane_fallback()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -538,5 +759,64 @@ mod tests {
         let center_idx = (4 * 9 + 4) * 4;
         assert!(out[center_idx] < 1.0, "expected corridor center carved flat, got {}", out[center_idx]);
         assert!(out[center_idx + 3] > 0.99);
+    }
+
+    #[test]
+    fn heightfield_bilinear_sampling_and_raycast_hit_surface() {
+        let mut hf = create_heightfield(-400.0, -300.0, 400.0, 300.0, 25.0);
+        let cx = (hf.cols - 1) / 2;
+        let cz = (hf.rows - 1) / 2;
+        let hm = Arc::make_mut(&mut hf.heights);
+        for iz in cz.saturating_sub(3)..=(cz + 3).min(hf.rows - 1) {
+            for ix in cx.saturating_sub(3)..=(cx + 3).min(hf.cols - 1) {
+                let d = (ix as f32 - cx as f32).hypot(iz as f32 - cz as f32) / 3.5;
+                if d < 1.0 {
+                    hm[iz * hf.cols + ix] = (1.0 - d) * 140.0;
+                }
+            }
+        }
+        let peak_h = sample_heightfield_bilinear(&hf, 0.0, 0.0);
+        assert!(peak_h > 100.0, "expected sampled center peak > 100mm, got {peak_h}");
+
+        let origin = [0.0_f32, 350.0, 220.0];
+        let dir = [0.0_f32, -0.78, -0.62];
+        let hit = raycast_heightfield_3d(origin, dir, Some(&hf), (-400.0, -300.0, 400.0, 300.0))
+            .expect("ray hits raised terrain heightfield");
+        assert!(hit[1] > 35.0, "raycast should stop on raised surface, got y={}", hit[1]);
+    }
+
+    #[test]
+    fn heightfield_serialization_roundtrip_preserves_grid() {
+        let mut hf = create_heightfield(-500.0, -400.0, 500.0, 400.0, 50.0);
+        Arc::make_mut(&mut hf.heights)[5] = 88.5;
+        Arc::make_mut(&mut hf.materials)[5] = BIOME_ROCK;
+        let layout = crate::types::Layout {
+            name: "HFSerde".into(),
+            scale: "H0".into(),
+            pieces: Vec::new(),
+            models: None,
+            feed_voltage: None,
+            catenary_feed_voltage: None,
+            catenary_circuit_mode: None,
+            loco_current_ma: None,
+            loco_count: None,
+            train_current_amps: None,
+            turnout_lantern_current_ma: None,
+            turnout_decoder_current_ma: None,
+            layers: None,
+            active_layer_id: None,
+            baseboard: None,
+            baseboards: None,
+            terrain_field: Some(hf),
+        };
+        let json = serde_json::to_string(&layout).unwrap();
+        let parsed: crate::types::Layout = serde_json::from_str(&json).unwrap();
+        let p_hf = parsed.terrain_field.expect("terrain_field roundtrips");
+        assert!((p_hf.heights[5] - 88.5).abs() < 1e-4);
+        assert_eq!(p_hf.materials[5], BIOME_ROCK);
+
+        let legacy_json = json.replace("\"terrainField\":", "\"unusedLegacyIgnored\":");
+        let parsed_legacy: crate::types::Layout = serde_json::from_str(&legacy_json).unwrap();
+        assert!(parsed_legacy.terrain_field.is_none());
     }
 }

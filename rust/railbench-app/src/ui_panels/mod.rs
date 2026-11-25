@@ -7,19 +7,21 @@ use crate::board_tools::{self, SketchMode};
 use crate::canvas2d::{parse_hex_color, ColorMode};
 use crate::export::get_piece_list_summary;
 use crate::i18n::{tr, Lang};
-use crate::icons::{icon_button, icon_button_sized, Icon};
+use crate::icons::{icon_button_sized, Icon};
 use crate::model_tools;
 use crate::ramp_tools::{
-    apply_auto_ramp_for_chain, available_curves_for_catalog, generate_ramp_or_helix,
-    min_clearance_for_scale, preview_auto_ramp_for_chain, resolve_ramp_chain, RampProfile,
-    RampShape,
+    apply_auto_ramp_for_chain, min_clearance_for_scale, preview_auto_ramp_for_chain,
+    resolve_ramp_chain, RampProfile, RampShape,
 };
 use crate::settings::{
     capture_pressed_shortcut, KeyCapture, KeyCategory, StartupAction, KEY_ACTION_DEFS,
 };
-use crate::terrain_tools::{self, TerrainBrushMode, TerrainRidgeProfile};
+use crate::terrain_tools::{self, TerrainBrushMode};
 use crate::theme::{palette, style_toolbar_ui};
 use crate::{RailbenchApp, SidebarTab};
+
+/// Uniform height (px) shared by every control in the quick toolbar row.
+const TB_H: f32 = 26.0;
 
 pub fn draw_top_bars(ctx: &egui::Context, app: &mut RailbenchApp) {
     let t = tr(app.lang);
@@ -39,26 +41,39 @@ pub fn draw_top_bars(ctx: &egui::Context, app: &mut RailbenchApp) {
         .show(ctx, |ui| {
             style_toolbar_ui(ui, p);
             egui::menu::bar(ui, |ui| {
-                // RAILbench brand badge + CalVer tag
-                ui.label(RichText::new("RAIL").strong().size(14.5).color(p.primary));
-                ui.add_space(-6.0);
-                ui.label(RichText::new("bench").strong().size(14.5).color(Color32::WHITE));
-                ui.add_space(-2.0);
-                ui.label(
-                    RichText::new(crate::version::APP_VERSION_TAG)
-                        .size(10.5)
-                        .monospace()
-                        .color(p.text_muted),
-                );
+                // RAILbench brand badge + CalVer tag (click opens Welcome dialog)
+                let brand_resp = ui
+                    .horizontal(|ui| {
+                        ui.label(RichText::new("RAIL").strong().size(14.5).color(p.primary));
+                        ui.add_space(-6.0);
+                        ui.label(RichText::new("bench").strong().size(14.5).color(Color32::WHITE));
+                        ui.add_space(-2.0);
+                        ui.label(
+                            RichText::new(crate::version::APP_VERSION_TAG)
+                                .size(10.5)
+                                .monospace()
+                                .color(p.text_muted),
+                        );
+                    })
+                    .response
+                    .interact(egui::Sense::click())
+                    .on_hover_text(if app.lang == Lang::De {
+                        "Willkommensbildschirm & Aktuelles oeffnen"
+                    } else {
+                        "Open Welcome & Quick Start"
+                    });
+                if brand_resp.clicked() {
+                    app.show_welcome_dialog = true;
+                }
                 ui.add_space(10.0);
 
                 ui.menu_button(t.menu_file, |ui| {
                     if ui.button(t.new_layout).clicked() {
-                        app.new_empty_layout();
+                        app.request_new_layout();
                         ui.close_menu();
                     }
                     if ui.button(t.open_file).clicked() {
-                        app.open_layout_dialog();
+                        app.request_open_layout_dialog();
                         ui.close_menu();
                     }
                     ui.menu_button(t.open_demo, |ui| {
@@ -71,7 +86,7 @@ pub fn draw_top_bars(ctx: &egui::Context, app: &mut RailbenchApp) {
                             ("Suitcase Z", "demotracks/suitcase-z.railbench"),
                         ] {
                             if ui.button(label).clicked() {
-                                app.open_layout_path(path);
+                                app.request_open_demo(path);
                                 ui.close_menu();
                             }
                         }
@@ -86,8 +101,14 @@ pub fn draw_top_bars(ctx: &egui::Context, app: &mut RailbenchApp) {
                             ui.close_menu();
                         }
                     });
-                    if ui.button(t.save_file).clicked() {
+                    let save_lbl = if app.lang == Lang::De { "Speichern (Strg+S)" } else { "Save (Ctrl+S)" };
+                    if ui.button(save_lbl).clicked() {
                         app.save_layout_dialog();
+                        ui.close_menu();
+                    }
+                    let save_as_lbl = if app.lang == Lang::De { "Speichern unter... (Strg+Shift+S)" } else { "Save As... (Ctrl+Shift+S)" };
+                    if ui.button(save_as_lbl).clicked() {
+                        app.save_layout_as_dialog();
                         ui.close_menu();
                     }
                     ui.separator();
@@ -186,6 +207,100 @@ pub fn draw_top_bars(ctx: &egui::Context, app: &mut RailbenchApp) {
                         app.rotate_selected(app.rotation_step);
                         ui.close_menu();
                     }
+                    let is_de_edit = app.lang == Lang::De;
+                    if ui
+                        .add_enabled(
+                            !app.selected.is_empty(),
+                            egui::Button::new(if is_de_edit {
+                                "Spiegeln / Wenden (Alt+F)"
+                            } else {
+                                "Flip Selected (Alt+F)"
+                            }),
+                        )
+                        .clicked()
+                    {
+                        app.flip_selected();
+                        ui.close_menu();
+                    }
+                    if ui
+                        .add_enabled(
+                            !app.selected.is_empty(),
+                            egui::Button::new(if is_de_edit {
+                                "Gruppieren / Entgruppieren (G)"
+                            } else {
+                                "Group / Ungroup (G)"
+                            }),
+                        )
+                        .clicked()
+                    {
+                        app.toggle_group_selected();
+                        ui.close_menu();
+                    }
+                    let one_piece_id = if app.selected.len() == 1 {
+                        app.layout
+                            .pieces
+                            .iter()
+                            .find(|p| app.selected.contains(&p.id))
+                            .map(|p| p.id.clone())
+                    } else {
+                        None
+                    };
+                    if ui
+                        .add_enabled(
+                            one_piece_id.is_some(),
+                            egui::Button::new(if is_de_edit {
+                                "Gleis teilen / ersetzen... (Strg+Shift+T)"
+                            } else {
+                                "Split / Replace Track... (Ctrl+Shift+T)"
+                            }),
+                        )
+                        .clicked()
+                    {
+                        app.replace_track_search.clear();
+                        app.show_replace_track_piece_id = one_piece_id.clone();
+                        ui.close_menu();
+                    }
+                    if ui
+                        .add_enabled(
+                            one_piece_id.is_some(),
+                            egui::Button::new(if is_de_edit {
+                                "Gleis-Eigenschaften... (Alt+Enter)"
+                            } else {
+                                "Track Properties... (Alt+Enter)"
+                            }),
+                        )
+                        .clicked()
+                    {
+                        app.show_track_props_piece_id = one_piece_id;
+                        ui.close_menu();
+                    }
+                    ui.separator();
+                    if ui
+                        .button(if is_de_edit {
+                            "Hoehe & Rampe... (M)"
+                        } else {
+                            "Height & Ramp... (M)"
+                        })
+                        .clicked()
+                    {
+                        app.show_height_dialog = true;
+                        ui.close_menu();
+                    }
+                    if ui
+                        .add_enabled(
+                            !app.selected.is_empty(),
+                            egui::Button::new(if is_de_edit {
+                                "Auto-Rampe anwenden (Shift+M)"
+                            } else {
+                                "Apply Auto-Ramp (Shift+M)"
+                            }),
+                        )
+                        .clicked()
+                    {
+                        app.apply_auto_ramp_one_shot();
+                        ui.close_menu();
+                    }
+                    ui.separator();
                     if ui.button(t.delete_sel).clicked() {
                         app.delete_selected();
                         ui.close_menu();
@@ -312,6 +427,31 @@ pub fn draw_top_bars(ctx: &egui::Context, app: &mut RailbenchApp) {
                     }
                     if ui
                         .button(if is_de {
+                            "Eigenen Katalog (JSON-Schema)..."
+                        } else {
+                            "Catalog JSON Schema..."
+                        })
+                        .clicked()
+                    {
+                        app.help_tab = 8;
+                        app.show_help_dialog = true;
+                        ui.close_menu();
+                    }
+                    if ui
+                        .button(if is_de {
+                            "Collab Server & CLI-Optionen..."
+                        } else {
+                            "Collab Server & CLI Flags..."
+                        })
+                        .clicked()
+                    {
+                        app.help_tab = 9;
+                        app.show_help_dialog = true;
+                        ui.close_menu();
+                    }
+                    ui.separator();
+                    if ui
+                        .button(if is_de {
                             "Demo-Anlagen..."
                         } else {
                             "Demo Layouts..."
@@ -413,11 +553,31 @@ pub fn draw_top_bars(ctx: &egui::Context, app: &mut RailbenchApp) {
                             );
                         });
                     ui.add_space(6.0);
-                    ui.label(
-                        RichText::new(format!("{}.railbench", app.layout.name))
-                            .size(12.0)
-                            .color(Color32::from_rgb(203, 213, 225)),
-                    );
+                    let dirty = app.is_dirty();
+                    let fname_lbl = if dirty {
+                        format!("● {}.railbench", app.layout.name)
+                    } else {
+                        format!("{}.railbench", app.layout.name)
+                    };
+                    let fname_col = if dirty {
+                        Color32::from_rgb(251, 191, 36)
+                    } else {
+                        Color32::from_rgb(203, 213, 225)
+                    };
+                    if ui
+                        .add(
+                            egui::Button::new(RichText::new(fname_lbl).size(12.0).color(fname_col))
+                                .frame(false),
+                        )
+                        .on_hover_text(if app.lang == Lang::De {
+                            "Klicken zum Speichern (Strg+S)"
+                        } else {
+                            "Click to save layout (Ctrl+S)"
+                        })
+                        .clicked()
+                    {
+                        app.save_layout_dialog();
+                    }
 
                     // Fill remaining space in Row 1 as a draggable titlebar (drag to move, double-click to maximize)
                     let drag_rect = ui.available_rect_before_wrap();
@@ -450,6 +610,9 @@ pub fn draw_top_bars(ctx: &egui::Context, app: &mut RailbenchApp) {
         )
         .show(ctx, |ui| {
             style_toolbar_ui(ui, p);
+            // Every button, menu button, combo box and toggle in this row gets the same height.
+            ui.spacing_mut().interact_size.y = TB_H;
+            ui.spacing_mut().button_padding = egui::vec2(8.0, 3.0);
             ui.horizontal(|ui| {
                 let pill_btn = |ui: &mut egui::Ui, label: &str, active: bool| -> egui::Response {
                     let fill = if active { p.primary_hover } else { p.toolbar_btn };
@@ -462,6 +625,7 @@ pub fn draw_top_bars(ctx: &egui::Context, app: &mut RailbenchApp) {
                         egui::Button::new(RichText::new(label).size(12.0).color(Color32::WHITE))
                             .fill(fill)
                             .stroke(stroke)
+                            .min_size(egui::vec2(34.0, TB_H))
                             .corner_radius(CornerRadius::same(6)),
                     )
                 };
@@ -497,12 +661,23 @@ pub fn draw_top_bars(ctx: &egui::Context, app: &mut RailbenchApp) {
                 ui.separator();
 
                 let tb_icon = |ui: &mut egui::Ui, icon: Icon, active: bool, tip: &str| -> bool {
-                    icon_button(ui, icon, active, p.toolbar_btn, p.primary_hover, p.primary, Color32::WHITE, tip).clicked()
+                    icon_button_sized(
+                        ui,
+                        icon,
+                        egui::vec2(30.0, TB_H),
+                        active,
+                        p.toolbar_btn,
+                        p.primary_hover,
+                        p.primary,
+                        Color32::WHITE,
+                        tip,
+                    )
+                    .clicked()
                 };
 
                 // Quick file actions (monochrome icons)
-                if tb_icon(ui, Icon::FilePlus, false, t.new_layout) { app.new_empty_layout(); }
-                if tb_icon(ui, Icon::FolderOpen, false, t.open_file) { app.open_layout_dialog(); }
+                if tb_icon(ui, Icon::FilePlus, false, t.new_layout) { app.request_new_layout(); }
+                if tb_icon(ui, Icon::FolderOpen, false, t.open_file) { app.request_open_layout_dialog(); }
                 if tb_icon(ui, Icon::Save, false, t.save_file) { app.save_layout_dialog(); }
                 ui.separator();
 
@@ -548,6 +723,7 @@ pub fn draw_top_bars(ctx: &egui::Context, app: &mut RailbenchApp) {
                     app.measure_mode = !app.measure_mode;
                     if !app.measure_mode {
                         app.measure_points = None;
+                        app.measure_locked = false;
                     }
                 }
 
@@ -673,6 +849,7 @@ pub fn draw_top_bars(ctx: &egui::Context, app: &mut RailbenchApp) {
                         app.focus_world_point(pos.x, pos.y);
                     }
                 }
+                ui.separator();
                 if tb_icon(ui, Icon::RotateCcw, false, t.rotate_ccw) {
                     app.rotate_selected(-app.rotation_step);
                 }
@@ -689,6 +866,17 @@ pub fn draw_top_bars(ctx: &egui::Context, app: &mut RailbenchApp) {
                             }
                         }
                     });
+                let lock_tip = if app.lang == Lang::De {
+                    "Rotationsschritt beim Platzieren/Snappen einrasten"
+                } else {
+                    "Lock rotation step snap angle"
+                };
+                let snap_lock_icon = if app.rotation_snap_locked { Icon::Lock } else { Icon::Unlock };
+                if tb_icon(ui, snap_lock_icon, app.rotation_snap_locked, lock_tip) {
+                    app.rotation_snap_locked = !app.rotation_snap_locked;
+                    app.save_current_settings();
+                }
+                ui.separator();
 
                 // Colors + Labels + Voltage + 3D (monochrome icons)
                 let colors_active = app.color_mode != ColorMode::Off;
@@ -700,6 +888,18 @@ pub fn draw_top_bars(ctx: &egui::Context, app: &mut RailbenchApp) {
                     };
                     app.save_current_settings();
                 }
+                ui.menu_button("▾", |ui| {
+                    let mut c_changed = false;
+                    c_changed |= ui.radio_value(&mut app.color_mode, ColorMode::Types, t.color_types).changed();
+                    c_changed |= ui.radio_value(&mut app.color_mode, ColorMode::Layers, t.color_layers).changed();
+                    c_changed |= ui.radio_value(&mut app.color_mode, ColorMode::Off, t.color_off).changed();
+                    if c_changed {
+                        app.save_current_settings();
+                        ui.close_menu();
+                    }
+                })
+                .response
+                .on_hover_text(t.colors_btn);
                 if tb_icon(ui, Icon::Tag, app.show_labels, t.labels) {
                     app.show_labels = !app.show_labels;
                     app.save_current_settings();
@@ -716,6 +916,7 @@ pub fn draw_top_bars(ctx: &egui::Context, app: &mut RailbenchApp) {
                             ("14V Spur TT (300 mA)", 14.0, 300.0),
                             ("14V H0 DCC (450 mA)", 14.0, 450.0),
                             ("16V H0 Standard (450 mA)", 16.0, 450.0),
+                            ("16V Spur 0 (600 mA)", 16.0, 600.0),
                             ("18V Spur 1 (800 mA)", 18.0, 800.0),
                             ("24V Spur G / LGB (1000 mA)", 24.0, 1000.0),
                         ] {
@@ -732,7 +933,9 @@ pub fn draw_top_bars(ctx: &egui::Context, app: &mut RailbenchApp) {
                             app.show_power_dialog = true;
                             ui.close_menu();
                         }
-                    });
+                    })
+                    .response
+                    .on_hover_text(t.volt_btn);
 
                     let is_de = app.lang == Lang::De;
 
@@ -742,13 +945,19 @@ pub fn draw_top_bars(ctx: &egui::Context, app: &mut RailbenchApp) {
                         .as_ref()
                         .filter(|(_, s)| s.has_short_circuit && (s.is_two_wire || app.power_sim_enabled))
                         .map(|(_, s)| {
+                            let ids: Vec<String> = s
+                                .short_circuit_points
+                                .iter()
+                                .flat_map(|pt| [pt.piece_id_1.clone(), pt.piece_id_2.clone()])
+                                .collect();
                             (
                                 s.is_two_wire,
                                 s.short_circuit_points.len(),
                                 s.short_circuit_points.first().map(|pt| (pt.x, pt.y)),
+                                ids,
                             )
                         });
-                    if let Some((is_two_wire, cnt, maybe_pt)) = first_sc {
+                    if let Some((is_two_wire, cnt, maybe_pt, sc_ids)) = first_sc {
                         let label = if is_two_wire {
                             if is_de {
                                 if cnt > 0 { format!("⚠ 2-LEITER KURZSCHLUSS ({cnt})") } else { "⚠ 2-LEITER KURZSCHLUSS".into() }
@@ -776,12 +985,19 @@ pub fn draw_top_bars(ctx: &egui::Context, app: &mut RailbenchApp) {
                             .clicked()
                         {
                             app.power_sim_enabled = true;
+                            if !sc_ids.is_empty() {
+                                app.selected.clear();
+                                for id in sc_ids {
+                                    app.selected.insert(id);
+                                }
+                            }
                             if let Some((x, y)) = maybe_pt {
                                 app.focus_world_point(x, y);
                             }
                         }
                     }
 
+                ui.separator();
                 // Unified Drive, Cab View & Signal Box Window (for 2nd Monitor)
                 let drive_lbl = if is_de { "🚂 Fahren & Stellwerk" } else { "🚂 Drive & Signal Box" };
                 let drive_active = app.show_cab_window || app.vehicle_sim.running;
@@ -812,28 +1028,9 @@ pub fn draw_top_bars(ctx: &egui::Context, app: &mut RailbenchApp) {
                     app.show_cab_window = !app.show_cab_window;
                 }
 
-                // 3D Toggle + Separate 3D Train Mode
+                // 3D Toggle
                 if tb_icon(ui, Icon::Box3d, app.is_3d_mode, "3D View (3)") {
                     app.toggle_3d();
-                }
-                let tr_active = app.is_3d_mode && app.train_3d.active;
-                let tr_btn_lbl = if app.lang == Lang::De { "Zuege 3D" } else { "Trains 3D" };
-                if pill_btn(ui, tr_btn_lbl, tr_active)
-                    .on_hover_text(if app.lang == Lang::De {
-                        "Separater 3D Zug-Modus (BR 243, BR 96 Mallet, V 60)"
-                    } else {
-                        "Separate 3D Train Mode (BR 243, BR 96 Mallet, V 60)"
-                    })
-                    .clicked()
-                {
-                    if tr_active {
-                        app.train_3d.active = false;
-                    } else {
-                        if !app.is_3d_mode {
-                            app.toggle_3d();
-                        }
-                        app.train_3d.enter_mode(&app.layout, &app.catalogs, &mut app.camera_3d);
-                    }
                 }
 
                 // Right-aligned utilities (matches TS toolbar-right: DE/EN, Collab, Theme, Layers)
@@ -848,7 +1045,42 @@ pub fn draw_top_bars(ctx: &egui::Context, app: &mut RailbenchApp) {
                         app.dark_mode = !app.dark_mode;
                         app.save_current_settings();
                     }
-                    if tb_icon(ui, Icon::Users, app.collab.connected, "Live Collaboration") {
+                    let collab_tip = if app.collab.connected {
+                        if app.lang == Lang::De {
+                            format!(
+                                "Live-Zusammenarbeit · Raum '{}' · {} Teilnehmer",
+                                app.collab.room_id,
+                                1 + app.collab.users.len()
+                            )
+                        } else {
+                            format!(
+                                "Live Collaboration · Room '{}' · {} participant(s)",
+                                app.collab.room_id,
+                                1 + app.collab.users.len()
+                            )
+                        }
+                    } else {
+                        "Live Collaboration".to_string()
+                    };
+                    if app.collab.connected {
+                        let cnt_txt = format!("{}", 1 + app.collab.users.len());
+                        if ui
+                            .add(
+                                egui::Button::new(
+                                    RichText::new(format!("👥 {cnt_txt}"))
+                                        .size(11.0)
+                                        .strong()
+                                        .color(Color32::WHITE),
+                                )
+                                .fill(Color32::from_rgb(16, 185, 129))
+                                .corner_radius(CornerRadius::same(6)),
+                            )
+                            .on_hover_text(collab_tip)
+                            .clicked()
+                        {
+                            app.show_collab_dialog = !app.show_collab_dialog;
+                        }
+                    } else if tb_icon(ui, Icon::Users, false, collab_tip.as_str()) {
                         app.show_collab_dialog = !app.show_collab_dialog;
                     }
                     if pill_btn(ui, if app.lang == Lang::De { "DE" } else { "EN" }, false).clicked() {
@@ -984,6 +1216,7 @@ pub fn default_layer() -> Layer {
         wood_plate_thickness_mm: Some(12.0),
         wood_plate_style: None,
         plates: None,
+        terrain_field: None,
     }
 }
 

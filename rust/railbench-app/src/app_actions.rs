@@ -89,7 +89,8 @@ impl RailbenchApp {
 
     pub fn auto_tunnel_all_mountains(&mut self) -> usize {
         self.push_undo();
-        let count = terrain_tools::apply_auto_tunnel_all_mountains(&mut self.layout);
+        let count = terrain_tools::apply_auto_tunnel_all_mountains(&mut self.layout)
+            + terrain_tools::apply_auto_tunnel_for_all_layer_heightfields(&mut self.layout);
         self.mark_layout_dirty();
         self.status_message = Some(if self.lang == Lang::De {
             format!("Auto-Tunnel: {count} Gleis-/Strassenstueck(e) markiert")
@@ -160,21 +161,47 @@ impl RailbenchApp {
     }
 
     pub fn toggle_selected_isolator(&mut self) {
-        let has_target = self.layout.pieces.iter().any(|p| {
-            self.selected.contains(&p.id) && !crate::catalog::is_road_id(&self.catalogs, &p.catalog_id)
-        });
-        if !has_target { return; }
+        let matching_ids: Vec<String> = self
+            .layout
+            .pieces
+            .iter()
+            .filter(|p| {
+                self.selected.contains(&p.id) && !crate::catalog::is_road_id(&self.catalogs, &p.catalog_id)
+            })
+            .map(|p| p.id.clone())
+            .collect();
+        if matching_ids.is_empty() { return; }
         self.push_undo();
-        let any_off = self.layout.pieces.iter().any(|p| {
-            self.selected.contains(&p.id)
-                && !crate::catalog::is_road_id(&self.catalogs, &p.catalog_id)
-                && p.is_isolator != Some(true)
-        });
-        for p in &mut self.layout.pieces {
-            if self.selected.contains(&p.id) && !crate::catalog::is_road_id(&self.catalogs, &p.catalog_id) {
-                p.is_isolator = Some(any_off);
-                if any_off && p.isolated_connector_index.is_none() {
+        if matching_ids.len() == 1 {
+            if let Some(p) = self.layout.pieces.iter_mut().find(|p| p.id == matching_ids[0]) {
+                if p.is_isolator == Some(true) {
+                    let cur = p.isolated_connector_index.unwrap_or(0);
+                    let count = p.connectors.len().max(2);
+                    if cur + 1 < count {
+                        p.isolated_connector_index = Some(cur + 1);
+                    } else {
+                        p.is_isolator = Some(false);
+                        p.isolated_connector_index = None;
+                    }
+                } else {
+                    p.is_isolator = Some(true);
                     p.isolated_connector_index = Some(0);
+                }
+            }
+        } else {
+            let any_off = self.layout.pieces.iter().any(|p| {
+                self.selected.contains(&p.id)
+                    && !crate::catalog::is_road_id(&self.catalogs, &p.catalog_id)
+                    && p.is_isolator != Some(true)
+            });
+            for p in &mut self.layout.pieces {
+                if self.selected.contains(&p.id) && !crate::catalog::is_road_id(&self.catalogs, &p.catalog_id) {
+                    p.is_isolator = Some(any_off);
+                    if any_off && p.isolated_connector_index.is_none() {
+                        p.isolated_connector_index = Some(0);
+                    } else if !any_off {
+                        p.isolated_connector_index = None;
+                    }
                 }
             }
         }
@@ -414,6 +441,9 @@ impl RailbenchApp {
         for p in &mut self.layout.pieces {
             if self.selected.contains(&p.id) {
                 p.has_bridge = Some(any_off);
+                if any_off {
+                    p.has_tunnel = Some(false);
+                }
             }
         }
         self.mark_layout_dirty();
@@ -426,12 +456,111 @@ impl RailbenchApp {
         for p in &mut self.layout.pieces {
             if self.selected.contains(&p.id) {
                 p.has_tunnel = Some(any_off);
+                if any_off {
+                    p.has_bridge = Some(false);
+                }
             }
         }
         self.mark_layout_dirty();
     }
 
     pub fn add_layer(&mut self) {
+        self.add_layer_immediate();
+    }
+
+    pub fn open_layer_dialog_new(&mut self) {
+        let layers = self.layout.layers.as_deref().unwrap_or(&[]);
+        let max_h = layers
+            .iter()
+            .filter_map(|l| l.height_mm)
+            .fold(f64::NEG_INFINITY, f64::max);
+        let next_idx = layers.len() + 1;
+        let palette_hex = ["#38bdf8", "#34d399", "#fbbf24", "#f472b6", "#a78bfa", "#f97316", "#2dd4bf", "#ef4444"];
+        self.layer_dialog_edit_id = None;
+        self.layer_dialog_name = if self.lang == Lang::De {
+            format!("Ebene {}", next_idx.saturating_sub(1))
+        } else {
+            format!("Layer {next_idx}")
+        };
+        self.layer_dialog_height_mm = if layers.is_empty() || !max_h.is_finite() {
+            0.0
+        } else {
+            max_h + 80.0
+        };
+        self.layer_dialog_color = palette_hex[(next_idx.saturating_sub(1)) % palette_hex.len()].into();
+        self.layer_dialog_wood_mode = "none".into();
+        self.layer_dialog_wood_thickness = 10.0;
+        self.show_layer_dialog = true;
+    }
+
+    pub fn open_layer_dialog_edit(&mut self, layer_id: &str) {
+        let Some(layer) = self
+            .layout
+            .layers
+            .as_ref()
+            .and_then(|ls| ls.iter().find(|l| l.id == layer_id))
+            .cloned()
+        else {
+            return;
+        };
+        self.layer_dialog_edit_id = Some(layer.id);
+        self.layer_dialog_name = layer.name;
+        self.layer_dialog_height_mm = layer.height_mm.unwrap_or(0.0);
+        self.layer_dialog_color = layer.color.unwrap_or_else(|| "#38bdf8".into());
+        self.layer_dialog_wood_mode = layer.wood_plate_mode.unwrap_or_else(|| "none".into());
+        self.layer_dialog_wood_thickness = layer.wood_plate_thickness_mm.unwrap_or(10.0);
+        self.show_layer_dialog = true;
+    }
+
+    pub fn apply_layer_dialog(&mut self) {
+        self.push_undo();
+        let name = self.layer_dialog_name.trim().to_string();
+        let final_name = if name.is_empty() {
+            "Layer".to_string()
+        } else {
+            name
+        };
+        let height_mm = (self.layer_dialog_height_mm * 10.0).round() / 10.0;
+        let color = self.layer_dialog_color.clone();
+        let wood_mode = Some(self.layer_dialog_wood_mode.clone());
+        let wood_thickness = Some(self.layer_dialog_wood_thickness.clamp(2.0, 50.0));
+
+        if let Some(ref edit_id) = self.layer_dialog_edit_id.clone() {
+            if let Some(layers) = &mut self.layout.layers {
+                if let Some(layer) = layers.iter_mut().find(|l| &l.id == edit_id) {
+                    layer.name = final_name;
+                    layer.height_mm = Some(height_mm);
+                    layer.color = Some(color);
+                    layer.wood_plate_mode = wood_mode;
+                    layer.wood_plate_thickness_mm = wood_thickness;
+                }
+            }
+        } else {
+            let new_id = format!("layer-{}", self.next_piece_seq + 100);
+            self.next_piece_seq += 1;
+            let layers = self.layout.layers.get_or_insert_with(Vec::new);
+            layers.push(Layer {
+                id: new_id.clone(),
+                name: final_name,
+                color: Some(color),
+                visible: true,
+                locked: false,
+                height_mm: Some(height_mm),
+                wood_plate_mode: wood_mode,
+                wood_plate_thickness_mm: wood_thickness,
+                wood_plate_style: None,
+                plates: None,
+                terrain_field: None,
+            });
+            self.layout.active_layer_id = Some(new_id);
+        }
+        update_layout_connections(&mut self.layout, 4.0, 35.0, 1.0);
+        crate::catalog::disconnect_cross_type_connections(&mut self.layout, &self.catalogs);
+        self.mark_layout_dirty();
+        self.show_layer_dialog = false;
+    }
+
+    pub fn add_layer_immediate(&mut self) -> String {
         self.push_undo();
         let layers = self.layout.layers.get_or_insert_with(Vec::new);
         let idx = layers.len();
@@ -448,7 +577,66 @@ impl RailbenchApp {
             wood_plate_thickness_mm: None,
             wood_plate_style: None,
             plates: None,
+            terrain_field: None,
         });
-        self.layout.active_layer_id = Some(id);
+        self.layout.active_layer_id = Some(id.clone());
+        self.mark_layout_dirty();
+        id
+    }
+
+    pub fn count_items_on_layer(&self, layer_id: &str) -> usize {
+        let p_cnt = self
+            .layout
+            .pieces
+            .iter()
+            .filter(|p| p.layer_id.as_deref().unwrap_or("layer-1") == layer_id)
+            .count();
+        let m_cnt = self
+            .layout
+            .models
+            .as_ref()
+            .map_or(0, |ms| ms.iter().filter(|m| m.layer_id.as_deref().unwrap_or("layer-1") == layer_id).count());
+        p_cnt + m_cnt
+    }
+
+    pub fn safe_delete_layer(&mut self, del_id: &str) -> bool {
+        let Some(layers) = &self.layout.layers else {
+            return false;
+        };
+        if layers.len() <= 1 || !layers.iter().any(|l| l.id == del_id) {
+            return false;
+        }
+        let fallback_id = layers
+            .iter()
+            .find(|l| l.id != del_id && l.id == "layer-1")
+            .or_else(|| layers.iter().find(|l| l.id != del_id))
+            .map(|l| l.id.clone());
+        let Some(fallback_id) = fallback_id else {
+            return false;
+        };
+
+        self.push_undo();
+        for p in &mut self.layout.pieces {
+            if p.layer_id.as_deref().unwrap_or("layer-1") == del_id {
+                p.layer_id = Some(fallback_id.clone());
+            }
+        }
+        if let Some(models) = &mut self.layout.models {
+            for m in models {
+                if m.layer_id.as_deref().unwrap_or("layer-1") == del_id {
+                    m.layer_id = Some(fallback_id.clone());
+                }
+            }
+        }
+        if let Some(layers_mut) = &mut self.layout.layers {
+            layers_mut.retain(|l| l.id != del_id);
+        }
+        if self.layout.active_layer_id.as_deref() == Some(del_id) {
+            self.layout.active_layer_id = Some(fallback_id);
+        }
+        update_layout_connections(&mut self.layout, 4.0, 35.0, 1.0);
+        crate::catalog::disconnect_cross_type_connections(&mut self.layout, &self.catalogs);
+        self.mark_layout_dirty();
+        true
     }
 }

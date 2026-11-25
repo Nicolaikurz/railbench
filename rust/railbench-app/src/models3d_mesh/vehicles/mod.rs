@@ -1,9 +1,7 @@
-mod locos;
 mod wagons_road;
 
 use super::*;
 
-use locos::{build_loco_diesel, build_loco_electric, build_loco_steam};
 use wagons_road::{
     build_car_bus, build_car_sedan, build_car_truck, build_wagon_freight, build_wagon_passenger,
 };
@@ -42,42 +40,42 @@ pub(crate) fn push_vehicle_3d(
     driving_backward: bool,
 ) {
     let livery = rgb_hex(livery_rgb);
+    let loco_spec = match kind_id {
+        "loco-br243" => Some((crate::trains_3d::TrainLocoKind::Br243, 191.3_f32)),
+        "loco-br96" => Some((crate::trains_3d::TrainLocoKind::Br96Mallet, 203.4_f32)),
+        "loco-v60" => Some((crate::trains_3d::TrainLocoKind::V60Diesel, 120.1_f32)),
+        _ => None,
+    };
+    if let Some((loco_kind, nom_len)) = loco_spec {
+        let scale = if gauge_mm > 0.5 {
+            gauge_mm / 16.5
+        } else {
+            (size[0] / nom_len).max(0.25)
+        };
+        crate::trains_3d::push_locomotive_3d(
+            verts,
+            idxs,
+            loco_kind,
+            crate::trains_3d::TrainPose {
+                pos: origin,
+                yaw_rad: heading_rad,
+                pitch_rad,
+                scale,
+            },
+            crate::trains_3d::LocoAnimState {
+                wheel_angle: 0.0,
+                forward_lights: !driving_backward,
+                headlights_on,
+                pantograph_up: true,
+                steam_on: false,
+                steam_time: 0.0,
+                speed_norm: 0.0,
+                mallet_articulation_rad: 0.0,
+            },
+        );
+        return;
+    }
     match kind_id {
-        "loco-steam" => build_loco_steam(
-            verts,
-            idxs,
-            origin,
-            heading_rad,
-            pitch_rad,
-            size,
-            gauge_mm,
-            headlights_on,
-            driving_backward,
-        ),
-        "loco-electric" => build_loco_electric(
-            verts,
-            idxs,
-            origin,
-            heading_rad,
-            pitch_rad,
-            size,
-            gauge_mm,
-            livery,
-            headlights_on,
-            driving_backward,
-        ),
-        "loco-diesel" => build_loco_diesel(
-            verts,
-            idxs,
-            origin,
-            heading_rad,
-            pitch_rad,
-            size,
-            gauge_mm,
-            livery,
-            headlights_on,
-            driving_backward,
-        ),
         "wagon-passenger" => build_wagon_passenger(
             verts,
             idxs,
@@ -103,20 +101,6 @@ pub(crate) fn push_vehicle_3d(
         "car-bus" => build_car_bus(verts, idxs, origin, heading_rad, pitch_rad, size, livery, headlights_on),
         _ => build_car_sedan(verts, idxs, origin, heading_rad, pitch_rad, size, livery, headlights_on),
     }
-}
-
-pub(super) fn dir_lamps(headlights_on: bool, driving_backward: bool) -> (Mat, Mat) {
-    let white = if headlights_on {
-        Mat::emissive(0xfef08a, 1.08)
-    } else {
-        Mat::metal(0xe2e8f0, 0.24, 0.60)
-    };
-    let red = if headlights_on {
-        Mat::emissive(0xef4444, 0.98)
-    } else {
-        Mat::matte(0x7f1d1d, 0.48)
-    };
-    if driving_backward { (red, white) } else { (white, red) }
 }
 
 /// Gauge-accurate machined steel wheelset with inner flange (`Spurkranz`), recessed wheel disc & hub boss.
@@ -156,73 +140,6 @@ pub(super) fn push_flanged_wheelset(
         );
     }
     b.cyl_z([wx, wheel_r, 0.0], (wheel_r * 0.22).max(0.85), (wheel_r * 0.22).max(0.85), half_g * 2.02, 8, axle_m);
-}
-
-/// Authentic red-spoked DB steam locomotive wheelset with machined steel tire, inner flange,
-/// 12 radial spokes, crescent counterweight & outside crankpin boss.
-#[allow(clippy::too_many_arguments)]
-pub(super) fn push_spoked_steam_wheelset(
-    b: &mut ModelBuilder<'_>,
-    wx: f32,
-    wheel_r: f32,
-    half_g: f32,
-    red_m: Mat,
-    backing_m: Mat,
-    tire_m: Mat,
-    steel_m: Mat,
-    with_counterweight: bool,
-) {
-    let spoke_count = 12usize;
-    let spoke_len = wheel_r * 0.64;
-    let spoke_r = wheel_r * 0.50;
-    for &side in &[-1.0_f32, 1.0] {
-        let wz = side * half_g;
-        // Machined steel tire + inner flange
-        b.cyl_z([wx, wheel_r, wz], wheel_r, wheel_r, 1.90, 20, tire_m);
-        b.cyl_z(
-            [wx, wheel_r, wz - side * 1.12],
-            wheel_r + 0.72,
-            wheel_r + 0.72,
-            0.52,
-            20,
-            tire_m,
-        );
-        // Red inner tire band + dark shadow recess so 12 radial spokes pop cleanly
-        b.cyl_z([wx, wheel_r, wz], wheel_r * 0.87, wheel_r * 0.87, 1.98, 18, red_m);
-        b.cyl_z([wx, wheel_r, wz], wheel_r * 0.79, wheel_r * 0.79, 1.60, 18, backing_m);
-
-        for i in 0..spoke_count {
-            let ang = (i as f32 / spoke_count as f32) * std::f32::consts::TAU;
-            let sx = wx + ang.cos() * spoke_r;
-            let sy = wheel_r + ang.sin() * spoke_r;
-            b.obox(
-                [sx, sy, wz + side * 0.15],
-                [spoke_len * 0.88, (wheel_r * 0.11).max(0.55), 1.65],
-                [0.0, 0.0, ang],
-                red_m,
-            );
-        }
-        // Central hub (`Nabe`)
-        b.cyl_z([wx, wheel_r, wz + side * 0.22], wheel_r * 0.27, wheel_r * 0.27, 2.05, 12, red_m);
-
-        if with_counterweight {
-            // Crescent counterweight opposite bottom dead-center crankpin
-            for &da in &[-0.38_f32, 0.0, 0.38] {
-                let ca = std::f32::consts::FRAC_PI_2 + da;
-                b.obox(
-                    [wx + ca.cos() * (wheel_r * 0.58), wheel_r + ca.sin() * (wheel_r * 0.58), wz + side * 0.18],
-                    [wheel_r * 0.42, wheel_r * 0.30, 1.85],
-                    [0.0, 0.0, ca + std::f32::consts::FRAC_PI_2],
-                    red_m,
-                );
-            }
-            // Crankpin boss & silver crankpin
-            let cpy = wheel_r - wheel_r * 0.44;
-            b.cyl_z([wx, cpy, wz + side * 0.70], wheel_r * 0.19, wheel_r * 0.19, 1.35, 10, red_m);
-            b.cyl_z([wx, cpy, wz + side * 1.35], wheel_r * 0.11, wheel_r * 0.11, 1.15, 10, steel_m);
-        }
-    }
-    b.cyl_z([wx, wheel_r, 0.0], (wheel_r * 0.20).max(1.0), (wheel_r * 0.20).max(1.0), half_g * 2.02, 10, red_m);
 }
 
 /// Shared UIC buffer beam with twin flanged buffers (`Puffer` at `±10.05 mm`), screw coupler & hanging air hoses.
@@ -364,48 +281,5 @@ pub(super) fn push_detailed_bogie(
     if has_indusi {
         let ind_m = Mat::metal(0x64748b, 0.42, 0.65);
         b.rbox([cx + max_x * 0.55, 1.9, side_z + 0.55], [5.8, 1.7, 1.5], ind_m);
-    }
-}
-
-/// Shared DB single-arm pantograph (`DBS 54` / `Einholm-Stromabnehmer`) with porcelain insulators & twin collector strips.
-#[allow(clippy::too_many_arguments)]
-pub(super) fn push_pantograph(
-    b: &mut ModelBuilder<'_>,
-    cx: f32,
-    y_base: f32,
-    dir_x: f32,
-    base_m: Mat,
-    arm_m: Mat,
-    strip_m: Mat,
-    insul_m: Mat,
-) {
-    for &ix in &[-6.8_f32, 6.8] {
-        for &iz in &[-5.8_f32, 5.8] {
-            b.cyl_y([cx + ix, y_base + 1.0, iz], 1.05, 1.35, 2.1, 10, insul_m);
-            b.cyl_y([cx + ix, y_base + 1.4, iz], 1.25, 1.25, 0.45, 10, insul_m);
-        }
-    }
-    b.rbox([cx, y_base + 2.35, 0.0], [16.2, 1.1, 14.0], base_m);
-    let p_root = [cx - dir_x * 5.8, y_base + 3.0, 0.0];
-    let p_knee = [cx + dir_x * 8.2, y_base + 7.4, 0.0];
-    let p_head = [cx - dir_x * 1.4, y_base + 12.0, 0.0];
-    b.cyl_between(p_root, p_knee, 0.68, 0.60, 8, arm_m);
-    // Parallel control link rod beneath lower arm
-    b.cyl_between(
-        [cx - dir_x * 3.8, y_base + 2.8, 1.8],
-        [p_knee[0] - dir_x * 0.6, p_knee[1] - 0.5, 1.4],
-        0.32,
-        0.32,
-        6,
-        arm_m,
-    );
-    for &sz in &[-3.2_f32, 3.2] {
-        b.cyl_between([p_knee[0], p_knee[1], sz * 0.5], [p_head[0], p_head[1], sz], 0.44, 0.40, 8, arm_m);
-    }
-    // Twin graphite collector strips (`Schleifstuecke`) & curved end horns
-    b.rbox([p_head[0] - 1.3, p_head[1] + 0.5, 0.0], [1.05, 0.8, 21.6], strip_m);
-    b.rbox([p_head[0] + 1.3, p_head[1] + 0.5, 0.0], [1.05, 0.8, 21.6], strip_m);
-    for &sz in &[-11.6_f32, 11.6] {
-        b.obox([p_head[0], p_head[1] - 0.35, sz], [4.0, 0.65, 2.7], [sz.signum() * 0.45, 0.0, 0.0], arm_m);
     }
 }

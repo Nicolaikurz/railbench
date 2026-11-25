@@ -103,6 +103,23 @@ pub(super) fn draw_board_tab(ui: &mut egui::Ui, app: &mut RailbenchApp) {
             .stroke(Stroke::new(1.0_f32, p.border_main))
             .show(ui, |ui| {
                 ui.set_width(ui.available_width());
+                let mut all_enabled = boards_snapshot.iter().any(|b| b.enabled);
+                if ui
+                    .checkbox(
+                        &mut all_enabled,
+                        if is_de { "Grundplatten aktiviert (Alle)" } else { "Enable Baseboards (All)" },
+                    )
+                    .changed()
+                {
+                    app.push_undo();
+                    if let Some(bs) = app.layout.baseboards.as_mut() {
+                        for b in bs.iter_mut() {
+                            b.enabled = all_enabled;
+                        }
+                    }
+                    changed = true;
+                }
+                ui.add_space(3.0);
                 ui.horizontal(|ui| {
                     if ui.button("+ Table").clicked() {
                         app.push_undo();
@@ -317,15 +334,22 @@ pub(super) fn draw_board_tab(ui: &mut egui::Ui, app: &mut RailbenchApp) {
                         ui.add_space(4.0);
                         ui.label(RichText::new("Presets").size(10.5).color(p.text_muted));
                         ui.horizontal_wrapped(|ui| {
-                            for (lbl, w, d) in [
-                                ("2000x1000", 2000.0, 1000.0),
-                                ("2400x1200", 2400.0, 1200.0),
-                                ("3000x1500", 3000.0, 1500.0),
+                            for (lbl, shape, w, d) in [
+                                ("Compact 180x90", "rect", 1800.0, 900.0),
+                                ("Std 200x100", "rect", 2000.0, 1000.0),
+                                ("240x120", "rect", 2400.0, 1200.0),
+                                ("Studio 300x150", "rect", 3000.0, 1500.0),
+                                ("L-Shape", "l-shape", 2600.0, 1800.0),
+                                ("U-Shape", "u-shape", 3200.0, 2000.0),
+                                ("T-Shape", "t-shape", 2800.0, 1800.0),
+                                ("Corner Tri", "triangle", 1800.0, 1800.0),
                             ] {
                                 if ui.small_button(lbl).clicked() {
+                                    board.shape = Some(shape.into());
                                     board.width = w;
                                     board.depth = d;
                                     board.enabled = true;
+                                    board_tools::apply_shape_defaults(board);
                                     changed = true;
                                 }
                             }
@@ -568,6 +592,27 @@ pub(super) fn draw_board_tab(ui: &mut egui::Ui, app: &mut RailbenchApp) {
                                         let py = plate.y.get_or_insert(0.0);
                                         ui.label("Y:");
                                         changed |= ui.add(egui::DragValue::new(py).speed(10.0)).changed();
+                                        let pt = plate.thickness_mm.get_or_insert(12.0);
+                                        ui.label("T:");
+                                        changed |= ui.add(egui::DragValue::new(pt).range(3.0..=40.0).speed(0.5)).changed();
+                                    });
+                                    ui.horizontal(|ui| {
+                                        let pstyle = plate.style.get_or_insert_with(|| "plywood".into());
+                                        ui.label("Style:");
+                                        egui::ComboBox::from_id_salt(format!("plate_style_{pid}"))
+                                            .width(95.0)
+                                            .selected_text(pstyle.as_str())
+                                            .show_ui(ui, |ui| {
+                                                for st in ["plywood", "wood", "dark-wood", "slate", "white", "grass"] {
+                                                    if ui.selectable_label(pstyle.as_str() == st, st).clicked() {
+                                                        *pstyle = st.into();
+                                                        changed = true;
+                                                    }
+                                                }
+                                            });
+                                        if ui.small_button("Redraw Poly").clicked() {
+                                            plate_sketch_req = Some((lid.clone(), cur_id.clone(), Some(pid.clone()), SketchMode::Poly, false));
+                                        }
                                     });
                                 }
                             }

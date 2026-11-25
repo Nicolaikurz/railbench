@@ -177,8 +177,8 @@ pub fn draw_cab_view_window(ctx: &egui::Context, app: &mut RailbenchApp) {
                     // Quick Environment / Time of Day controls
                     ui.horizontal(|ui| {
                         let env_lbl = match app.viewer3d_env {
-                            Viewer3DEnv::HallLandscape => if is_de { "Halle" } else { "Hall" },
-                            Viewer3DEnv::Minimal => "CAD",
+                            Viewer3DEnv::HallLandscape => if is_de { "Halle & Landschaft" } else { "Hall & Landscape" },
+                            Viewer3DEnv::Minimal => "Minimal CAD",
                         };
                         if ui.small_button(env_lbl).clicked() {
                             app.viewer3d_env = match app.viewer3d_env {
@@ -303,6 +303,21 @@ pub fn draw_cab_view_window(ctx: &egui::Context, app: &mut RailbenchApp) {
                                     if ui.add(light_btn).clicked() {
                                         v.headlights = !v.headlights;
                                     }
+                                    match v.kind {
+                                        VehicleKind::Br243 => {
+                                            ui.checkbox(
+                                                &mut v.pantograph_up,
+                                                if is_de { "Stromabnehmer" } else { "Pantograph" },
+                                            );
+                                        }
+                                        VehicleKind::Br96Mallet => {
+                                            ui.checkbox(
+                                                &mut v.steam_on,
+                                                if is_de { "Dampf" } else { "Steam" },
+                                            );
+                                        }
+                                        _ => {}
+                                    }
                                 });
 
                                 // Consist Wagons
@@ -345,9 +360,9 @@ pub fn draw_cab_view_window(ctx: &egui::Context, app: &mut RailbenchApp) {
                     ui.label(RichText::new(if is_de { "Lok / Auto platzieren" } else { "Spawn Loco / Car" }).strong().size(11.5));
                     ui.horizontal_wrapped(|ui| {
                         for (kind, lbl) in [
-                            (VehicleKind::ElectricLoco, "BR 103"),
-                            (VehicleKind::SteamLoco, "BR 01"),
-                            (VehicleKind::DieselLoco, "BR 218"),
+                            (VehicleKind::Br243, "BR 243"),
+                            (VehicleKind::Br96Mallet, "BR 96"),
+                            (VehicleKind::V60Diesel, "V 60"),
                             (VehicleKind::Sedan, "PKW"),
                             (VehicleKind::Truck, "LKW"),
                             (VehicleKind::Bus, "Bus"),
@@ -538,15 +553,15 @@ pub fn draw_cab_view_window(ctx: &egui::Context, app: &mut RailbenchApp) {
                             if ui
                                 .button(
                                     RichText::new(if is_de {
-                                        "▶ E-Lok BR 103 platzieren & starten"
+                                        "▶ E-Lok BR 243 platzieren & starten"
                                     } else {
-                                        "▶ Spawn Electric Loco BR 103 & Start"
+                                        "▶ Spawn Electric Loco BR 243 & Start"
                                     })
                                     .size(14.0),
                                 )
                                 .clicked()
                             {
-                                spawn_req = Some(VehicleKind::ElectricLoco);
+                                spawn_req = Some(VehicleKind::Br243);
                             }
                         });
                     });

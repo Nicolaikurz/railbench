@@ -200,6 +200,33 @@ fn draw_pdf_plan_page(
         (px, py)
     };
 
+    if opts.show_grid {
+        let _ = writeln!(s, "q {body_x:.1} {body_y:.1} {body_w:.1} {body_h:.1} re W n");
+        let mut gx = (min_x / 100.0).floor() * 100.0;
+        while gx <= max_x {
+            let is_major = (gx / 500.0 - (gx / 500.0).round()).abs() < 1e-6;
+            let (px, _) = to_pdf(gx, min_y);
+            if is_major {
+                let _ = writeln!(s, "0.80 0.84 0.89 RG 0.45 w {px:.2} {body_y:.2} m {px:.2} {:.2} l S", body_y + body_h);
+            } else {
+                let _ = writeln!(s, "0.91 0.93 0.96 RG 0.25 w {px:.2} {body_y:.2} m {px:.2} {:.2} l S", body_y + body_h);
+            }
+            gx += 100.0;
+        }
+        let mut gy = (min_y / 100.0).floor() * 100.0;
+        while gy <= max_y {
+            let is_major = (gy / 500.0 - (gy / 500.0).round()).abs() < 1e-6;
+            let (_, py) = to_pdf(min_x, gy);
+            if is_major {
+                let _ = writeln!(s, "0.80 0.84 0.89 RG 0.45 w {body_x:.2} {py:.2} m {:.2} {py:.2} l S", body_x + body_w);
+            } else {
+                let _ = writeln!(s, "0.91 0.93 0.96 RG 0.25 w {body_x:.2} {py:.2} m {:.2} {py:.2} l S", body_x + body_w);
+            }
+            gy += 100.0;
+        }
+        let _ = writeln!(s, "Q");
+    }
+
     if opts.show_baseboards {
         for bb in get_baseboards_slice(layout) {
             if !bb.enabled {
@@ -533,6 +560,64 @@ fn draw_pdf_plan_page(
                         ly - 1.8,
                         pdf_escape(lbl)
                     );
+                }
+                if opts.show_electrical && !p.connectors.is_empty() && scale >= 0.05 {
+                    let mx_w = p.connectors.iter().map(|c| c.x).sum::<f64>() / p.connectors.len() as f64;
+                    let my_w = p.connectors.iter().map(|c| c.y).sum::<f64>() / p.connectors.len() as f64;
+                    let (ex, ey) = to_pdf(mx_w, my_w);
+                    if p.power_feed == Some(true) {
+                        if opts.monochrome {
+                            let _ = writeln!(stream, "0.10 0.12 0.16 rg ");
+                        } else {
+                            let _ = writeln!(stream, "0.09 0.64 0.29 rg ");
+                        }
+                        let _ = writeln!(
+                            stream,
+                            "BT /F2 5.5 Tf {:.1} {:.1} Td (+PWR) Tj ET",
+                            ex - 8.0,
+                            ey + 5.5
+                        );
+                    }
+                    if p.is_isolator == Some(true) {
+                        let iso_c = p
+                            .connectors
+                            .get(p.isolated_connector_index.unwrap_or(0))
+                            .unwrap_or(&p.connectors[0]);
+                        let rad = (iso_c.angle + 90.0).to_radians();
+                        let (dx, dy) = (rad.cos() * 14.0, rad.sin() * 14.0);
+                        let (ax, ay) = to_pdf(iso_c.x - dx, iso_c.y - dy);
+                        let (bx, by) = to_pdf(iso_c.x + dx, iso_c.y + dy);
+                        if opts.monochrome {
+                            let _ = writeln!(stream, "0.10 0.12 0.16 RG 1.4 w {ax:.2} {ay:.2} m {bx:.2} {by:.2} l S");
+                        } else {
+                            let _ = writeln!(stream, "0.86 0.15 0.15 RG 1.4 w {ax:.2} {ay:.2} m {bx:.2} {by:.2} l S");
+                        }
+                    }
+                    if p.has_signal == Some(true) {
+                        if opts.monochrome {
+                            let _ = writeln!(stream, "0.10 0.12 0.16 rg ");
+                        } else {
+                            let _ = writeln!(stream, "0.85 0.47 0.02 rg ");
+                        }
+                        let _ = writeln!(
+                            stream,
+                            "BT /F2 5.5 Tf {:.1} {:.1} Td (SIG) Tj ET",
+                            ex + 6.0,
+                            ey + 5.5
+                        );
+                    }
+                    if let Some(el) = p.elevation {
+                        let avg_z = (el.start + el.end) * 0.5;
+                        if avg_z.abs() >= 1.0 {
+                            let sign = if avg_z >= 0.0 { "+" } else { "" };
+                            let _ = writeln!(
+                                stream,
+                                "0.01 0.41 0.63 rg BT /F1 4.8 Tf {:.1} {:.1} Td ({sign}{avg_z:.0}mm) Tj ET",
+                                ex - 8.0,
+                                ey - 7.5
+                            );
+                        }
+                    }
                 }
             }
         }

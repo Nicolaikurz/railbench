@@ -37,6 +37,7 @@ fn base_layout(pieces: Vec<railbench_core::types::TrackPiece>, layers: Option<Ve
         active_layer_id: None,
         baseboard: None,
         baseboards: None,
+        terrain_field: None,
     }
 }
 
@@ -131,6 +132,7 @@ fn bridge_pier_collision_avoidance_clears_lower_crossing_track() {
             wood_plate_thickness_mm: None,
             wood_plate_style: None,
             plates: None,
+            terrain_field: None,
         },
         Layer {
             id: "layer-2".into(),
@@ -143,6 +145,7 @@ fn bridge_pier_collision_avoidance_clears_lower_crossing_track() {
             wood_plate_thickness_mm: None,
             wood_plate_style: None,
             plates: None,
+            terrain_field: None,
         },
     ]);
 

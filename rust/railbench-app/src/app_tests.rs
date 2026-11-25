@@ -225,3 +225,51 @@ fn place_feeder_and_isolating_track_buttons_add_and_snap() {
     app.place_catalog_entry(&iso_entry);
     assert_eq!(app.layout.pieces.last().unwrap().is_isolator, Some(true));
 }
+
+#[test]
+fn flip_group_split_replace_and_safe_layer_delete() {
+    let mut app = make_bare_app();
+    let e24188 = crate::catalog::find_entry(&app.catalogs, "24188").unwrap().clone();
+    let flex_id = app
+        .catalogs
+        .iter()
+        .flat_map(|c| c.entries.iter())
+        .find(|e| e.kind == "flex")
+        .expect("builtin flex entry")
+        .id
+        .clone();
+    app.place_catalog_entry(&e24188);
+    app.place_catalog_entry(&e24188);
+    assert_eq!(app.layout.pieces.len(), 2);
+
+    // Group & Ungroup
+    let ids: Vec<String> = app.layout.pieces.iter().map(|p| p.id.clone()).collect();
+    for id in &ids {
+        app.selected.insert(id.clone());
+    }
+    app.toggle_group_selected();
+    assert!(app.layout.pieces.iter().all(|p| p.group_id.is_some()));
+    app.toggle_group_selected();
+    assert!(app.layout.pieces.iter().all(|p| p.group_id.is_none()));
+
+    // Flip single piece
+    app.selected.clear();
+    app.selected.insert(ids[0].clone());
+    let orig_rot = app.layout.pieces[0].transform.rotation;
+    app.flip_selected();
+    assert!((app.layout.pieces[0].transform.rotation - orig_rot).abs() > 1.0);
+
+    // Replace with flextrack & Split track
+    app.replace_track(&ids[0], &flex_id);
+    assert_eq!(app.layout.pieces[0].catalog_id, flex_id);
+    assert!(app.split_track(&ids[0]));
+    assert_eq!(app.layout.pieces.len(), 3);
+
+    // Safe delete layer moves items cleanly to fallback layer-1
+    app.add_layer_immediate();
+    let second_lid = app.layout.layers.as_ref().unwrap().last().unwrap().id.clone();
+    app.layout.pieces[0].layer_id = Some(second_lid.clone());
+    assert_eq!(app.count_items_on_layer(&second_lid), 1);
+    assert!(app.safe_delete_layer(&second_lid));
+    assert_eq!(app.count_items_on_layer(&second_lid), 0);
+}

@@ -20,6 +20,7 @@ fn make_layout_with_pieces(pieces: Vec<TrackPiece>) -> Layout {
         active_layer_id: None,
         baseboard: None,
         baseboards: None,
+        terrain_field: None,
     }
 }
 
@@ -214,6 +215,7 @@ fn track_snapping_requires_same_level_and_marks_level_mismatch_yellow() {
         system: None,
         gauge: Some(16.5),
         is_road: None,
+        has_roadbed: None,
         conductors: None,
         entries: vec![straight_entry.clone()],
     });
@@ -586,6 +588,7 @@ fn snap_selected_flex_track_bridges_both_ends_and_shortens() {
         active_layer_id: Some("layer-1".into()),
         baseboard: None,
         baseboards: None,
+        terrain_field: None,
     };
     let mut sel = HashSet::new();
     sel.insert("flex".to_string());
@@ -719,6 +722,7 @@ fn terrain_2d_mountain_and_ground_never_exceed_table_or_plate() {
                 wood_plate_thickness_mm: None,
                 wood_plate_style: None,
                 plates: None,
+                terrain_field: None,
             },
             Layer {
                 id: "layer-2".into(),
@@ -731,11 +735,13 @@ fn terrain_2d_mountain_and_ground_never_exceed_table_or_plate() {
                 wood_plate_thickness_mm: Some(12.0),
                 wood_plate_style: None,
                 plates: Some(vec![plate]),
+                terrain_field: None,
             },
         ]),
         active_layer_id: Some("layer-1".into()),
         baseboard: Some(bb),
         baseboards: None,
+        terrain_field: None,
     };
 
     let mut cache = Canvas2DCache::default();
@@ -762,4 +768,105 @@ fn terrain_2d_mountain_and_ground_never_exceed_table_or_plate() {
     for &(a, b) in &g_map.contour_segs {
         assert!(a.x.abs() <= 200.5 && b.x.abs() <= 200.5 && a.y.abs() <= 150.5 && b.y.abs() <= 150.5);
     }
+}
+
+#[test]
+fn track_rotation_handle_places_point_perpendicular_to_piece_and_rotates_rigidly() {
+    let cats = builtin_catalogs();
+    let e24188 = find_entry(&cats, "24188").unwrap();
+    let p1 = create_piece(
+        "r1".into(),
+        e24188,
+        Transform {
+            x: 0.0,
+            y: 0.0,
+            rotation: 0.0,
+        },
+        None,
+    );
+    let p2 = create_piece(
+        "r2".into(),
+        e24188,
+        Transform {
+            x: 188.3,
+            y: 0.0,
+            rotation: 0.0,
+        },
+        None,
+    );
+    let mut layout = Layout {
+        name: "Rot2DTest".into(),
+        scale: "H0".into(),
+        pieces: vec![p1, p2],
+        models: None,
+        feed_voltage: None,
+        catenary_feed_voltage: None,
+        catenary_circuit_mode: None,
+        loco_current_ma: None,
+        loco_count: None,
+        train_current_amps: None,
+        turnout_lantern_current_ma: None,
+        turnout_decoder_current_ma: None,
+        layers: None,
+        active_layer_id: None,
+        baseboard: None,
+        baseboards: None,
+        terrain_field: None,
+    };
+
+    let mut selected = HashSet::new();
+    selected.insert("r1".to_string());
+    let (pivot, handle, base_ang, single_id, init_rot) =
+        compute_track_selection_rotation_handle(&layout, &selected, true, 1.0, None)
+            .expect("single track emits rotation handle");
+    assert_eq!(single_id.as_deref(), Some("r1"));
+    assert!((init_rot - 0.0).abs() < 1e-6);
+    assert!((base_ang - 270.0).abs() < 1e-4);
+    assert!((pivot.x - 94.15).abs() < 0.2 && pivot.y.abs() < 1e-4);
+    assert!((handle.x - pivot.x).abs() < 1e-4 && handle.y < pivot.y - 30.0);
+
+    let orig_len = (layout.pieces[0].connectors[1].x - layout.pieces[0].connectors[0].x)
+        .hypot(layout.pieces[0].connectors[1].y - layout.pieces[0].connectors[0].y);
+    assert!(rotate_selection_around_pivot(&mut layout, &selected, true, pivot, 90.0));
+    let r1 = &layout.pieces[0];
+    assert!((r1.transform.rotation - 90.0).abs() < 1e-4);
+    let new_len = (r1.connectors[1].x - r1.connectors[0].x).hypot(r1.connectors[1].y - r1.connectors[0].y);
+    assert!((new_len - orig_len).abs() < 1e-3);
+    assert!((r1.connectors[0].angle - 270.0).abs() < 1e-4 || (r1.connectors[0].angle - 90.0).abs() < 1e-4);
+    assert!((r1.connectors[1].angle - 90.0).abs() < 1e-4);
+
+    // Multi-piece rigid rotation preserves inter-piece spacing
+    selected.insert("r2".to_string());
+    let before_dist = (layout.pieces[1].transform.x - layout.pieces[0].transform.x)
+        .hypot(layout.pieces[1].transform.y - layout.pieces[0].transform.y);
+    let (multi_piv, _multi_hdl, _, multi_single, _) =
+        compute_track_selection_rotation_handle(&layout, &selected, true, 1.0, None)
+            .expect("multi track emits rotation handle");
+    assert!(multi_single.is_none());
+    assert!(rotate_selection_around_pivot(&mut layout, &selected, true, multi_piv, 45.0));
+    let after_dist = (layout.pieces[1].transform.x - layout.pieces[0].transform.x)
+        .hypot(layout.pieces[1].transform.y - layout.pieces[0].transform.y);
+    assert!((after_dist - before_dist).abs() < 1e-3);
+}
+
+#[test]
+fn track_rotation_handle_snaps_to_toolbar_rotation_step() {
+    assert!((snap_drag_rotation_delta(26.0, 30.0, false) - 30.0).abs() < 1e-6);
+    assert!((snap_drag_rotation_delta(13.0, 15.0, false) - 15.0).abs() < 1e-6);
+    assert!((snap_drag_rotation_delta(11.0, 7.5, false) - 7.5).abs() < 1e-6);
+    assert!((snap_drag_rotation_delta(25.0, 24.3, false) - 24.3).abs() < 1e-6);
+    assert!((snap_drag_rotation_delta(-11.0, 5.7, false) + 11.4).abs() < 1e-6);
+    // Holding Shift disables snapping for fine free-hand rotation
+    assert!((snap_drag_rotation_delta(26.25, 30.0, true) - 26.25).abs() < 1e-6);
+
+    // Unwrapping across +/-180 deg preserves continuous drag direction
+    let unwrapped = unwrap_drag_angle_delta(-170.0, 0.0, 175.0);
+    assert!((unwrapped - 190.0).abs() < 1e-6);
+
+    // Readout keeps decimals for fractional toolbar steps (24.3 deg, +5.7 deg) and clean ints otherwise
+    assert_eq!(format_rotation_readout(30.0, false, false), "30°");
+    assert_eq!(format_rotation_readout(24.3, false, false), "24.3°");
+    assert_eq!(format_rotation_readout(5.7, true, false), "+5.7°");
+    assert_eq!(format_rotation_readout(-0.001, false, false), "0°");
+    assert_eq!(format_rotation_readout(-0.001, true, false), "+0°");
 }

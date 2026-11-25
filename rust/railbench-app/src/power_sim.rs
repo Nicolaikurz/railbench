@@ -32,7 +32,9 @@ pub struct PiecePowerResult {
 #[derive(Debug, Clone)]
 pub struct ShortCircuitPoint {
     pub piece_id_1: String,
+    pub connector_index_1: usize,
     pub piece_id_2: String,
+    pub connector_index_2: usize,
     pub x: f64,
     pub y: f64,
 }
@@ -54,6 +56,14 @@ pub struct PowerSimResult {
     pub min_voltage: f64,
     pub max_drop_pct: f64,
     pub recommendation: String,
+    pub turnout_lantern_count: usize,
+    pub turnout_decoder_count: usize,
+    pub turnout_current_a: f64,
+    pub catenary_piece_count: usize,
+    pub catenary_feeder_count: usize,
+    pub catenary_min_voltage: f64,
+    pub catenary_max_drop_pct: f64,
+    pub catenary_recommendation: String,
 }
 
 fn default_feed_voltage(scale: &str) -> f64 {
@@ -94,7 +104,7 @@ fn is_feeder_piece(piece: &TrackPiece, entry: Option<&CatalogEntry>) -> bool {
     if piece.catalog_id == "24088" {
         return true;
     }
-    entry.map_or(false, |e| e.kind == "feeder")
+    entry.map_or(false, crate::catalog::is_feeder_entry)
 }
 
 fn piece_length_meters(piece: &TrackPiece, entry: Option<&CatalogEntry>) -> f64 {
@@ -300,12 +310,18 @@ pub fn simulate_layout_power(layout: &Layout, catalogs: &[Catalog]) -> PowerSimR
         .feed_voltage
         .unwrap_or_else(|| default_feed_voltage(&layout.scale))
         .clamp(4.0, 30.0);
-    let loco_current_ma = layout
-        .loco_current_ma
-        .unwrap_or_else(|| default_loco_current_ma(&layout.scale))
-        .clamp(50.0, 1000.0);
-    let loco_count = layout.loco_count.unwrap_or(1).clamp(1, 20);
-    let traction_amps = (loco_current_ma * loco_count as f64) / 1000.0;
+    let traction_amps = if layout.loco_current_ma.is_some() || layout.loco_count.is_some() {
+        let loco_current_ma = layout
+            .loco_current_ma
+            .unwrap_or_else(|| default_loco_current_ma(&layout.scale))
+            .clamp(50.0, 1000.0);
+        let loco_count = layout.loco_count.unwrap_or(1).clamp(1, 20);
+        (loco_current_ma * loco_count as f64) / 1000.0
+    } else if let Some(amps) = layout.train_current_amps.filter(|&a| a > 0.0) {
+        amps
+    } else {
+        (default_loco_current_ma(&layout.scale)) / 1000.0
+    };
     let lantern_ma = layout.turnout_lantern_current_ma.unwrap_or(20.0);
     let decoder_ma = layout.turnout_decoder_current_ma.unwrap_or(15.0);
 
@@ -333,6 +349,14 @@ pub fn simulate_layout_power(layout: &Layout, catalogs: &[Catalog]) -> PowerSimR
             min_voltage: feed_voltage,
             max_drop_pct: 0.0,
             recommendation: "Keine Gleise im Plan vorhanden / No tracks in layout.".into(),
+            turnout_lantern_count: 0,
+            turnout_decoder_count: 0,
+            turnout_current_a: 0.0,
+            catenary_piece_count: 0,
+            catenary_feeder_count: 0,
+            catenary_min_voltage: feed_voltage,
+            catenary_max_drop_pct: 0.0,
+            catenary_recommendation: String::new(),
         };
     }
 
@@ -341,7 +365,10 @@ pub fn simulate_layout_power(layout: &Layout, catalogs: &[Catalog]) -> PowerSimR
     let mut lens_m: Vec<f64> = Vec::with_capacity(n);
     let mut feeder_indices: Vec<u32> = Vec::new();
     let mut is_feeder_flags: Vec<bool> = vec![false; n];
+    let mut piece_acc_amps: Vec<f64> = vec![0.0; n];
     let mut isolator_count = 0usize;
+    let mut turnout_lantern_count = 0usize;
+    let mut turnout_decoder_count = 0usize;
     let mut total_acc_ma = 0.0_f64;
 
     for (i, p) in rail_pieces.iter().enumerate() {
@@ -360,18 +387,25 @@ pub fn simulate_layout_power(layout: &Layout, catalogs: &[Catalog]) -> PowerSimR
         if is_turnout_entry(entry) {
             if let Some(tma) = p.turnout_current_ma.filter(|&v| v > 0.0) {
                 total_acc_ma += tma;
+                piece_acc_amps[i] = tma / 1000.0;
             } else {
+                let mut local_ma = 0.0;
                 if p.has_lantern == Some(true) {
-                    total_acc_ma += lantern_ma;
+                    turnout_lantern_count += 1;
+                    local_ma += lantern_ma;
                 }
                 if p.has_decoder == Some(true) {
-                    total_acc_ma += decoder_ma;
+                    turnout_decoder_count += 1;
+                    local_ma += decoder_ma;
                 }
+                total_acc_ma += local_ma;
+                piece_acc_amps[i] = local_ma / 1000.0;
             }
         }
     }
 
-    let total_current_a = traction_amps + total_acc_ma / 1000.0;
+    let turnout_current_a = total_acc_ma / 1000.0;
+    let total_current_a = traction_amps + turnout_current_a;
     let feeder_count = feeder_indices.len();
 
     let cat_pieces: Vec<&TrackPiece> = rail_pieces
@@ -387,12 +421,15 @@ pub fn simulate_layout_power(layout: &Layout, catalogs: &[Catalog]) -> PowerSimR
     };
     let is_two_wire = is_two_wire_system(&rail_pieces, catalogs);
 
-    // Run Rail Dijkstra + 2-Wire Short-Circuit DSU concurrently with Catenary Dijkstra when catenary is present
-    let ((solved, short_circuit_pieces, short_circuit_points), cat_min_res) = std::thread::scope(|s| {
+    let (
+        (solved, short_circuit_pieces, short_circuit_points, rail_joints),
+        (cat_min_res, cat_feeder_ids),
+    ) = std::thread::scope(|s| {
         let cat_handle = if !cat_pieces.is_empty() {
             let cat_pieces_ref = &cat_pieces;
             Some(s.spawn(move || {
                 let mut cat_min_res: HashMap<String, f64> = HashMap::with_capacity(cat_pieces_ref.len());
+                let mut cat_feeder_ids: HashSet<String> = HashSet::new();
                 let mut cat_id_to_idx: HashMap<&str, usize> = HashMap::with_capacity(cat_pieces_ref.len());
                 let mut cat_lens_m: Vec<f64> = Vec::with_capacity(cat_pieces_ref.len());
                 let mut cat_feeders: Vec<u32> = Vec::new();
@@ -404,6 +441,7 @@ pub fn simulate_layout_power(layout: &Layout, catalogs: &[Catalog]) -> PowerSimR
                         || (parallel_cat && is_feeder_piece(p, e));
                     if is_cf {
                         cat_feeders.push(ci as u32);
+                        cat_feeder_ids.insert(p.id.clone());
                     }
                 }
                 let cat_joints = collect_non_isolated_joints(cat_pieces_ref, &cat_id_to_idx, true);
@@ -414,19 +452,18 @@ pub fn simulate_layout_power(layout: &Layout, catalogs: &[Catalog]) -> PowerSimR
                     &c_nbrs,
                     &cat_lens_m,
                     &cat_feeders,
-                    0.06,
-                    0.04,
+                    0.035,
+                    0.02,
                 );
                 for (ci, p) in cat_pieces_ref.iter().enumerate() {
                     cat_min_res.insert(p.id.clone(), cat_solved[ci]);
                 }
-                cat_min_res
+                (cat_min_res, cat_feeder_ids)
             }))
         } else {
             None
         };
 
-        // Rail joints + parallel Rail Dijkstra + 2-Wire Short Circuit DSU
         let rail_joints = collect_non_isolated_joints(&rail_pieces, &id_to_idx, false);
         let rail_joints_ref = &rail_joints;
         let rail_pieces_ref = &rail_pieces;
@@ -480,7 +517,9 @@ pub fn simulate_layout_power(layout: &Layout, catalogs: &[Catalog]) -> PowerSimR
                         if dsu_out.get(k).copied().unwrap_or(0) != 0 {
                             short_points.push(ShortCircuitPoint {
                                 piece_id_1: rail_pieces_ref[jt.i].id.clone(),
+                                connector_index_1: jt.c1,
                                 piece_id_2: rail_pieces_ref[jt.j].id.clone(),
+                                connector_index_2: jt.c2,
                                 x: jt.x,
                                 y: jt.y,
                             });
@@ -507,11 +546,50 @@ pub fn simulate_layout_power(layout: &Layout, catalogs: &[Catalog]) -> PowerSimR
 
         let cat_res = cat_handle
             .and_then(|h| h.join().ok())
-            .unwrap_or_default();
-        ((solved, short_circuit_pieces, short_circuit_points), cat_res)
+            .unwrap_or_else(|| (HashMap::new(), HashSet::new()));
+        ((solved, short_circuit_pieces, short_circuit_points, rail_joints), cat_res)
     });
 
+    // Compute per-branch subtree accessory load along shortest-path feeder tree
+    let mut subtree_load_amps = piece_acc_amps.clone();
+    if feeder_count > 0 && turnout_current_a > 0.0 {
+        let mut adj_list: Vec<Vec<(usize, f64)>> = vec![Vec::new(); n];
+        for jt in &rail_joints {
+            let edge_r = (lens_m[jt.i] * 0.5 + lens_m[jt.j] * 0.5) * 0.08 + 0.05;
+            adj_list[jt.i].push((jt.j, edge_r));
+            adj_list[jt.j].push((jt.i, edge_r));
+        }
+        let mut parent: Vec<Option<usize>> = vec![None; n];
+        for i in 0..n {
+            if is_feeder_flags[i] || !solved[i].is_finite() {
+                continue;
+            }
+            let my_r = solved[i];
+            let mut best_p: Option<(usize, f64)> = None;
+            for &(nbr, _er) in &adj_list[i] {
+                if solved[nbr].is_finite() && solved[nbr] < my_r {
+                    if best_p.map_or(true, |(_, br)| solved[nbr] < br) {
+                        best_p = Some((nbr, solved[nbr]));
+                    }
+                }
+            }
+            if let Some((p_idx, _)) = best_p {
+                parent[i] = Some(p_idx);
+            }
+        }
+        let mut order: Vec<usize> = (0..n).filter(|&i| solved[i].is_finite()).collect();
+        order.sort_by(|&a, &b| solved[b].partial_cmp(&solved[a]).unwrap_or(std::cmp::Ordering::Equal));
+        for idx in order {
+            if let Some(p_idx) = parent[idx] {
+                let child_load = subtree_load_amps[idx];
+                subtree_load_amps[p_idx] += child_load;
+            }
+        }
+    }
+
     let has_short_circuit = !short_circuit_pieces.is_empty() || !short_circuit_points.is_empty();
+    let mut catenary_min_voltage = cat_feed_voltage;
+    let mut catenary_max_drop_pct = 0.0_f64;
 
     let mut results = HashMap::with_capacity(n);
     let mut min_voltage = feed_voltage;
@@ -528,6 +606,7 @@ pub fn simulate_layout_power(layout: &Layout, catalogs: &[Catalog]) -> PowerSimR
         let is_short = short_circuit_pieces.contains(&p.id);
         let has_cat = p.has_catenary == Some(true);
         let cat_res = cat_min_res.get(&p.id).copied();
+        let is_cat_feeder = cat_feeder_ids.contains(&p.id);
 
         if parallel_cat && has_cat {
             if let Some(cr) = cat_res {
@@ -538,21 +617,33 @@ pub fn simulate_layout_power(layout: &Layout, catalogs: &[Catalog]) -> PowerSimR
         }
 
         let (cat_v, cat_st) = if has_cat {
-            let cr = cat_res.unwrap_or(f64::INFINITY);
-            if !cr.is_finite() {
-                (Some(0.0), Some(PowerStatus::Disconnected))
+            if is_cat_feeder {
+                (Some((cat_feed_voltage * 100.0).round() / 100.0), Some(PowerStatus::Optimal))
             } else {
-                let cd = traction_amps * cr;
-                let cv = (cat_feed_voltage - cd).max(0.0);
-                let cpct = (cd / cat_feed_voltage) * 100.0;
-                let cst = if cpct > 15.0 {
-                    PowerStatus::Critical
-                } else if cpct > 5.0 {
-                    PowerStatus::Warning
+                let cr = cat_res.unwrap_or(f64::INFINITY);
+                if !cr.is_finite() {
+                    catenary_min_voltage = 0.0;
+                    catenary_max_drop_pct = 100.0;
+                    (Some(0.0), Some(PowerStatus::Disconnected))
                 } else {
-                    PowerStatus::Optimal
-                };
-                (Some((cv * 100.0).round() / 100.0), Some(cst))
+                    let cd = traction_amps * cr;
+                    let cv = (cat_feed_voltage - cd).max(0.0);
+                    let cpct = (cd / cat_feed_voltage) * 100.0;
+                    if cv < catenary_min_voltage {
+                        catenary_min_voltage = cv;
+                    }
+                    if cpct > catenary_max_drop_pct {
+                        catenary_max_drop_pct = cpct;
+                    }
+                    let cst = if cpct > 15.0 {
+                        PowerStatus::Critical
+                    } else if cpct > 5.0 {
+                        PowerStatus::Warning
+                    } else {
+                        PowerStatus::Optimal
+                    };
+                    (Some((cv * 100.0).round() / 100.0), Some(cst))
+                }
             }
         } else {
             (None, None)
@@ -593,7 +684,8 @@ pub fn simulate_layout_power(layout: &Layout, catalogs: &[Catalog]) -> PowerSimR
             optimal_count += 1;
             (feed_voltage, 0.0, 0.0, PowerStatus::Optimal)
         } else {
-            let dv = total_current_a * res;
+            let eff_current_a = traction_amps + subtree_load_amps[i].min(turnout_current_a);
+            let dv = eff_current_a * res;
             let vv = (feed_voltage - dv).max(0.0);
             let pct = (dv / feed_voltage) * 100.0;
             let st = if pct > 15.0 {
@@ -650,6 +742,22 @@ pub fn simulate_layout_power(layout: &Layout, catalogs: &[Catalog]) -> PowerSimR
         format!("Optimal power across all {optimal_count} tracks ({total_current_a:.2} A load, max drop {max_drop_pct:.1}%).")
     };
 
+    let catenary_piece_count = cat_pieces.len();
+    let catenary_feeder_count = cat_feeder_ids.len();
+    let catenary_recommendation = if catenary_piece_count == 0 {
+        String::new()
+    } else if catenary_feeder_count == 0 {
+        "Catenary has no feeder yet (Shift+F to add catenary feeder).".into()
+    } else if catenary_max_drop_pct > 15.0 {
+        "Catenary voltage drop is critical (>15%). Add another catenary feeder.".into()
+    } else {
+        format!(
+            "Catenary OK ({catenary_piece_count} pieces, min {:.2} V, drop {:.1}%).",
+            (catenary_min_voltage * 100.0).round() / 100.0,
+            (catenary_max_drop_pct * 10.0).round() / 10.0
+        )
+    };
+
     PowerSimResult {
         results,
         has_short_circuit,
@@ -666,6 +774,14 @@ pub fn simulate_layout_power(layout: &Layout, catalogs: &[Catalog]) -> PowerSimR
         min_voltage: (min_voltage * 100.0).round() / 100.0,
         max_drop_pct: (max_drop_pct * 10.0).round() / 10.0,
         recommendation,
+        turnout_lantern_count,
+        turnout_decoder_count,
+        turnout_current_a,
+        catenary_piece_count,
+        catenary_feeder_count,
+        catenary_min_voltage: (catenary_min_voltage * 100.0).round() / 100.0,
+        catenary_max_drop_pct: (catenary_max_drop_pct * 10.0).round() / 10.0,
+        catenary_recommendation,
     }
 }
 
@@ -694,6 +810,7 @@ mod tests {
             active_layer_id: None,
             baseboard: None,
             baseboards: None,
+            terrain_field: None,
         }
     }
 
@@ -801,5 +918,31 @@ mod tests {
             "equipped turnout lantern should add 25 mA (0.525 A total), got {} A",
             sim_equipped.total_current_a
         );
+        assert_eq!(sim_equipped.turnout_lantern_count, 1);
+        assert!((sim_equipped.turnout_current_a - 0.025).abs() < 1e-9);
+    }
+
+    #[test]
+    fn subtree_drop_catenary_stats_and_feeder_keyword_detection() {
+        let catalogs = builtin_catalogs();
+        let entry_24088 = find_entry(&catalogs, "24088").expect("24088 feeder");
+        assert!(crate::catalog::is_feeder_entry(entry_24088));
+
+        let straight = find_entry(&catalogs, "24188").expect("24188 straight");
+        let mut p0 = create_piece("p0".into(), straight, Transform { x: 0.0, y: 0.0, rotation: 0.0 }, None);
+        p0.power_feed = Some(true);
+        p0.has_catenary = Some(true);
+        p0.catenary_power_feed = Some(true);
+        let mut p1 = create_piece("p1".into(), straight, Transform { x: 188.3, y: 0.0, rotation: 0.0 }, None);
+        p1.has_catenary = Some(true);
+        let mut layout = make_test_layout(vec![p0, p1]);
+        railbench_core::snapping::update_layout_connections(&mut layout, 4.0, 35.0, 1.0);
+        layout.feed_voltage = Some(16.0);
+        layout.loco_count = Some(2);
+        layout.catenary_circuit_mode = Some("separate".into());
+
+        let sim = simulate_layout_power(&layout, &catalogs);
+        assert_eq!(sim.catenary_piece_count, 2);
+        assert_eq!(sim.catenary_feeder_count, 1);
     }
 }

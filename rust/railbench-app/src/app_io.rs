@@ -62,8 +62,75 @@ impl RailbenchApp {
         self.status_message = Some(format!("Stress test: +{count} tracks added"));
     }
 
+    pub fn show_toast(&mut self, msg: impl Into<String>) {
+        let s: String = msg.into();
+        self.status_message = Some(s.clone());
+        self.toast_message = Some((s, std::time::Instant::now()));
+    }
+
+    pub fn is_dirty(&self) -> bool {
+        self.layout_version != self.saved_layout_version
+    }
+
+    pub fn autosave_path() -> Option<std::path::PathBuf> {
+        AppSettings::config_dir().map(|d| d.join("autosave.railbench"))
+    }
+
+    pub fn clear_autosave(&mut self) {
+        if let Some(path) = Self::autosave_path() {
+            let _ = std::fs::remove_file(path);
+        }
+        self.last_autosave_version = self.layout_version;
+    }
+
+    pub fn tick_autosave(&mut self) {
+        if !self.persist_settings || self.layout_version == self.last_autosave_version {
+            return;
+        }
+        if !self.is_dirty() {
+            self.last_autosave_version = self.layout_version;
+            return;
+        }
+        let Some(edited_at) = self.last_edit_instant else {
+            return;
+        };
+        if edited_at.elapsed() < std::time::Duration::from_secs(3) {
+            return;
+        }
+        if let Some(path) = Self::autosave_path() {
+            if let Some(parent) = path.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            if let Ok(json) = save_layout_json(&self.layout) {
+                if std::fs::write(path, json).is_ok() {
+                    self.last_autosave_version = self.layout_version;
+                }
+            }
+        }
+    }
+
+    pub fn restore_autosave(&mut self) {
+        if let Some(path) = Self::autosave_path() {
+            if let Ok(raw) = std::fs::read_to_string(&path) {
+                self.open_layout_json_str(&raw, "autosave", None);
+                self.show_toast(if self.lang == Lang::De {
+                    "Ungesicherte Sitzung wiederhergestellt"
+                } else {
+                    "Restored unsaved session"
+                });
+            }
+        }
+        self.show_autosave_recovery = false;
+    }
+
+    pub fn discard_autosave(&mut self) {
+        self.clear_autosave();
+        self.show_autosave_recovery = false;
+    }
+
     pub fn mark_layout_dirty(&mut self) {
         self.layout_version = self.layout_version.wrapping_add(1);
+        self.last_edit_instant = Some(std::time::Instant::now());
         self.collab.send_layout(&self.layout);
     }
 
@@ -72,7 +139,13 @@ impl RailbenchApp {
         let mut app = Self::default();
         app.persist_settings = true;
         app.dark_mode = s.dark_mode;
-        app.lang = if s.lang == "en" { Lang::En } else { Lang::De };
+        app.lang = if s.lang == "auto" {
+            if crate::settings::detect_os_lang_de() { Lang::De } else { Lang::En }
+        } else if s.lang == "en" {
+            Lang::En
+        } else {
+            Lang::De
+        };
         app.snapping_enabled = s.snapping_enabled;
         app.layer_protection = s.layer_protection;
         app.color_mode = match s.color_mode.as_str() {
@@ -86,6 +159,46 @@ impl RailbenchApp {
         app.show_wood_plates = s.show_wood_plates;
         app.show_right_sidebar = s.show_right_sidebar;
         app.rotation_step = s.rotation_step;
+        app.rotation_snap_locked = s.rotation_snap_locked;
+        app.power_sim_enabled = s.power_sim_enabled;
+        app.bars_locked = s.bars_locked;
+        app.low_gpu_mode = s.low_gpu_mode;
+        app.sidebar_tab = match s.active_sidebar_tab.as_str() {
+            "roads" => SidebarTab::Roads,
+            "models" => SidebarTab::Models,
+            "terrain" => SidebarTab::Terrain,
+            "board" => SidebarTab::Board,
+            "bom" => SidebarTab::Bom,
+            _ => SidebarTab::Tracks,
+        };
+        if let Some(ref cid) = s.selected_catalog_id {
+            if let Some(idx) = app.catalogs.iter().position(|c| &c.id == cid) {
+                if app.catalogs[idx].is_road == Some(true) {
+                    app.selected_road_catalog_idx = idx;
+                } else {
+                    app.selected_catalog_idx = idx;
+                }
+            }
+        }
+        if let Some(off) = s.camera_offset {
+            app.camera.offset = egui::vec2(off[0], off[1]);
+        }
+        if let Some(z) = s.camera_zoom {
+            app.camera.zoom = z;
+        }
+        if let Some(ref n) = s.collab_user_name {
+            if !n.trim().is_empty() {
+                app.collab.user_name = n.clone();
+            }
+        }
+        if let Some(ref c) = s.collab_user_color {
+            if !c.trim().is_empty() {
+                app.collab.user_color = c.clone();
+            }
+        }
+        if let Some(ref pw) = s.collab_password {
+            app.collab.password = pw.clone();
+        }
         app.viewer3d_env = match s.viewer3d_env.as_str() {
             "minimal" => Viewer3DEnv::Minimal,
             _ => Viewer3DEnv::HallLandscape,
@@ -109,18 +222,32 @@ impl RailbenchApp {
             }
             StartupAction::New => {
                 app.layout = make_empty_layout();
+                app.current_file_path = None;
+                app.saved_layout_version = app.layout_version;
                 app.selected.clear();
                 app.undo_stack.clear();
                 app.redo_stack.clear();
                 app.pending_fit_view = true;
             }
             StartupAction::Demo => {
-                if app.layout.pieces.is_empty()
-                    && std::path::Path::new("demotracks/mainline-h0.railbench").exists()
-                {
-                    app.open_layout_path_internal("demotracks/mainline-h0.railbench", false);
+                if app.layout.pieces.is_empty() {
+                    app.open_demo_layout("demotracks/mainline-h0.railbench", false);
                     app.undo_stack.clear();
                     app.redo_stack.clear();
+                }
+            }
+            StartupAction::Open => {
+                app.pending_open_on_start = true;
+            }
+        }
+        app.saved_layout_version = app.layout_version;
+        app.last_autosave_version = app.layout_version;
+        if let Some(auto_p) = Self::autosave_path() {
+            if auto_p.exists() {
+                if let Ok(raw) = std::fs::read_to_string(&auto_p) {
+                    if load_layout_json(&raw).map_or(false, |l| !l.pieces.is_empty()) {
+                        app.show_autosave_recovery = true;
+                    }
                 }
             }
         }
@@ -129,11 +256,13 @@ impl RailbenchApp {
 
     pub fn save_current_settings(&mut self) {
         self.app_settings.dark_mode = self.dark_mode;
-        self.app_settings.lang = match self.lang {
-            Lang::De => "de",
-            Lang::En => "en",
+        if self.app_settings.lang != "auto" {
+            self.app_settings.lang = match self.lang {
+                Lang::De => "de",
+                Lang::En => "en",
+            }
+            .into();
         }
-        .into();
         self.app_settings.snapping_enabled = self.snapping_enabled;
         self.app_settings.layer_protection = self.layer_protection;
         self.app_settings.color_mode = match self.color_mode {
@@ -148,6 +277,36 @@ impl RailbenchApp {
         self.app_settings.show_wood_plates = self.show_wood_plates;
         self.app_settings.show_right_sidebar = self.show_right_sidebar;
         self.app_settings.rotation_step = self.rotation_step;
+        self.app_settings.rotation_snap_locked = self.rotation_snap_locked;
+        self.app_settings.power_sim_enabled = self.power_sim_enabled;
+        self.app_settings.bars_locked = self.bars_locked;
+        self.app_settings.low_gpu_mode = self.low_gpu_mode;
+        self.app_settings.selected_catalog_id = self
+            .catalogs
+            .get(self.selected_catalog_idx)
+            .map(|c| c.id.clone());
+        self.app_settings.active_sidebar_tab = match self.sidebar_tab {
+            SidebarTab::Tracks => "tracks",
+            SidebarTab::Roads => "roads",
+            SidebarTab::Models => "models",
+            SidebarTab::Terrain => "terrain",
+            SidebarTab::Board => "board",
+            SidebarTab::Bom => "bom",
+        }
+        .into();
+        self.app_settings.camera_offset = Some([self.camera.offset.x, self.camera.offset.y]);
+        self.app_settings.camera_zoom = Some(self.camera.zoom);
+        if !self.collab.user_name.trim().is_empty() {
+            self.app_settings.collab_user_name = Some(self.collab.user_name.clone());
+        }
+        if !self.collab.user_color.trim().is_empty() {
+            self.app_settings.collab_user_color = Some(self.collab.user_color.clone());
+        }
+        self.app_settings.collab_password = if self.collab.password.is_empty() {
+            None
+        } else {
+            Some(self.collab.password.clone())
+        };
         self.app_settings.viewer3d_env = match self.viewer3d_env {
             Viewer3DEnv::HallLandscape => "hall-landscape",
             Viewer3DEnv::Minimal => "minimal",
@@ -275,13 +434,39 @@ impl RailbenchApp {
         }
     }
 
-    pub fn current_short_circuit_points(&self) -> Vec<Vec2> {
+    pub fn current_short_circuit_points(&self) -> Vec<[f64; 3]> {
         if let Some((ver, ref sim)) = self.power_sim_cache {
             if ver == self.layout_version {
                 return sim
                     .short_circuit_points
                     .iter()
-                    .map(|p| Vec2 { x: p.x, y: p.y })
+                    .map(|pt| {
+                        let elev = self
+                            .layout
+                            .pieces
+                            .iter()
+                            .find(|pc| pc.id == pt.piece_id_1)
+                            .map(|pc| {
+                                let lh = self
+                                    .layout
+                                    .layers
+                                    .as_ref()
+                                    .and_then(|ls| {
+                                        ls.iter().find(|l| {
+                                            l.id == pc.layer_id.as_deref().unwrap_or("layer-1")
+                                        })
+                                    })
+                                    .and_then(|l| l.height_mm)
+                                    .unwrap_or(0.0);
+                                let pe = pc
+                                    .elevation
+                                    .map(|e| (e.start + e.end) * 0.5)
+                                    .unwrap_or(0.0);
+                                lh + pe
+                            })
+                            .unwrap_or(0.0);
+                        [pt.x, elev, pt.y]
+                    })
                     .collect();
             }
         }
@@ -307,8 +492,7 @@ impl RailbenchApp {
             sc_pts.len(),
             self.vehicle_sim
                 .turnout_version
-                .wrapping_add(self.vehicle_sim.bridge_mesh_version.wrapping_mul(31))
-                .wrapping_add(self.train_3d.turnout_branches_version.wrapping_mul(131)),
+                .wrapping_add(self.vehicle_sim.bridge_mesh_version.wrapping_mul(31)),
         );
         if self.mesh_3d_key != key || self.scene_3d_bundle.is_none() {
             let opts = Scene3DOptions {
@@ -389,9 +573,91 @@ impl RailbenchApp {
             self.release_3d_cpu_memory();
         }
         self.layout = make_empty_layout();
+        self.current_file_path = None;
         self.selected.clear();
         self.pending_fit_view = true;
-        self.status_message = Some("New layout created".into());
+        self.saved_layout_version = self.layout_version;
+        self.clear_autosave();
+        self.show_toast(if self.lang == Lang::De {
+            "Neue leere Anlage erstellt"
+        } else {
+            "New layout created"
+        });
+    }
+
+    pub fn request_new_layout(&mut self) {
+        if self.is_dirty() {
+            self.pending_confirm_action = Some(PendingConfirmAction::New);
+        } else {
+            self.new_empty_layout();
+        }
+    }
+
+    pub fn request_open_layout_dialog(&mut self) {
+        if self.is_dirty() {
+            self.pending_confirm_action = Some(PendingConfirmAction::Open);
+        } else {
+            self.open_layout_dialog();
+        }
+    }
+
+    pub fn request_open_demo(&mut self, path: &str) {
+        if self.is_dirty() {
+            self.pending_confirm_action = Some(PendingConfirmAction::Demo(path.to_string()));
+        } else {
+            self.open_demo_layout(path, true);
+        }
+    }
+
+    pub fn embedded_demo_json(path: &str) -> Option<&'static str> {
+        let norm = path.replace('\\', "/");
+        match norm.as_str() {
+            "demotracks/alpenland-h0.railbench" => Some(include_str!("../../../demotracks/alpenland-h0.railbench")),
+            "demotracks/mainline-h0.railbench" => Some(include_str!("../../../demotracks/mainline-h0.railbench")),
+            "demotracks/shunting-0.railbench" => Some(include_str!("../../../demotracks/shunting-0.railbench")),
+            "demotracks/switching-n.railbench" => Some(include_str!("../../../demotracks/switching-n.railbench")),
+            "demotracks/garden-g.railbench" => Some(include_str!("../../../demotracks/garden-g.railbench")),
+            "demotracks/suitcase-z.railbench" => Some(include_str!("../../../demotracks/suitcase-z.railbench")),
+            _ => None,
+        }
+    }
+
+    pub fn demo_preview_meta(&self, path: &str) -> Option<String> {
+        let raw = if std::path::Path::new(path).exists() {
+            std::fs::read_to_string(path).ok()?
+        } else {
+            Self::embedded_demo_json(path)?.to_string()
+        };
+        let layout = load_layout_json(&raw).ok()?;
+        let bb = layout
+            .baseboards
+            .as_ref()
+            .and_then(|bs| bs.first())
+            .or(layout.baseboard.as_ref());
+        let dims = bb
+            .map(|b| format!("{:.0}x{:.0} cm", b.width / 10.0, b.depth / 10.0))
+            .unwrap_or_default();
+        let pieces = layout.pieces.len();
+        Some(if self.lang == Lang::De {
+            format!("Spur {}  ·  {}  ·  {} Gleise", layout.scale, dims, pieces)
+        } else {
+            format!("Scale {}  ·  {}  ·  {} tracks", layout.scale, dims, pieces)
+        })
+    }
+
+    pub fn open_demo_layout(&mut self, path: &str, record_recent: bool) {
+        if std::path::Path::new(path).exists() {
+            self.open_layout_path_internal(path, record_recent);
+            return;
+        }
+        if let Some(raw) = Self::embedded_demo_json(path) {
+            self.open_layout_json_str(raw, path, None);
+            self.current_file_path = None;
+            self.saved_layout_version = self.layout_version;
+            self.clear_autosave();
+        } else {
+            self.status_message = Some(format!("Demo not found: {path}"));
+        }
     }
 
     pub fn open_layout_dialog(&mut self) {
@@ -405,17 +671,48 @@ impl RailbenchApp {
         }
     }
 
-    pub fn is_favorite_track(&self, id: &str) -> bool {
-        self.app_settings.favorite_tracks.iter().any(|f| f == id)
+    pub fn is_favorite_track_entry(&self, catalog_id: &str, track_id: &str) -> bool {
+        let scoped = format!("{catalog_id}::{track_id}");
+        self.app_settings
+            .favorite_tracks
+            .iter()
+            .any(|f| f == &scoped || f == track_id)
     }
 
-    pub fn toggle_favorite_track(&mut self, id: &str) {
-        if let Some(pos) = self.app_settings.favorite_tracks.iter().position(|f| f == id) {
+    pub fn toggle_favorite_track_entry(&mut self, catalog_id: &str, track_id: &str) {
+        let scoped = format!("{catalog_id}::{track_id}");
+        if let Some(pos) = self
+            .app_settings
+            .favorite_tracks
+            .iter()
+            .position(|f| f == &scoped || f == track_id)
+        {
             self.app_settings.favorite_tracks.remove(pos);
         } else {
-            self.app_settings.favorite_tracks.push(id.to_string());
+            self.app_settings.favorite_tracks.push(scoped);
         }
         self.save_current_settings();
+    }
+
+    pub fn export_catalog_dialog(&mut self, cat_idx: usize) {
+        let Some(cat) = self.catalogs.get(cat_idx) else {
+            return;
+        };
+        if let Some(path) = rfd::FileDialog::new()
+            .add_filter("Track Catalog JSON", &["json"])
+            .set_file_name(format!("{}.json", cat.id))
+            .save_file()
+        {
+            let json = crate::catalog_store::export_catalog_json(cat);
+            match std::fs::write(&path, json) {
+                Ok(_) => self.show_toast(if self.lang == Lang::De {
+                    format!("Katalog exportiert: {}", cat.name)
+                } else {
+                    format!("Exported catalog: {}", cat.name)
+                }),
+                Err(e) => self.status_message = Some(format!("Catalog export error: {e}")),
+            }
+        }
     }
 
     pub fn import_catalog_json_str(&mut self, raw: &str) -> Result<String, String> {
@@ -457,79 +754,124 @@ impl RailbenchApp {
     pub(crate) fn open_layout_path_internal(&mut self, path: &str, record_recent: bool) {
         match std::fs::read_to_string(path) {
             Ok(raw) => {
-                let trimmed = raw.trim_start();
-                let parsed = if path.to_ascii_lowercase().ends_with(".xml") || trimmed.starts_with('<') {
-                    import_layout_xml(&raw, &self.catalogs)
-                } else {
-                    load_layout_json(&raw).map_err(|e| e.to_string())
-                };
-                match parsed {
-                    Ok(mut loaded) => {
-                    if loaded.layers.as_ref().map_or(true, |l| l.is_empty()) {
-                        loaded.layers = Some(vec![default_layer()]);
-                        loaded.active_layer_id = Some("layer-1".into());
-                    }
-                    let first_board_id = board_tools::ensure_baseboards(&mut loaded)
-                        .first()
-                        .and_then(|b| b.id.clone());
-                    self.active_board_id = first_board_id;
-                    self.dragging_board = None;
-                    self.dragging_model_rot = None;
-                    self.board_snap_guides.clear();
-                    self.sketcher.stop();
-                    self.model_scale = model_tools::parse_scale_code(&loaded.scale).into();
-                    if let Some(models) = &mut loaded.models {
-                        dedup_model_file_data(models, &self.custom_models_library);
-                        for m in models.iter() {
-                            if m.file_data.is_some()
-                                && !self.custom_models_library.iter().any(|c| c.name == m.name)
-                            {
-                                self.custom_models_library.push(m.clone());
-                            }
-                        }
-                    }
-                    self.canvas_2d_cache.clear_proto_caches();
-                    if !self.is_3d_mode {
-                        self.release_3d_cpu_memory();
-                    }
-                    update_layout_connections(&mut loaded, 4.0, 35.0, 1.0);
-                    self.push_undo();
-                    self.layout = loaded;
-                    self.selected.clear();
-                    self.pending_fit_view = true;
-                    self.status_message = Some(format!("Loaded {path}"));
-                    if record_recent {
-                        self.app_settings.last_opened_path = Some(path.to_string());
-                        self.save_current_settings();
-                    }
-                }
-                Err(e) => self.status_message = Some(format!("Parse error: {e}")),
-                }
+                let rec = if record_recent { Some(path) } else { None };
+                self.open_layout_json_str(&raw, path, rec);
             }
             Err(e) => self.status_message = Some(format!("Read error: {e}")),
         }
     }
 
-    pub fn save_layout_dialog(&mut self) {
+    pub(crate) fn open_layout_json_str(&mut self, raw: &str, source_label: &str, record_path: Option<&str>) {
+        let trimmed = raw.trim_start();
+        let parsed = if source_label.to_ascii_lowercase().ends_with(".xml") || trimmed.starts_with('<') {
+            import_layout_xml(raw, &self.catalogs)
+        } else {
+            load_layout_json(raw).map_err(|e| e.to_string())
+        };
+        match parsed {
+            Ok(mut loaded) => {
+                if loaded.layers.as_ref().map_or(true, |l| l.is_empty()) {
+                    loaded.layers = Some(vec![default_layer()]);
+                    loaded.active_layer_id = Some("layer-1".into());
+                }
+                let first_board_id = board_tools::ensure_baseboards(&mut loaded)
+                    .first()
+                    .and_then(|b| b.id.clone());
+                self.active_board_id = first_board_id;
+                self.dragging_board = None;
+                self.dragging_model_rot = None;
+                self.dragging_track_rot = None;
+                self.board_snap_guides.clear();
+                self.sketcher.stop();
+                self.model_scale = model_tools::parse_scale_code(&loaded.scale).into();
+                if let Some(models) = &mut loaded.models {
+                    dedup_model_file_data(models, &self.custom_models_library);
+                    for m in models.iter() {
+                        if m.file_data.is_some()
+                            && !self.custom_models_library.iter().any(|c| c.name == m.name)
+                        {
+                            self.custom_models_library.push(m.clone());
+                        }
+                    }
+                }
+                self.canvas_2d_cache.clear_proto_caches();
+                if !self.is_3d_mode {
+                    self.release_3d_cpu_memory();
+                }
+                update_layout_connections(&mut loaded, 4.0, 35.0, 1.0);
+                self.push_undo();
+                self.layout = loaded;
+                self.selected.clear();
+                self.pending_fit_view = true;
+                self.current_file_path = if std::path::Path::new(source_label).exists() {
+                    Some(source_label.to_string())
+                } else {
+                    None
+                };
+                self.saved_layout_version = self.layout_version;
+                self.clear_autosave();
+                self.status_message = Some(format!("Loaded {source_label}"));
+                if let Some(rp) = record_path {
+                    self.app_settings.last_opened_path = Some(rp.to_string());
+                    self.save_current_settings();
+                }
+            }
+            Err(e) => self.status_message = Some(format!("Parse error: {e}")),
+        }
+    }
+
+    fn write_layout_to_path(&mut self, path: &std::path::Path) -> bool {
+        match save_layout_json(&self.layout) {
+            Ok(json) => match std::fs::write(path, json) {
+                Ok(_) => {
+                    if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
+                        if self.layout.name == "Neue Anlage" || self.layout.name.trim().is_empty() {
+                            self.layout.name = stem.to_string();
+                        }
+                    }
+                    if let Some(s) = path.to_str() {
+                        self.current_file_path = Some(s.to_string());
+                        self.app_settings.last_opened_path = Some(s.to_string());
+                        self.save_current_settings();
+                    }
+                    self.saved_layout_version = self.layout_version;
+                    self.clear_autosave();
+                    self.show_toast(if self.lang == Lang::De {
+                        format!("Gespeichert: {}", path.file_name().and_then(|n| n.to_str()).unwrap_or(""))
+                    } else {
+                        format!("Saved {}", path.file_name().and_then(|n| n.to_str()).unwrap_or(""))
+                    });
+                    true
+                }
+                Err(e) => {
+                    self.status_message = Some(format!("Write error: {e}"));
+                    false
+                }
+            },
+            Err(e) => {
+                self.status_message = Some(format!("Serialize error: {e}"));
+                false
+            }
+        }
+    }
+
+    pub fn save_layout_dialog(&mut self) -> bool {
+        if let Some(ref existing) = self.current_file_path.clone() {
+            let p = std::path::PathBuf::from(existing);
+            return self.write_layout_to_path(&p);
+        }
+        self.save_layout_as_dialog()
+    }
+
+    pub fn save_layout_as_dialog(&mut self) -> bool {
         if let Some(path) = rfd::FileDialog::new()
             .add_filter("RAILbench Layout", &["railbench", "json"])
             .set_file_name(format!("{}.railbench", self.layout.name))
             .save_file()
         {
-            match save_layout_json(&self.layout) {
-                Ok(json) => match std::fs::write(&path, json) {
-                    Ok(_) => {
-                        self.status_message = Some(format!("Saved {}", path.display()));
-                        if let Some(s) = path.to_str() {
-                            self.app_settings.last_opened_path = Some(s.to_string());
-                            self.save_current_settings();
-                        }
-                    }
-                    Err(e) => self.status_message = Some(format!("Write error: {e}")),
-                },
-                Err(e) => self.status_message = Some(format!("Serialize error: {e}")),
-            }
+            return self.write_layout_to_path(&path);
         }
+        false
     }
 
 }

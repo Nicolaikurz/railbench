@@ -29,12 +29,26 @@ pub enum RampShape {
 }
 
 #[derive(Debug, Clone)]
+pub struct RampBreakdownRow {
+    pub piece_id: String,
+    pub catalog_id: String,
+    pub length_mm: f64,
+    pub start_h_mm: f64,
+    pub end_h_mm: f64,
+    pub grade_pct: f64,
+    pub effective_grade_pct: f64,
+    pub is_s_curve: bool,
+}
+
+#[derive(Debug, Clone)]
 pub struct RampSummary {
     pub piece_count: usize,
     pub total_length_mm: f64,
     pub total_rise_mm: f64,
     pub avg_gradient_pct: f64,
     pub max_gradient_pct: f64,
+    pub effective_max_pct: f64,
+    pub has_s_curve: bool,
 }
 
 pub fn min_clearance_for_scale(scale: &str) -> f64 {
@@ -409,13 +423,183 @@ pub fn preview_auto_ramp_for_chain(
         }
     };
 
+    let mut max_eff = max_grade;
+    let mut has_s_curve = false;
+    for row in build_ramp_breakdown(layout, catalogs, chain, start_h, end_h, profile) {
+        if row.is_s_curve {
+            has_s_curve = true;
+        }
+        if row.effective_grade_pct > max_eff {
+            max_eff = row.effective_grade_pct;
+        }
+    }
+
     Some(RampSummary {
         piece_count: lengths.len(),
         total_length_mm: (total_len * 10.0).round() / 10.0,
         total_rise_mm: (total_rise * 10.0).round() / 10.0,
         avg_gradient_pct: (avg_grade * 10.0).round() / 10.0,
         max_gradient_pct: (max_grade * 10.0).round() / 10.0,
+        effective_max_pct: (max_eff * 10.0).round() / 10.0,
+        has_s_curve,
     })
+}
+
+fn piece_curve_sign(piece: &TrackPiece, rev: bool, catalogs: &[Catalog]) -> i8 {
+    let entry = find_entry(catalogs, &piece.catalog_id);
+    if let Some(ca) = piece.custom_angle {
+        if ca.abs() > 1.0 {
+            let s = if ca > 0.0 { 1 } else { -1 };
+            return if rev { -s } else { s };
+        }
+    }
+    if let Some(e) = entry {
+        if e.kind == "curve" {
+            let a = e.angle.unwrap_or(30.0);
+            let s = if a >= 0.0 { 1 } else { -1 };
+            return if rev { -s } else { s };
+        }
+    }
+    0
+}
+
+pub fn build_ramp_breakdown(
+    layout: &Layout,
+    catalogs: &[Catalog],
+    chain: &[(String, bool)],
+    start_h: f64,
+    end_h: f64,
+    profile: RampProfile,
+) -> Vec<RampBreakdownRow> {
+    if chain.is_empty() {
+        return Vec::new();
+    }
+    let items: Vec<(&TrackPiece, bool, f64)> = chain
+        .iter()
+        .filter_map(|(id, rev)| {
+            layout
+                .pieces
+                .iter()
+                .find(|p| &p.id == id)
+                .map(|p| (p, *rev, piece_length_mm(p, catalogs)))
+        })
+        .collect();
+    if items.is_empty() {
+        return Vec::new();
+    }
+    let total_len: f64 = items.iter().map(|(_, _, l)| *l).sum();
+    let total_rise = end_h - start_h;
+    let signs: Vec<i8> = items
+        .iter()
+        .map(|(p, rev, _)| piece_curve_sign(p, *rev, catalogs))
+        .collect();
+
+    let mut rows = Vec::with_capacity(items.len());
+    let mut accum = 0.0_f64;
+    for (i, (p, _, len)) in items.iter().enumerate() {
+        let u0 = if total_len > 0.0 { accum / total_len } else { 0.0 };
+        let u1 = if total_len > 0.0 { (accum + len) / total_len } else { 1.0 };
+        accum += len;
+        let (f0, f1) = match profile {
+            RampProfile::Linear => (u0, u1),
+            RampProfile::Eased => (u0 * u0 * (3.0 - 2.0 * u0), u1 * u1 * (3.0 - 2.0 * u1)),
+        };
+        let sh = start_h + total_rise * f0;
+        let eh = start_h + total_rise * f1;
+        let g = if *len > 0.0 {
+            ((eh - sh).abs() / *len) * 100.0
+        } else {
+            0.0
+        };
+        let is_s = (i > 0 && signs[i] != 0 && signs[i - 1] != 0 && signs[i] == -signs[i - 1])
+            || (i + 1 < signs.len() && signs[i] != 0 && signs[i + 1] != 0 && signs[i] == -signs[i + 1]);
+        let eff_g = if is_s { g * 1.5 } else { g };
+        rows.push(RampBreakdownRow {
+            piece_id: p.id.clone(),
+            catalog_id: p.catalog_id.clone(),
+            length_mm: (*len * 10.0).round() / 10.0,
+            start_h_mm: (sh * 10.0).round() / 10.0,
+            end_h_mm: (eh * 10.0).round() / 10.0,
+            grade_pct: (g * 10.0).round() / 10.0,
+            effective_grade_pct: (eff_g * 10.0).round() / 10.0,
+            is_s_curve: is_s,
+        });
+    }
+    rows
+}
+
+pub fn calculate_end_height_from_max_gradient(
+    layout: &Layout,
+    catalogs: &[Catalog],
+    chain: &[(String, bool)],
+    start_h: f64,
+    max_grade_pct: f64,
+    slope_up: bool,
+    profile: RampProfile,
+) -> f64 {
+    let total_len: f64 = chain
+        .iter()
+        .filter_map(|(id, _)| layout.pieces.iter().find(|p| &p.id == id))
+        .map(|p| piece_length_mm(p, catalogs))
+        .sum();
+    if total_len <= 1.0 {
+        return start_h;
+    }
+    let dir = if slope_up { 1.0 } else { -1.0 };
+    // Eased peak slope is 1.5x average slope, so limit rise accordingly
+    let profile_factor = if profile == RampProfile::Eased { 1.5 } else { 1.0 };
+    let max_rise = (total_len * (max_grade_pct.max(0.1) / 100.0)) / profile_factor;
+    ((start_h + dir * max_rise) * 10.0).round() / 10.0
+}
+
+/// Infers `(chain, start_h_mm, end_h_mm)` from unselected adjacent tracks connected at the
+/// start and end of the selected chain.
+pub fn calculate_auto_ramp(
+    layout: &Layout,
+    selected: &HashSet<String>,
+    catalogs: &[Catalog],
+) -> Option<(Vec<(String, bool)>, f64, f64)> {
+    let _ = catalogs;
+    let chain = order_selected_chain(layout, selected);
+    if chain.is_empty() {
+        return None;
+    }
+    let chain_ids: HashSet<&str> = chain.iter().map(|(id, _)| id.as_str()).collect();
+    let neighbor_height = |pid: &str, conn_idx: usize| -> Option<f64> {
+        let p = layout.pieces.iter().find(|pc| pc.id == pid)?;
+        let c = p.connectors.get(conn_idx)?;
+        if let Some(ref link) = c.connected_to {
+            if !chain_ids.contains(link.piece_id.as_str()) {
+                if let Some(nbr) = layout.pieces.iter().find(|pc| pc.id == link.piece_id) {
+                    let lh = layer_height_of(layout, nbr.layer_id.as_deref());
+                    return Some(railbench_core::snapping::piece_connector_height(
+                        nbr,
+                        link.connector_index,
+                        lh,
+                    ));
+                }
+            }
+        }
+        None
+    };
+
+    let (first_id, first_rev) = &chain[0];
+    let (last_id, last_rev) = &chain[chain.len() - 1];
+    let first_in_conn = if *first_rev { 1 } else { 0 };
+    let last_out_conn = if *last_rev { 0 } else { 1 };
+
+    let start_h = neighbor_height(first_id, first_in_conn).unwrap_or_else(|| {
+        let p = layout.pieces.iter().find(|pc| &pc.id == first_id).unwrap();
+        let lh = layer_height_of(layout, p.layer_id.as_deref());
+        railbench_core::snapping::piece_connector_height(p, first_in_conn, lh)
+    });
+    let end_h = neighbor_height(last_id, last_out_conn).unwrap_or_else(|| {
+        let p = layout.pieces.iter().find(|pc| &pc.id == last_id).unwrap();
+        let lh = layer_height_of(layout, p.layer_id.as_deref());
+        railbench_core::snapping::piece_connector_height(p, last_out_conn, lh)
+    });
+
+    Some((chain, start_h, end_h))
 }
 
 #[allow(dead_code)]
@@ -529,6 +713,43 @@ pub fn available_curves_for_catalog(catalog: &Catalog) -> Vec<CatalogEntry> {
     curves
 }
 
+pub fn available_curve_radii_dedup(catalog: &Catalog) -> Vec<CatalogEntry> {
+    let all = available_curves_for_catalog(catalog);
+    let mut seen_r: Vec<i32> = Vec::new();
+    let mut out = Vec::new();
+    for c in all {
+        let r_key = c.radius.unwrap_or(0.0).round() as i32;
+        if !seen_r.contains(&r_key) {
+            seen_r.push(r_key);
+            out.push(c);
+        }
+    }
+    out
+}
+
+pub fn available_open_connectors_for_piece(layout: &Layout, piece_id: &str) -> Vec<usize> {
+    let Some(anchor) = layout.pieces.iter().find(|p| p.id == piece_id) else {
+        return Vec::new();
+    };
+    anchor
+        .connectors
+        .iter()
+        .enumerate()
+        .filter(|(_, c)| {
+            c.connected_to.is_none()
+                && !layout.pieces.iter().any(|other| {
+                    other.id != anchor.id
+                        && other
+                            .connectors
+                            .iter()
+                            .any(|oc| (c.x - oc.x).hypot(c.y - oc.y) <= 6.0)
+                })
+        })
+        .map(|(ci, _)| ci)
+        .collect()
+}
+
+#[cfg_attr(not(test), allow(dead_code))]
 #[allow(clippy::too_many_arguments)]
 pub fn generate_ramp_or_helix(
     layout: &mut Layout,
@@ -543,6 +764,41 @@ pub fn generate_ramp_or_helix(
     turns: f64,
     selected_curve_id: Option<&str>,
 ) -> Result<(Vec<String>, RampSummary), String> {
+    generate_ramp_or_helix_ext(
+        layout,
+        catalogs,
+        active_catalog_idx,
+        next_seq,
+        anchor_id,
+        None,
+        None,
+        shape,
+        curve_left,
+        180.0,
+        target_height_mm,
+        max_grade_pct,
+        turns,
+        selected_curve_id,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn generate_ramp_or_helix_ext(
+    layout: &mut Layout,
+    catalogs: &[Catalog],
+    active_catalog_idx: usize,
+    next_seq: &mut u64,
+    anchor_id: &str,
+    preferred_conn_idx: Option<usize>,
+    target_layer_id: Option<&str>,
+    shape: RampShape,
+    curve_left: bool,
+    arc_angle_deg: f64,
+    target_height_mm: f64,
+    max_grade_pct: f64,
+    turns: f64,
+    selected_curve_id: Option<&str>,
+) -> Result<(Vec<String>, RampSummary), String> {
     let anchor = layout
         .pieces
         .iter()
@@ -550,23 +806,11 @@ pub fn generate_ramp_or_helix(
         .cloned()
         .ok_or_else(|| "Select one anchor track first.".to_string())?;
 
-    // Find first open connector on anchor (prefer exit connector if multiple are open)
-    let mut open_idx: Option<usize> = None;
-    for (ci, c) in anchor.connectors.iter().enumerate().rev() {
-        let connected = c.connected_to.is_some()
-            || layout.pieces.iter().any(|other| {
-                other.id != anchor.id
-                    && other
-                        .connectors
-                        .iter()
-                        .any(|oc| (c.x - oc.x).hypot(c.y - oc.y) <= 6.0)
-            });
-        if !connected {
-            open_idx = Some(ci);
-            break;
-        }
-    }
-    let chosen_ci = open_idx.ok_or_else(|| "Selected anchor track has no open connector.".to_string())?;
+    let open_list = available_open_connectors_for_piece(layout, anchor_id);
+    let chosen_ci = preferred_conn_idx
+        .filter(|ci| open_list.contains(ci))
+        .or_else(|| open_list.last().copied())
+        .ok_or_else(|| "Selected anchor track has no open connector.".to_string())?;
     let start_conn = &anchor.connectors[chosen_ci];
 
     let anchor_layer_h = layer_height_of(layout, anchor.layer_id.as_deref());
@@ -579,6 +823,11 @@ pub fn generate_ramp_or_helix(
     if rise.abs() < 0.2 {
         return Err("Target height matches the anchor connector height already.".into());
     }
+
+    let place_layer_id = target_layer_id
+        .map(|s| s.to_string())
+        .or_else(|| anchor.layer_id.clone());
+    let place_layer_h = layer_height_of(layout, place_layer_id.as_deref());
 
     // Pick source catalog (matching anchor piece or active catalog)
     let cat = catalogs
@@ -626,10 +875,34 @@ pub fn generate_ramp_or_helix(
             let c_e = curve_entry.or(straight_entry).ok_or_else(|| "No curve piece in catalog.".to_string())?;
             let c_len = entry_length_mm(c_e);
             let c_ang = c_e.angle.unwrap_or(30.0).max(5.0);
-            let min_curves = (180.0 / c_ang).round().max(2.0) as usize;
-            let count = ((min_req_len / c_len).ceil() as usize).max(min_curves).clamp(2, 36);
-            for _ in 0..count {
-                sequence.push((c_e, curve_left));
+            let target_arc = arc_angle_deg.clamp(45.0, 270.0);
+            let arc_curves = (target_arc / c_ang).round().max(2.0) as usize;
+            let curve_total_len = arc_curves as f64 * c_len;
+            if min_req_len > curve_total_len + 10.0 {
+                if let Some(s_e) = straight_entry {
+                    let deficit = min_req_len - curve_total_len;
+                    let total_straights = (deficit / entry_length_mm(s_e)).ceil() as usize;
+                    let lead_in = total_straights / 2;
+                    let lead_out = total_straights - lead_in;
+                    for _ in 0..lead_in {
+                        sequence.push((s_e, false));
+                    }
+                    for _ in 0..arc_curves {
+                        sequence.push((c_e, curve_left));
+                    }
+                    for _ in 0..lead_out {
+                        sequence.push((s_e, false));
+                    }
+                } else {
+                    let count = ((min_req_len / c_len).ceil() as usize).max(arc_curves).clamp(2, 36);
+                    for _ in 0..count {
+                        sequence.push((c_e, curve_left));
+                    }
+                }
+            } else {
+                for _ in 0..arc_curves {
+                    sequence.push((c_e, curve_left));
+                }
             }
         }
         RampShape::Helix => {
@@ -647,7 +920,7 @@ pub fn generate_ramp_or_helix(
 
     let lengths: Vec<f64> = sequence.iter().map(|(e, _)| entry_length_mm(e)).collect();
     let left_flags: Vec<u8> = sequence.iter().map(|(_, left)| if *left { 1 } else { 0 }).collect();
-    let elevs = compute_ramp_chain_elevations(&lengths, &left_flags, h_start, rise, anchor_layer_h);
+    let elevs = compute_ramp_chain_elevations(&lengths, &left_flags, h_start, rise, place_layer_h);
     let total_len: f64 = lengths.iter().sum();
 
     let mut curr_x = start_conn.x;
@@ -671,7 +944,7 @@ pub fn generate_ramp_or_helix(
 
         let id = format!("ramp-{}", *next_seq);
         *next_seq += 1;
-        let mut piece = create_piece(id.clone(), entry, tr, anchor.layer_id.clone());
+        let mut piece = create_piece(id.clone(), entry, tr, place_layer_id.clone());
         piece.elevation = Some(Elevation {
             start: elevs[i * 2],
             end: elevs[i * 2 + 1],
@@ -700,6 +973,8 @@ pub fn generate_ramp_or_helix(
         total_rise_mm: (rise * 10.0).round() / 10.0,
         avg_gradient_pct: (avg_grade * 10.0).round() / 10.0,
         max_gradient_pct: (avg_grade * 10.0).round() / 10.0,
+        effective_max_pct: (avg_grade * 10.0).round() / 10.0,
+        has_s_curve: false,
     };
     Ok((new_ids, summary))
 }
@@ -743,6 +1018,7 @@ mod tests {
             active_layer_id: Some("layer-1".into()),
             baseboard: None,
             baseboards: None,
+            terrain_field: None,
         };
         update_layout_connections(&mut layout, 4.0, 35.0, 2.0);
         (layout, catalogs, sel)
@@ -842,5 +1118,60 @@ mod tests {
         // s3 entered at c[1] (0 mm) -> exited at c[0] (20 mm); s0 exited at c[0] (80 mm)
         assert!((layout.pieces[3].elevation.unwrap().end - 0.0).abs() < 0.02);
         assert!((layout.pieces[0].elevation.unwrap().start - 80.0).abs() < 0.02);
+    }
+
+    #[test]
+    fn auto_ramp_breakdown_and_max_grade_end_height() {
+        use railbench_core::types::ConnectorRef;
+        let cats = builtin_catalogs();
+        let e24188 = crate::catalog::find_entry(&cats, "24188").expect("24188");
+        let e24130 = crate::catalog::find_entry(&cats, "24130").expect("24130");
+        let e24130_r = crate::catalog::find_entry(&cats, "24130").expect("24130");
+        let mut p_start = create_piece("a".into(), e24188, Transform { x: 0.0, y: 0.0, rotation: 0.0 }, None);
+        p_start.elevation = Some(Elevation { start: 0.0, end: 0.0 });
+        let mut c1 = create_piece("c1".into(), e24130, Transform { x: 188.3, y: 0.0, rotation: 0.0 }, None);
+        // Curve opposite turn after c1 to create an S-curve pair
+        let mut c2 = create_piece("c2".into(), e24130_r, Transform { x: 376.6, y: 0.0, rotation: 0.0 }, None);
+        c1.connectors[0].connected_to = Some(ConnectorRef { piece_id: "a".into(), connector_index: 1 });
+        p_start.connectors[1].connected_to = Some(ConnectorRef { piece_id: "c1".into(), connector_index: 0 });
+        c1.connectors[1].connected_to = Some(ConnectorRef { piece_id: "c2".into(), connector_index: 0 });
+        c2.connectors[0].connected_to = Some(ConnectorRef { piece_id: "c1".into(), connector_index: 1 });
+
+        let mut p_end = create_piece("b".into(), e24188, Transform { x: 564.9, y: 0.0, rotation: 0.0 }, None);
+        p_end.elevation = Some(Elevation { start: 40.0, end: 40.0 });
+        c2.connectors[1].connected_to = Some(ConnectorRef { piece_id: "b".into(), connector_index: 0 });
+        p_end.connectors[0].connected_to = Some(ConnectorRef { piece_id: "c2".into(), connector_index: 1 });
+
+        let layout = Layout {
+            name: "r1".into(),
+            scale: "H0".into(),
+            pieces: vec![p_start, c1, c2, p_end],
+            models: None,
+            feed_voltage: None,
+            catenary_feed_voltage: None,
+            catenary_circuit_mode: None,
+            loco_current_ma: None,
+            loco_count: None,
+            train_current_amps: None,
+            turnout_lantern_current_ma: None,
+            turnout_decoder_current_ma: None,
+            layers: None,
+            active_layer_id: None,
+            baseboard: None,
+            baseboards: None,
+            terrain_field: None,
+        };
+        let mut sel = HashSet::new();
+        sel.insert("c1".into());
+        sel.insert("c2".into());
+        let auto = calculate_auto_ramp(&layout, &sel, &cats).expect("auto ramp inferred");
+        assert_eq!(auto.0.len(), 2);
+        assert!((auto.1 - 0.0).abs() < 1e-6);
+        assert!((auto.2 - 40.0).abs() < 1e-6);
+
+        let rows = build_ramp_breakdown(&layout, &cats, &auto.0, 0.0, 40.0, RampProfile::Linear);
+        assert_eq!(rows.len(), 2);
+        let max_end = calculate_end_height_from_max_gradient(&layout, &cats, &auto.0, 0.0, 3.0, true, RampProfile::Eased);
+        assert!(max_end > 0.0 && max_end < 40.0);
     }
 }

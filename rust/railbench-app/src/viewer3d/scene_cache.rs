@@ -215,13 +215,33 @@ pub(super) fn compute_submesh_signatures(
     }
 
     let mut h_terrain = 0xcbf29ce484222325_u64;
+    let mut has_layer_hf = false;
+    let hash_hf = |h: &mut u64, hf: &railbench_core::types::TerrainHeightfield| {
+        *h = fnv1a_u64(*h, &hf.revision.to_le_bytes());
+        *h = fnv1a_u64(*h, &(hf.cols as u64).to_le_bytes());
+        *h = fnv1a_u64(*h, &(hf.rows as u64).to_le_bytes());
+        *h = hash_f64(*h, hf.min_x);
+        *h = hash_f64(*h, hf.min_z);
+        *h = hash_f64(*h, hf.max_x);
+        *h = hash_f64(*h, hf.max_z);
+    };
+    if let Some(ref hf) = layout.terrain_field {
+        hash_hf(&mut h_terrain, hf);
+    }
     if let Some(layers) = &layout.layers {
         for l in layers {
             h_terrain = fnv1a_u64(h_terrain, &[l.visible as u8]);
             h_terrain = hash_f64(h_terrain, l.height_mm.unwrap_or(0.0));
+            if l.visible {
+                if let Some(ref hf) = l.terrain_field {
+                    has_layer_hf = true;
+                    h_terrain = fnv1a_u64(h_terrain, l.id.as_bytes());
+                    hash_hf(&mut h_terrain, hf);
+                }
+            }
         }
     }
-    let mut has_terrain_models = false;
+    let mut has_terrain_models = layout.terrain_field.is_some() || has_layer_hf;
     let mut mountains: Vec<&Model3D> = Vec::new();
     if let Some(models) = &layout.models {
         for m in models {
@@ -350,8 +370,9 @@ pub(super) fn compute_submesh_signatures(
         }
     }
     for sc in &opts.short_circuit_points {
-        h_tracks = hash_f64(h_tracks, sc.x);
-        h_tracks = hash_f64(h_tracks, sc.y);
+        h_tracks = hash_f64(h_tracks, sc[0]);
+        h_tracks = hash_f64(h_tracks, sc[1]);
+        h_tracks = hash_f64(h_tracks, sc[2]);
     }
     if !opts.turnout_states.is_empty() {
         let mut active_switches: Vec<(&str, usize)> = opts

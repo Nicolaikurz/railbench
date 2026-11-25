@@ -77,6 +77,7 @@ fn sample_export_layout() -> (Layout, Vec<Catalog>) {
                 wood_plate_thickness_mm: Some(20.0),
                 wood_plate_style: None,
                 plates: None,
+                terrain_field: None,
             },
             Layer {
                 id: "layer-2".into(),
@@ -89,11 +90,13 @@ fn sample_export_layout() -> (Layout, Vec<Catalog>) {
                 wood_plate_thickness_mm: None,
                 wood_plate_style: None,
                 plates: None,
+                terrain_field: None,
             },
         ]),
         active_layer_id: Some("layer-1".into()),
         baseboard: Some(bb.clone()),
         baseboards: Some(vec![bb]),
+        terrain_field: None,
     };
     (layout, catalogs)
 }
@@ -191,4 +194,65 @@ fn svg_and_multipage_pdf_export_valid_structure() {
     assert!(tt_pdf_text.contains("74862"));
     assert!(tt_pdf_text.contains("72941"));
     assert!(tt_pdf_text.contains("%%EOF"));
+}
+
+#[test]
+fn svg_and_pdf_grid_and_electrical_annotations_plus_xml_roundtrip() {
+    let catalogs = builtin_catalogs();
+    let e24188 = find_entry(&catalogs, "24188").expect("24188");
+    let mut p0 = create_piece(
+        "elec-1".into(),
+        e24188,
+        Transform { x: 100.0, y: 100.0, rotation: 0.0 },
+        Some("layer-1".into()),
+    );
+    p0.power_feed = Some(true);
+    p0.is_isolator = Some(true);
+    p0.isolated_connector_index = Some(1);
+    p0.has_signal = Some(true);
+    p0.signal_side = Some("left".into());
+    p0.signal_direction = Some("backward".into());
+    p0.group_id = Some("grp-1".into());
+    p0.elevation = Some(railbench_core::types::Elevation { start: 35.0, end: 45.0 });
+
+    let layout = Layout {
+        name: "Grid & Elec".into(),
+        scale: "H0".into(),
+        pieces: vec![p0],
+        models: None,
+        feed_voltage: Some(16.0),
+        catenary_feed_voltage: None,
+        catenary_circuit_mode: None,
+        loco_current_ma: None,
+        loco_count: None,
+        train_current_amps: None,
+        turnout_lantern_current_ma: None,
+        turnout_decoder_current_ma: None,
+        layers: None,
+        active_layer_id: None,
+        baseboard: None,
+        baseboards: None,
+        terrain_field: None,
+    };
+    let opts = BlueprintExportOptions {
+        show_grid: true,
+        show_electrical: true,
+        ..Default::default()
+    };
+    let svg = export_layout_svg_with_options(&layout, &catalogs, &opts);
+    assert!(svg.contains("<line x1="));
+    assert!(svg.contains("+40mm"));
+    let pdf = export_layout_pdf_with_options(&layout, &catalogs, &opts, false);
+    let pdf_txt = String::from_utf8_lossy(&pdf);
+    assert!(pdf_txt.contains("+PWR"));
+    assert!(pdf_txt.contains("SIG"));
+    assert!(pdf_txt.contains("+40mm"));
+
+    let xml = super::export_layout_xml(&layout);
+    let imported = super::import_layout_xml(&xml, &catalogs).expect("xml re-imports");
+    let rp = &imported.pieces[0];
+    assert_eq!(rp.isolated_connector_index, Some(1));
+    assert_eq!(rp.signal_side.as_deref(), Some("left"));
+    assert_eq!(rp.signal_direction.as_deref(), Some("backward"));
+    assert_eq!(rp.group_id.as_deref(), Some("grp-1"));
 }

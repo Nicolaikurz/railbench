@@ -374,6 +374,14 @@ pub(super) fn draw_export_dialog(ctx: &egui::Context, app: &mut RailbenchApp) {
                     if is_de { "Gebaeude & 3D-Modelle zeichnen" } else { "Show Buildings & 3D Models" },
                 );
                 ui.checkbox(
+                    &mut app.export_opts.show_grid,
+                    if is_de { "CAD-Raster (100 / 500 mm) anzeigen" } else { "Show CAD Grid (100 / 500 mm)" },
+                );
+                ui.checkbox(
+                    &mut app.export_opts.show_electrical,
+                    if is_de { "Elektrik- & Hoehen-Markierungen" } else { "Show Electrical & Elevation Markers" },
+                );
+                ui.checkbox(
                     &mut app.export_opts.monochrome,
                     if is_de { "Schwarz-Weiss-Bauplan (Monochrom)" } else { "Black & White (Monochrome)" },
                 );

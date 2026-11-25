@@ -101,16 +101,26 @@ impl Camera2D {
 
 #[derive(Default)]
 pub struct CanvasInteraction {
+    pub hover_world: Option<Vec2>,
     pub changed: bool,
     pub push_undo: bool,
     pub drop_catalog_at: Option<(Vec2, f64)>,
+    pub drop_model_at: Option<Vec2>,
     pub quick_add_at: Option<(String, usize)>,
     pub rotate_delta: Option<f64>,
     pub copy_selected: bool,
+    pub paste_clipboard: bool,
     pub duplicate_selected: bool,
+    pub flip_selected: bool,
+    pub toggle_group: bool,
     pub select_connected: bool,
     pub select_layer: bool,
     pub move_to_layer: Option<String>,
+    pub open_height_dialog: bool,
+    pub auto_ramp: bool,
+    pub open_replace_split: Option<String>,
+    pub reset_flex: Option<String>,
+    pub open_track_props: Option<String>,
     pub toggle_feeder: bool,
     pub toggle_isolator: bool,
     pub toggle_catenary: bool,
@@ -124,6 +134,280 @@ pub struct CanvasInteraction {
     pub toggle_bridge: bool,
     pub toggle_tunnel: bool,
     pub delete_selected: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct TrackRotationDrag {
+    pub pivot: Vec2,
+    pub start_pointer_angle_deg: f64,
+    pub applied_delta_deg: f64,
+    pub base_handle_angle_deg: f64,
+    pub single_piece_id: Option<String>,
+    pub initial_piece_rot_deg: f64,
+}
+
+/// Computes the world-space pivot, interactive rotation handle point, base handle angle,
+/// single piece ID (when exactly one editable track piece is selected), and initial rotation
+/// for any 2D selection containing at least one editable track piece.
+pub fn compute_track_selection_rotation_handle(
+    layout: &Layout,
+    selected: &HashSet<String>,
+    layer_protection: bool,
+    zoom: f32,
+    active_drag: Option<&TrackRotationDrag>,
+) -> Option<(Vec2, Vec2, f64, Option<String>, f64)> {
+    if selected.is_empty() {
+        return None;
+    }
+
+    let editable_pieces: Vec<&TrackPiece> = layout
+        .pieces
+        .iter()
+        .filter(|p| {
+            selected.contains(&p.id)
+                && is_layer_editable_with_protection(layout, p.layer_id.as_deref(), layer_protection)
+        })
+        .collect();
+    if editable_pieces.is_empty() {
+        return None;
+    }
+
+    let editable_models: Vec<&Model3D> = layout
+        .models
+        .as_ref()
+        .map(|ms| {
+            ms.iter()
+                .filter(|m| {
+                    selected.contains(&m.id)
+                        && !matches!(m.builtin_id.as_deref(), Some("mountain") | Some("ground-terrain"))
+                        && is_layer_editable_with_protection(
+                            layout,
+                            m.layer_id.as_deref(),
+                            layer_protection,
+                        )
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
+    if editable_pieces.len() == 1 && editable_models.is_empty() {
+        let p = editable_pieces[0];
+        let pivot = if p.connectors.is_empty() {
+            Vec2 {
+                x: p.transform.x,
+                y: p.transform.y,
+            }
+        } else {
+            let n = p.connectors.len() as f64;
+            Vec2 {
+                x: p.connectors.iter().map(|c| c.x).sum::<f64>() / n,
+                y: p.connectors.iter().map(|c| c.y).sum::<f64>() / n,
+            }
+        };
+        let rot = p.transform.rotation;
+        let rad = rot.to_radians();
+        let dir = (rad.sin(), -rad.cos());
+        let max_proj = p
+            .connectors
+            .iter()
+            .map(|c| ((c.x - pivot.x) * dir.0 + (c.y - pivot.y) * dir.1).abs())
+            .fold(0.0_f64, f64::max);
+        let stem_dist = (max_proj + 34.0).max(46.0 / (zoom as f64).max(0.15));
+        let handle_world = Vec2 {
+            x: pivot.x + dir.0 * stem_dist,
+            y: pivot.y + dir.1 * stem_dist,
+        };
+        let base_handle_angle_deg = norm_angle_deg(rot - 90.0);
+        return Some((
+            pivot,
+            handle_world,
+            base_handle_angle_deg,
+            Some(p.id.clone()),
+            rot,
+        ));
+    }
+
+    let mut min_x = f64::INFINITY;
+    let mut max_x = f64::NEG_INFINITY;
+    let mut min_y = f64::INFINITY;
+    let mut max_y = f64::NEG_INFINITY;
+    for p in &editable_pieces {
+        if p.connectors.is_empty() {
+            min_x = min_x.min(p.transform.x);
+            max_x = max_x.max(p.transform.x);
+            min_y = min_y.min(p.transform.y);
+            max_y = max_y.max(p.transform.y);
+        } else {
+            for c in &p.connectors {
+                min_x = min_x.min(c.x);
+                max_x = max_x.max(c.x);
+                min_y = min_y.min(c.y);
+                max_y = max_y.max(c.y);
+            }
+        }
+    }
+    for m in &editable_models {
+        min_x = min_x.min(m.transform.x);
+        max_x = max_x.max(m.transform.x);
+        min_y = min_y.min(m.transform.y);
+        max_y = max_y.max(m.transform.y);
+    }
+
+    let pivot = active_drag.map(|d| d.pivot).unwrap_or(Vec2 {
+        x: (min_x + max_x) * 0.5,
+        y: (min_y + max_y) * 0.5,
+    });
+    let half_h = ((max_y - min_y) * 0.5).max(20.0);
+    let stem_dist = (half_h + 34.0).max(52.0 / (zoom as f64).max(0.15));
+    let ang_deg = active_drag
+        .map(|d| d.base_handle_angle_deg + d.applied_delta_deg)
+        .unwrap_or(-90.0);
+    let rad = ang_deg.to_radians();
+    let handle_world = Vec2 {
+        x: pivot.x + rad.cos() * stem_dist,
+        y: pivot.y + rad.sin() * stem_dist,
+    };
+    Some((pivot, handle_world, -90.0, None, 0.0))
+}
+
+/// Rotates all editable selected tracks and models rigidly by `delta_deg` around `pivot`.
+pub fn rotate_selection_around_pivot(
+    layout: &mut Layout,
+    selected: &HashSet<String>,
+    layer_protection: bool,
+    pivot: Vec2,
+    delta_deg: f64,
+) -> bool {
+    if selected.is_empty() || delta_deg.abs() <= 1e-9 {
+        return false;
+    }
+
+    let editable_piece_ids: HashSet<String> = layout
+        .pieces
+        .iter()
+        .filter(|p| {
+            selected.contains(&p.id)
+                && is_layer_editable_with_protection(layout, p.layer_id.as_deref(), layer_protection)
+        })
+        .map(|p| p.id.clone())
+        .collect();
+    let editable_model_ids: HashSet<String> = layout
+        .models
+        .as_ref()
+        .map(|ms| {
+            ms.iter()
+                .filter(|m| {
+                    selected.contains(&m.id)
+                        && is_layer_editable_with_protection(
+                            layout,
+                            m.layer_id.as_deref(),
+                            layer_protection,
+                        )
+                })
+                .map(|m| m.id.clone())
+                .collect()
+        })
+        .unwrap_or_default();
+
+    if editable_piece_ids.is_empty() && editable_model_ids.is_empty() {
+        return false;
+    }
+
+    for p in &mut layout.pieces {
+        if !editable_piece_ids.contains(&p.id) {
+            continue;
+        }
+        let rp = rotate(
+            Vec2 {
+                x: p.transform.x - pivot.x,
+                y: p.transform.y - pivot.y,
+            },
+            delta_deg,
+        );
+        p.transform.x = pivot.x + rp.x;
+        p.transform.y = pivot.y + rp.y;
+        p.transform.rotation = norm_angle_deg(p.transform.rotation + delta_deg);
+        for c in &mut p.connectors {
+            let rc = rotate(
+                Vec2 {
+                    x: c.x - pivot.x,
+                    y: c.y - pivot.y,
+                },
+                delta_deg,
+            );
+            c.x = pivot.x + rc.x;
+            c.y = pivot.y + rc.y;
+            c.angle = norm_angle_deg(c.angle + delta_deg);
+            c.connected_to = None;
+        }
+    }
+    if let Some(models) = &mut layout.models {
+        for m in models {
+            if !editable_model_ids.contains(&m.id) {
+                continue;
+            }
+            let rm = rotate(
+                Vec2 {
+                    x: m.transform.x - pivot.x,
+                    y: m.transform.y - pivot.y,
+                },
+                delta_deg,
+            );
+            m.transform.x = pivot.x + rm.x;
+            m.transform.y = pivot.y + rm.y;
+            m.transform.rotation = norm_angle_deg(m.transform.rotation + delta_deg);
+        }
+    }
+    true
+}
+
+/// Snaps a cumulative drag rotation angle delta (in degrees) to the active toolbar `rotation_step`
+/// unless free rotation (`Shift`) is held or `rotation_step <= 0`.
+pub fn snap_drag_rotation_delta(raw_delta_deg: f64, rotation_step: f64, free_rot: bool) -> f64 {
+    if free_rot || rotation_step <= 1e-6 {
+        raw_delta_deg
+    } else {
+        (raw_delta_deg / rotation_step).round() * rotation_step
+    }
+}
+
+/// Keeps the cumulative drag delta continuous across the ±180° pointer wrap boundary,
+/// even for non-divisor fractional steps such as `5.7°` or `24.3°`.
+pub fn unwrap_drag_angle_delta(
+    cur_ang_deg: f64,
+    start_ang_deg: f64,
+    prev_applied_delta: f64,
+) -> f64 {
+    let mut diff = cur_ang_deg - start_ang_deg - prev_applied_delta;
+    while diff > 180.0 {
+        diff -= 360.0;
+    }
+    while diff <= -180.0 {
+        diff += 360.0;
+    }
+    prev_applied_delta + diff
+}
+
+/// Formats the live angle HUD readout for track rotation handles, preserving decimals for
+/// fractional toolbar steps (`5.7°`, `7.5°`, `24.3°`) and free (`Shift`) rotation.
+pub fn format_rotation_readout(deg: f64, signed: bool, free_rot: bool) -> String {
+    let clean = if deg.abs() < 0.05 { 0.0 } else { deg };
+    if !free_rot && (clean - clean.round()).abs() < 0.05 {
+        let rounded = if clean.round().abs() < 0.05 {
+            0.0
+        } else {
+            clean.round()
+        };
+        if signed {
+            format!("{rounded:+.0}°")
+        } else {
+            format!("{rounded:.0}°")
+        }
+    } else if signed {
+        format!("{clean:+.1}°")
+    } else {
+        format!("{clean:.1}°")
+    }
 }
 
 #[inline]
@@ -233,7 +517,10 @@ pub fn draw_canvas_2d(
     dragging_flex_handle: &mut Option<(String, usize)>,
     marquee_start: &mut Option<Pos2>,
     measure_points: &mut Option<(Vec2, Vec2)>,
+    measure_locked: &mut bool,
     dragging_catalog: Option<&CatalogEntry>,
+    dragging_model_template: Option<&Model3D>,
+    collab_users: &[crate::collab::CollabUser],
     dark_mode: bool,
     color_mode: ColorMode,
     show_labels: bool,
@@ -254,6 +541,7 @@ pub fn draw_canvas_2d(
     show_wood_plates: bool,
     sketcher: &mut BoardSketcherState,
     dragging_model_rot: &mut Option<String>,
+    dragging_track_rot: &mut Option<TrackRotationDrag>,
     ramp_overlay: Option<(&mut crate::ramp_tools::RampSelectionState, f64, f64)>,
     vehicle_sim: &crate::vehicle_sim::VehicleSimState,
     cad_tools: &mut crate::cad_tools::CadToolsState,
@@ -268,12 +556,14 @@ pub fn draw_canvas_2d(
     let bg = crate::theme::palette(dark_mode).canvas_bg;
     painter.rect_filled(rect, 0.0, bg);
 
-    // Scroll wheel: Shift+Wheel adjusts terrain brush radius when active; otherwise zoom
+    // Scroll wheel: Shift+Wheel adjusts terrain brush radius, Ctrl+Wheel adjusts strength when active; otherwise zoom
     if response.hovered() {
         let scroll_y = ui.input(|i| i.smooth_scroll_delta.y);
         if scroll_y.abs() > 0.01 {
             if terrain_brush.active && ui.input(|i| i.modifiers.shift) {
                 terrain_brush.adjust_radius(if scroll_y > 0.0 { 20.0 } else { -20.0 });
+            } else if terrain_brush.active && ui.input(|i| i.modifiers.ctrl || i.modifiers.mac_cmd) {
+                terrain_brush.adjust_strength(if scroll_y > 0.0 { 0.08 } else { -0.08 });
             } else {
                 let factor = (1.0 + scroll_y * 0.0018).clamp(0.75, 1.35);
                 if let Some(pointer) = ui.input(|i| i.pointer.hover_pos()) {
@@ -331,6 +621,11 @@ pub fn draw_canvas_2d(
         );
     }
 
+    // 2C. Legacy layout-level continuous heightfield fallback (only when layout.layers is empty/None)
+    if let Some(ref hf_map) = cache.heightfield_map {
+        draw_heightfield_map_2d(&painter, rect, camera, hf_map, false);
+    }
+
     let active_layer_id = layout
         .active_layer_id
         .as_deref()
@@ -373,7 +668,10 @@ pub fn draw_canvas_2d(
             );
         }
 
-        // 2.5A. Ground terrain (lakes, rivers, meadows) & topographic mountains render BELOW tracks so tracks under mountains/water stay visible
+        // 2.5A. Layer heightfield & ground terrain render BELOW tracks so tracks under mountains/water stay visible
+        if let Some(hf_map) = cache.layer_heightfield_maps.get(lid.as_str()) {
+            draw_heightfield_map_2d(&painter, rect, camera, hf_map, !is_active_layer);
+        }
         if let Some(m_indices) = cache.layer_ground_models.get(lid.as_str()) {
             for &mi in m_indices {
                 if !aabb_intersects(
@@ -831,6 +1129,51 @@ pub fn draw_canvas_2d(
             None
         };
 
+    // 4.7. Selected Track (single or multi-piece) rotation handle point
+    let selected_track_rot_handle: Option<(Vec2, Pos2, f64, Option<String>, f64)> =
+        if !sketcher.active && !terrain_brush.active && !measure_mode && !selected.is_empty() {
+            compute_track_selection_rotation_handle(
+                layout,
+                selected,
+                layer_protection,
+                camera.zoom,
+                dragging_track_rot.as_ref(),
+            )
+            .map(|(pivot_w, handle_w, base_ang, single_pid, init_rot)| {
+                let ps = camera.world_to_screen(rect, pivot_w.x, pivot_w.y);
+                let hs = camera.world_to_screen(rect, handle_w.x, handle_w.y);
+                let hovered_or_drag = dragging_track_rot.is_some()
+                    || hover_pos.is_some_and(|hp| hp.distance(hs) <= 14.0);
+                if dragging_track_rot.is_some() {
+                    let orbit_r = ps.distance(hs).max(16.0);
+                    painter.circle_stroke(
+                        ps,
+                        orbit_r,
+                        Stroke::new(1.2_f32, Color32::from_rgba_unmultiplied(56, 189, 248, 75)),
+                    );
+                }
+                painter.circle_filled(ps, 3.5, Color32::from_rgb(15, 23, 42));
+                painter.circle_stroke(ps, 3.8, Stroke::new(1.5_f32, Color32::from_rgb(56, 189, 248)));
+                painter.line_segment(
+                    [ps, hs],
+                    Stroke::new(1.6_f32, Color32::from_rgb(56, 189, 248)),
+                );
+                let knob_r = if hovered_or_drag { 8.5 } else { 7.5 };
+                painter.circle_filled(hs, knob_r, Color32::from_rgb(245, 158, 11));
+                painter.circle_stroke(hs, knob_r + 1.2, Stroke::new(1.8_f32, Color32::WHITE));
+                if hovered_or_drag {
+                    ui.ctx().set_cursor_icon(if dragging_track_rot.is_some() {
+                        egui::CursorIcon::Grabbing
+                    } else {
+                        egui::CursorIcon::Grab
+                    });
+                }
+                (pivot_w, hs, base_ang, single_pid, init_rot)
+            })
+        } else {
+            None
+        };
+
     // Terrain Brush cursor reticle & live ridge/ground stroke preview (matching renderer-overlays.ts)
     if terrain_brush.active {
         if response.hovered() {
@@ -840,10 +1183,16 @@ pub fn draw_canvas_2d(
             ui.ctx().set_cursor_icon(egui::CursorIcon::Crosshair);
         }
         let stroke_col = match terrain_brush.mode {
+            TerrainBrushMode::SculptRaise => Color32::from_rgb(34, 197, 94),
+            TerrainBrushMode::SculptLower => Color32::from_rgb(249, 115, 22),
+            TerrainBrushMode::SculptSmooth => Color32::from_rgb(56, 189, 248),
+            TerrainBrushMode::SculptFlatten => Color32::from_rgb(234, 179, 8),
+            TerrainBrushMode::SculptGrade => Color32::from_rgb(168, 85, 247),
+            TerrainBrushMode::SculptBiome => Color32::from_rgb(20, 184, 166),
+            TerrainBrushMode::SculptReset | TerrainBrushMode::Erase => Color32::from_rgb(239, 68, 68),
             TerrainBrushMode::Paint => Color32::from_rgb(34, 197, 94),
             TerrainBrushMode::Extend => Color32::from_rgb(14, 165, 233),
             TerrainBrushMode::Stamp => Color32::from_rgb(245, 158, 11),
-            TerrainBrushMode::Erase => Color32::from_rgb(239, 68, 68),
             TerrainBrushMode::Ground => match terrain_brush.ground_type.as_str() {
                 "water" => Color32::from_rgb(14, 165, 233),
                 "sand" => Color32::from_rgb(214, 185, 124),
@@ -906,6 +1255,7 @@ pub fn draw_canvas_2d(
         dragging_flex_handle,
         marquee_start,
         measure_points,
+        measure_locked,
         snapping_enabled,
         layer_protection,
         measure_mode,
@@ -917,15 +1267,19 @@ pub fn draw_canvas_2d(
         board_snap_guides,
         sketcher,
         dragging_model_rot,
+        dragging_track_rot,
         ramp_overlay,
         &active_layer_id,
         &board_header_rects,
         &plus_buttons,
         selected_flex_handles,
         selected_model_rot_handle,
+        selected_track_rot_handle,
+        rotation_step,
         &mut interaction,
     );
 
+    ui.ctx().data_mut(|d| d.insert_temp(egui::Id::new("railbench_is_de"), is_de));
     overlays_and_menu::draw_overlays_and_context_menu(
         ui,
         rect,
@@ -939,6 +1293,8 @@ pub fn draw_canvas_2d(
         selected,
         measure_points,
         dragging_catalog,
+        dragging_model_template,
+        collab_users,
         dark_mode,
         show_rulers,
         snapping_enabled,
@@ -956,6 +1312,71 @@ mod cache;
 #[allow(unused_imports)]
 use cache::*;
 #[allow(unused_imports)]
+fn draw_heightfield_map_2d(
+    painter: &egui::Painter,
+    rect: Rect,
+    camera: &Camera2D,
+    hf_map: &cache::CachedHeightfieldMap2D,
+    faded: bool,
+) {
+    let alpha_scale = if faded { 0.55_f32 } else { 1.0_f32 };
+    let scale_c = |col: Color32| -> Color32 {
+        if !faded {
+            col
+        } else {
+            Color32::from_rgba_premultiplied(
+                (col.r() as f32 * alpha_scale) as u8,
+                (col.g() as f32 * alpha_scale) as u8,
+                (col.b() as f32 * alpha_scale) as u8,
+                (col.a() as f32 * alpha_scale) as u8,
+            )
+        }
+    };
+    if !hf_map.quads.is_empty() {
+        let mut mesh = egui::Mesh::default();
+        mesh.vertices.reserve(hf_map.quads.len() * 4);
+        mesh.indices.reserve(hf_map.quads.len() * 6);
+        for &(pts, col) in &hf_map.quads {
+            let base = mesh.vertices.len() as u32;
+            let c = scale_c(col);
+            for pt in pts {
+                mesh.vertices.push(egui::epaint::Vertex {
+                    pos: camera.world_to_screen(rect, pt.x, pt.y),
+                    uv: egui::epaint::WHITE_UV,
+                    color: c,
+                });
+            }
+            mesh.indices
+                .extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
+        }
+        painter.add(egui::Shape::mesh(mesh));
+    }
+    let sub_a = if faded { 68 } else { 125 };
+    let idx_a = if faded { 115 } else { 210 };
+    let rip_a = if faded { 85 } else { 155 };
+    let sub_stroke = Stroke::new(1.0_f32, Color32::from_rgba_unmultiplied(146, 108, 56, sub_a));
+    let idx_stroke = Stroke::new(1.7_f32, Color32::from_rgba_unmultiplied(120, 82, 38, idx_a));
+    for &(a, b, is_idx) in &hf_map.contour_segs {
+        painter.line_segment(
+            [
+                camera.world_to_screen(rect, a.x, a.y),
+                camera.world_to_screen(rect, b.x, b.y),
+            ],
+            if is_idx { idx_stroke } else { sub_stroke },
+        );
+    }
+    let ripple_stroke = Stroke::new(1.2_f32, Color32::from_rgba_unmultiplied(224, 242, 254, rip_a));
+    for &(a, b) in &hf_map.water_ripples {
+        painter.line_segment(
+            [
+                camera.world_to_screen(rect, a.x, a.y),
+                camera.world_to_screen(rect, b.x, b.y),
+            ],
+            ripple_stroke,
+        );
+    }
+}
+
 pub use cache::{Canvas2DCache};
 #[allow(unused_imports)]
 pub(crate) use cache::{build_model_top_view_mesh_2d, build_special_piece_top_view_mesh_2d};

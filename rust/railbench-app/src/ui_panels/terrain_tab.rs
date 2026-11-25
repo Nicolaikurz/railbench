@@ -29,9 +29,9 @@ pub(super) fn draw_terrain_tab(ui: &mut egui::Ui, app: &mut RailbenchApp) {
     };
 
     egui::ScrollArea::vertical().show(ui, |ui| {
-        // 1. Unified Terrain Brush Card (5 modes: Paint / Extend / Stamp / Ground / Erase)
+        // 1. Unified Continuous Heightfield Brush Card (works in both 3D & 2D!)
         ui.label(
-            RichText::new(if is_de { "GELAENDE-PINSEL" } else { "TERRAIN BRUSH" })
+            RichText::new(if is_de { "GELAENDE-EDITOR (3D & 2D)" } else { "TERRAIN SCULPTOR (3D & 2D)" })
                 .strong()
                 .size(11.0)
                 .color(p.text_muted),
@@ -56,7 +56,6 @@ pub(super) fn draw_terrain_tab(ui: &mut egui::Ui, app: &mut RailbenchApp) {
                     let target = app.active_terrain_id.clone();
                     app.terrain_brush.toggle(mode, target);
                     if app.terrain_brush.active {
-                        app.is_3d_mode = false;
                         app.measure_mode = false;
                         app.sketcher.stop();
                     }
@@ -84,114 +83,194 @@ pub(super) fn draw_terrain_tab(ui: &mut egui::Ui, app: &mut RailbenchApp) {
 
                 let cur_active = app.terrain_brush.active;
                 let cur_mode = app.terrain_brush.mode;
+                let (_active_lid, active_y0, active_editable, active_name) =
+                    terrain_tools::active_layer_info(&app.layout);
+
+                ui.horizontal_wrapped(|ui| {
+                    ui.label(
+                        RichText::new(if is_de {
+                            format!("Aktive Ebene: {active_name} ({active_y0:.0} mm)")
+                        } else {
+                            format!("Active Layer: {active_name} ({active_y0:.0} mm)")
+                        })
+                        .size(10.5)
+                        .strong()
+                        .color(if active_editable {
+                            Color32::from_rgb(56, 189, 248)
+                        } else {
+                            Color32::from_rgb(245, 158, 11)
+                        }),
+                    );
+                    if !active_editable {
+                        ui.label(
+                            RichText::new(if is_de {
+                                "🔒 Aktive Ebene ist gesperrt/ausgeblendet"
+                            } else {
+                                "🔒 Active layer is locked/hidden"
+                            })
+                            .size(10.0)
+                            .color(Color32::from_rgb(245, 158, 11)),
+                        );
+                    }
+                });
+                ui.add_space(4.0);
 
                 ui.horizontal(|ui| {
+                    let sculpt_3d_active = app.is_3d_mode && cur_active && app.terrain_brush.is_heightfield_mode();
                     if mode_btn(
                         ui,
-                        cur_active && cur_mode == TerrainBrushMode::Paint,
-                        if is_de { "Berg" } else { "Mountain" },
+                        sculpt_3d_active,
+                        if is_de { "3D Formen" } else { "Sculpt in 3D" },
                         if is_de {
-                            "Klicken fuer Gipfel oder ziehen fuer Gebirgskamm"
+                            "Direkt in der 3D-Ansicht modellieren (Shift: Glaetten, Alt: Invertieren)"
                         } else {
-                            "Click for peak or drag to paint ridge"
+                            "Switch to 3D viewport and sculpt heightfield live"
+                        },
+                        Color32::from_rgb(2, 132, 199),
+                    ) {
+                        app.is_3d_mode = true;
+                        app.measure_mode = false;
+                        app.sketcher.stop();
+                        if !app.terrain_brush.active || !app.terrain_brush.is_heightfield_mode() {
+                            app.terrain_brush.set_active(true, Some(TerrainBrushMode::SculptRaise), None);
+                        }
+                    }
+                    if cur_active
+                        && ui
+                            .small_button(if is_de { "Beenden" } else { "Stop" })
+                            .clicked()
+                    {
+                        app.terrain_brush.set_active(false, None, None);
+                    }
+                });
+                ui.add_space(4.0);
+
+                ui.horizontal_wrapped(|ui| {
+                    if mode_btn(
+                        ui,
+                        cur_active && cur_mode == TerrainBrushMode::SculptRaise,
+                        if is_de { "Berg +" } else { "Raise" },
+                        if is_de {
+                            "Gelaende organisch anheben (Alt: Absenken, Shift: Glaetten)"
+                        } else {
+                            "Raise terrain organically (Alt: Lower, Shift: Smooth)"
                         },
                         Color32::from_rgb(22, 163, 74),
                     ) {
-                        activate_mode(app, TerrainBrushMode::Paint);
+                        activate_mode(app, TerrainBrushMode::SculptRaise);
                     }
                     if mode_btn(
                         ui,
-                        cur_active && cur_mode == TerrainBrushMode::Ground,
-                        if is_de { "Grund" } else { "Ground" },
+                        cur_active && cur_mode == TerrainBrushMode::SculptLower,
+                        if is_de { "Tal -" } else { "Lower" },
                         if is_de {
-                            "Wasser, Sand, Erde oder Huegel aufmalen (flach unter Gleisen & Gebaeuden)"
+                            "Taeler und Flussbetten absenken"
                         } else {
-                            "Paint water, sand, dirt, or hills (flattens under buildings & tracks)"
+                            "Carve valleys and basins downward"
+                        },
+                        Color32::from_rgb(234, 88, 12),
+                    ) {
+                        activate_mode(app, TerrainBrushMode::SculptLower);
+                    }
+                    if mode_btn(
+                        ui,
+                        cur_active && cur_mode == TerrainBrushMode::SculptSmooth,
+                        if is_de { "Glaetten" } else { "Smooth" },
+                        if is_de {
+                            "Haenge weich ueberblenden"
+                        } else {
+                            "Soften slopes and ridges"
                         },
                         Color32::from_rgb(14, 116, 144),
                     ) {
-                        activate_mode(app, TerrainBrushMode::Ground);
+                        activate_mode(app, TerrainBrushMode::SculptSmooth);
                     }
                     if mode_btn(
                         ui,
-                        cur_active && cur_mode == TerrainBrushMode::Erase,
-                        if is_de { "Radieren" } else { "Erase" },
+                        cur_active && cur_mode == TerrainBrushMode::SculptFlatten,
+                        "Plateau",
                         if is_de {
-                            "Berge, Knoten oder Untergrund im 2D-Plan entfernen"
+                            "Auf geklickte Ausgangshoehe einebnen"
                         } else {
-                            "Erase mountains, ridge nodes, or ground terrain"
+                            "Flatten terrain to clicked sample height"
                         },
-                        Color32::from_rgb(185, 28, 28),
+                        Color32::from_rgb(202, 138, 4),
                     ) {
-                        activate_mode(app, TerrainBrushMode::Erase);
+                        activate_mode(app, TerrainBrushMode::SculptFlatten);
                     }
                 });
                 ui.add_space(3.0);
-                ui.horizontal(|ui| {
+                ui.horizontal_wrapped(|ui| {
                     if mode_btn(
                         ui,
-                        cur_active && cur_mode == TerrainBrushMode::Extend,
-                        if is_de { "+ Erweitern" } else { "+ Extend" },
+                        cur_active && cur_mode == TerrainBrushMode::SculptGrade,
+                        if is_de { "Bahndamm" } else { "Grade Track" },
                         if is_de {
-                            "Bestehenden Berg nahtlos mit dem Pinsel erweitern"
+                            "Gelaende sanft bis unter naechste Gleis-Rampe anheben"
                         } else {
-                            "Extend existing mountain ridge seamlessly"
+                            "Build sloped embankment cleanly up to nearby tracks"
                         },
-                        p.primary_hover,
+                        Color32::from_rgb(126, 34, 206),
                     ) {
-                        activate_mode(app, TerrainBrushMode::Extend);
+                        activate_mode(app, TerrainBrushMode::SculptGrade);
                     }
                     if mode_btn(
                         ui,
-                        cur_active && cur_mode == TerrainBrushMode::Stamp,
-                        if is_de { "Stempel" } else { "Stamp" },
+                        cur_active && cur_mode == TerrainBrushMode::SculptBiome,
+                        if is_de { "Biom" } else { "Biome" },
                         if is_de {
-                            "Einzelklick setzt einzelnen Berggipfel"
+                            "Gras, Wald, Fels, Schnee, Sand, Erde oder Wasser malen"
                         } else {
-                            "Single click stamps a standalone mountain peak"
+                            "Paint grass, forest, rock, snow, sand, dirt, or water"
                         },
-                        Color32::from_rgb(180, 83, 9),
+                        Color32::from_rgb(13, 148, 136),
                     ) {
-                        activate_mode(app, TerrainBrushMode::Stamp);
+                        activate_mode(app, TerrainBrushMode::SculptBiome);
+                    }
+                    if mode_btn(
+                        ui,
+                        cur_active && matches!(cur_mode, TerrainBrushMode::SculptReset | TerrainBrushMode::Erase),
+                        if is_de { "Radieren" } else { "Reset" },
+                        if is_de {
+                            "Gelaende lokal auf Holzplatte zuruecksetzen"
+                        } else {
+                            "Reset terrain back to bare baseboard height"
+                        },
+                        Color32::from_rgb(185, 28, 28),
+                    ) {
+                        activate_mode(app, TerrainBrushMode::SculptReset);
                     }
                 });
 
                 if app.terrain_brush.active {
                     ui.add_space(5.0);
                     let hint = match app.terrain_brush.mode {
-                        TerrainBrushMode::Ground => {
+                        TerrainBrushMode::SculptFlatten => {
                             if is_de {
-                                "Im 2D-Plan ziehen/klicken. Shift+Rad = Radius. Rechtsklick beendet."
+                                "Startpunkt bestimmt Zielhoehe. Shift: Glaetten · Rechtsklick: Beenden/Orbit."
                             } else {
-                                "Drag or click on 2D canvas. Shift+Wheel = radius. Right-click exits."
+                                "Click point sets plateau elevation. Shift: Smooth · Right-drag in 3D: Orbit."
                             }
                         }
-                        TerrainBrushMode::Erase => {
+                        TerrainBrushMode::SculptGrade => {
                             if is_de {
-                                "Ueber Berge oder Untergrund ziehen zum Loeschen. Rechtsklick beendet."
+                                "Ueber erhoehte Gleise ziehen fuer natuerlichen Bahndamm."
                             } else {
-                                "Drag over mountains or ground to erase. Right-click exits."
+                                "Stroke along elevated tracks to raise an embankment."
                             }
                         }
-                        TerrainBrushMode::Extend => {
+                        TerrainBrushMode::SculptBiome => {
                             if is_de {
-                                "Ziehen um ausgewaehlten/naechsten Berg zu erweitern. Rechtsklick beendet."
+                                "Biom waehlen und ueber das Gelaende malen (Wasser grabe Becken)."
                             } else {
-                                "Drag to extend selected/nearest mountain. Right-click exits."
+                                "Pick biome below and paint onto terrain (Water carves a basin)."
                             }
                         }
-                        TerrainBrushMode::Stamp => {
+                        _ => {
                             if is_de {
-                                "Klicken um Gipfel zu stempeln. Shift+Rad = Radius. Rechtsklick beendet."
+                                "Ziehen zum Formen · Shift: Glaetten · Alt: Invertieren · Shift/Ctrl+Rad: R/Staerke."
                             } else {
-                                "Click to stamp peak. Shift+Wheel = radius. Right-click exits."
-                            }
-                        }
-                        TerrainBrushMode::Paint => {
-                            if is_de {
-                                "Klicken (Gipfel) oder Ziehen (Kamm). Shift+Rad = Radius. Rechtsklick beendet."
-                            } else {
-                                "Click (peak) or drag (ridge). Shift+Wheel = radius. Right-click exits."
+                                "Drag to sculpt · Shift: Smooth · Alt: Invert · Shift/Ctrl+Wheel: R/Strength."
                             }
                         }
                     };
@@ -199,156 +278,137 @@ pub(super) fn draw_terrain_tab(ui: &mut egui::Ui, app: &mut RailbenchApp) {
                 }
 
                 ui.add_space(6.0);
-                match app.terrain_brush.mode {
-                    TerrainBrushMode::Ground => {
-                        ui.horizontal(|ui| {
-                            ui.label(if is_de { "Typ:" } else { "Type:" });
-                            egui::ComboBox::from_id_salt("brush_ground_type")
-                                .width(155.0)
-                                .selected_text(ground_label(&app.terrain_brush.ground_type))
-                                .show_ui(ui, |ui| {
-                                    for gt in ["hill", "water", "sand", "dirt"] {
-                                        if ui
-                                            .selectable_label(
-                                                app.terrain_brush.ground_type == gt,
-                                                ground_label(gt),
-                                            )
-                                            .clicked()
-                                        {
-                                            app.terrain_brush.set_ground_type(gt);
-                                        }
-                                    }
-                                });
-                        });
-                        ui.horizontal(|ui| {
-                            ui.label("Radius:");
-                            ui.add(
-                                egui::DragValue::new(&mut app.terrain_brush.radius)
-                                    .range(60.0..=600.0)
-                                    .speed(5.0)
-                                    .suffix(" mm"),
-                            );
-                        });
-                        ui.horizontal(|ui| {
-                            ui.label(if is_de { "Hoehe:" } else { "Height:" });
-                            ui.add(
-                                egui::DragValue::new(&mut app.terrain_brush.ground_height)
-                                    .range(2.0..=120.0)
-                                    .speed(2.0)
-                                    .suffix(" mm"),
-                            );
-                        });
+                ui.horizontal(|ui| {
+                    ui.label("Radius:");
+                    ui.add(
+                        egui::DragValue::new(&mut app.terrain_brush.radius)
+                            .range(40.0..=600.0)
+                            .speed(5.0)
+                            .suffix(" mm"),
+                    );
+                });
+                ui.horizontal(|ui| {
+                    ui.label(if is_de { "Staerke:" } else { "Strength:" });
+                    let mut pct = (app.terrain_brush.strength * 100.0).round();
+                    if ui
+                        .add(
+                            egui::DragValue::new(&mut pct)
+                                .range(10.0..=100.0)
+                                .speed(2.0)
+                                .suffix("%"),
+                        )
+                        .changed()
+                    {
+                        app.terrain_brush.strength = (pct / 100.0).clamp(0.10, 1.0);
                     }
-                    TerrainBrushMode::Erase => {
-                        ui.horizontal(|ui| {
-                            ui.label(if is_de { "Radier-Radius:" } else { "Eraser Radius:" });
-                            ui.add(
-                                egui::DragValue::new(&mut app.terrain_brush.radius)
-                                    .range(60.0..=600.0)
-                                    .speed(5.0)
-                                    .suffix(" mm"),
-                            );
+                });
+                ui.horizontal(|ui| {
+                    ui.label(if is_de { "Max Hoehe:" } else { "Max Height:" });
+                    ui.add(
+                        egui::DragValue::new(&mut app.terrain_brush.height)
+                            .range(40.0..=560.0)
+                            .speed(5.0)
+                            .suffix(" mm"),
+                    );
+                });
+                let biome_lbl = |b: u8| match (b, is_de) {
+                    (1, true) => "Gras / Wiese",
+                    (1, false) => "Grass / Meadow",
+                    (2, true) => "Wald / Tannen",
+                    (2, false) => "Forest",
+                    (3, true) => "Fels / Granit",
+                    (3, false) => "Rock / Cliff",
+                    (4, true) => "Schnee / Gipfel",
+                    (4, false) => "Snow",
+                    (5, _) => "Sand",
+                    (6, true) => "Erde",
+                    (6, false) => "Dirt",
+                    (7, true) => "Wasser",
+                    (7, false) => "Water",
+                    (_, true) => "Auto (Hoehe & Neigung)",
+                    (_, false) => "Auto (Elevation & Slope)",
+                };
+                ui.horizontal(|ui| {
+                    ui.label(if is_de { "Biom:" } else { "Biome:" });
+                    egui::ComboBox::from_id_salt("brush_hf_biome")
+                        .width(155.0)
+                        .selected_text(biome_lbl(app.terrain_brush.biome))
+                        .show_ui(ui, |ui| {
+                            for b in 0..=7_u8 {
+                                ui.selectable_value(&mut app.terrain_brush.biome, b, biome_lbl(b));
+                            }
                         });
-                    }
-                    _ => {
-                        ui.horizontal(|ui| {
-                            ui.label("Radius:");
-                            ui.add(
-                                egui::DragValue::new(&mut app.terrain_brush.radius)
-                                    .range(60.0..=600.0)
-                                    .speed(5.0)
-                                    .suffix(" mm"),
-                            );
-                        });
-                        ui.horizontal(|ui| {
-                            ui.label(if is_de { "Hoehe:" } else { "Height:" });
-                            ui.add(
-                                egui::DragValue::new(&mut app.terrain_brush.height)
-                                    .range(40.0..=500.0)
-                                    .speed(5.0)
-                                    .suffix(" mm"),
-                            );
-                        });
-                        ui.horizontal(|ui| {
-                            ui.label(if is_de { "Biom:" } else { "Biome:" });
-                            egui::ComboBox::from_id_salt("brush_mtn_style")
-                                .width(155.0)
-                                .selected_text(style_label(&app.terrain_brush.style))
-                                .show_ui(ui, |ui| {
-                                    for st in ["alpine", "rocky", "forest", "meadow"] {
-                                        if ui
-                                            .selectable_label(app.terrain_brush.style == st, style_label(st))
-                                            .clicked()
-                                        {
-                                            app.terrain_brush.style = st.into();
-                                        }
-                                    }
-                                });
-                        });
-                        ui.horizontal(|ui| {
-                            ui.label(if is_de { "Kamm:" } else { "Ridge:" });
-                            let cur_rp = app.terrain_brush.ridge_profile;
-                            let rp_lbl = |rp: TerrainRidgeProfile| match (rp, is_de) {
-                                (TerrainRidgeProfile::Uniform, true) => "Gleichmaessig",
-                                (TerrainRidgeProfile::Uniform, false) => "Uniform",
-                                (TerrainRidgeProfile::PeakCenter, true) => "Mittelgipfel",
-                                (TerrainRidgeProfile::PeakCenter, false) => "Center Peak",
-                                (TerrainRidgeProfile::Varied, true) => "Alpen-Kamm",
-                                (TerrainRidgeProfile::Varied, false) => "Alpine Peaks",
-                            };
-                            egui::ComboBox::from_id_salt("brush_ridge_prof")
-                                .width(155.0)
-                                .selected_text(rp_lbl(cur_rp))
-                                .show_ui(ui, |ui| {
-                                    for rp in [
-                                        TerrainRidgeProfile::Uniform,
-                                        TerrainRidgeProfile::PeakCenter,
-                                        TerrainRidgeProfile::Varied,
-                                    ] {
-                                        ui.selectable_value(&mut app.terrain_brush.ridge_profile, rp, rp_lbl(rp));
-                                    }
-                                });
-                        });
-                        ui.checkbox(
-                            &mut app.terrain_brush.auto_tunnel,
-                            if is_de {
-                                "Gleise & Strassen automatisch tunneln"
-                            } else {
-                                "Auto-tunnel intersecting tracks & roads"
-                            },
-                        );
-                    }
-                }
+                });
+                ui.checkbox(
+                    &mut app.terrain_brush.auto_tunnel,
+                    if is_de {
+                        "Gleise & Strassen automatisch tunneln"
+                    } else {
+                        "Auto-tunnel intersecting tracks & roads"
+                    },
+                );
             });
 
         ui.add_space(10.0);
 
-        // 2. Quick Mountain Presets & Ground Terrain Cards
+        // 2. Quick Unified Heightfield Stamping & Global Actions
         ui.label(
-            RichText::new(if is_de { "BERG-VORLAGEN" } else { "MOUNTAIN PRESETS" })
+            RichText::new(if is_de { "SCHNELL-AKTIONEN (HOEHENFELD)" } else { "QUICK TERRAIN ACTIONS" })
                 .strong()
                 .size(11.0)
                 .color(p.text_muted),
         );
         ui.add_space(4.0);
         ui.horizontal_wrapped(|ui| {
-            if ui
-                .button(if is_de { "+ Berg" } else { "+ Mountain" })
-                .clicked()
-            {
-                app.place_mountain_preset("single");
+            let max_h = app.terrain_brush.height as f32;
+            if ui.button(if is_de { "+ Berg" } else { "+ Mountain" }).clicked() {
+                app.push_undo();
+                if terrain_tools::stamp_preset_into_heightfield(&mut app.layout, "single", max_h) {
+                    if app.terrain_brush.auto_tunnel {
+                        terrain_tools::apply_auto_tunnel_for_heightfield(&mut app.layout);
+                    }
+                    app.mark_layout_dirty();
+                }
             }
-            if ui
-                .button(if is_de { "+ Eck-Massiv" } else { "+ Corner Massif" })
-                .clicked()
-            {
-                app.place_mountain_preset("corner");
+            if ui.button(if is_de { "+ Eck-Massiv" } else { "+ Corner Massif" }).clicked() {
+                app.push_undo();
+                if terrain_tools::stamp_preset_into_heightfield(&mut app.layout, "corner", max_h) {
+                    if app.terrain_brush.auto_tunnel {
+                        terrain_tools::apply_auto_tunnel_for_heightfield(&mut app.layout);
+                    }
+                    app.mark_layout_dirty();
+                }
             }
-            if ui
-                .button(if is_de { "+ Kulissen-Kette" } else { "+ Backdrop Ridge" })
-                .clicked()
+            if ui.button(if is_de { "+ Kulissen-Kette" } else { "+ Backdrop Ridge" }).clicked() {
+                app.push_undo();
+                if terrain_tools::stamp_preset_into_heightfield(&mut app.layout, "ridge", max_h) {
+                    if app.terrain_brush.auto_tunnel {
+                        terrain_tools::apply_auto_tunnel_for_heightfield(&mut app.layout);
+                    }
+                    app.mark_layout_dirty();
+                }
+            }
+            if ui.button(if is_de { "Platte begruenen" } else { "Fill Board Grass" }).clicked() {
+                app.push_undo();
+                if terrain_tools::fill_heightfield_biome(&mut app.layout, railbench_core::terrain::BIOME_GRASS) {
+                    app.mark_layout_dirty();
+                }
+            }
+            if terrain_tools::active_layer_heightfield(&app.layout).is_some()
+                && ui.button(if is_de { "Alles glaetten" } else { "Smooth All" }).clicked()
             {
-                app.place_mountain_preset("ridge");
+                app.push_undo();
+                if terrain_tools::smooth_entire_heightfield(&mut app.layout) {
+                    app.mark_layout_dirty();
+                }
+            }
+            if terrain_tools::active_layer_heightfield(&app.layout).is_some()
+                && ui.button(if is_de { "Hoehenfeld leeren" } else { "Clear Field" }).clicked()
+            {
+                app.push_undo();
+                if terrain_tools::clear_heightfield(&mut app.layout) {
+                    app.mark_layout_dirty();
+                }
             }
         });
 
@@ -359,6 +419,7 @@ pub(super) fn draw_terrain_tab(ui: &mut egui::Ui, app: &mut RailbenchApp) {
                 .size(11.0)
                 .color(p.text_muted),
         );
+        let _ = (style_label, ground_label);
         ui.add_space(4.0);
         for (gtype, name, w, d, h) in [
             ("hill", "Wiese / Rolling Meadow", 560.0, 420.0, 22.0),

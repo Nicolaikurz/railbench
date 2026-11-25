@@ -204,6 +204,7 @@ pub(crate) fn build_special_piece_top_view_mesh_2d(
                 active_layer_id: None,
                 baseboard: None,
                 baseboards: None,
+                terrain_field: None,
             };
             crate::turntables_3d::push_transfer_table_3d(
                 &mut verts,
@@ -224,7 +225,8 @@ pub(crate) fn build_special_piece_top_view_mesh_2d(
 }
 
 pub(super) use super::terrain_maps::{
-    build_ground_map_2d, build_mountain_map_2d, CachedGroundMap2D, CachedMountainMap2D,
+    build_ground_map_2d, build_heightfield_map_2d, build_mountain_map_2d, CachedGroundMap2D,
+    CachedHeightfieldMap2D, CachedMountainMap2D,
 };
 
 #[derive(Default)]
@@ -238,6 +240,8 @@ pub struct Canvas2DCache {
     pub(super) model_top_meshes: Vec<Arc<CachedModelTopMesh2D>>,
     pub(super) model_mtn_maps: Vec<Option<Arc<CachedMountainMap2D>>>,
     pub(super) model_ground_maps: Vec<Option<Arc<CachedGroundMap2D>>>,
+    pub(super) heightfield_map: Option<Arc<CachedHeightfieldMap2D>>,
+    pub(super) layer_heightfield_maps: HashMap<String, Arc<CachedHeightfieldMap2D>>,
     pub(super) model_proto_cache: HashMap<ModelTopMeshKey, Arc<CachedModelTopMesh2D>>,
     pub(super) piece_top_proto_cache: HashMap<(String, bool), Arc<CachedModelTopMesh2D>>,
     pub(super) layer_piece_indices: HashMap<String, Vec<usize>>,
@@ -257,10 +261,20 @@ pub(super) fn compute_layout_cache_sig(layout: &Layout, layout_version: u64) -> 
     let mut h = layout_version.wrapping_mul(0x9E37_79B9_7F4A_7C15);
     h ^= (layout.pieces.len() as u64).wrapping_mul(0xBF58_476D_1CE4_E5B9);
     h ^= (layout.models.as_ref().map_or(0, |m| m.len()) as u64).wrapping_mul(0x94D0_49BB_1331_11EB);
+    if let Some(ref hf) = layout.terrain_field {
+        h ^= hf.revision.wrapping_mul(0x517C_C1B7_2722_0A95)
+            ^ (hf.cols as u64).rotate_left(13)
+            ^ (hf.rows as u64).rotate_left(29);
+    }
     if let Some(ls) = &layout.layers {
         for (i, l) in ls.iter().enumerate() {
             let mut bits = ((l.visible as u64) | ((l.locked as u64) << 1))
                 ^ l.height_mm.map_or(0, |v| v.to_bits());
+            if let Some(ref tf) = l.terrain_field {
+                bits ^= tf.revision.wrapping_mul(0x517C_C1B7_2722_0A95)
+                    ^ (tf.cols as u64).rotate_left(13)
+                    ^ (tf.rows as u64).rotate_left(29);
+            }
             if let Some(ref mode) = l.wood_plate_mode {
                 bits ^= (mode.len() as u64).rotate_left(19);
             }
@@ -633,6 +647,33 @@ impl Canvas2DCache {
         }
         self.model_proto_cache
             .retain(|k, _| active_model_keys.contains(k));
+        self.heightfield_map = layout.terrain_field.as_ref().map(|hf| {
+            let support_polys = crate::terrain_tools::collect_terrain_support_polygons(
+                layout,
+                None,
+                &enabled_boards,
+            );
+            Arc::new(build_heightfield_map_2d(hf, &support_polys))
+        });
+        self.layer_heightfield_maps.clear();
+        if let Some(layers) = &layout.layers {
+            for lay in layers {
+                if !lay.visible {
+                    continue;
+                }
+                if let Some(ref hf) = lay.terrain_field {
+                    let support_polys = crate::terrain_tools::collect_terrain_support_polygons(
+                        layout,
+                        Some(lay.id.as_str()),
+                        &enabled_boards,
+                    );
+                    self.layer_heightfield_maps.insert(
+                        lay.id.clone(),
+                        Arc::new(build_heightfield_map_2d(hf, &support_polys)),
+                    );
+                }
+            }
+        }
 
         // 3.5. Detect open connectors near another track connector, overhead track body, or building door
         //      at a different vertical level (> 1.0 mm apart) so they can be marked yellow in 2D.

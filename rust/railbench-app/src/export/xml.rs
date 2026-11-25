@@ -117,6 +117,39 @@ pub fn export_layout_xml(layout: &Layout) -> String {
                             if let Some(ref st) = pl.style {
                                 let _ = write!(xml, " style=\"{}\"", escape_xml(st));
                             }
+                            if let Some(ref pm) = pl.position_mode {
+                                let _ = write!(xml, " positionMode=\"{}\"", escape_xml(pm));
+                            }
+                            if let Some(ref tt) = pl.triangle_type {
+                                let _ = write!(xml, " triangleType=\"{}\"", escape_xml(tt));
+                            }
+                            if let Some(v) = pl.l_wing_width {
+                                let _ = write!(xml, " lWingWidth=\"{v}\"");
+                            }
+                            if let Some(v) = pl.l_wing_depth {
+                                let _ = write!(xml, " lWingDepth=\"{v}\"");
+                            }
+                            if let Some(ref s) = pl.l_side {
+                                let _ = write!(xml, " lSide=\"{}\"", escape_xml(s));
+                            }
+                            if let Some(v) = pl.u_left_wing_width {
+                                let _ = write!(xml, " uLeftWingWidth=\"{v}\"");
+                            }
+                            if let Some(v) = pl.u_right_wing_width {
+                                let _ = write!(xml, " uRightWingWidth=\"{v}\"");
+                            }
+                            if let Some(v) = pl.u_back_depth {
+                                let _ = write!(xml, " uBackDepth=\"{v}\"");
+                            }
+                            if let Some(v) = pl.t_bar_depth {
+                                let _ = write!(xml, " tBarDepth=\"{v}\"");
+                            }
+                            if let Some(v) = pl.t_stem_width {
+                                let _ = write!(xml, " tStemWidth=\"{v}\"");
+                            }
+                            if let Some(v) = pl.rotation {
+                                let _ = write!(xml, " rotation=\"{v}\"");
+                            }
                             xml.push_str("/>\n");
                         }
                         xml.push_str("    </layer>\n");
@@ -149,19 +182,49 @@ pub fn export_layout_xml(layout: &Layout) -> String {
         if let Some(cl) = p.custom_length {
             let _ = write!(xml, " customLength=\"{cl:.1}\"");
         }
+        if let Some(cr) = p.custom_radius {
+            let _ = write!(xml, " customRadius=\"{cr:.1}\"");
+        }
         if let Some(ca) = p.custom_angle {
             let _ = write!(xml, " customAngle=\"{ca:.2}\"");
         }
+        if let Some(ref offs) = p.custom_offsets {
+            if !offs.is_empty() {
+                let s: Vec<String> = offs.iter().map(|v| format!("{v:.2}")).collect();
+                let _ = write!(xml, " customOffsets=\"{}\"", s.join(","));
+            }
+        }
+        if let Some(ch) = p.custom_chord_dist {
+            let _ = write!(xml, " customChordDist=\"{ch:.2}\"");
+        }
         if p.power_feed == Some(true) { xml.push_str(" powerFeed=\"true\""); }
         if p.is_isolator == Some(true) { xml.push_str(" isIsolator=\"true\""); }
+        if let Some(ii) = p.isolated_connector_index {
+            let _ = write!(xml, " isolatedConnectorIndex=\"{ii}\"");
+        }
         if p.has_catenary == Some(true) { xml.push_str(" hasCatenary=\"true\""); }
         if p.catenary_power_feed == Some(true) { xml.push_str(" catenaryPowerFeed=\"true\""); }
         if p.catenary_isolator == Some(true) { xml.push_str(" catenaryIsolator=\"true\""); }
+        if let Some(ci) = p.catenary_isolated_connector_index {
+            let _ = write!(xml, " catenaryIsolatedConnectorIndex=\"{ci}\"");
+        }
         if p.has_bridge == Some(true) { xml.push_str(" hasBridge=\"true\""); }
         if p.has_tunnel == Some(true) { xml.push_str(" hasTunnel=\"true\""); }
         if p.has_lantern == Some(true) { xml.push_str(" hasLantern=\"true\""); }
         if p.has_decoder == Some(true) { xml.push_str(" hasDecoder=\"true\""); }
+        if let Some(tma) = p.turnout_current_ma {
+            let _ = write!(xml, " turnoutCurrentMa=\"{tma:.1}\"");
+        }
         if p.has_signal == Some(true) { xml.push_str(" hasSignal=\"true\""); }
+        if let Some(ref ss) = p.signal_side {
+            let _ = write!(xml, " signalSide=\"{}\"", escape_xml(ss));
+        }
+        if let Some(ref sd) = p.signal_direction {
+            let _ = write!(xml, " signalDirection=\"{}\"", escape_xml(sd));
+        }
+        if let Some(ref gid) = p.group_id {
+            let _ = write!(xml, " groupId=\"{}\"", escape_xml(gid));
+        }
         if let Some(ref cn) = p.custom_name {
             let _ = write!(xml, " customName=\"{}\"", escape_xml(cn));
         }
@@ -402,6 +465,7 @@ pub fn import_layout_xml(raw: &str, catalogs: &[Catalog]) -> Result<Layout, Stri
             wood_plate_thickness_mm: xml_attr_f64(tag, "woodPlateThicknessMm"),
             wood_plate_style: xml_attr(tag, "woodPlateStyle"),
             plates: if plates.is_empty() { None } else { Some(plates) },
+            terrain_field: None,
         });
     }
 
@@ -472,20 +536,42 @@ pub fn import_layout_xml(raw: &str, catalogs: &[Catalog]) -> Result<Layout, Stri
             }
         };
         piece.custom_length = custom_length;
+        piece.custom_radius = xml_attr_f64(tag, "customRadius");
         piece.custom_angle = custom_angle;
+        piece.custom_offsets = xml_attr(tag, "customOffsets").and_then(|raw_offs| {
+            let vals: Vec<f64> = raw_offs
+                .split(',')
+                .filter_map(|s| s.trim().parse::<f64>().ok())
+                .collect();
+            if vals.is_empty() { None } else { Some(vals) }
+        });
+        piece.custom_chord_dist = xml_attr_f64(tag, "customChordDist");
+        if piece.custom_offsets.is_some() || piece.custom_radius.is_some() {
+            if let Some(entry) = find_entry(catalogs, &piece.catalog_id) {
+                piece.connectors = crate::catalog::compute_piece_world_connectors(&piece, entry);
+            }
+        }
         if let (Some(es), Some(ee)) = (xml_attr_f64(tag, "elevStart"), xml_attr_f64(tag, "elevEnd")) {
             piece.elevation = Some(Elevation { start: es, end: ee });
         }
         piece.power_feed = xml_attr_bool(tag, "powerFeed");
         piece.is_isolator = xml_attr_bool(tag, "isIsolator");
+        piece.isolated_connector_index = xml_attr(tag, "isolatedConnectorIndex")
+            .and_then(|v| v.parse::<usize>().ok());
         piece.has_catenary = xml_attr_bool(tag, "hasCatenary");
         piece.catenary_power_feed = xml_attr_bool(tag, "catenaryPowerFeed");
         piece.catenary_isolator = xml_attr_bool(tag, "catenaryIsolator");
+        piece.catenary_isolated_connector_index = xml_attr(tag, "catenaryIsolatedConnectorIndex")
+            .and_then(|v| v.parse::<usize>().ok());
         piece.has_bridge = xml_attr_bool(tag, "hasBridge");
         piece.has_tunnel = xml_attr_bool(tag, "hasTunnel");
         piece.has_lantern = xml_attr_bool(tag, "hasLantern");
         piece.has_decoder = xml_attr_bool(tag, "hasDecoder");
+        piece.turnout_current_ma = xml_attr_f64(tag, "turnoutCurrentMa");
         piece.has_signal = xml_attr_bool(tag, "hasSignal");
+        piece.signal_side = xml_attr(tag, "signalSide");
+        piece.signal_direction = xml_attr(tag, "signalDirection");
+        piece.group_id = xml_attr(tag, "groupId");
         piece.custom_name = xml_attr(tag, "customName");
         pieces.push(piece);
     }
@@ -565,6 +651,7 @@ pub fn import_layout_xml(raw: &str, catalogs: &[Catalog]) -> Result<Layout, Stri
         active_layer_id,
         baseboard: first_bb,
         baseboards: if baseboards.is_empty() { None } else { Some(baseboards) },
+        terrain_field: None,
     };
     update_layout_connections(&mut layout, 4.0, 35.0, 1.0);
     Ok(layout)

@@ -305,6 +305,7 @@ impl GpuCelestialSlot {
 }
 
 pub(super) struct Gpu3DState {
+    sky_pipeline: wgpu::RenderPipeline,
     scene_pipeline: wgpu::RenderPipeline,
     blit_pipeline: wgpu::RenderPipeline,
     blit_bgl: wgpu::BindGroupLayout,
@@ -317,7 +318,6 @@ pub(super) struct Gpu3DState {
     slot_terrain: GpuMeshSlot,
     slot_tracks: GpuMeshSlot,
     slot_vehicles: GpuMeshSlot,
-    slot_trains: GpuMeshSlot,
     celestial_slot: GpuCelestialSlot,
     offscreen: Option<OffscreenTarget>,
     offscreen_cab: Option<OffscreenTarget>,
@@ -328,6 +328,10 @@ impl Gpu3DState {
         let scene_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("railbench_3d_scene_shader"),
             source: wgpu::ShaderSource::Wgsl(SCENE_SHADER_WGSL.into()),
+        });
+        let sky_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("railbench_3d_sky_shader"),
+            source: wgpu::ShaderSource::Wgsl(SKY_SHADER_WGSL.into()),
         });
         let blit_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("railbench_3d_blit_shader"),
@@ -368,6 +372,42 @@ impl Gpu3DState {
             label: Some("railbench_3d_scene_pipe_layout"),
             bind_group_layouts: &[&scene_bgl],
             push_constant_ranges: &[],
+        });
+
+        let sky_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("railbench_3d_sky_pipeline"),
+            layout: Some(&scene_pipe_layout),
+            vertex: wgpu::VertexState {
+                module: &sky_shader,
+                entry_point: Some("vs_sky"),
+                buffers: &[],
+                compilation_options: Default::default(),
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &sky_shader,
+                entry_point: Some("fs_sky"),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: wgpu::TextureFormat::Rgba8UnormSrgb,
+                    blend: Some(wgpu::BlendState::REPLACE),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+                compilation_options: Default::default(),
+            }),
+            primitive: wgpu::PrimitiveState::default(),
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: false,
+                depth_compare: wgpu::CompareFunction::Always,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
+            multisample: wgpu::MultisampleState {
+                count: MSAA_SAMPLE_COUNT,
+                mask: !0,
+                alpha_to_coverage_enabled: false,
+            },
+            multiview: None,
+            cache: None,
         });
 
         // Offscreen 3D pipeline with REAL Depth32Float hardware depth buffer!
@@ -509,6 +549,7 @@ impl Gpu3DState {
         identity_instance_buf.unmap();
 
         Self {
+            sky_pipeline,
             scene_pipeline,
             blit_pipeline,
             blit_bgl,
@@ -521,7 +562,6 @@ impl Gpu3DState {
             slot_terrain: GpuMeshSlot::default(),
             slot_tracks: GpuMeshSlot::default(),
             slot_vehicles: GpuMeshSlot::default(),
-            slot_trains: GpuMeshSlot::default(),
             celestial_slot: GpuCelestialSlot::default(),
             offscreen: None,
             offscreen_cab: None,
@@ -534,7 +574,6 @@ impl Gpu3DState {
         self.slot_terrain.clear();
         self.slot_tracks.clear();
         self.slot_vehicles.clear();
-        self.slot_trains.clear();
         self.celestial_slot.clear();
         if let Some(old) = self.offscreen.take() {
             old.destroy();
@@ -625,7 +664,6 @@ pub(super) struct Viewport3DCallback {
     pub(super) uniforms: Uniforms3D,
     pub(super) bundle: Option<Scene3DBundle>,
     pub(super) vehicles_mesh: Option<Arc<SceneMesh3D>>,
-    pub(super) trains_mesh: Option<(u64, Arc<SceneMesh3D>)>,
     pub(super) time_of_day: f32,
     pub(super) env_mode: Viewer3DEnv,
     pub(super) viewport_px: [u32; 2],
@@ -668,7 +706,6 @@ impl egui_wgpu::CallbackTrait for Viewport3DCallback {
                 .slot_vehicles
                 .sync(device, queue, None, "railbench_3d_vehicles");
         }
-        state.slot_trains.sync(device, queue, self.trains_mesh.as_ref(), "railbench_3d_trains");
         state.celestial_slot.update(device, queue, self.time_of_day, self.env_mode);
 
         // Render the 3D scene into our 4x MSAA Color + Depth32Float buffer and resolve into color_view
@@ -701,14 +738,19 @@ impl egui_wgpu::CallbackTrait for Viewport3DCallback {
                 occlusion_query_set: None,
             });
 
+            rpass.set_pipeline(&state.sky_pipeline);
+            rpass.set_bind_group(0, &state.scene_bg, &[]);
+            rpass.draw(0..3, 0..1);
+
             rpass.set_pipeline(&state.scene_pipeline);
             rpass.set_bind_group(0, &state.scene_bg, &[]);
-            state.slot_env.draw(&mut rpass, &state.identity_instance_buf);
+            if self.uniforms.cam_pos[1] >= -700.0 || self.env_mode == Viewer3DEnv::Minimal {
+                state.slot_env.draw(&mut rpass, &state.identity_instance_buf);
+            }
             state.slot_boards.draw(&mut rpass, &state.identity_instance_buf);
             state.slot_terrain.draw(&mut rpass, &state.identity_instance_buf);
             state.slot_tracks.draw(&mut rpass, &state.identity_instance_buf);
             state.slot_vehicles.draw(&mut rpass, &state.identity_instance_buf);
-            state.slot_trains.draw(&mut rpass, &state.identity_instance_buf);
             state.celestial_slot.draw(&mut rpass, &state.identity_instance_buf);
         }
 

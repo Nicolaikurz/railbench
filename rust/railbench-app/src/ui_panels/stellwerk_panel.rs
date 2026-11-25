@@ -735,6 +735,7 @@ mod tests {
             wood_plate_thickness_mm: None,
             wood_plate_style: None,
             plates: None,
+            terrain_field: None,
         }
     }
 

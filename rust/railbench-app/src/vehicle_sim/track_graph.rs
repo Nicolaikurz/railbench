@@ -601,6 +601,27 @@ pub(super) fn recompute_vehicle_poses(
     };
     v.grade_pct = (pitch.tan() * 100.0 * travel_sign).clamp(-25.0, 25.0);
     let driving_backward = v.velocity_mm_s < -1.0 || (v.velocity_mm_s.abs() <= 1.0 && v.reverse);
+    v.mallet_articulation_rad = if v.kind == super::VehicleKind::Br96Mallet {
+        let (_, _, _, ahead_ang) = walk_track_graph(
+            layout,
+            catalogs,
+            turnout_states,
+            tt_angles,
+            tr_offsets,
+            &v.path_history,
+            &v.piece_id,
+            v.branch_idx,
+            v.dist_mm,
+            orient_sign * 50.0 * sf,
+            v.domain,
+        );
+        shortest_angle_diff_deg(hdg, ahead_ang)
+            .to_radians()
+            .clamp(-0.32, 0.32) as f32
+    } else {
+        0.0
+    };
+    let speed_norm = (v.current_speed_mm_s / (def.max_speed_mm_s * sf).max(1.0)).clamp(0.0, 1.0) as f32;
 
     let mut poses = Vec::with_capacity(1 + v.coupled_cars.len());
     poses.push(VehicleRenderPose {
@@ -620,6 +641,12 @@ pub(super) fn recompute_vehicle_poses(
         headlights: v.headlights,
         driving_backward,
         throttle_pct: v.throttle * 100.0,
+        wheel_angle: v.wheel_angle,
+        pantograph_up: v.pantograph_up,
+        steam_on: v.steam_on,
+        steam_time: v.steam_time,
+        speed_norm,
+        mallet_articulation_rad: v.mallet_articulation_rad,
     });
 
     let coupler_gap = (3.5 + 1.4 * v.coupler_strain as f64).clamp(1.8, 6.5) * sf;
@@ -663,6 +690,12 @@ pub(super) fn recompute_vehicle_poses(
             headlights: v.headlights,
             driving_backward,
             throttle_pct: 0.0,
+            wheel_angle: 0.0,
+            pantograph_up: false,
+            steam_on: false,
+            steam_time: 0.0,
+            speed_norm: 0.0,
+            mallet_articulation_rad: 0.0,
         });
         trail_offset += wl + coupler_gap;
     }

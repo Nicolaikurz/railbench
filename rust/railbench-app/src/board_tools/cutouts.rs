@@ -81,7 +81,24 @@ pub fn compute_table_track_cutouts(
     if !board.enabled || layout.pieces.is_empty() {
         return Vec::new();
     }
-    let bounds = get_baseboard_bounds(board);
+    let poly = get_baseboard_polygon(board);
+    let mut b_min_x = f64::INFINITY;
+    let mut b_max_x = f64::NEG_INFINITY;
+    let mut b_min_y = f64::INFINITY;
+    let mut b_max_y = f64::NEG_INFINITY;
+    for pt in &poly {
+        b_min_x = b_min_x.min(pt.x);
+        b_max_x = b_max_x.max(pt.x);
+        b_min_y = b_min_y.min(pt.y);
+        b_max_y = b_max_y.max(pt.y);
+    }
+    if !b_min_x.is_finite() {
+        let b = get_baseboard_bounds(board);
+        b_min_x = b.x;
+        b_max_x = b.x + b.width;
+        b_min_y = b.y;
+        b_max_y = b.y + b.depth;
+    }
     let clearance = min_clearance_for_scale(&layout.scale);
     let mut layer_map: HashMap<&str, &Layer> = HashMap::new();
     if let Some(layers) = &layout.layers {
@@ -101,10 +118,10 @@ pub fn compute_table_track_cutouts(
             || p.connectors
                 .iter()
                 .any(|c| is_point_inside_baseboard(Vec2 { x: c.x, y: c.y }, board))
-            || (p.transform.x >= bounds.x - 50.0
-                && p.transform.x <= bounds.x + bounds.width + 50.0
-                && p.transform.y >= bounds.y - 50.0
-                && p.transform.y <= bounds.y + bounds.depth + 50.0);
+            || (p.transform.x >= b_min_x - 50.0
+                && p.transform.x <= b_max_x + 50.0
+                && p.transform.y >= b_min_y - 50.0
+                && p.transform.y <= b_max_y + 50.0);
         if near {
             qualifying.push(p);
         }
@@ -141,10 +158,10 @@ pub fn compute_table_track_cutouts(
 
     let mut unvisited: Vec<bool> = vec![true; n_q];
     let mut cutouts = Vec::new();
-    let b_min_x = bounds.x + 6.0;
-    let b_max_x = bounds.x + bounds.width - 6.0;
-    let b_min_y = bounds.y + 6.0;
-    let b_max_y = bounds.y + bounds.depth - 6.0;
+    let b_min_x = b_min_x + 6.0;
+    let b_max_x = b_max_x - 6.0;
+    let b_min_y = b_min_y + 6.0;
+    let b_max_y = b_max_y - 6.0;
 
     while let Some(start) = {
         let mut best_s = None;

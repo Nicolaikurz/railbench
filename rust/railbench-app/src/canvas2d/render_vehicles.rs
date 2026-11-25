@@ -33,52 +33,45 @@ fn draw_vehicle_top_detail(
     );
 
     match p.kind {
-        VehicleKind::SteamLoco => {
-            // Tender body + coal heap (-1.0..=-0.42*hl), cab (-0.40..=-0.12), boiler (-0.12..=0.98)
+        VehicleKind::Br96Mallet => {
+            // Long DRG BR 96 Mallet: rear coal bunker + cab, twin red-trimmed chassis, cylinder boiler & chimney
             painter.add(egui::Shape::convex_polygon(
-                poly4(&to_scr, -hl, -hl * 0.42, -hw * 0.88, hw * 0.88),
-                Color32::from_rgb(24, 28, 36),
-                dark_outline,
+                poly4(&to_scr, -hl, hl * 0.98, -hw * 0.94, hw * 0.94),
+                Color32::from_rgb(24, 28, 34),
+                Stroke::new(1.3, Color32::from_rgb(185, 28, 28)),
             ));
+            // Rear coal bunker
             painter.add(egui::Shape::convex_polygon(
-                poly4(&to_scr, -hl * 0.90, -hl * 0.48, -hw * 0.58, hw * 0.58),
-                Color32::from_rgb(10, 12, 16),
+                poly4(&to_scr, -hl * 0.94, -hl * 0.62, -hw * 0.64, hw * 0.64),
+                Color32::from_rgb(12, 14, 18),
                 Stroke::NONE,
             ));
+            // Side water tanks flanking boiler
             painter.add(egui::Shape::convex_polygon(
-                poly4(&to_scr, -hl * 0.38, hl * 0.96, -hw * 0.92, hw * 0.92),
-                Color32::from_rgb(26, 30, 38),
+                poly4(&to_scr, -hl * 0.44, hl * 0.68, -hw * 0.88, hw * 0.88),
+                Color32::from_rgb(32, 37, 45),
                 dark_outline,
             ));
-            // Cylindrical black boiler + smoke deflectors + brass dome accents + chimney
+            // Central boiler + brass steam domes + forward chimney
             painter.add(egui::Shape::convex_polygon(
-                poly4(&to_scr, -hl * 0.12, hl * 0.96, -hw * 0.64, hw * 0.64),
-                Color32::from_rgb(38, 44, 54),
+                poly4(&to_scr, -hl * 0.42, hl * 0.96, -hw * 0.56, hw * 0.56),
+                Color32::from_rgb(42, 48, 58),
                 Stroke::new(1.0, Color32::from_rgb(212, 160, 23)),
             ));
             let rim = (camera.zoom * 3.0).clamp(1.6, 5.5);
-            painter.circle_filled(to_scr(hl * 0.78, 0.0), rim, Color32::from_rgb(15, 23, 42));
-            painter.circle_filled(to_scr(hl * 0.22, 0.0), rim * 1.15, Color32::from_rgb(55, 65, 81));
+            painter.circle_filled(to_scr(hl * 0.80, 0.0), rim, Color32::from_rgb(15, 23, 42));
+            painter.circle_filled(to_scr(hl * 0.25, 0.0), rim * 1.15, Color32::from_rgb(180, 130, 40));
         }
-        VehicleKind::ElectricLoco => {
-            // Purpurrot base outline + tapered TEE noses + silver roof + twin crimson pantograph diamonds
+        VehicleKind::Br243 => {
+            // DR BR 243 bordeaux body + cream belly stripe outline + grey roof + twin red pantographs
             painter.add(egui::Shape::convex_polygon(
-                poly4(&to_scr, -hl * 0.92, hl * 0.92, -hw, hw),
-                Color32::from_rgb(254, 243, 199),
-                Stroke::new(1.6, fill),
+                poly4(&to_scr, -hl * 0.98, hl * 0.98, -hw, hw),
+                fill,
+                Stroke::new(1.5, Color32::from_rgb(241, 231, 208)),
             ));
-            for sgn in [-1.0_f64, 1.0] {
-                let tip = vec![
-                    to_scr(sgn * hl * 0.92, -hw),
-                    to_scr(sgn * hl, -hw * 0.62),
-                    to_scr(sgn * hl, hw * 0.62),
-                    to_scr(sgn * hl * 0.92, hw),
-                ];
-                painter.add(egui::Shape::convex_polygon(tip, fill, dark_outline));
-            }
             painter.add(egui::Shape::convex_polygon(
                 poly4(&to_scr, -hl * 0.78, hl * 0.78, -hw * 0.72, hw * 0.72),
-                Color32::from_rgb(148, 163, 184),
+                Color32::from_rgb(107, 114, 128),
                 Stroke::NONE,
             ));
             let p_stroke = Stroke::new((1.4 * camera.zoom).clamp(1.0, 2.4), Color32::from_rgb(220, 38, 38));
@@ -92,29 +85,23 @@ fn draw_vehicle_top_detail(
                 painter.add(egui::Shape::closed_line(d_pts, p_stroke));
             }
         }
-        VehicleKind::DieselLoco => {
+        VehicleKind::V60Diesel => {
+            // DB V 60 compact shunter: narrow altrot hoods with cream stripe + central raised grey-roofed cab
             painter.add(egui::Shape::convex_polygon(
-                poly4(&to_scr, -hl, hl, -hw, hw),
-                fill,
+                poly4(&to_scr, -hl, hl, -hw * 0.88, hw * 0.88),
+                Color32::from_rgb(28, 32, 38),
                 dark_outline,
             ));
             painter.add(egui::Shape::convex_polygon(
-                poly4(&to_scr, -hl * 0.84, hl * 0.84, -hw * 0.74, hw * 0.74),
-                Color32::from_rgb(71, 85, 105),
-                Stroke::NONE,
+                poly4(&to_scr, -hl * 0.90, hl * 0.90, -hw * 0.58, hw * 0.58),
+                fill,
+                Stroke::new(1.1, Color32::from_rgb(245, 235, 214)),
             ));
-            // 3 radiator cooling fan grilles + twin angled exhaust hoods
-            let fan_r = (camera.zoom * 5.2).clamp(2.0, 7.0);
-            for fx in [-hl * 0.40, 0.0, hl * 0.40] {
-                painter.circle_filled(to_scr(fx, 0.0), fan_r, Color32::from_rgb(30, 41, 59));
-            }
-            for ex in [-hl * 0.17, hl * 0.17] {
-                painter.add(egui::Shape::convex_polygon(
-                    poly4(&to_scr, ex - hl * 0.04, ex + hl * 0.04, -hw * 0.25, hw * 0.25),
-                    Color32::from_rgb(15, 23, 42),
-                    Stroke::NONE,
-                ));
-            }
+            painter.add(egui::Shape::convex_polygon(
+                poly4(&to_scr, -hl * 0.24, hl * 0.14, -hw * 0.82, hw * 0.82),
+                Color32::from_rgb(92, 100, 112),
+                dark_outline,
+            ));
         }
         VehicleKind::PassengerCoach => {
             // Rubber gangway bellows + tapered ends + green body + silver roof with Kuckuck vents

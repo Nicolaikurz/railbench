@@ -25,6 +25,61 @@ mod opt_arc_str_serde {
     }
 }
 
+mod arc_vec_f32_serde {
+    use std::sync::Arc;
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    pub fn serialize<S>(val: &Arc<Vec<f32>>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        val.as_slice().serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Arc<Vec<f32>>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        Ok(Arc::new(Vec::<f32>::deserialize(deserializer)?))
+    }
+}
+
+mod arc_vec_u8_serde {
+    use std::sync::Arc;
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    pub fn serialize<S>(val: &Arc<Vec<u8>>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        val.as_slice().serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Arc<Vec<u8>>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        Ok(Arc::new(Vec::<u8>::deserialize(deserializer)?))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TerrainHeightfield {
+    pub cols: usize,
+    pub rows: usize,
+    pub min_x: f64,
+    pub min_z: f64,
+    pub max_x: f64,
+    pub max_z: f64,
+    #[serde(with = "arc_vec_f32_serde")]
+    pub heights: Arc<Vec<f32>>,
+    #[serde(with = "arc_vec_u8_serde")]
+    pub materials: Arc<Vec<u8>>,
+    #[serde(default)]
+    pub revision: u64,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)]
 pub struct Vec2 {
     pub x: f64,
@@ -183,6 +238,8 @@ pub struct Layer {
     pub wood_plate_style: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub plates: Option<Vec<LayerPlate>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub terrain_field: Option<TerrainHeightfield>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -302,6 +359,8 @@ pub struct Layout {
     pub baseboard: Option<BaseboardConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub baseboards: Option<Vec<BaseboardConfig>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub terrain_field: Option<TerrainHeightfield>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -363,6 +422,8 @@ pub struct Catalog {
     pub gauge: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub is_road: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub has_roadbed: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub conductors: Option<u8>,
     pub entries: Vec<CatalogEntry>,

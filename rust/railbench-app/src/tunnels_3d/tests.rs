@@ -22,6 +22,7 @@ fn minimal_layout(pieces: Vec<TrackPiece>) -> Layout {
         active_layer_id: None,
         baseboard: None,
         baseboards: None,
+        terrain_field: None,
     }
 }
 

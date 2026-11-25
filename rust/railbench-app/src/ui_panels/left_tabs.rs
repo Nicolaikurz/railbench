@@ -54,17 +54,31 @@ pub(super) fn draw_catalog_tab(ui: &mut egui::Ui, app: &mut RailbenchApp, roads_
     }
 
     let mut trigger_import_catalog = false;
+    let mut trigger_export_catalog = false;
     let imp_tip = if app.lang == Lang::De {
         "Eigenen Gleiskatalog (.json) importieren"
     } else {
         "Import custom track catalog (.json)"
     };
+    let exp_tip = if app.lang == Lang::De {
+        "Aktiven Gleiskatalog als .json exportieren"
+    } else {
+        "Export active catalog as .json"
+    };
 
+    let prev_cat_idx = *sel_idx;
     if roads_only {
         ui.horizontal(|ui| {
             let road_lbl = if app.lang == Lang::De { "STRASSENSYSTEM" } else { "ROAD SYSTEM" };
             ui.label(RichText::new(road_lbl).strong().size(10.0).color(p.text_muted));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if ui
+                    .small_button(RichText::new("⤓ JSON").size(10.0))
+                    .on_hover_text(exp_tip)
+                    .clicked()
+                {
+                    trigger_export_catalog = true;
+                }
                 if ui
                     .small_button(RichText::new("+ JSON").size(10.0))
                     .on_hover_text(imp_tip)
@@ -112,6 +126,13 @@ pub(super) fn draw_catalog_tab(ui: &mut egui::Ui, app: &mut RailbenchApp, roads_
         ui.horizontal(|ui| {
             ui.label(RichText::new(mfr_label).strong().size(10.0).color(p.text_muted));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if ui
+                    .small_button(RichText::new("⤓ JSON").size(10.0))
+                    .on_hover_text(exp_tip)
+                    .clicked()
+                {
+                    trigger_export_catalog = true;
+                }
                 if ui
                     .small_button(RichText::new("+ JSON").size(10.0))
                     .on_hover_text(imp_tip)
@@ -186,23 +207,48 @@ pub(super) fn draw_catalog_tab(ui: &mut egui::Ui, app: &mut RailbenchApp, roads_
             .desired_width(search_w),
     );
     let cat_idx = *sel_idx;
+    if !roads_only && cat_idx != prev_cat_idx && app.layout.pieces.is_empty() {
+        let new_scale = app.catalogs[cat_idx].scale.clone();
+        if !new_scale.is_empty() {
+            app.layout.scale = new_scale.clone();
+            app.layout.feed_voltage = Some(match new_scale.trim().to_uppercase().as_str() {
+                "Z" => 10.0,
+                "N" => 12.0,
+                "TT" | "H0M" => 14.0,
+                "1" => 18.0,
+                "G" => 24.0,
+                _ => 16.0,
+            });
+            app.model_scale = crate::model_tools::parse_scale_code(&app.layout.scale).into();
+        }
+    }
     if trigger_import_catalog {
         app.import_catalog_dialog();
+    }
+    if trigger_export_catalog {
+        app.export_catalog_dialog(cat_idx);
     }
 
     ui.add_space(4.0);
     let is_de = app.lang == Lang::De;
+    let fav_count = app.app_settings.favorite_tracks.len();
+    let fav_pill_label = if fav_count > 0 {
+        format!("★ {fav_count}")
+    } else {
+        "★".to_string()
+    };
     let pills: &[(&str, &str)] = if roads_only {
         &[
-            ("fav", "★"),
+            ("fav", fav_pill_label.as_str()),
             ("all", if is_de { "Alle" } else { "All" }),
             ("straights", if is_de { "Geraden" } else { "Straights" }),
             ("curves", if is_de { "Kurven" } else { "Curves" }),
             ("crossings", if is_de { "Kreuz." } else { "Crossings" }),
+            ("accessories", if is_de { "Zubehör" } else { "Special" }),
         ]
     } else {
         &[
-            ("fav", "★"),
+            ("fav", fav_pill_label.as_str()),
             ("all", if is_de { "Alle" } else { "All" }),
             ("straights", if is_de { "Geraden" } else { "Straights" }),
             ("curves", if is_de { "Kurven" } else { "Curves" }),
@@ -235,19 +281,47 @@ pub(super) fn draw_catalog_tab(ui: &mut egui::Ui, app: &mut RailbenchApp, roads_
     let filter = app.catalog_search.trim().to_lowercase();
     let cat_filter = app.catalog_category_filter.clone();
     let lang = app.lang;
-    let mut dragged_entry_idx: Option<usize> = None;
-    let mut clicked_entry_idx: Option<usize> = None;
-    let mut toggled_fav_id: Option<String> = None;
+    let mut dragged_entry_opt: Option<railbench_core::types::CatalogEntry> = None;
+    let mut clicked_entry_opt: Option<railbench_core::types::CatalogEntry> = None;
+    let mut toggled_fav: Option<(String, String)> = None;
     let mut toggled_feeder_id: Option<String> = None;
     let mut toggled_iso_id: Option<String> = None;
 
+    let active_cat_id = app.catalogs[cat_idx].id.clone();
+    // Build display list: when in "fav" filter, show favorites across ALL matching catalogs (Tracks or Roads),
+    // otherwise sort entries within categories naturally by article number.
+    let mut items: Vec<(String, String, &railbench_core::types::CatalogEntry)> = Vec::new();
+    if cat_filter == "fav" {
+        for c in &app.catalogs {
+            if (c.is_road == Some(true)) != roads_only {
+                continue;
+            }
+            for e in &c.entries {
+                if app.is_favorite_track_entry(&c.id, &e.id) {
+                    items.push((c.id.clone(), c.name.clone(), e));
+                }
+            }
+        }
+        items.sort_by(|a, b| crate::catalog::compare_catalog_entries_by_number(a.2, b.2));
+    } else {
+        let mut cat_entries: Vec<&railbench_core::types::CatalogEntry> = app.catalogs[cat_idx].entries.iter().collect();
+        cat_entries.sort_by(|a, b| {
+            a.category
+                .cmp(&b.category)
+                .then_with(|| crate::catalog::compare_catalog_entries_by_number(a, b))
+        });
+        for e in cat_entries {
+            items.push((active_cat_id.clone(), e.category.clone(), e));
+        }
+    }
+
     egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-        let mut last_cat: &str = "";
-        for (entry_idx, entry) in app.catalogs[cat_idx].entries.iter().enumerate() {
-            let is_fav = app.app_settings.favorite_tracks.iter().any(|f| f == &entry.id);
+        let mut last_cat = String::new();
+        for (item_cat_id, group_header, entry) in items {
+            let is_fav = app.is_favorite_track_entry(&item_cat_id, &entry.id);
             let is_buf = crate::catalog::is_buffer_stop_entry(entry);
             let kind_matches_pill = match cat_filter.as_str() {
-                "fav" => is_fav,
+                "fav" => true,
                 "straights" => matches!(entry.kind.as_str(), "straight" | "flex") && !is_buf,
                 "curves" => entry.kind == "curve",
                 "turnouts" => matches!(
@@ -266,7 +340,7 @@ pub(super) fn draw_catalog_tab(ui: &mut egui::Ui, app: &mut RailbenchApp, roads_
                         || crate::catalog::is_isolating_entry(entry)
                         || matches!(
                             entry.kind.as_str(),
-                            "buffer" | "turntable" | "transfer-table" | "feeder" | "uncoupler" | "isolating" | "isolator"
+                            "buffer" | "buffer-stop" | "accessory" | "turntable" | "transfer-table" | "feeder" | "uncoupler" | "isolating" | "isolator"
                         )
                 }
                 _ => true,
@@ -281,22 +355,24 @@ pub(super) fn draw_catalog_tab(ui: &mut egui::Ui, app: &mut RailbenchApp, roads_
             };
             if !filter.is_empty()
                 && !contains_ignore_case(&entry.id, &filter)
-                && !contains_ignore_case(display_name, &filter)
+                && !contains_ignore_case(&entry.name, &filter)
+                && !contains_ignore_case(entry.name_en.as_deref().unwrap_or(""), &filter)
+                && !contains_ignore_case(&entry.description, &filter)
                 && !contains_ignore_case(&entry.category, &filter)
             {
                 continue;
             }
-            if entry.category.as_str() != last_cat {
+            if group_header != last_cat {
                 if !last_cat.is_empty() {
                     ui.add_space(6.0);
                 }
                 ui.label(
-                    RichText::new(entry.category.to_uppercase())
+                    RichText::new(group_header.to_uppercase())
                         .strong()
                         .size(10.5)
                         .color(p.text_muted),
                 );
-                last_cat = entry.category.as_str();
+                last_cat = group_header;
             }
 
             let icon_kind = if is_buf { "buffer" } else { entry.kind.as_str() };
@@ -308,7 +384,17 @@ pub(super) fn draw_catalog_tab(ui: &mut egui::Ui, app: &mut RailbenchApp, roads_
                 bp.color32()
             };
 
-            let dim_text = if let (Some(r), Some(a)) = (entry.radius, entry.angle) {
+            let dim_text = if crate::is_turnout_kind(&entry.kind) {
+                if let (Some(l), Some(ba)) = (entry.length, entry.branch_angle) {
+                    format!("{l:.0} mm • {ba:.1}°")
+                } else if let Some(ba) = entry.branch_angle {
+                    format!("{ba:.1}°")
+                } else if let Some(l) = entry.length {
+                    format!("{l:.1} mm")
+                } else {
+                    String::new()
+                }
+            } else if let (Some(r), Some(a)) = (entry.radius, entry.angle) {
                 format!("R{r:.0} mm • {a:.1}°")
             } else if let Some(l) = entry.length {
                 format!("{l:.1} mm")
@@ -459,21 +545,21 @@ pub(super) fn draw_catalog_tab(ui: &mut egui::Ui, app: &mut RailbenchApp, roads_
                 ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
             }
             if star_clicked {
-                toggled_fav_id = Some(entry.id.clone());
+                toggled_fav = Some((item_cat_id, entry.id.clone()));
             } else if feeder_toggle_clicked {
                 toggled_feeder_id = Some(entry.id.clone());
             } else if iso_toggle_clicked {
                 toggled_iso_id = Some(entry.id.clone());
             } else if plus_clicked || card_resp.clicked() {
-                clicked_entry_idx = Some(entry_idx);
+                clicked_entry_opt = Some(entry.clone());
             } else if card_resp.drag_started_by(egui::PointerButton::Primary) {
-                dragged_entry_idx = Some(entry_idx);
+                dragged_entry_opt = Some(entry.clone());
             }
         }
     });
 
-    if let Some(fid) = toggled_fav_id {
-        app.toggle_favorite_track(&fid);
+    if let Some((fcid, ftid)) = toggled_fav {
+        app.toggle_favorite_track_entry(&fcid, &ftid);
     }
     if let Some(eid) = toggled_feeder_id {
         if !app.catalog_entry_power_enabled.remove(&eid) {
@@ -485,11 +571,10 @@ pub(super) fn draw_catalog_tab(ui: &mut egui::Ui, app: &mut RailbenchApp, roads_
             app.catalog_entry_isolating_enabled.insert(eid);
         }
     }
-    if let Some(ei) = dragged_entry_idx {
-        app.dragging_catalog_entry = Some(app.catalogs[cat_idx].entries[ei].clone());
+    if let Some(entry_clone) = dragged_entry_opt {
+        app.dragging_catalog_entry = Some(entry_clone);
     }
-    if let Some(ei) = clicked_entry_idx {
-        let entry_clone = app.catalogs[cat_idx].entries[ei].clone();
+    if let Some(entry_clone) = clicked_entry_opt {
         app.place_catalog_entry(&entry_clone);
     }
 }
@@ -620,7 +705,13 @@ pub(super) fn draw_models_tab(ui: &mut egui::Ui, app: &mut RailbenchApp) {
                 let w = (def.width * f_scale * 10.0).round() / 10.0;
                 let d = (def.depth * f_scale * 10.0).round() / 10.0;
                 let h = (def.height * f_scale * 10.0).round() / 10.0;
-                Frame::new()
+                let built_tpl = model_tools::create_scaled_builtin_model(
+                    def,
+                    &app.model_scale,
+                    is_de,
+                );
+                let mut add_clicked = false;
+                let card_resp = Frame::new()
                     .fill(p.bg_card)
                     .corner_radius(CornerRadius::same(8))
                     .inner_margin(Margin::symmetric(10, 7))
@@ -631,11 +722,7 @@ pub(super) fn draw_models_tab(ui: &mut egui::Ui, app: &mut RailbenchApp) {
                             ui.label(RichText::new(name).strong().size(12.0).color(p.text_main));
                             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                 if ui.small_button("+ Add").clicked() {
-                                    place_model = Some(model_tools::create_scaled_builtin_model(
-                                        def,
-                                        &app.model_scale,
-                                        is_de,
-                                    ));
+                                    add_clicked = true;
                                 }
                             });
                         });
@@ -645,7 +732,23 @@ pub(super) fn draw_models_tab(ui: &mut egui::Ui, app: &mut RailbenchApp) {
                                 .color(p.primary),
                         );
                         ui.label(RichText::new(desc).size(10.0).color(p.text_muted));
-                    });
+                    })
+                    .response
+                    .interact(egui::Sense::click_and_drag());
+                if card_resp.hovered() {
+                    ui.painter().rect_stroke(
+                        card_resp.rect,
+                        CornerRadius::same(8),
+                        Stroke::new(1.2_f32, p.primary),
+                        egui::StrokeKind::Inside,
+                    );
+                    ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
+                }
+                if add_clicked {
+                    place_model = Some(built_tpl);
+                } else if card_resp.drag_started_by(egui::PointerButton::Primary) {
+                    app.dragging_model_template = Some(built_tpl);
+                }
                 ui.add_space(4.0);
             }
         }
@@ -655,7 +758,9 @@ pub(super) fn draw_models_tab(ui: &mut egui::Ui, app: &mut RailbenchApp) {
                 if !q.is_empty() && !cm.name.to_ascii_lowercase().contains(&q) {
                     continue;
                 }
-                Frame::new()
+                let mut add_clicked = false;
+                let mut del_clicked = false;
+                let card_resp = Frame::new()
                     .fill(p.bg_card)
                     .corner_radius(CornerRadius::same(8))
                     .inner_margin(Margin::symmetric(10, 7))
@@ -667,10 +772,10 @@ pub(super) fn draw_models_tab(ui: &mut egui::Ui, app: &mut RailbenchApp) {
                             ui.label(RichText::new(format!(".{}", cm.model_type)).size(10.0).color(Color32::from_rgb(129, 140, 248)));
                             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                 if ui.small_button("Del").clicked() {
-                                    remove_custom_name = Some(cm.name.clone());
+                                    del_clicked = true;
                                 }
                                 if ui.small_button("+ Add").clicked() {
-                                    place_model = Some(cm.clone());
+                                    add_clicked = true;
                                 }
                             });
                         });
@@ -679,7 +784,19 @@ pub(super) fn draw_models_tab(ui: &mut egui::Ui, app: &mut RailbenchApp) {
                                 .size(10.5)
                                 .color(p.text_muted),
                         );
-                    });
+                    })
+                    .response
+                    .interact(egui::Sense::click_and_drag());
+                if card_resp.hovered() {
+                    ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
+                }
+                if del_clicked {
+                    remove_custom_name = Some(cm.name.clone());
+                } else if add_clicked {
+                    place_model = Some(cm.clone());
+                } else if card_resp.drag_started_by(egui::PointerButton::Primary) {
+                    app.dragging_model_template = Some(cm.clone());
+                }
                 ui.add_space(4.0);
             }
         }

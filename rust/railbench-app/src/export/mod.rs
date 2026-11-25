@@ -24,6 +24,8 @@ pub struct BlueprintExportOptions {
     pub show_baseboards: bool,
     pub show_models: bool,
     pub show_labels: bool,
+    pub show_grid: bool,
+    pub show_electrical: bool,
     pub monochrome: bool,
 }
 
@@ -39,6 +41,8 @@ impl Default for BlueprintExportOptions {
             show_baseboards: true,
             show_models: true,
             show_labels: true,
+            show_grid: true,
+            show_electrical: true,
             monochrome: false,
         }
     }

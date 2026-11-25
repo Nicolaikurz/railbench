@@ -78,7 +78,7 @@ fn sanitize_catalog_filename(id: &str) -> String {
     }
 }
 
-/// Ensures inherited fields (`id`, per-entry `gauge`, per-entry `is_road`) match built-in defaults.
+/// Ensures inherited fields (`id`, per-entry `gauge`, per-entry `is_road`, per-entry `has_roadbed`) match built-in defaults.
 pub fn normalize_catalog(cat: &mut Catalog) {
     if cat.id.trim().is_empty() {
         let base = format!(
@@ -91,6 +91,7 @@ pub fn normalize_catalog(cat: &mut Catalog) {
     }
     let default_gauge = cat.gauge;
     let is_road = cat.is_road == Some(true);
+    let default_roadbed = cat.has_roadbed;
     for entry in &mut cat.entries {
         if entry.gauge.is_none() {
             entry.gauge = default_gauge;
@@ -98,18 +99,133 @@ pub fn normalize_catalog(cat: &mut Catalog) {
         if is_road {
             entry.is_road = Some(true);
         }
+        if entry.has_roadbed.is_none() {
+            entry.has_roadbed = default_roadbed;
+        }
     }
 }
 
-/// Parses and validates a track/road catalog JSON string (stripping UTF-8 BOM if present).
+fn normalize_kind_alias(raw: &str) -> String {
+    match raw.trim().to_ascii_lowercase().as_str() {
+        "gerade" | "gerades gleis" => "straight",
+        "bogen" | "kurve" | "gebogen" | "curved" => "curve",
+        "weiche-links" | "linksweiche" | "turnout_left" | "left-turnout" => "turnout-left",
+        "weiche-rechts" | "rechtsweiche" | "turnout_right" | "right-turnout" => "turnout-right",
+        "bogenweiche-links" | "bw-links" => "curved-turnout-left",
+        "bogenweiche-rechts" | "bw-rechts" => "curved-turnout-right",
+        "dreiwegweiche" | "threeway" => "three-way",
+        "kreuzung" => "crossing",
+        "dkw" | "doppelkreuzung" | "doppelkreuzungsweiche" | "doubleslip" => "double-slip",
+        "flexgleis" => "flex",
+        "prellbock" | "buffer" => "buffer-stop",
+        "anschlussgleis" | "einspeisung" => "feeder",
+        "trenngleis" | "isoliergleis" => "isolating",
+        other => return other.to_string(),
+    }
+    .to_string()
+}
+
+fn normalize_entry_json(val: &mut serde_json::Value) {
+    let Some(obj) = val.as_object_mut() else {
+        return;
+    };
+    for (alias, canon) in [
+        ("nummer", "id"),
+        ("artikelnummer", "id"),
+        ("artikelNr", "id"),
+        ("artNr", "id"),
+        ("articleNumber", "id"),
+        ("trackId", "id"),
+        ("titel", "name"),
+        ("bezeichnung", "name"),
+        ("typ", "kind"),
+        ("type", "kind"),
+        ("kategorie", "category"),
+        ("beschreibung", "description"),
+        ("laenge", "length"),
+        ("winkel", "angle"),
+        ("abzweigRadius", "branchRadius"),
+        ("abzweigWinkel", "branchAngle"),
+        ("abzweigLaenge", "branchLength"),
+        ("spurweite", "gauge"),
+        ("bettung", "hasRoadbed"),
+        ("strasse", "isRoad"),
+    ] {
+        if !obj.contains_key(canon) {
+            if let Some(v) = obj.remove(alias) {
+                obj.insert(canon.to_string(), v);
+            }
+        }
+    }
+    if let Some(k) = obj.get("kind").and_then(|v| v.as_str()).map(normalize_kind_alias) {
+        obj.insert("kind".into(), serde_json::Value::String(k));
+    }
+    if !obj.contains_key("name") {
+        if let Some(id_s) = obj.get("id").and_then(|v| v.as_str()) {
+            obj.insert("name".into(), serde_json::Value::String(id_s.to_string()));
+        }
+    }
+}
+
+/// Parses and validates a track/road catalog JSON string (stripping UTF-8 BOM, detecting layout
+/// files, accepting top-level entry arrays, and mapping German/alias keys & track kinds).
 pub fn parse_catalog_json(raw: &str) -> Result<Catalog, String> {
     let clean = raw.trim().trim_start_matches('\u{feff}');
-    let mut cat: Catalog = serde_json::from_str(clean).map_err(|e| e.to_string())?;
+    let mut val: serde_json::Value = serde_json::from_str(clean).map_err(|e| e.to_string())?;
+
+    if let Some(arr) = val.as_array_mut() {
+        for item in arr.iter_mut() {
+            normalize_entry_json(item);
+        }
+        val = serde_json::json!({
+            "id": "custom-imported",
+            "name": "Custom Catalog",
+            "scale": "H0",
+            "entries": val,
+        });
+    } else if let Some(obj) = val.as_object_mut() {
+        if obj.contains_key("pieces") && !obj.contains_key("entries") && !obj.contains_key("gleise") {
+            return Err("This file appears to be a track layout (.railbench), not a track catalog.".into());
+        }
+        for (alias, canon) in [
+            ("gleise", "entries"),
+            ("tracks", "entries"),
+            ("hersteller", "manufacturer"),
+            ("massstab", "scale"),
+            ("spur", "scale"),
+            ("spurweite", "gauge"),
+            ("bettung", "hasRoadbed"),
+            ("titel", "name"),
+        ] {
+            if !obj.contains_key(canon) {
+                if let Some(v) = obj.remove(alias) {
+                    obj.insert(canon.to_string(), v);
+                }
+            }
+        }
+        if !obj.contains_key("id") {
+            obj.insert("id".into(), serde_json::Value::String(String::new()));
+        }
+        if !obj.contains_key("name") {
+            obj.insert("name".into(), serde_json::Value::String("Custom Catalog".into()));
+        }
+        if let Some(entries) = obj.get_mut("entries").and_then(|v| v.as_array_mut()) {
+            for item in entries.iter_mut() {
+                normalize_entry_json(item);
+            }
+        }
+    }
+
+    let mut cat: Catalog = serde_json::from_value(val).map_err(|e| e.to_string())?;
     if cat.entries.is_empty() {
         return Err("Catalog contains no track entries".into());
     }
     normalize_catalog(&mut cat);
     Ok(cat)
+}
+
+pub fn export_catalog_json(cat: &Catalog) -> String {
+    serde_json::to_string_pretty(cat).unwrap_or_else(|_| "{}".into())
 }
 
 /// Replaces an existing catalog matching by `id` (primary) or `name` + `scale` (fallback),
@@ -372,5 +488,34 @@ mod tests {
         assert_eq!(find_entry(&reloaded, "MC-100").unwrap().length, Some(100.0));
 
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn parse_german_aliases_array_export_and_reject_layout() {
+        let de_json = r#"{
+            "name": "Eigenbau H0",
+            "spur": "H0",
+            "spurweite": 16.5,
+            "gleise": [
+                { "artikelnummer": "E-200", "bezeichnung": "Gerade 200", "typ": "straight", "laenge": 200 },
+                { "id": "E-R2", "name": "Bogen", "type": "curve", "radius": 420, "winkel": 30 }
+            ]
+        }"#;
+        let parsed = parse_catalog_json(de_json).expect("german alias catalog parses");
+        assert_eq!(parsed.scale, "H0");
+        assert_eq!(parsed.entries.len(), 2);
+        assert_eq!(parsed.entries[0].id, "E-200");
+        assert_eq!(parsed.entries[0].length, Some(200.0));
+
+        let arr_json = r#"[{ "id": "ARR-1", "name": "Straight", "type": "straight", "length": 150 }]"#;
+        let parsed_arr = parse_catalog_json(arr_json).expect("array catalog parses");
+        assert_eq!(parsed_arr.entries.len(), 1);
+
+        let exported = export_catalog_json(&parsed);
+        let reparsed = parse_catalog_json(&exported).expect("exported catalog round-trips");
+        assert_eq!(reparsed.entries.len(), 2);
+
+        let layout_like = r#"{ "name": "My Plan", "pieces": [{ "id": "p1" }] }"#;
+        assert!(parse_catalog_json(layout_like).is_err());
     }
 }

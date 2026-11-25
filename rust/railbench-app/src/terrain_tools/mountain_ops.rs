@@ -181,8 +181,14 @@ pub(super) fn is_point_inside_terrain_model(wp: Vec2, m: &Model3D) -> bool {
     lx.abs() <= hw && lz.abs() <= hd
 }
 
-/// Node-accurate & whole-model eraser for `mountain` and `ground-terrain` models.
-pub fn erase_terrain_at(wpos: Vec2, brush_radius: f64, layout: &mut Layout) -> bool {
+/// Node-accurate & whole-model eraser for `mountain` and `ground-terrain` models,
+/// optionally scoped to `target_layer_id`.
+pub fn erase_terrain_at_on_layer(
+    wpos: Vec2,
+    brush_radius: f64,
+    layout: &mut Layout,
+    target_layer_id: Option<&str>,
+) -> bool {
     let Some(models) = layout.models.take() else {
         return false;
     };
@@ -194,6 +200,12 @@ pub fn erase_terrain_at(wpos: Vec2, brush_radius: f64, layout: &mut Layout) -> b
         if !matches!(m.builtin_id.as_deref(), Some("mountain") | Some("ground-terrain")) {
             remaining.push(m);
             continue;
+        }
+        if let Some(target_lid) = target_layer_id {
+            if m.layer_id.as_deref().unwrap_or("layer-1") != target_lid {
+                remaining.push(m);
+                continue;
+            }
         }
 
         if let Some(ref path) = m.mountain_path {
@@ -240,6 +252,12 @@ pub fn erase_terrain_at(wpos: Vec2, brush_radius: f64, layout: &mut Layout) -> b
 
     layout.models = Some(remaining);
     changed
+}
+
+/// Node-accurate & whole-model eraser scoped to `layout.active_layer_id` when set.
+pub fn erase_terrain_at(wpos: Vec2, brush_radius: f64, layout: &mut Layout) -> bool {
+    let active_lid = layout.active_layer_id.clone();
+    erase_terrain_at_on_layer(wpos, brush_radius, layout, active_lid.as_deref())
 }
 
 pub(super) fn layer_height_visible_map(layout: &Layout) -> HashMap<&str, (f64, bool)> {

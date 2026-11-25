@@ -14,6 +14,8 @@ pub(super) fn draw_overlays_and_context_menu(
     selected: &HashSet<String>,
     measure_points: &Option<(Vec2, Vec2)>,
     dragging_catalog: Option<&CatalogEntry>,
+    dragging_model_template: Option<&Model3D>,
+    collab_users: &[crate::collab::CollabUser],
     dark_mode: bool,
     show_rulers: bool,
     snapping_enabled: bool,
@@ -26,17 +28,143 @@ pub(super) fn draw_overlays_and_context_menu(
         if let Some((a, b)) = *measure_points {
             let sa = camera.world_to_screen(rect, a.x, a.y);
             let sb = camera.world_to_screen(rect, b.x, b.y);
-            let dist_mm = (b.x - a.x).hypot(b.y - a.y);
+            let dx = b.x - a.x;
+            let dy = b.y - a.y;
+            let dist_mm = dx.hypot(dy);
+            let angle_deg = dy.atan2(dx).to_degrees();
             let col = Color32::from_rgb(245, 158, 11);
-            painter.line_segment([sa, sb], Stroke::new(2.0_f32, col));
-            painter.circle_filled(sa, 4.0, col);
-            painter.circle_filled(sb, 4.0, col);
-            let mid = Pos2::new((sa.x + sb.x) * 0.5, (sa.y + sb.y) * 0.5 - 14.0);
-            let lbl = format!("{dist_mm:.1} mm ({:.1} cm)", dist_mm / 10.0);
-            let bg_r = Rect::from_center_size(mid, EguiVec2::new(140.0, 22.0));
-            painter.rect_filled(bg_r, 6.0, Color32::from_rgba_unmultiplied(15, 23, 42, 230));
-            painter.rect_stroke(bg_r, 6.0, Stroke::new(1.0_f32, col), egui::StrokeKind::Inside);
+            // Dashed delta guides (right triangle legs)
+            if dx.abs() > 1.0 && dy.abs() > 1.0 {
+                let sc = camera.world_to_screen(rect, b.x, a.y);
+                let guide_col = Color32::from_rgba_unmultiplied(245, 158, 11, 110);
+                painter.add(egui::Shape::dashed_line(
+                    &[sa, sc],
+                    Stroke::new(1.1_f32, guide_col),
+                    5.0,
+                    4.0,
+                ));
+                painter.add(egui::Shape::dashed_line(
+                    &[sc, sb],
+                    Stroke::new(1.1_f32, guide_col),
+                    5.0,
+                    4.0,
+                ));
+            }
+            painter.line_segment([sa, sb], Stroke::new(2.2_f32, col));
+            painter.circle_filled(sa, 4.5, col);
+            painter.circle_stroke(sa, 7.0, Stroke::new(1.2_f32, Color32::WHITE));
+            painter.circle_filled(sb, 4.5, col);
+            painter.circle_stroke(sb, 7.0, Stroke::new(1.2_f32, Color32::WHITE));
+            let mid = Pos2::new((sa.x + sb.x) * 0.5, (sa.y + sb.y) * 0.5 - 16.0);
+            let lbl = format!("{dist_mm:.1} mm ({:.1} cm) · {angle_deg:.1}°", dist_mm / 10.0);
+            let bg_w = (lbl.len() as f32 * 6.5 + 18.0).max(165.0);
+            let bg_r = Rect::from_center_size(mid, EguiVec2::new(bg_w, 22.0));
+            painter.rect_filled(bg_r, 6.0, Color32::from_rgba_unmultiplied(15, 23, 42, 235));
+            painter.rect_stroke(bg_r, 6.0, Stroke::new(1.1_f32, col), egui::StrokeKind::Inside);
             painter.text(mid, egui::Align2::CENTER_CENTER, lbl, FontId::proportional(11.5), Color32::WHITE);
+        }
+    }
+
+    // 7b. Remote Collaborator Selection Highlights & Cursors
+    for user in collab_users {
+        let ucol = parse_hex_color(Some(&user.color)).unwrap_or(Color32::from_rgb(59, 130, 246));
+        for sel_id in &user.selected_ids {
+            if let Some(&idx) = cache.piece_id_to_idx.get(sel_id.as_str()) {
+                if let Some(geom) = cache.pieces.get(idx) {
+                    let smin = camera.world_to_screen(rect, geom.min_x - 8.0, geom.min_y - 8.0);
+                    let smax = camera.world_to_screen(rect, geom.max_x + 8.0, geom.max_y + 8.0);
+                    let r = Rect::from_two_pos(smin, smax);
+                    if r.intersects(rect) {
+                        painter.rect_stroke(r, 5.0, Stroke::new(2.0_f32, ucol), egui::StrokeKind::Outside);
+                        let badge_pos = Pos2::new(r.max.x, r.min.y - 8.0);
+                        let bw = (user.name.len() as f32 * 6.0 + 10.0).max(38.0);
+                        let br = Rect::from_center_size(badge_pos, EguiVec2::new(bw, 15.0));
+                        painter.rect_filled(br, 4.0, ucol);
+                        painter.text(
+                            br.center(),
+                            egui::Align2::CENTER_CENTER,
+                            &user.name,
+                            FontId::proportional(9.5),
+                            Color32::WHITE,
+                        );
+                    }
+                }
+            } else if let Some(m) = layout.models.as_ref().and_then(|ms| ms.iter().find(|m| m.id == *sel_id)) {
+                let sc = m.scale.unwrap_or(1.0);
+                let hw = m.width * sc * 0.5 + 8.0;
+                let hd = m.depth * sc * 0.5 + 8.0;
+                let smin = camera.world_to_screen(rect, m.transform.x - hw, m.transform.y - hd);
+                let smax = camera.world_to_screen(rect, m.transform.x + hw, m.transform.y + hd);
+                let r = Rect::from_two_pos(smin, smax);
+                if r.intersects(rect) {
+                    painter.rect_stroke(r, 5.0, Stroke::new(2.0_f32, ucol), egui::StrokeKind::Outside);
+                }
+            }
+        }
+        if let Some([wx, wy]) = user.cursor {
+            let sp = camera.world_to_screen(rect, wx, wy);
+            if rect.expand(36.0).contains(sp) {
+                let tip = sp;
+                let pts = vec![
+                    tip,
+                    tip + EguiVec2::new(0.0, 14.0),
+                    tip + EguiVec2::new(4.5, 10.5),
+                    tip + EguiVec2::new(11.0, 10.5),
+                ];
+                painter.add(egui::Shape::convex_polygon(
+                    pts,
+                    ucol,
+                    Stroke::new(1.3_f32, Color32::from_rgb(15, 23, 42)),
+                ));
+                let tag_pos = tip + EguiVec2::new(14.0, 15.0);
+                let tw = (user.name.len() as f32 * 6.2 + 12.0).max(44.0);
+                let tr = Rect::from_min_size(tag_pos, EguiVec2::new(tw, 16.0));
+                painter.rect_filled(tr, 4.0, ucol);
+                painter.text(
+                    tr.center(),
+                    egui::Align2::CENTER_CENTER,
+                    &user.name,
+                    FontId::proportional(10.0),
+                    Color32::WHITE,
+                );
+            }
+        }
+    }
+
+    // 7.4. Model Drag-and-Drop live footprint ghost preview + drop handling
+    if let Some(m) = dragging_model_template {
+        if let Some(pointer) = ui.input(|i| i.pointer.latest_pos()) {
+            if rect.contains(pointer) {
+                let wp = camera.screen_to_world(rect, pointer);
+                let sc = m.scale.unwrap_or(1.0);
+                let hw = (m.width * sc * 0.5).max(12.0);
+                let hd = (m.depth * sc * 0.5).max(12.0);
+                let rot_r = m.transform.rotation.to_radians();
+                let (cr, sr) = (rot_r.cos(), rot_r.sin());
+                let corners = [(-hw, -hd), (hw, -hd), (hw, hd), (-hw, hd)];
+                let pts: Vec<Pos2> = corners
+                    .iter()
+                    .map(|&(lx, ly)| {
+                        camera.world_to_screen(rect, wp.x + lx * cr - ly * sr, wp.y + lx * sr + ly * cr)
+                    })
+                    .collect();
+                painter.add(egui::Shape::convex_polygon(
+                    pts,
+                    Color32::from_rgba_unmultiplied(16, 185, 129, 48),
+                    Stroke::new(1.8_f32, Color32::from_rgb(16, 185, 129)),
+                ));
+                let center_s = camera.world_to_screen(rect, wp.x, wp.y);
+                painter.text(
+                    center_s,
+                    egui::Align2::CENTER_CENTER,
+                    &m.name,
+                    FontId::proportional(11.0),
+                    Color32::WHITE,
+                );
+                if ui.input(|i| i.pointer.primary_released()) {
+                    interaction.drop_model_at = Some(wp);
+                }
+            }
         }
     }
 
@@ -334,54 +462,124 @@ pub(super) fn draw_overlays_and_context_menu(
 
     // 9. Right-click context menu (matches src/ui/track-context-menu.ts)
     if !selected.is_empty() {
-        let any_track_sel = layout.pieces.iter().any(|p| selected.contains(&p.id));
-        let any_turnout_sel = layout.pieces.iter().any(|p| {
-            selected.contains(&p.id)
-                && find_entry(catalogs, &p.catalog_id).map_or(false, |e| crate::is_turnout_kind(&e.kind))
+        let sel_pieces: Vec<&TrackPiece> = layout
+            .pieces
+            .iter()
+            .filter(|p| selected.contains(&p.id))
+            .collect();
+        let any_track_sel = !sel_pieces.is_empty();
+        let first_piece = sel_pieces.first().copied();
+        let first_entry = first_piece.and_then(|p| find_entry(catalogs, &p.catalog_id));
+        let any_turnout_sel = sel_pieces.iter().any(|p| {
+            find_entry(catalogs, &p.catalog_id).map_or(false, |e| crate::is_turnout_kind(&e.kind))
         });
-        let any_signal_sel = layout
-            .pieces
+        let any_flex_sel = sel_pieces
             .iter()
-            .any(|p| selected.contains(&p.id) && p.has_signal == Some(true));
-        let ctx_sig_side = layout
-            .pieces
+            .any(|p| crate::catalog::is_flex_id(catalogs, &p.catalog_id));
+        let all_grouped = sel_pieces.len() >= 2
+            && first_piece.and_then(|p| p.group_id.as_ref()).is_some()
+            && sel_pieces.iter().all(|p| p.group_id == first_piece.and_then(|f| f.group_id.clone()));
+        let any_signal_sel = sel_pieces.iter().any(|p| p.has_signal == Some(true));
+        let ctx_sig_side = sel_pieces
             .iter()
-            .find(|p| selected.contains(&p.id) && p.has_signal == Some(true))
+            .find(|p| p.has_signal == Some(true))
             .and_then(|p| p.signal_side.as_deref())
             .unwrap_or("right")
             .to_string();
-        let ctx_sig_dir = layout
-            .pieces
+        let ctx_sig_dir = sel_pieces
             .iter()
-            .find(|p| selected.contains(&p.id) && p.has_signal == Some(true))
+            .find(|p| p.has_signal == Some(true))
             .and_then(|p| p.signal_direction.as_deref())
             .unwrap_or("forward")
             .to_string();
-        let ctx_layers: Vec<(String, String)> = layout
+        let ctx_layers: Vec<(String, String, f64)> = layout
             .layers
             .as_ref()
-            .map(|ls| ls.iter().map(|l| (l.id.clone(), l.name.clone())).collect())
-            .unwrap_or_else(|| vec![("layer-1".into(), "Ebene 0".into())]);
+            .map(|ls| {
+                ls.iter()
+                    .map(|l| (l.id.clone(), l.name.clone(), l.height_mm.unwrap_or(0.0)))
+                    .collect()
+            })
+            .unwrap_or_else(|| vec![("layer-1".into(), "Ebene 0".into(), 0.0)]);
+        let is_de = ui.ctx().data(|d| {
+            d.get_temp::<bool>(egui::Id::new("railbench_is_de"))
+                .unwrap_or(true)
+        });
 
         response.context_menu(|ui| {
-            if ui.button(format!("↺ Rotate -{rotation_step}°")).clicked() {
+            ui.set_min_width(220.0);
+            if let Some(fp) = first_piece {
+                let title = if sel_pieces.len() == 1 {
+                    let name = first_entry
+                        .map(|e| if !is_de { e.name_en.as_deref().unwrap_or(&e.name) } else { e.name.as_str() })
+                        .unwrap_or(&fp.catalog_id);
+                    format!("#{} · {}", fp.catalog_id, name)
+                } else if is_de {
+                    format!("{} Elemente ausgewaehlt", selected.len())
+                } else {
+                    format!("{} items selected", selected.len())
+                };
+                ui.label(egui::RichText::new(title).strong().size(12.0));
+                if sel_pieces.len() == 1 {
+                    let open_cnt = fp.connectors.iter().filter(|c| c.connected_to.is_none()).count();
+                    let lid = fp.layer_id.as_deref().unwrap_or("layer-1");
+                    let (lname, lh) = ctx_layers
+                        .iter()
+                        .find(|(id, _, _)| id == lid)
+                        .map(|(_, n, h)| (n.as_str(), *h))
+                        .unwrap_or(("Ebene 0", 0.0));
+                    let rel_z = fp.elevation.map_or(0.0, |e| e.start);
+                    let meta = if is_de {
+                        format!("{lname} ({:.0} mm) · {open_cnt}/{} offen", lh + rel_z, fp.connectors.len())
+                    } else {
+                        format!("{lname} ({:.0} mm) · {open_cnt}/{} open", lh + rel_z, fp.connectors.len())
+                    };
+                    ui.small(meta);
+                }
+                ui.separator();
+            }
+
+            if ui.button(if is_de { format!("↺ Drehen -{rotation_step}°") } else { format!("↺ Rotate -{rotation_step}°") }).clicked() {
                 interaction.rotate_delta = Some(-rotation_step);
                 ui.close_menu();
             }
-            if ui.button(format!("↻ Rotate +{rotation_step}°")).clicked() {
+            if ui.button(if is_de { format!("↻ Drehen +{rotation_step}°") } else { format!("↻ Rotate +{rotation_step}°") }).clicked() {
                 interaction.rotate_delta = Some(rotation_step);
                 ui.close_menu();
             }
-            if ui.button("Copy (Ctrl+C)").clicked() {
+            if any_track_sel
+                && ui.button(if is_de { "⇄ Spiegeln / Wenden (Alt+F)" } else { "⇄ Mirror / Flip (Alt+F)" }).clicked()
+            {
+                interaction.flip_selected = true;
+                ui.close_menu();
+            }
+            if ui.button(if is_de { "Kopieren (Strg+C)" } else { "Copy (Ctrl+C)" }).clicked() {
                 interaction.copy_selected = true;
                 ui.close_menu();
             }
-            if ui.button("Duplicate (Ctrl+D)").clicked() {
+            if ui.button(if is_de { "Einfuegen (Strg+V)" } else { "Paste (Ctrl+V)" }).clicked() {
+                interaction.paste_clipboard = true;
+                ui.close_menu();
+            }
+            if ui.button(if is_de { "Duplizieren (Strg+D)" } else { "Duplicate (Ctrl+D)" }).clicked() {
                 interaction.duplicate_selected = true;
                 ui.close_menu();
             }
-            ui.menu_button("Move to Layer", |ui| {
-                for (lid, lname) in &ctx_layers {
+            if sel_pieces.len() >= 2 {
+                let grp_lbl = if all_grouped {
+                    if is_de { "Gruppierung aufheben (G)" } else { "Ungroup Tracks (G)" }
+                } else if is_de {
+                    "Gleise gruppieren (G)"
+                } else {
+                    "Group Tracks (G)"
+                };
+                if ui.button(grp_lbl).clicked() {
+                    interaction.toggle_group = true;
+                    ui.close_menu();
+                }
+            }
+            ui.menu_button(if is_de { "Auf Ebene verschieben" } else { "Move to Layer" }, |ui| {
+                for (lid, lname, _) in &ctx_layers {
                     if ui.button(lname).clicked() {
                         interaction.move_to_layer = Some(lid.clone());
                         ui.close_menu();
@@ -390,70 +588,96 @@ pub(super) fn draw_overlays_and_context_menu(
             });
             if any_track_sel {
                 ui.separator();
-                if ui.button("Select Connected Tracks").clicked() {
+                if ui.button(if is_de { "📐 Hoehe & Steigung... (M)" } else { "📐 Height & Ramp... (M)" }).clicked() {
+                    interaction.open_height_dialog = true;
+                    ui.close_menu();
+                }
+                if ui.button(if is_de { "⚡ Auto-Rampe anwenden (Shift+M)" } else { "⚡ Apply Auto-Ramp (Shift+M)" }).clicked() {
+                    interaction.auto_ramp = true;
+                    ui.close_menu();
+                }
+                if ui.button(if is_de { "🔗 Verbundene Gleise auswaehlen" } else { "🔗 Select Connected Tracks" }).clicked() {
                     interaction.select_connected = true;
                     ui.close_menu();
                 }
-                if ui.button("Select Whole Layer").clicked() {
+                if ui.button(if is_de { "📑 Ganze Ebene auswaehlen" } else { "📑 Select Whole Layer" }).clicked() {
                     interaction.select_layer = true;
                     ui.close_menu();
                 }
+                if let Some(fp) = first_piece {
+                    if sel_pieces.len() == 1 {
+                        if ui.button(if is_de { "✂ Gleis teilen / ersetzen..." } else { "✂ Split / Replace Track..." }).clicked() {
+                            interaction.open_replace_split = Some(fp.id.clone());
+                            ui.close_menu();
+                        }
+                        if any_flex_sel
+                            && ui.button(if is_de { "↺ Flexgleis zuruecksetzen" } else { "↺ Reset Flextrack" }).clicked()
+                        {
+                            interaction.reset_flex = Some(fp.id.clone());
+                            ui.close_menu();
+                        }
+                        if ui.button(if is_de { "ℹ Eigenschaften / Info..." } else { "ℹ Properties / Info..." }).clicked() {
+                            interaction.open_track_props = Some(fp.id.clone());
+                            ui.close_menu();
+                        }
+                    }
+                }
                 ui.separator();
-                if ui.button("Toggle Power Feeder (F)").clicked() {
+                if ui.button(if is_de { "⚡ Stromeinspeisung (F)" } else { "⚡ Toggle Power Feeder (F)" }).clicked() {
                     interaction.toggle_feeder = true;
                     ui.close_menu();
                 }
-                if ui.button("Toggle Isolator (I)").clicked() {
+                if ui.button(if is_de { "⊘ Isolierverbinder (I)" } else { "⊘ Toggle Isolator (I)" }).clicked() {
                     interaction.toggle_isolator = true;
                     ui.close_menu();
                 }
-                if ui.button("Toggle Catenary (O)").clicked() {
+                if ui.button(if is_de { "⌁ Oberleitung (O)" } else { "⌁ Toggle Catenary (O)" }).clicked() {
                     interaction.toggle_catenary = true;
                     ui.close_menu();
                 }
-                if ui.button("Toggle Catenary Feeder (Shift+F)").clicked() {
+                if ui.button(if is_de { "⚡ Oberleitungs-Speisung (Shift+F)" } else { "⚡ Catenary Feeder (Shift+F)" }).clicked() {
                     interaction.toggle_catenary_feeder = true;
                     ui.close_menu();
                 }
-                if ui.button("Toggle Catenary Isolator (Shift+I)").clicked() {
+                if ui.button(if is_de { "⊘ Oberleitungs-Trenner (Shift+I)" } else { "⊘ Catenary Isolator (Shift+I)" }).clicked() {
                     interaction.toggle_catenary_isolator = true;
                     ui.close_menu();
                 }
-                if ui.button("Toggle Signal (Shift+S)").clicked() {
+                if ui.button(if is_de { "🚦 Signal (Shift+S)" } else { "🚦 Toggle Signal (Shift+S)" }).clicked() {
                     interaction.toggle_signal = true;
                     ui.close_menu();
                 }
                 if any_signal_sel {
-                    if ui.button(format!("Signal Side: {ctx_sig_side}")).clicked() {
+                    if ui.button(if is_de { format!("Signal-Seite: {ctx_sig_side}") } else { format!("Signal Side: {ctx_sig_side}") }).clicked() {
                         interaction.cycle_signal_side = true;
                         ui.close_menu();
                     }
-                    if ui.button(format!("Signal Direction: {ctx_sig_dir}")).clicked() {
+                    if ui.button(if is_de { format!("Signal-Richtung: {ctx_sig_dir}") } else { format!("Signal Direction: {ctx_sig_dir}") }).clicked() {
                         interaction.cycle_signal_direction = true;
                         ui.close_menu();
                     }
                 }
                 if any_turnout_sel {
-                    if ui.button("Toggle Turnout Lantern (W)").clicked() {
+                    if ui.button(if is_de { "Weichenlaterne (W)" } else { "Turnout Lantern (W)" }).clicked() {
                         interaction.toggle_lantern = true;
                         ui.close_menu();
                     }
-                    if ui.button("Toggle Turnout Decoder (Shift+W)").clicked() {
+                    if ui.button(if is_de { "Weichendecoder (Shift+W)" } else { "Turnout Decoder (Shift+W)" }).clicked() {
                         interaction.toggle_decoder = true;
                         ui.close_menu();
                     }
                 }
-                if ui.button("Toggle Bridge (B)").clicked() {
+                if ui.button(if is_de { "🌉 Bruecke (B)" } else { "🌉 Toggle Bridge (B)" }).clicked() {
                     interaction.toggle_bridge = true;
                     ui.close_menu();
                 }
-                if ui.button("Toggle Tunnel (T)").clicked() {
+                if ui.button(if is_de { "🚇 Tunnel (T)" } else { "🚇 Toggle Tunnel (T)" }).clicked() {
                     interaction.toggle_tunnel = true;
                     ui.close_menu();
                 }
             }
             ui.separator();
-            if ui.button("Delete Selected (Del)").clicked() {
+            if ui.button(if is_de { "Loeschen (Entf)" } else { "Delete Selected (Del)" }).clicked() {
                 interaction.delete_selected = true;
                 ui.close_menu();
             }

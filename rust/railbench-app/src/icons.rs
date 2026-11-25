@@ -33,19 +33,6 @@ pub enum Icon {
 }
 
 /// Renders a crisp monochrome vector icon button with tooltip (Lucide-style strokes).
-pub fn icon_button(
-    ui: &mut egui::Ui,
-    icon: Icon,
-    active: bool,
-    fill_normal: Color32,
-    fill_active: Color32,
-    stroke_col: Color32,
-    icon_col: Color32,
-    tooltip: &str,
-) -> Response {
-    icon_button_sized(ui, icon, Vec2::new(28.0, 24.0), active, fill_normal, fill_active, stroke_col, icon_col, tooltip)
-}
-
 #[allow(clippy::too_many_arguments)]
 pub fn icon_button_sized(
     ui: &mut egui::Ui,

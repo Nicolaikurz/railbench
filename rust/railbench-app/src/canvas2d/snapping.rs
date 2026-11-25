@@ -276,6 +276,25 @@ pub(super) fn find_best_flex_endpoint_snap(
     cursor_world: Vec2,
     max_dist: f64,
 ) -> Option<(Vec2, f64)> {
+    find_best_flex_endpoint_snap_with_height(
+        layout,
+        catalogs,
+        flex_id,
+        moving_conn_idx,
+        cursor_world,
+        max_dist,
+    )
+    .map(|(p, a, _)| (p, a))
+}
+
+pub(super) fn find_best_flex_endpoint_snap_with_height(
+    layout: &Layout,
+    catalogs: &[Catalog],
+    flex_id: &str,
+    moving_conn_idx: usize,
+    cursor_world: Vec2,
+    max_dist: f64,
+) -> Option<(Vec2, f64, f64)> {
     if max_dist <= 0.0 {
         return None;
     }
@@ -299,7 +318,8 @@ pub(super) fn find_best_flex_endpoint_snap(
     let flex_is_road = crate::catalog::is_road_id(catalogs, &flex_piece.catalog_id);
 
     let max_dist_sq = max_dist * max_dist;
-    let mut best: Option<(f64, Vec2, f64)> = None;
+    let mut best_same: Option<(f64, Vec2, f64, f64)> = None;
+    let mut best_ramp: Option<(f64, Vec2, f64, f64)> = None;
 
     for other in &layout.pieces {
         if other.id == flex_id {
@@ -322,19 +342,22 @@ pub(super) fn find_best_flex_endpoint_snap(
                 continue;
             }
             let h2 = railbench_core::snapping::piece_connector_height(other, c2_idx, other_lh);
-            if (flex_h - h2).abs() > 1.5 {
-                continue;
-            }
             let ddx = cursor_world.x - c2.x;
             let ddy = cursor_world.y - c2.y;
             let d2 = ddx * ddx + ddy * ddy;
-            if d2 <= max_dist_sq && best.map_or(true, |(bd2, _, _)| d2 < bd2) {
-                best = Some((d2, Vec2 { x: c2.x, y: c2.y }, c2.angle));
+            if d2 <= max_dist_sq {
+                if (flex_h - h2).abs() <= 1.5 {
+                    if best_same.map_or(true, |(bd2, _, _, _)| d2 < bd2) {
+                        best_same = Some((d2, Vec2 { x: c2.x, y: c2.y }, c2.angle, h2));
+                    }
+                } else if best_ramp.map_or(true, |(bd2, _, _, _)| d2 < bd2) {
+                    best_ramp = Some((d2, Vec2 { x: c2.x, y: c2.y }, c2.angle, h2));
+                }
             }
         }
     }
 
-    best.map(|(_, pos, ang)| (pos, ang))
+    best_same.or(best_ramp).map(|(_, pos, ang, h)| (pos, ang, h))
 }
 
 pub fn snap_selected_pieces(

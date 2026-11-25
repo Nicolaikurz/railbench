@@ -33,6 +33,10 @@ struct Uniforms {
     sun_color_int: vec4<f32>,
     hemi_sky_int: vec4<f32>,
     hemi_ground_pad: vec4<f32>,
+    cam_right: vec4<f32>,
+    cam_up: vec4<f32>,
+    cam_fwd: vec4<f32>,
+    sky_zenith: vec4<f32>,
 };
 
 @group(0) @binding(0)
@@ -161,9 +165,98 @@ fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
     let excess = max(lit - vec3<f32>(0.88), vec3<f32>(0.0));
     lit = min(lit, vec3<f32>(0.88)) + excess / (vec3<f32>(1.0) + excess * 1.6);
 
-    let fog_factor = clamp((dist - 5500.0) / 18000.0, 0.0, u.fog_color.w);
+    var fog_factor: f32;
+    if (u.cam_fwd.w < 0.5) {
+        let haze = smoothstep(25000.0, 160000.0, dist) * 0.34;
+        let horizon_blend = smoothstep(140000.0, 290000.0, dist);
+        fog_factor = clamp(max(haze, horizon_blend) * u.fog_color.w, 0.0, 1.0);
+    } else {
+        fog_factor = clamp((dist - 12000.0) / 45000.0, 0.0, u.fog_color.w);
+    }
     let final_col = mix(lit, u.fog_color.rgb, fog_factor);
     return vec4<f32>(final_col, 1.0);
+}
+"#;
+
+const SKY_SHADER_WGSL: &str = r#"
+struct Uniforms {
+    view_proj: mat4x4<f32>,
+    sun_dir: vec4<f32>,
+    cam_pos: vec4<f32>,
+    fog_color: vec4<f32>,
+    sun_color_int: vec4<f32>,
+    hemi_sky_int: vec4<f32>,
+    hemi_ground_pad: vec4<f32>,
+    cam_right: vec4<f32>,
+    cam_up: vec4<f32>,
+    cam_fwd: vec4<f32>,
+    sky_zenith: vec4<f32>,
+};
+
+@group(0) @binding(0)
+var<uniform> u: Uniforms;
+
+struct SkyOut {
+    @builtin(position) pos: vec4<f32>,
+    @location(0) ndc: vec2<f32>,
+};
+
+@vertex
+fn vs_sky(@builtin(vertex_index) idx: u32) -> SkyOut {
+    var positions = array<vec2<f32>, 3>(
+        vec2<f32>(-1.0, -3.0),
+        vec2<f32>(-1.0,  1.0),
+        vec2<f32>( 3.0,  1.0),
+    );
+    let p = positions[idx];
+    var out: SkyOut;
+    out.pos = vec4<f32>(p, 0.9999, 1.0);
+    out.ndc = p;
+    return out;
+}
+
+@fragment
+fn fs_sky(in: SkyOut) -> @location(0) vec4<f32> {
+    let aspect = u.cam_right.w;
+    let tan_half_y = u.cam_up.w;
+    let dir = normalize(
+        u.cam_fwd.xyz
+        + u.cam_right.xyz * (in.ndc.x * aspect * tan_half_y)
+        + u.cam_up.xyz * (in.ndc.y * tan_half_y)
+    );
+
+    if (u.cam_fwd.w >= 0.5) {
+        let up_t = clamp(dir.y * 0.5 + 0.5, 0.0, 1.0);
+        let grad = mix(u.fog_color.rgb * 0.92, u.sky_zenith.rgb, smoothstep(0.15, 0.95, up_t));
+        return vec4<f32>(grad, 1.0);
+    }
+
+    let elev = clamp(dir.y, 0.0, 1.0);
+    let horizon_mix = pow(1.0 - elev, 3.2);
+    let zenith_mix = smoothstep(0.06, 0.72, elev);
+    let mid_sky = mix(u.fog_color.rgb, u.sky_zenith.rgb * 1.25, 0.52);
+    var col = mix(mid_sky, u.sky_zenith.rgb, zenith_mix);
+    col = mix(col, u.fog_color.rgb, horizon_mix);
+
+    let night = clamp(u.sky_zenith.w, 0.0, 1.0);
+    let l_dir = normalize(u.sun_dir.xyz);
+    let sun_dot = max(dot(dir, l_dir), 0.0);
+
+    if (dir.y > -0.05) {
+        let glow_col = mix(u.sun_color_int.rgb, vec3<f32>(0.75, 0.86, 1.0), night);
+        let wide_halo = pow(sun_dot, 8.0) * mix(0.28, 0.08, night) * smoothstep(-0.04, 0.25, dir.y);
+        let disc = smoothstep(0.99935, 0.99985, sun_dot) * mix(1.4, 0.65, night);
+        col = col + glow_col * (wide_halo + disc);
+    }
+
+    if (night > 0.15 && dir.y > 0.02) {
+        let star_cell = floor(dir * 260.0);
+        let h = fract(sin(dot(star_cell, vec3<f32>(12.9898, 78.233, 37.719))) * 43758.5453);
+        let star = step(0.9965, h) * smoothstep(0.02, 0.28, dir.y) * smoothstep(0.15, 0.75, night);
+        col = col + vec3<f32>(0.85, 0.90, 1.0) * star * 0.75;
+    }
+
+    return vec4<f32>(col, 1.0);
 }
 "#;
 
@@ -313,7 +406,7 @@ pub struct Scene3DOptions {
     pub dark_mode: bool,
     pub color_mode: ColorMode,
     pub time_of_day: f32,
-    pub short_circuit_points: Vec<Vec2>,
+    pub short_circuit_points: Vec<[f64; 3]>,
     pub turnout_states: std::collections::HashMap<String, usize>,
     pub turntable_angles_deg: std::collections::HashMap<String, f64>,
     pub transfer_offsets_mm: std::collections::HashMap<String, f64>,
@@ -360,6 +453,10 @@ struct Uniforms3D {
     sun_color_int: [f32; 4],
     hemi_sky_int: [f32; 4],
     hemi_ground_pad: [f32; 4],
+    cam_right: [f32; 4],
+    cam_up: [f32; 4],
+    cam_fwd: [f32; 4],
+    sky_zenith: [f32; 4],
 }
 
 #[derive(Clone, Copy)]
@@ -375,15 +472,15 @@ struct SkyKeyframe {
 }
 
 const SKY_KEYFRAMES: &[SkyKeyframe] = &[
-    SkyKeyframe { hour: 0.0,  sky: 0x030712, fog: 0x081120, sun: 0x60a5fa, sun_int: 0.35, hemi_sky: 0x0c192c, hemi_ground: 0x040812, hemi_int: 0.35 },
-    SkyKeyframe { hour: 4.8,  sky: 0x0c1b33, fog: 0x14203d, sun: 0x818cf8, sun_int: 0.42, hemi_sky: 0x1e293b, hemi_ground: 0x0f172a, hemi_int: 0.42 },
-    SkyKeyframe { hour: 6.0,  sky: 0xf97316, fog: 0xfdba74, sun: 0xfb923c, sun_int: 0.90, hemi_sky: 0xfdba74, hemi_ground: 0x78350f, hemi_int: 0.65 },
-    SkyKeyframe { hour: 8.0,  sky: 0x60a5fa, fog: 0xbae6fd, sun: 0xfef08a, sun_int: 1.15, hemi_sky: 0xbde0fe, hemi_ground: 0x334155, hemi_int: 0.80 },
-    SkyKeyframe { hour: 12.0, sky: 0x38bdf8, fog: 0xb5daf0, sun: 0xfffaed, sun_int: 1.35, hemi_sky: 0xe0f2fe, hemi_ground: 0x3b495c, hemi_int: 0.92 },
-    SkyKeyframe { hour: 17.5, sky: 0xf59e0b, fog: 0xfde047, sun: 0xfb923c, sun_int: 1.25, hemi_sky: 0xfef08a, hemi_ground: 0x451a03, hemi_int: 0.82 },
-    SkyKeyframe { hour: 19.2, sky: 0xd946ef, fog: 0xf472b6, sun: 0xf43f5e, sun_int: 0.78, hemi_sky: 0xa855f7, hemi_ground: 0x3b0764, hemi_int: 0.58 },
-    SkyKeyframe { hour: 21.0, sky: 0x0f172a, fog: 0x1e1b4b, sun: 0x93c5fd, sun_int: 0.42, hemi_sky: 0x1e293b, hemi_ground: 0x050d1a, hemi_int: 0.40 },
-    SkyKeyframe { hour: 24.0, sky: 0x030712, fog: 0x081120, sun: 0x60a5fa, sun_int: 0.35, hemi_sky: 0x0c192c, hemi_ground: 0x040812, hemi_int: 0.35 },
+    SkyKeyframe { hour: 0.0,  sky: 0x030712, fog: 0x0b1528, sun: 0x60a5fa, sun_int: 0.35, hemi_sky: 0x0c192c, hemi_ground: 0x040812, hemi_int: 0.35 },
+    SkyKeyframe { hour: 4.8,  sky: 0x0c1b33, fog: 0x1a2848, sun: 0x818cf8, sun_int: 0.42, hemi_sky: 0x1e293b, hemi_ground: 0x0f172a, hemi_int: 0.42 },
+    SkyKeyframe { hour: 6.0,  sky: 0xea580c, fog: 0xfdba74, sun: 0xfb923c, sun_int: 0.90, hemi_sky: 0xfdba74, hemi_ground: 0x78350f, hemi_int: 0.65 },
+    SkyKeyframe { hour: 8.0,  sky: 0x3b82f6, fog: 0xc2e6fc, sun: 0xfef08a, sun_int: 1.15, hemi_sky: 0xbde0fe, hemi_ground: 0x334155, hemi_int: 0.80 },
+    SkyKeyframe { hour: 12.0, sky: 0x0284c7, fog: 0xc8e7f8, sun: 0xfffaed, sun_int: 1.35, hemi_sky: 0xe0f2fe, hemi_ground: 0x3b495c, hemi_int: 0.92 },
+    SkyKeyframe { hour: 17.5, sky: 0xd97706, fog: 0xfde047, sun: 0xfb923c, sun_int: 1.25, hemi_sky: 0xfef08a, hemi_ground: 0x451a03, hemi_int: 0.82 },
+    SkyKeyframe { hour: 19.2, sky: 0x9333ea, fog: 0xf472b6, sun: 0xf43f5e, sun_int: 0.78, hemi_sky: 0xa855f7, hemi_ground: 0x3b0764, hemi_int: 0.58 },
+    SkyKeyframe { hour: 21.0, sky: 0x0a1122, fog: 0x151e38, sun: 0x93c5fd, sun_int: 0.42, hemi_sky: 0x1e293b, hemi_ground: 0x050d1a, hemi_int: 0.40 },
+    SkyKeyframe { hour: 24.0, sky: 0x030712, fog: 0x0b1528, sun: 0x60a5fa, sun_int: 0.35, hemi_sky: 0x0c192c, hemi_ground: 0x040812, hemi_int: 0.35 },
 ];
 
 fn hex_to_linear_rgb(hex: u32) -> [f32; 3] {
@@ -409,8 +506,25 @@ fn lerp3(a: [f32; 3], b: [f32; 3], t: f32) -> [f32; 3] {
     ]
 }
 
+pub(super) fn camera_basis(eye: [f32; 3], target: [f32; 3]) -> ([f32; 3], [f32; 3], [f32; 3]) {
+    let fwd = normalize3([
+        target[0] - eye[0],
+        target[1] - eye[1],
+        target[2] - eye[2],
+    ]);
+    let right_raw = cross3(fwd, [0.0, 1.0, 0.0]);
+    let right = if dot3(right_raw, right_raw) < 1e-6 {
+        [1.0, 0.0, 0.0]
+    } else {
+        normalize3(right_raw)
+    };
+    let up = normalize3(cross3(right, fwd));
+    (right, up, fwd)
+}
+
 struct SkyUniformState {
     clear_color: [f64; 3],
+    sky_zenith: [f32; 4],
     fog_color: [f32; 4],
     sun_dir: [f32; 4],
     sun_color_int: [f32; 4],
@@ -433,7 +547,7 @@ fn eval_sky_state(time_of_day: f32, env: Viewer3DEnv, dark_mode: bool) -> SkyUni
     let t = ((h - k0.hour) / span).clamp(0.0, 1.0);
 
     let sky_lin = lerp3(hex_to_linear_rgb(k0.sky), hex_to_linear_rgb(k1.sky), t);
-    let fog_srgb = lerp3(hex_to_srgb_norm(k0.fog), hex_to_srgb_norm(k1.fog), t);
+    let fog_lin = lerp3(hex_to_linear_rgb(k0.fog), hex_to_linear_rgb(k1.fog), t);
     let sun_c = lerp3(hex_to_srgb_norm(k0.sun), hex_to_srgb_norm(k1.sun), t);
     let sun_int = k0.sun_int + (k1.sun_int - k0.sun_int) * t;
     let hemi_sky = lerp3(hex_to_srgb_norm(k0.hemi_sky), hex_to_srgb_norm(k1.hemi_sky), t);
@@ -467,31 +581,33 @@ fn eval_sky_state(time_of_day: f32, env: Viewer3DEnv, dark_mode: bool) -> SkyUni
         let day_clear = if dark_mode {
             [0.014_f32, 0.022, 0.052]
         } else {
-            [0.76_f32, 0.73, 0.67]
+            [0.72_f32, 0.76, 0.80]
         };
-        let night_clear = [0.005_f32, 0.009, 0.022];
+        let night_clear = [0.008_f32, 0.013, 0.030];
         let clear_lin = lerp3(lerp3(day_clear, night_clear, night_factor), sky_lin, dusk_warmth);
         let fog_day = if dark_mode {
-            [0.06_f32, 0.09, 0.16]
+            [0.024_f32, 0.038, 0.085]
         } else {
-            [0.85_f32, 0.83, 0.79]
+            [0.78_f32, 0.82, 0.86]
         };
-        let fog_night = [0.03_f32, 0.05, 0.10];
-        let fog_rgb = lerp3(lerp3(fog_day, fog_night, night_factor), fog_srgb, dusk_warmth);
-        let fog_a = if dark_mode { 0.22 } else { 0.16 + 0.08 * night_factor };
+        let fog_night = [0.014_f32, 0.024, 0.052];
+        let fog_rgb = lerp3(lerp3(fog_day, fog_night, night_factor), fog_lin, dusk_warmth);
+        let fog_a = if dark_mode { 0.25 } else { 0.20 + 0.06 * night_factor };
         return SkyUniformState {
             clear_color: [clear_lin[0] as f64, clear_lin[1] as f64, clear_lin[2] as f64],
+            sky_zenith: [clear_lin[0], clear_lin[1], clear_lin[2], night_factor],
             fog_color: [fog_rgb[0], fog_rgb[1], fog_rgb[2], fog_a],
             sun_dir,
-            sun_color_int: [sun_c[0], sun_c[1], sun_c[2], sun_int.max(0.40)],
-            hemi_sky_int: [hemi_sky[0], hemi_sky[1], hemi_sky[2], hemi_int.max(0.38)],
+            sun_color_int: [sun_c[0], sun_c[1], sun_c[2], sun_int.max(0.45)],
+            hemi_sky_int: [hemi_sky[0], hemi_sky[1], hemi_sky[2], hemi_int.max(0.44)],
             hemi_ground_pad: [hemi_gnd[0], hemi_gnd[1], hemi_gnd[2], night_factor],
         };
     }
 
     SkyUniformState {
-        clear_color: [sky_lin[0] as f64, sky_lin[1] as f64, sky_lin[2] as f64],
-        fog_color: [fog_srgb[0], fog_srgb[1], fog_srgb[2], 0.55],
+        clear_color: [fog_lin[0] as f64, fog_lin[1] as f64, fog_lin[2] as f64],
+        sky_zenith: [sky_lin[0], sky_lin[1], sky_lin[2], night_factor],
+        fog_color: [fog_lin[0], fog_lin[1], fog_lin[2], 1.0],
         sun_dir,
         sun_color_int: [sun_c[0], sun_c[1], sun_c[2], sun_int],
         hemi_sky_int: [hemi_sky[0], hemi_sky[1], hemi_sky[2], hemi_int],
@@ -614,7 +730,7 @@ impl Camera3D {
     pub(crate) fn view_proj(&self, aspect: f32) -> [[f32; 4]; 4] {
         let eye = self.eye();
         let view = mat4_look_at(eye, self.target, [0.0, 1.0, 0.0]);
-        let proj = mat4_perspective(45.0_f32.to_radians(), aspect.max(0.1), 8.0, 100000.0);
+        let proj = mat4_perspective(45.0_f32.to_radians(), aspect.max(0.1), 8.0, 400000.0);
         mat4_mul(proj, view)
     }
 
@@ -666,14 +782,6 @@ pub struct SceneMesh3D {
 
 impl SceneMesh3D {
     pub fn from_raw(vertices: Vec<Vertex3D>, indices: Vec<u32>) -> Self {
-        Self {
-            vertices,
-            indices,
-            instanced_tracks: Vec::new(),
-        }
-    }
-
-    pub(crate) fn from_parts(vertices: Vec<Vertex3D>, indices: Vec<u32>) -> Self {
         Self {
             vertices,
             indices,

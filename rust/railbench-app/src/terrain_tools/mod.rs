@@ -3,7 +3,9 @@ use std::collections::HashMap;
 use railbench_core::geometry::{
     deg2rad, rotate, sample_arc_between_connectors, sample_flex_spline_points,
 };
-use railbench_core::terrain::{mountain_noise, natural_mountain_height_at};
+use railbench_core::terrain::{
+    mountain_noise, natural_mountain_height_at, sample_heightfield_bilinear, BIOME_AUTO,
+};
 use railbench_core::types::{
     BaseboardConfig, Catalog, Layout, Model3D, MountainBrushNode, TrackPiece, Transform, Vec2,
 };
@@ -17,6 +19,13 @@ pub const APPROACH_SLOPE: f64 = 30.0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerrainBrushMode {
+    SculptRaise,
+    SculptLower,
+    SculptSmooth,
+    SculptFlatten,
+    SculptGrade,
+    SculptBiome,
+    SculptReset,
     Paint,
     Extend,
     Stamp,
@@ -37,6 +46,10 @@ pub struct TerrainBrushState {
     pub mode: TerrainBrushMode,
     pub radius: f64,
     pub height: f64,
+    pub strength: f32,
+    pub biome: u8,
+    pub flatten_target_mm: Option<f32>,
+    pub last_sculpt_world: Option<Vec2>,
     pub style: String,
     pub ground_type: String,
     pub ground_height: f64,
@@ -52,9 +65,13 @@ impl Default for TerrainBrushState {
     fn default() -> Self {
         Self {
             active: false,
-            mode: TerrainBrushMode::Paint,
-            radius: 220.0,
+            mode: TerrainBrushMode::SculptRaise,
+            radius: 160.0,
             height: 220.0,
+            strength: 0.55,
+            biome: BIOME_AUTO,
+            flatten_target_mm: None,
+            last_sculpt_world: None,
             style: "alpine".into(),
             ground_type: "hill".into(),
             ground_height: 26.0,
@@ -69,6 +86,19 @@ impl Default for TerrainBrushState {
 }
 
 impl TerrainBrushState {
+    pub fn is_heightfield_mode(&self) -> bool {
+        matches!(
+            self.mode,
+            TerrainBrushMode::SculptRaise
+                | TerrainBrushMode::SculptLower
+                | TerrainBrushMode::SculptSmooth
+                | TerrainBrushMode::SculptFlatten
+                | TerrainBrushMode::SculptGrade
+                | TerrainBrushMode::SculptBiome
+                | TerrainBrushMode::SculptReset
+        )
+    }
+
     pub fn set_active(
         &mut self,
         active: bool,
@@ -86,6 +116,8 @@ impl TerrainBrushState {
             self.is_drawing = false;
             self.stroke_points.clear();
             self.cursor_world = None;
+            self.flatten_target_mm = None;
+            self.last_sculpt_world = None;
         }
     }
 
@@ -98,7 +130,93 @@ impl TerrainBrushState {
     }
 
     pub fn adjust_radius(&mut self, delta: f64) {
-        self.radius = (self.radius + delta).round().clamp(60.0, 600.0);
+        self.radius = (self.radius + delta).round().clamp(40.0, 600.0);
+    }
+
+    pub fn adjust_strength(&mut self, delta: f32) {
+        self.strength = (self.strength + delta).clamp(0.10, 1.0);
+    }
+
+    pub fn active_sculpt_op(&self, shift_smooth: bool, alt_invert: bool) -> heightfield::SculptOp {
+        if shift_smooth {
+            return heightfield::SculptOp::Smooth;
+        }
+        match self.mode {
+            TerrainBrushMode::SculptRaise => {
+                if alt_invert {
+                    heightfield::SculptOp::Lower
+                } else {
+                    heightfield::SculptOp::Raise
+                }
+            }
+            TerrainBrushMode::SculptLower => {
+                if alt_invert {
+                    heightfield::SculptOp::Raise
+                } else {
+                    heightfield::SculptOp::Lower
+                }
+            }
+            TerrainBrushMode::SculptSmooth => heightfield::SculptOp::Smooth,
+            TerrainBrushMode::SculptFlatten => {
+                heightfield::SculptOp::Flatten(self.flatten_target_mm.unwrap_or(0.0))
+            }
+            TerrainBrushMode::SculptGrade => heightfield::SculptOp::GradeTrack,
+            TerrainBrushMode::SculptBiome => heightfield::SculptOp::PaintBiome(self.biome),
+            TerrainBrushMode::SculptReset => heightfield::SculptOp::Reset,
+            _ => heightfield::SculptOp::Raise,
+        }
+    }
+
+    /// Applies one or more interpolated brush dabs from `last_sculpt_world` to `wpos`
+    /// onto `layout.terrain_field`, returning `true` when any vertex changed.
+    pub fn apply_live_sculpt_step(
+        &mut self,
+        wpos: Vec2,
+        layout: &mut Layout,
+        shift_smooth: bool,
+        alt_invert: bool,
+    ) -> bool {
+        if self.mode == TerrainBrushMode::SculptFlatten && self.flatten_target_mm.is_none() {
+            let sampled = heightfield::active_layer_heightfield(layout)
+                .map(|hf| sample_heightfield_bilinear(hf, wpos.x, wpos.y))
+                .unwrap_or(0.0);
+            self.flatten_target_mm = Some(sampled);
+        }
+        let op = self.active_sculpt_op(shift_smooth, alt_invert);
+        let spacing = (self.radius * 0.22).max(16.0);
+        let prev = self.last_sculpt_world.unwrap_or(wpos);
+        let dx = wpos.x - prev.x;
+        let dy = wpos.y - prev.y;
+        let dist = dx.hypot(dy);
+        let steps = (dist / spacing).floor().clamp(0.0, 24.0) as usize;
+        let max_h = self.height as f32;
+        let mut changed = false;
+
+        for s in 1..=steps.max(1) {
+            let t = if steps == 0 {
+                1.0
+            } else {
+                s as f64 / steps as f64
+            };
+            let pt = Vec2 {
+                x: prev.x + dx * t,
+                y: prev.y + dy * t,
+            };
+            if heightfield::apply_heightfield_brush(
+                layout,
+                op,
+                pt,
+                self.radius,
+                self.strength,
+                max_h,
+                self.biome,
+            ) {
+                changed = true;
+            }
+        }
+        self.last_sculpt_world = Some(wpos);
+        self.cursor_world = Some(wpos);
+        changed
     }
 
     pub fn set_ground_type(&mut self, gtype: &str) {
@@ -145,9 +263,14 @@ impl TerrainBrushState {
 
     fn find_extend_target<'a>(&self, first_pt: Vec2, layout: &'a Layout) -> Option<&'a Model3D> {
         let models = layout.models.as_ref()?;
+        let active_lid = layout.active_layer_id.as_deref();
         let mountains: Vec<&Model3D> = models
             .iter()
-            .filter(|m| m.builtin_id.as_deref() == Some("mountain"))
+            .filter(|m| {
+                m.builtin_id.as_deref() == Some("mountain")
+                    && active_lid
+                        .map_or(true, |lid| m.layer_id.as_deref().unwrap_or("layer-1") == lid)
+            })
             .collect();
         if mountains.is_empty() {
             return None;
@@ -172,6 +295,12 @@ impl TerrainBrushState {
         }
         self.cursor_world = Some(wpos);
         self.is_drawing = true;
+        if self.is_heightfield_mode() {
+            self.stroke_points.clear();
+            self.flatten_target_mm = None;
+            self.last_sculpt_world = None;
+            return self.apply_live_sculpt_step(wpos, layout, false, false);
+        }
         if self.mode == TerrainBrushMode::Erase {
             self.stroke_points.clear();
             return erase_terrain_at(wpos, self.radius, layout);
@@ -185,6 +314,9 @@ impl TerrainBrushState {
         self.cursor_world = Some(wpos);
         if !self.active || !self.is_drawing {
             return false;
+        }
+        if self.is_heightfield_mode() {
+            return self.apply_live_sculpt_step(wpos, layout, false, false);
         }
         if self.mode == TerrainBrushMode::Erase {
             return erase_terrain_at(wpos, self.radius, layout);
@@ -216,6 +348,16 @@ impl TerrainBrushState {
             return None;
         }
         self.is_drawing = false;
+
+        if self.is_heightfield_mode() {
+            self.flatten_target_mm = None;
+            self.last_sculpt_world = None;
+            self.stroke_points.clear();
+            if self.auto_tunnel {
+                heightfield::apply_auto_tunnel_for_heightfield(layout);
+            }
+            return None;
+        }
 
         if self.mode == TerrainBrushMode::Erase || self.stroke_points.is_empty() {
             self.stroke_points.clear();
@@ -600,8 +742,8 @@ use mountain_ops::*;
 pub use mountain_ops::{
     apply_auto_tunnel_all_mountains, apply_auto_tunnel_for_mountain,
     clamp_point_to_support_polygons, clip_segment_to_support, collect_terrain_support_polygons,
-    erase_terrain_at, evaluate_mountain_local, is_point_inside_any_mountain,
-    is_point_inside_other_mountain, pack_support_polygons,
+    erase_terrain_at, erase_terrain_at_on_layer, evaluate_mountain_local,
+    is_point_inside_any_mountain, is_point_inside_other_mountain, pack_support_polygons,
     recompute_mountain_bounds_from_world_nodes, smooth_mountain_path, TunnelProfile,
 };
 mod corridors;
@@ -609,5 +751,7 @@ mod corridors;
 use corridors::*;
 #[allow(unused_imports)]
 pub use corridors::{create_tunnel_profile, tunnel_profile_points, CorridorChain, build_connected_corridor_chains, LocalTunnelPt, TunnelPortalInfo, TunnelRun, compute_tunnel_runs_for_mountain, count_mountain_tunnel_collisions};
+mod heightfield;
+pub use heightfield::*;
 #[cfg(test)]
 mod tests;

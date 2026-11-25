@@ -1,5 +1,9 @@
+use eframe::egui::Color32;
 use railbench_core::geometry::{is_point_in_any_polygon, rotate};
-use railbench_core::types::{Model3D, Vec2};
+use railbench_core::terrain::{
+    BIOME_DIRT, BIOME_FOREST, BIOME_GRASS, BIOME_ROCK, BIOME_SAND, BIOME_SNOW, BIOME_WATER,
+};
+use railbench_core::types::{Model3D, TerrainHeightfield, Vec2};
 
 use crate::terrain_tools::{
     clamp_point_to_support_polygons, clip_segment_to_support, evaluate_mountain_local,
@@ -463,3 +467,195 @@ pub(super) fn build_ground_map_2d(
         ripple_segs,
     }
 }
+
+pub(super) struct CachedHeightfieldMap2D {
+    pub(super) quads: Vec<([Vec2; 4], Color32)>,
+    pub(super) contour_segs: Vec<(Vec2, Vec2, bool)>,
+    pub(super) water_ripples: Vec<(Vec2, Vec2)>,
+}
+
+/// Builds cached 2D topographic biome wash quads, marching-squares contours (every 25 mm),
+/// and water ripples for the unified per-board continuous `TerrainHeightfield`.
+pub(super) fn build_heightfield_map_2d(
+    hf: &TerrainHeightfield,
+    support_polys: &[Vec<Vec2>],
+) -> CachedHeightfieldMap2D {
+    let cols = hf.cols;
+    let rows = hf.rows;
+    if cols < 2
+        || rows < 2
+        || hf.heights.len() != cols * rows
+        || hf.materials.len() != cols * rows
+    {
+        return CachedHeightfieldMap2D {
+            quads: Vec::new(),
+            contour_segs: Vec::new(),
+            water_ripples: Vec::new(),
+        };
+    }
+
+    let (offsets, coords) = pack_support_polygons(support_polys);
+    let clip = offsets.len() >= 2;
+    let span_x = (hf.max_x - hf.min_x).max(1.0);
+    let span_z = (hf.max_z - hf.min_z).max(1.0);
+    let dx = span_x / (cols - 1) as f64;
+    let dz = span_z / (rows - 1) as f64;
+
+    let mut inside = vec![true; cols * rows];
+    let mut min_h = f64::INFINITY;
+    let mut max_h = f64::NEG_INFINITY;
+    for iz in 0..rows {
+        let wz = hf.min_z + iz as f64 * dz;
+        for ix in 0..cols {
+            let wx = hf.min_x + ix as f64 * dx;
+            let idx = iz * cols + ix;
+            if clip && !is_point_in_any_polygon(wx, wz, &offsets, &coords) {
+                inside[idx] = false;
+            } else {
+                let h = hf.heights[idx] as f64;
+                min_h = min_h.min(h);
+                max_h = max_h.max(h);
+            }
+        }
+    }
+
+    let mut quads = Vec::new();
+    let mut water_ripples = Vec::new();
+    for iz in 0..(rows - 1) {
+        let wz0 = hf.min_z + iz as f64 * dz;
+        let wz1 = wz0 + dz;
+        for ix in 0..(cols - 1) {
+            let i00 = iz * cols + ix;
+            let i10 = i00 + 1;
+            let i01 = (iz + 1) * cols + ix;
+            let i11 = i01 + 1;
+            if !inside[i00] && !inside[i10] && !inside[i01] && !inside[i11] {
+                continue;
+            }
+            let avg_h = (hf.heights[i00] + hf.heights[i10] + hf.heights[i01] + hf.heights[i11]) * 0.25;
+            let m_dom = [hf.materials[i00], hf.materials[i10], hf.materials[i01], hf.materials[i11]]
+                .into_iter()
+                .find(|&m| m != 0)
+                .unwrap_or(0);
+            if avg_h.abs() <= 0.45 && m_dom == 0 {
+                continue;
+            }
+            let wx0 = hf.min_x + ix as f64 * dx;
+            let wx1 = wx0 + dx;
+            let raw = [
+                Vec2 { x: wx0, y: wz0 },
+                Vec2 { x: wx1, y: wz0 },
+                Vec2 { x: wx1, y: wz1 },
+                Vec2 { x: wx0, y: wz1 },
+            ];
+            let Some(q) = clip_quad_to_support(raw, support_polys, &offsets, &coords) else {
+                continue;
+            };
+            let col = match m_dom {
+                BIOME_GRASS => Color32::from_rgba_unmultiplied(77, 154, 34, 72),
+                BIOME_FOREST => Color32::from_rgba_unmultiplied(34, 118, 56, 82),
+                BIOME_ROCK => Color32::from_rgba_unmultiplied(128, 122, 114, 78),
+                BIOME_SNOW => Color32::from_rgba_unmultiplied(235, 244, 255, 92),
+                BIOME_SAND => Color32::from_rgba_unmultiplied(214, 185, 124, 88),
+                BIOME_DIRT => Color32::from_rgba_unmultiplied(133, 96, 62, 86),
+                BIOME_WATER => Color32::from_rgba_unmultiplied(14, 165, 233, 108),
+                _ => {
+                    if avg_h < -1.5 {
+                        Color32::from_rgba_unmultiplied(14, 165, 233, 105)
+                    } else if avg_h >= 210.0 {
+                        Color32::from_rgba_unmultiplied(226, 232, 240, 74)
+                    } else if avg_h >= 95.0 {
+                        Color32::from_rgba_unmultiplied(138, 126, 112, 62)
+                    } else if avg_h >= 24.0 {
+                        Color32::from_rgba_unmultiplied(64, 146, 62, 54)
+                    } else {
+                        Color32::from_rgba_unmultiplied(110, 168, 56, 44)
+                    }
+                }
+            };
+            quads.push((q, col));
+
+            if (m_dom == BIOME_WATER || avg_h < -1.5) && (ix + iz) % 2 == 0 {
+                let my = (wz0 + wz1) * 0.5;
+                let a = Vec2 { x: wx0 + dx * 0.18, y: my };
+                let b = Vec2 { x: wx1 - dx * 0.18, y: my };
+                if let Some(seg) = clip_segment_to_support(a, b, &offsets, &coords) {
+                    water_ripples.push(seg);
+                }
+            }
+        }
+    }
+
+    let mut contour_segs = Vec::new();
+    if max_h.is_finite() && max_h >= 25.0 {
+        let step_mm = 25.0_f64;
+        let max_level = ((max_h / step_mm).floor() as usize).min(24);
+        let interp = |a: f64, b: f64, iso: f64| -> f64 {
+            let d = b - a;
+            if d.abs() < 1e-6 {
+                0.5
+            } else {
+                ((iso - a) / d).clamp(0.0, 1.0)
+            }
+        };
+        for lvl in 1..=max_level {
+            let iso = lvl as f64 * step_mm;
+            let is_idx = lvl % 4 == 0;
+            for iz in 0..(rows - 1) {
+                let wz0 = hf.min_z + iz as f64 * dz;
+                let wz1 = wz0 + dz;
+                for ix in 0..(cols - 1) {
+                    let i00 = iz * cols + ix;
+                    let i10 = i00 + 1;
+                    let i01 = (iz + 1) * cols + ix;
+                    let i11 = i01 + 1;
+                    let h00 = if inside[i00] { hf.heights[i00] as f64 } else { 0.0 };
+                    let h10 = if inside[i10] { hf.heights[i10] as f64 } else { 0.0 };
+                    let h11 = if inside[i11] { hf.heights[i11] as f64 } else { 0.0 };
+                    let h01 = if inside[i01] { hf.heights[i01] as f64 } else { 0.0 };
+                    let mask = ((h00 >= iso) as u8)
+                        | (((h10 >= iso) as u8) << 1)
+                        | (((h11 >= iso) as u8) << 2)
+                        | (((h01 >= iso) as u8) << 3);
+                    if mask == 0 || mask == 15 {
+                        continue;
+                    }
+                    let wx0 = hf.min_x + ix as f64 * dx;
+                    let wx1 = wx0 + dx;
+                    let e0 = (wx0 + interp(h00, h10, iso) * dx, wz0);
+                    let e1 = (wx1, wz0 + interp(h10, h11, iso) * dz);
+                    let e2 = (wx0 + interp(h01, h11, iso) * dx, wz1);
+                    let e3 = (wx0, wz0 + interp(h00, h01, iso) * dz);
+                    let pairs: &[((f64, f64), (f64, f64))] = match mask {
+                        1 | 14 => &[(e3, e0)],
+                        2 | 13 => &[(e0, e1)],
+                        3 | 12 => &[(e3, e1)],
+                        4 | 11 => &[(e1, e2)],
+                        5 => &[(e3, e2), (e0, e1)],
+                        6 | 9 => &[(e0, e2)],
+                        7 | 8 => &[(e3, e2)],
+                        10 => &[(e3, e0), (e1, e2)],
+                        _ => &[],
+                    };
+                    for &(a, b) in pairs {
+                        if let Some((ca, cb)) = clip_segment_to_support(
+                            Vec2 { x: a.0, y: a.1 },
+                            Vec2 { x: b.0, y: b.1 },
+                            &offsets,
+                            &coords,
+                        ) {
+                            contour_segs.push((ca, cb, is_idx));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    CachedHeightfieldMap2D {
+        quads,
+        contour_segs,
+        water_ripples,
+    }
+}
+

@@ -6,8 +6,6 @@ pub fn draw_viewport_3d(
     camera: &mut Camera3D,
     cached_bundle: &Option<Scene3DBundle>,
     vehicles_mesh: Option<Arc<SceneMesh3D>>,
-    trains_mesh: Option<(u64, Arc<SceneMesh3D>)>,
-    train_mode_active: &mut bool,
     edit: Edit3DParams<'_>,
     env_mode: &mut Viewer3DEnv,
     day_night_active: &mut bool,
@@ -27,30 +25,48 @@ pub fn draw_viewport_3d(
     let avail = ui.available_size();
     let (rect, response) = ui.allocate_exact_size(avail, Sense::click_and_drag());
 
-    let (consumed_primary_drag, mut edit_out) = handle_3d_edit_interaction(
-        ui,
-        rect,
-        &response,
-        camera,
-        edit.state,
-        edit.layout,
-        edit.catalogs,
-        edit.selected,
-        edit.dragging_catalog,
-        *edit.snapping_enabled,
-        edit.layer_protection,
-        edit.rotation_step,
-    );
+    let sculpt_mode = edit.terrain_brush.active && edit.terrain_brush.is_heightfield_mode();
+    let (consumed_primary_drag, consumed_scroll, mut edit_out) = if sculpt_mode {
+        handle_3d_terrain_sculpt_interaction(
+            ui,
+            rect,
+            &response,
+            camera,
+            edit.terrain_brush,
+            edit.layout,
+        )
+    } else {
+        let (cd, eo) = handle_3d_edit_interaction(
+            ui,
+            rect,
+            &response,
+            camera,
+            edit.state,
+            edit.layout,
+            edit.catalogs,
+            edit.selected,
+            edit.dragging_catalog,
+            edit.dragging_model,
+            *edit.snapping_enabled,
+            edit.layer_protection,
+            edit.rotation_step,
+            *env_mode,
+        );
+        (cd, false, eo)
+    };
 
-    // Full 360° / 180° Orbit (left drag, skipping only when Edit 3D is dragging an object)
-    if !consumed_primary_drag && response.dragged_by(egui::PointerButton::Primary) {
+    let shift_held = ui.input(|i| i.modifiers.shift);
+    // Full 360° / 180° Orbit (left drag on empty space, or right-drag while sculpting terrain)
+    if (!consumed_primary_drag && response.dragged_by(egui::PointerButton::Primary))
+        || (sculpt_mode && !shift_held && response.dragged_by(egui::PointerButton::Secondary))
+    {
         let d = response.drag_delta();
         camera.yaw -= d.x * 0.0065;
         camera.pitch = (camera.pitch + d.y * 0.0065).clamp(-1.48, 1.48);
     }
-    // Pan (right or middle drag)
-    if response.dragged_by(egui::PointerButton::Secondary)
-        || response.dragged_by(egui::PointerButton::Middle)
+    // Pan (right or middle drag; Shift+right or middle drag while sculpting)
+    if response.dragged_by(egui::PointerButton::Middle)
+        || ((!sculpt_mode || shift_held) && response.dragged_by(egui::PointerButton::Secondary))
     {
         let d = response.drag_delta();
         let speed = camera.distance * 0.0012;
@@ -62,7 +78,7 @@ pub fn draw_viewport_3d(
         camera.target[2] -= (rz * d.x - fz * d.y) * speed;
     }
     // Zoom (scroll)
-    if response.hovered() {
+    if !consumed_scroll && response.hovered() {
         let scroll = ui.input(|i| i.smooth_scroll_delta.y);
         if scroll.abs() > 0.01 {
             let factor = (1.0 - scroll * 0.0018).clamp(0.75, 1.35);
@@ -73,9 +89,12 @@ pub fn draw_viewport_3d(
     let ppp = ui.ctx().pixels_per_point();
     let px_w = ((rect.width() * ppp).round() as u32).max(16);
     let px_h = ((rect.height() * ppp).round() as u32).max(16);
-    let aspect = rect.width() / rect.height().max(1.0);
+    let aspect = (rect.width() / rect.height().max(1.0)).max(0.1);
     let eye = camera.eye();
     let sky = eval_sky_state(*time_of_day, *env_mode, dark_mode);
+    let (cam_right, cam_up, cam_fwd) = camera_basis(eye, camera.target);
+    let tan_half_y = (45.0_f32.to_radians() * 0.5).tan();
+    let is_minimal_f = if *env_mode == Viewer3DEnv::Minimal { 1.0 } else { 0.0 };
 
     let uniforms = Uniforms3D {
         view_proj: camera.view_proj(aspect),
@@ -85,6 +104,10 @@ pub fn draw_viewport_3d(
         sun_color_int: sky.sun_color_int,
         hemi_sky_int: sky.hemi_sky_int,
         hemi_ground_pad: sky.hemi_ground_pad,
+        cam_right: [cam_right[0], cam_right[1], cam_right[2], aspect],
+        cam_up: [cam_up[0], cam_up[1], cam_up[2], tan_half_y],
+        cam_fwd: [cam_fwd[0], cam_fwd[1], cam_fwd[2], is_minimal_f],
+        sky_zenith: sky.sky_zenith,
     };
 
     let cb = egui_wgpu::Callback::new_paint_callback(
@@ -93,7 +116,6 @@ pub fn draw_viewport_3d(
             uniforms,
             bundle: cached_bundle.clone(),
             vehicles_mesh,
-            trains_mesh,
             time_of_day: *time_of_day,
             env_mode: *env_mode,
             viewport_px: [px_w, px_h],
@@ -125,7 +147,7 @@ pub fn draw_viewport_3d(
         Color32::from_rgb(71, 85, 105)
     };
 
-    // Top-left 3D Controls Bar (Environment, Wood Plates toggle, Day/Night Cycle, Short Focus)
+    // Top-left 3D Controls Bar (Strictly 2 Environment Options: Hall & Landscape | Minimal CAD, plus Wood Plates, Edit 3D, Day/Night)
     egui::Area::new(egui::Id::new("hud_3d_top_bar"))
         .fixed_pos(rect.min + egui::vec2(14.0, 12.0))
         .show(ui.ctx(), |ui| {
@@ -137,82 +159,73 @@ pub fn draw_viewport_3d(
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
                         ui.label(RichText::new("3D").strong().size(11.5).color(hud_accent));
-                        let env_lbl = match *env_mode {
-                            Viewer3DEnv::HallLandscape => if is_de { "Halle & Landschaft" } else { "Hall & Landscape" },
-                            Viewer3DEnv::Minimal => "CAD / Minimal",
-                        };
+                        let hall_lbl = if is_de { "Halle & Landschaft" } else { "Hall & Landscape" };
                         if ui
-                            .small_button(env_lbl)
+                            .selectable_label(*env_mode == Viewer3DEnv::HallLandscape, hall_lbl)
                             .on_hover_text(if is_de {
-                                "3D-Umgebung wechseln (Halle & Landschaft / CAD Minimal)"
+                                "Historische Ausstellungshalle mit umliegender Gebirgslandschaft"
                             } else {
-                                "Toggle 3D Environment (Hall & Landscape / CAD Minimal)"
+                                "Exhibition Hall with horizon-spanning Alpine landscape"
                             })
                             .clicked()
                         {
-                            *env_mode = match *env_mode {
-                                Viewer3DEnv::HallLandscape => Viewer3DEnv::Minimal,
-                                Viewer3DEnv::Minimal => Viewer3DEnv::HallLandscape,
-                            };
+                            *env_mode = Viewer3DEnv::HallLandscape;
+                        }
+                        if ui
+                            .selectable_label(*env_mode == Viewer3DEnv::Minimal, "Minimal CAD")
+                            .on_hover_text(if is_de {
+                                "Minimaler CAD-Modus mit direktem Gleisbau"
+                            } else {
+                                "Minimal CAD view with direct track building"
+                            })
+                            .clicked()
+                        {
+                            *env_mode = Viewer3DEnv::Minimal;
+                            edit.state.enabled = true;
                         }
 
+                        ui.separator();
                         let wood_lbl = if is_de { "Holzplatten" } else { "Wood Plates" };
                         if ui.selectable_label(*show_wood_plates, wood_lbl).clicked() {
                             *show_wood_plates = !*show_wood_plates;
                         }
-                        let tr_lbl = if is_de { "Zuege" } else { "Trains" };
-                        if ui
-                            .selectable_label(*train_mode_active, tr_lbl)
-                            .on_hover_text(if is_de {
-                                "Separaten 3D Zug-Modus ein/ausschalten (BR 243, BR 96 Mallet, V 60)"
-                            } else {
-                                "Toggle separate 3D Train Mode (BR 243, BR 96 Mallet, V 60)"
-                            })
-                            .clicked()
-                        {
-                            *train_mode_active = !*train_mode_active;
-                            if *train_mode_active {
-                                edit.state.enabled = false;
-                            }
-                        }
 
                         let edit_lbl = if is_de { "3D Bearbeiten" } else { "Edit 3D" };
                         if ui
-                            .selectable_label(edit.state.enabled, edit_lbl)
+                            .selectable_label(edit.state.enabled || *env_mode == Viewer3DEnv::Minimal, edit_lbl)
                             .on_hover_text(if is_de {
-                                "Direkte 3D-Bearbeitung in CAD / Minimal (oder Halle) ein/ausschalten"
+                                "Direkte 3D-Bearbeitung & Gleisbau ein/ausschalten"
                             } else {
-                                "Enable or disable editing directly in CAD / Minimal (or Hall) 3D view"
+                                "Toggle direct 3D track adding and editing"
                             })
                             .clicked()
                         {
                             edit.state.enabled = !edit.state.enabled;
-                            if edit.state.enabled {
-                                *train_mode_active = false;
-                            }
                         }
 
-                        ui.separator();
-                        let h = (*time_of_day).floor() as u32 % 24;
-                        let m = (((*time_of_day) - (*time_of_day).floor()) * 60.0).floor() as u32 % 60;
-                        let play_sym = if *day_night_active { "||" } else { ">" };
-                        if ui.selectable_label(*day_night_active, format!("{play_sym} {h:02}:{m:02}")).clicked() {
-                            *day_night_active = !*day_night_active;
-                        }
-                        ui.add_sized(
-                            [88.0, 16.0],
-                            egui::Slider::new(time_of_day, 0.0..=24.0).show_value(false),
-                        );
-                        if ui.small_button(format!("{}x", *day_night_speed as u32)).clicked() {
-                            *day_night_speed = if (*day_night_speed - 1.0).abs() < 0.1 {
-                                10.0
-                            } else if (*day_night_speed - 10.0).abs() < 0.1 {
-                                60.0
-                            } else if (*day_night_speed - 60.0).abs() < 0.1 {
-                                240.0
-                            } else {
-                                1.0
-                            };
+                        if *env_mode != Viewer3DEnv::Minimal {
+                            ui.separator();
+                            let h = (*time_of_day).floor() as u32 % 24;
+                            let m = (((*time_of_day) - (*time_of_day).floor()) * 60.0).floor() as u32 % 60;
+                            let play_sym = if *day_night_active { "||" } else { ">" };
+                            if ui.selectable_label(*day_night_active, format!("{play_sym} {h:02}:{m:02}")).clicked() {
+                                *day_night_active = !*day_night_active;
+                            }
+                            ui.add_sized(
+                                [88.0, 16.0],
+                                egui::Slider::new(time_of_day, 0.0..=24.0).show_value(false),
+                            );
+                            if ui.small_button(format!("{}x", *day_night_speed as u32)).clicked() {
+                                *day_night_speed = if (*day_night_speed - 1.0).abs() < 0.1 {
+                                    10.0
+                                } else if (*day_night_speed - 10.0).abs() < 0.1 {
+                                    60.0
+                                } else if (*day_night_speed - 60.0).abs() < 0.1 {
+                                    240.0
+                                } else {
+                                    1.0
+                                };
+                            }
                         }
 
                         if let Some(sc) = first_short_circuit {
@@ -226,11 +239,17 @@ pub fn draw_viewport_3d(
                             }
                         }
 
-                        let hint_txt = if edit.state.enabled {
+                        let hint_txt = if sculpt_mode {
                             if is_de {
-                                "Klick: Auswaehlen • Ziehen: Verschieben • Alt+Ziehen: Hoehe • Leer-Ziehen: Orbit"
+                                "Ziehen: Formen • Shift: Glaetten • Alt: Invert • Shift/Ctrl+Rad: R/Staerke • RMB: Orbit"
                             } else {
-                                "Click: Select • Drag: Move • Alt+Drag: Height • Empty Drag: Orbit"
+                                "Drag: Sculpt • Shift: Smooth • Alt: Invert • Shift/Ctrl+Wheel: R/Strength • RMB: Orbit"
+                            }
+                        } else if edit.state.enabled || *env_mode == Viewer3DEnv::Minimal {
+                            if is_de {
+                                "Ziehen/Klick '+' : Gleis bauen • Klick: Auswaehlen • Alt+Ziehen: Hoehe • Leer: Orbit"
+                            } else {
+                                "Drag/Click '+': Add Track • Click: Select • Alt+Drag: Height • Empty: Orbit"
                             }
                         } else {
                             "LMB: Orbit  •  RMB: Pan  •  Wheel: Zoom"
@@ -243,25 +262,39 @@ pub fn draw_viewport_3d(
     // Interactive CAD ViewCube Widget below top-left HUD bar
     draw_viewcube_widget(ui, rect, camera, edit.layout, is_de, dark_mode);
 
-    // 3D Edit Mode selection wireframes, XYZ triad & bottom Edit HUD bar
-    let exit_edit = draw_3d_edit_overlays(
-        ui,
-        rect,
-        camera,
-        edit.state,
-        edit.layout,
-        edit.catalogs,
-        edit.selected,
-        edit.dragging_catalog,
-        edit.snapping_enabled,
-        edit.rotation_step,
-        *train_mode_active,
-        dark_mode,
-        lang,
-        &mut edit_out,
-    );
-    if exit_edit {
-        edit.state.enabled = false;
+    if sculpt_mode {
+        draw_3d_terrain_brush_overlay(
+            ui,
+            rect,
+            camera,
+            edit.terrain_brush,
+            edit.layout,
+            dark_mode,
+            lang,
+        );
+    } else {
+        // 3D Edit Mode selection wireframes, XYZ triad & bottom Edit HUD bar
+        let exit_edit = draw_3d_edit_overlays(
+            ui,
+            rect,
+            camera,
+            edit.state,
+            edit.layout,
+            edit.catalogs,
+            edit.selected,
+            edit.dragging_catalog,
+            edit.dragging_model,
+            edit.last_placed_catalog_id,
+            *env_mode,
+            edit.snapping_enabled,
+            edit.rotation_step,
+            dark_mode,
+            lang,
+            &mut edit_out,
+        );
+        if exit_edit {
+            edit.state.enabled = false;
+        }
     }
 
     edit_out
@@ -531,11 +564,14 @@ pub fn draw_cab_viewport_3d(
     let ppp = ui.ctx().pixels_per_point();
     let px_w = ((rect.width() * ppp).round() as u32).max(16);
     let px_h = ((rect.height() * ppp).round() as u32).max(16);
-    let aspect = rect.width() / rect.height().max(1.0);
+    let aspect = (rect.width() / rect.height().max(1.0)).max(0.1);
     let sky = eval_sky_state(time_of_day, env_mode, dark_mode);
+    let (cam_right, cam_up, cam_fwd) = camera_basis(eye, target);
+    let tan_half_y = (fov_deg.to_radians() * 0.5).tan();
+    let is_minimal_f = if env_mode == Viewer3DEnv::Minimal { 1.0 } else { 0.0 };
 
     let view = mat4_look_at(eye, target, [0.0, 1.0, 0.0]);
-    let proj = mat4_perspective(fov_deg.to_radians(), aspect.max(0.1), 2.5, 100000.0);
+    let proj = mat4_perspective(fov_deg.to_radians(), aspect, 2.5, 400000.0);
     let uniforms = Uniforms3D {
         view_proj: mat4_mul(proj, view),
         sun_dir: sky.sun_dir,
@@ -544,6 +580,10 @@ pub fn draw_cab_viewport_3d(
         sun_color_int: sky.sun_color_int,
         hemi_sky_int: sky.hemi_sky_int,
         hemi_ground_pad: sky.hemi_ground_pad,
+        cam_right: [cam_right[0], cam_right[1], cam_right[2], aspect],
+        cam_up: [cam_up[0], cam_up[1], cam_up[2], tan_half_y],
+        cam_fwd: [cam_fwd[0], cam_fwd[1], cam_fwd[2], is_minimal_f],
+        sky_zenith: sky.sky_zenith,
     };
 
     let cb = egui_wgpu::Callback::new_paint_callback(
@@ -552,7 +592,6 @@ pub fn draw_cab_viewport_3d(
             uniforms,
             bundle: cached_bundle.clone(),
             vehicles_mesh,
-            trains_mesh: None,
             time_of_day,
             env_mode,
             viewport_px: [px_w, px_h],

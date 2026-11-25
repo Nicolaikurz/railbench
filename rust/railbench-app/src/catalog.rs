@@ -88,9 +88,13 @@ pub fn builtin_catalogs() -> Vec<Catalog> {
         match serde_json::from_str::<Catalog>(raw) {
             Ok(mut cat) => {
                 let default_gauge = cat.gauge;
+                let default_roadbed = cat.has_roadbed;
                 for e in &mut cat.entries {
                     if e.gauge.is_none() {
                         e.gauge = default_gauge;
+                    }
+                    if e.has_roadbed.is_none() {
+                        e.has_roadbed = default_roadbed;
                     }
                 }
                 out.push(cat);
@@ -327,10 +331,41 @@ pub fn compute_world_connectors(entry: &CatalogEntry, tr: Transform) -> Vec<Conn
         .collect()
 }
 
+/// Computes world connectors for an existing `TrackPiece`, respecting flex overrides
+/// (`custom_length`, `custom_radius`, `custom_angle`, `custom_offsets`, `custom_chord_dist`).
+pub fn compute_piece_world_connectors(piece: &TrackPiece, entry: &CatalogEntry) -> Vec<Connector> {
+    let mut eff = entry.clone();
+    if let (Some(offs), Some(chord)) = (&piece.custom_offsets, piece.custom_chord_dist) {
+        if offs.len() >= 3 && chord > 1.0 {
+            let m0 = 2.0 * (4.0 * offs[0] - offs[1]);
+            let m4 = -2.0 * (4.0 * offs[2] - offs[1]);
+            let a0 = norm_angle_deg(m0.atan2(chord).to_degrees() + 180.0);
+            let a1 = norm_angle_deg(m4.atan2(chord).to_degrees());
+            eff.local_connectors = Some(vec![
+                railbench_core::types::LocalConnector { x: 0.0, y: 0.0, angle: a0 },
+                railbench_core::types::LocalConnector { x: chord, y: 0.0, angle: a1 },
+            ]);
+            return compute_world_connectors(&eff, piece.transform);
+        }
+    }
+    if piece.custom_length.is_some() || piece.custom_radius.is_some() || piece.custom_angle.is_some() {
+        eff.local_connectors = None;
+        eff.length = piece.custom_length.or(entry.length);
+        eff.radius = piece.custom_radius.or(entry.radius);
+        eff.angle = piece.custom_angle.or(entry.angle);
+        if piece.custom_radius.is_some() && piece.custom_angle.is_some_and(|a| a.abs() > 0.1) {
+            eff.kind = "curve".into();
+        } else if eff.kind == "flex" {
+            eff.kind = "straight".into();
+        }
+    }
+    compute_world_connectors(&eff, piece.transform)
+}
+
 pub fn create_piece(id: String, entry: &CatalogEntry, tr: Transform, layer_id: Option<String>) -> TrackPiece {
     let connectors = compute_world_connectors(entry, tr);
-    let is_feeder = entry.kind == "feeder" || entry.id == "24088";
-    let is_isolator = entry.kind == "isolator";
+    let is_feeder = is_feeder_entry(entry) || entry.id == "24088";
+    let is_isolator = is_isolating_entry(entry);
     TrackPiece {
         id,
         catalog_id: entry.id.clone(),
@@ -339,7 +374,7 @@ pub fn create_piece(id: String, entry: &CatalogEntry, tr: Transform, layer_id: O
         elevation: None,
         power_feed: if is_feeder { Some(true) } else { None },
         is_isolator: if is_isolator { Some(true) } else { None },
-        isolated_connector_index: None,
+        isolated_connector_index: if is_isolator { Some(0) } else { None },
         has_catenary: None,
         catenary_power_feed: None,
         catenary_isolator: None,
@@ -515,11 +550,52 @@ pub fn find_isolating_entry(catalog: &Catalog) -> Option<&CatalogEntry> {
         .or_else(|| catalog.entries.first())
 }
 
+/// Natural alphanumeric comparison for catalog article IDs (matches Electron `compareCatalogEntriesByNumber`).
+pub fn compare_catalog_entries_by_number(a: &CatalogEntry, b: &CatalogEntry) -> std::cmp::Ordering {
+    fn split_chunks(s: &str) -> Vec<(bool, String)> {
+        let mut out = Vec::new();
+        let mut cur = String::new();
+        let mut cur_num: Option<bool> = None;
+        for ch in s.chars() {
+            let is_d = ch.is_ascii_digit();
+            if cur_num == Some(is_d) {
+                cur.push(ch);
+            } else {
+                if let Some(was_num) = cur_num {
+                    out.push((was_num, std::mem::take(&mut cur)));
+                }
+                cur.push(ch);
+                cur_num = Some(is_d);
+            }
+        }
+        if let Some(was_num) = cur_num {
+            out.push((was_num, cur));
+        }
+        out
+    }
+    let ca = split_chunks(&a.id);
+    let cb = split_chunks(&b.id);
+    for (pa, pb) in ca.iter().zip(cb.iter()) {
+        let ord = match (pa.0, pb.0) {
+            (true, true) => {
+                let na = pa.1.parse::<u64>().unwrap_or(0);
+                let nb = pb.1.parse::<u64>().unwrap_or(0);
+                na.cmp(&nb).then_with(|| pa.1.len().cmp(&pb.1.len()))
+            }
+            _ => pa.1.to_ascii_lowercase().cmp(&pb.1.to_ascii_lowercase()),
+        };
+        if ord != std::cmp::Ordering::Equal {
+            return ord;
+        }
+    }
+    ca.len().cmp(&cb.len())
+}
+
 pub fn flex_max_length(catalogs: &[Catalog], catalog_id: &str) -> f64 {
     find_entry(catalogs, catalog_id)
         .and_then(|e| e.length)
         .unwrap_or(900.0)
-        .max(1200.0)
+        .max(200.0)
 }
 
 fn polyline_length(pts: &[Vec2]) -> f64 {
@@ -748,7 +824,7 @@ pub fn flex_bend_handles_world(piece: &TrackPiece) -> Option<[Vec2; 5]> {
 /// Dragging one of the 3 interior flex bend points (`handle_idx` in `0..3`) updates
 /// `custom_offsets` (`[h1, h2, h3]`) and `custom_chord_dist` (1:1 with TS flextrack splines)
 /// while preserving already-connected endpoint angles and updating `custom_length`.
-pub fn apply_flex_spline_offset(piece: &mut TrackPiece, handle_idx: usize, world_pos: Vec2) {
+pub fn apply_flex_spline_offset(piece: &mut TrackPiece, catalogs: &[Catalog], handle_idx: usize, world_pos: Vec2) {
     if piece.connectors.len() < 2 || handle_idx >= 3 {
         return;
     }
@@ -784,6 +860,7 @@ pub fn apply_flex_spline_offset(piece: &mut TrackPiece, handle_idx: usize, world
         piece.custom_offsets = Some(init_offs);
     }
 
+    let max_len = flex_max_length(catalogs, &piece.catalog_id);
     let chord = piece.custom_chord_dist.unwrap_or(200.0).max(25.0);
     let rot = piece.transform.rotation;
     let local = rotate(
@@ -795,9 +872,58 @@ pub fn apply_flex_spline_offset(piece: &mut TrackPiece, handle_idx: usize, world
     );
     let max_off = chord * 0.65;
     if let Some(offs) = &mut piece.custom_offsets {
-        offs[handle_idx] = local.y.clamp(-max_off, max_off);
+        let was_straight = offs[0].abs() < 2.5 && offs[1].abs() < 2.5 && offs[2].abs() < 2.5;
+        let clamped_off = ((local.y.clamp(-max_off, max_off)) * 10.0).round() / 10.0;
+        if handle_idx == 1 && was_straight {
+            // Center pull from straight creates a uniform symmetrical bow
+            offs[1] = clamped_off;
+            offs[0] = (clamped_off * 0.75 * 10.0).round() / 10.0;
+            offs[2] = (clamped_off * 0.75 * 10.0).round() / 10.0;
+        } else {
+            offs[handle_idx] = clamped_off;
+        }
+
+        if offs[0].abs() < 2.5 && offs[1].abs() < 2.5 && offs[2].abs() < 2.5 {
+            // Snap to straight when all 3 offsets are near zero
+            piece.custom_offsets = None;
+            piece.custom_chord_dist = None;
+            piece.custom_radius = None;
+            piece.custom_angle = None;
+            piece.custom_length = Some(chord.clamp(25.0, max_len));
+            if !c0_locked {
+                piece.connectors[0].angle = norm_angle_deg(rot + 180.0);
+            }
+            if !c1_locked {
+                piece.connectors[1].angle = norm_angle_deg(rot);
+            }
+            let end_rp = rotate(Vec2 { x: chord, y: 0.0 }, rot);
+            piece.connectors[1].x = piece.transform.x + end_rp.x;
+            piece.connectors[1].y = piece.transform.y + end_rp.y;
+            return;
+        }
+
+        let measure_spline_len = |o: &[f64]| -> f64 {
+            let flat = railbench_core::geometry::sample_flex_spline_points(chord, o[0], o[1], o[2], 32);
+            let mut total = 0.0;
+            let mut prev = (flat[0], flat[1]);
+            for i in (5..flat.len()).step_by(5) {
+                let cur = (flat[i], flat[i + 1]);
+                total += (cur.0 - prev.0).hypot(cur.1 - prev.1);
+                prev = cur;
+            }
+            total
+        };
+
+        let mut spline_len = measure_spline_len(offs);
+        if spline_len > max_len && spline_len > chord {
+            let excess_ratio = ((max_len - chord).max(0.0) / (spline_len - chord)).sqrt().clamp(0.0, 1.0);
+            for v in offs.iter_mut() {
+                *v = (*v * excess_ratio * 10.0).round() / 10.0;
+            }
+            spline_len = measure_spline_len(offs);
+        }
+
         let (h1, h2, h3) = (offs[0], offs[1], offs[2]);
-        // Only rotate free (unconnected) endpoints so snapped track joints stay locked
         if !c0_locked {
             let m0 = 2.0 * (4.0 * h1 - h2);
             let tan0_deg = m0.atan2(chord).to_degrees();
@@ -811,17 +937,226 @@ pub fn apply_flex_spline_offset(piece: &mut TrackPiece, handle_idx: usize, world
         let end_rp = rotate(Vec2 { x: chord, y: 0.0 }, rot);
         piece.connectors[1].x = piece.transform.x + end_rp.x;
         piece.connectors[1].y = piece.transform.y + end_rp.y;
+        piece.custom_length = Some(spline_len.min(max_len));
 
-        // Recompute true curved length of the spline
-        let flat = railbench_core::geometry::sample_flex_spline_points(chord, h1, h2, h3, 32);
-        let mut spline_len = 0.0;
-        let mut prev = (flat[0], flat[1]);
-        for i in (5..flat.len()).step_by(5) {
-            let cur = (flat[i], flat[i + 1]);
-            spline_len += (cur.0 - prev.0).hypot(cur.1 - prev.1);
-            prev = cur;
+        // Populate matching custom_radius & custom_angle for symmetric bows
+        let is_sym = (h1 - h3).abs() < 1.5 && (h1 - 0.75 * h2).abs() < 2.5 && h2.abs() >= 2.5;
+        if is_sym {
+            let abs_h = h2.abs();
+            let half_d = chord * 0.5;
+            let r = ((half_d * half_d + abs_h * abs_h) / (2.0 * abs_h)).max(80.0);
+            let sin_ha = (half_d / r).min(1.0);
+            let alpha_deg = (2.0 * sin_ha.asin()).to_degrees();
+            piece.custom_radius = Some((r * 10.0).round() / 10.0);
+            piece.custom_angle = Some(((-h2.signum() * alpha_deg) * 10.0).round() / 10.0);
+        } else {
+            piece.custom_radius = None;
+            piece.custom_angle = None;
         }
-        piece.custom_length = Some(spline_len);
+    }
+}
+
+/// Flips a flextrack end-for-end so connector 0 and connector 1 swap places while preserving shape,
+/// spline offsets, curvature direction, and ramp elevation.
+pub fn flip_flex_track_piece(piece: &mut TrackPiece, catalogs: &[Catalog]) {
+    if piece.connectors.len() < 2 {
+        return;
+    }
+    let c0_conn = piece.connectors[0].connected_to.clone();
+    let c1_conn = piece.connectors[1].connected_to.clone();
+    let c1 = &piece.connectors[1];
+    piece.transform = Transform {
+        x: (c1.x * 10.0).round() / 10.0,
+        y: (c1.y * 10.0).round() / 10.0,
+        rotation: norm_angle_deg(c1.angle - 180.0),
+    };
+    if let Some(ang) = piece.custom_angle {
+        piece.custom_angle = Some(-ang);
+    }
+    if let Some(offs) = &mut piece.custom_offsets {
+        if offs.len() >= 3 {
+            *offs = vec![-offs[2], -offs[1], -offs[0]];
+        }
+    }
+    if let Some(el) = piece.elevation {
+        piece.elevation = Some(railbench_core::types::Elevation {
+            start: el.end,
+            end: el.start,
+        });
+    }
+    if let Some(entry) = find_entry(catalogs, &piece.catalog_id) {
+        piece.connectors = compute_piece_world_connectors(piece, entry);
+        if piece.connectors.len() >= 2 {
+            piece.connectors[0].connected_to = c1_conn;
+            piece.connectors[1].connected_to = c0_conn;
+        }
+    } else {
+        piece.connectors.swap(0, 1);
+    }
+}
+
+/// Resets a flextrack back to its catalog straight length while keeping whichever end is connected
+/// anchored (if connector 1 is connected and connector 0 is free, flips first to anchor connector 1).
+pub fn reset_flex_track_to_original(piece: &mut TrackPiece, catalogs: &[Catalog]) {
+    if piece.connectors.len() >= 2
+        && piece.connectors[1].connected_to.is_some()
+        && piece.connectors[0].connected_to.is_none()
+    {
+        flip_flex_track_piece(piece, catalogs);
+    }
+    let old_c0 = piece.connectors.first().and_then(|c| c.connected_to.clone());
+    piece.custom_length = None;
+    piece.custom_radius = None;
+    piece.custom_angle = None;
+    piece.custom_offsets = None;
+    piece.custom_chord_dist = None;
+    if let Some(entry) = find_entry(catalogs, &piece.catalog_id) {
+        piece.connectors = compute_world_connectors(entry, piece.transform);
+    }
+    if let (Some(c0), Some(ref conn)) = (piece.connectors.get_mut(0), old_c0) {
+        c0.connected_to = Some(conn.clone());
+    }
+}
+
+/// Bends an active flextrack to a target radius (in mm) while keeping `custom_length` (or `angle_deg` if provided)
+/// and preserving connector 0 as anchor.
+pub fn bend_flex_track(
+    piece: &mut TrackPiece,
+    catalogs: &[Catalog],
+    radius_mm: f64,
+    angle_deg_opt: Option<f64>,
+) {
+    let default_len = find_entry(catalogs, &piece.catalog_id)
+        .and_then(|e| e.length)
+        .unwrap_or(900.0);
+    let cur_len = piece.custom_length.unwrap_or(default_len).clamp(25.0, flex_max_length(catalogs, &piece.catalog_id));
+    if radius_mm <= 0.0 || radius_mm >= 10000.0 {
+        apply_flex_geometry(piece, catalogs, cur_len, 0.0);
+        return;
+    }
+    let r = radius_mm.clamp(120.0, 9999.0);
+    let sign = angle_deg_opt
+        .filter(|a| a.abs() > 0.05)
+        .map(|a| a.signum())
+        .or_else(|| piece.custom_angle.filter(|a| a.abs() > 0.05).map(|a| a.signum()))
+        .unwrap_or(1.0);
+    let target_deg = angle_deg_opt.unwrap_or_else(|| {
+        let raw_deg = (cur_len / r).to_degrees().clamp(1.0, 180.0);
+        sign * raw_deg
+    });
+    let len = if angle_deg_opt.is_some() {
+        (r * deg2rad(target_deg.abs())).clamp(25.0, flex_max_length(catalogs, &piece.catalog_id))
+    } else {
+        cur_len
+    };
+    piece.custom_offsets = None;
+    piece.custom_chord_dist = None;
+    piece.custom_length = Some(len);
+    piece.custom_radius = Some(r);
+    piece.custom_angle = Some(target_deg);
+    if let Some(entry) = find_entry(catalogs, &piece.catalog_id) {
+        piece.connectors = compute_piece_world_connectors(piece, entry);
+    }
+}
+
+/// Cuts a flextrack into two connected halves (preserving radius, curvature direction, and midpoint elevation).
+pub fn cut_flex_track(
+    piece: &TrackPiece,
+    catalogs: &[Catalog],
+    second_id: String,
+) -> Option<(TrackPiece, TrackPiece)> {
+    let entry = find_entry(catalogs, &piece.catalog_id)?;
+    let total_len = piece
+        .custom_length
+        .or(entry.length)
+        .unwrap_or(900.0);
+    if total_len < 40.0 {
+        return None;
+    }
+    let half_len = (total_len * 0.5 * 10.0).round() / 10.0;
+
+    let (e_first, e_second) = match piece.elevation {
+        Some(el) => {
+            let mid = ((el.start + el.end) * 0.5 * 10.0).round() / 10.0;
+            (
+                Some(railbench_core::types::Elevation { start: el.start, end: mid }),
+                Some(railbench_core::types::Elevation { start: mid, end: el.end }),
+            )
+        }
+        None => (None, None),
+    };
+
+    let mut first = piece.clone();
+    first.elevation = e_first;
+    first.custom_offsets = None;
+    first.custom_chord_dist = None;
+    first.custom_length = Some(half_len);
+
+    if let (Some(r), Some(a)) = (piece.custom_radius, piece.custom_angle) {
+        if a.abs() > 0.25 && r > 0.0 {
+            let half_a = (a * 0.5 * 10.0).round() / 10.0;
+            first.custom_radius = Some(r);
+            first.custom_angle = Some(half_a);
+            first.connectors = compute_piece_world_connectors(&first, entry);
+            let c1 = first.connectors.get(1)?.clone();
+            let tr2 = Transform {
+                x: c1.x,
+                y: c1.y,
+                rotation: norm_angle_deg(c1.angle),
+            };
+            let mut second = first.clone();
+            second.id = second_id;
+            second.transform = tr2;
+            second.elevation = e_second;
+            second.connectors = compute_piece_world_connectors(&second, entry);
+            return Some((first, second));
+        }
+    }
+
+    first.custom_radius = None;
+    first.custom_angle = None;
+    first.connectors = compute_piece_world_connectors(&first, entry);
+    let c1 = first.connectors.get(1)?.clone();
+    let tr2 = Transform {
+        x: c1.x,
+        y: c1.y,
+        rotation: norm_angle_deg(c1.angle),
+    };
+    let mut second = first.clone();
+    second.id = second_id;
+    second.transform = tr2;
+    second.elevation = e_second;
+    second.connectors = compute_piece_world_connectors(&second, entry);
+    Some((first, second))
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct FlexRampInfo {
+    pub length_mm: f64,
+    pub start_elev_mm: f64,
+    pub end_elev_mm: f64,
+    pub rise_mm: f64,
+    pub gradient_pct: f64,
+    pub is_ramp: bool,
+}
+
+pub fn get_flex_track_ramp_info(piece: &TrackPiece, catalogs: &[Catalog]) -> FlexRampInfo {
+    let length_mm = piece
+        .custom_length
+        .or_else(|| find_entry(catalogs, &piece.catalog_id).and_then(|e| e.length))
+        .unwrap_or(900.0)
+        .max(1.0);
+    let start_elev_mm = piece.elevation.map_or(0.0, |e| e.start);
+    let end_elev_mm = piece.elevation.map_or(0.0, |e| e.end);
+    let rise_mm = end_elev_mm - start_elev_mm;
+    let gradient_pct = ((rise_mm.abs() / length_mm) * 100.0 * 10.0).round() / 10.0;
+    FlexRampInfo {
+        length_mm,
+        start_elev_mm,
+        end_elev_mm,
+        rise_mm,
+        gradient_pct,
+        is_ramp: rise_mm.abs() >= 0.5,
     }
 }
 
@@ -958,8 +1293,41 @@ mod tests {
             piece_id: "track-a".into(),
             connector_index: 1,
         });
-        apply_flex_spline_offset(&mut piece, 1, Vec2 { x: 140.0, y: -40.0 });
+        apply_flex_spline_offset(&mut piece, &cats, 1, Vec2 { x: 140.0, y: -40.0 });
         assert!((piece.connectors[0].angle - locked_a0).abs() < 1e-6);
         assert!(piece.custom_length.unwrap() > 250.0);
+    }
+
+    #[test]
+    fn flex_bend_cut_flip_reset_and_ramp_info() {
+        let cats = builtin_catalogs();
+        let entry = find_entry(&cats, "24094").expect("24094 flex");
+        let mut flex = create_piece(
+            "flx-a".into(),
+            entry,
+            Transform { x: 0.0, y: 0.0, rotation: 0.0 },
+            None,
+        );
+        flex.elevation = Some(railbench_core::types::Elevation { start: 0.0, end: 18.0 });
+        bend_flex_track(&mut flex, &cats, 600.0, Some(30.0));
+        assert_eq!(flex.custom_radius, Some(600.0));
+        let ri = get_flex_track_ramp_info(&flex, &cats);
+        assert!(ri.is_ramp);
+        assert!((ri.rise_mm - 18.0).abs() < 1e-6);
+
+        let (first, second) = cut_flex_track(&flex, &cats, "flx-b".into()).expect("cut halves");
+        assert_eq!(first.id, "flx-a");
+        assert_eq!(second.id, "flx-b");
+        assert!((first.elevation.unwrap().end - 9.0).abs() < 0.1);
+        assert!((second.elevation.unwrap().start - 9.0).abs() < 0.1);
+
+        let orig_end = (flex.connectors[1].x, flex.connectors[1].y);
+        flip_flex_track_piece(&mut flex, &cats);
+        assert!((flex.transform.x - orig_end.0).abs() < 0.2);
+        assert!((flex.elevation.unwrap().start - 18.0).abs() < 0.1);
+
+        reset_flex_track_to_original(&mut flex, &cats);
+        assert!(flex.custom_radius.is_none());
+        assert!(flex.custom_angle.is_none());
     }
 }

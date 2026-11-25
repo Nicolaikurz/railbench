@@ -328,6 +328,11 @@ impl VehicleSimState {
             let prev_dist = v.dist_mm;
             let prev_fwd = v.forward;
             let prev_hist_len = v.path_history.len();
+            let prev_wheel_angle = v.wheel_angle;
+
+            if v.kind == super::VehicleKind::Br96Mallet && v.steam_on {
+                v.steam_time = (v.steam_time + dt as f32).rem_euclid(1000.0);
+            }
 
             // 1. Longitudinal consist force physics (kN / metric tons)
             let m_total = v.total_mass_tons().max(1.0);
@@ -564,6 +569,11 @@ impl VehicleSimState {
                 }
             }
 
+            if let Some(lk) = v.kind.train_loco_kind() {
+                let r_wheel = lk.wheel_radius_h0() * (veh_sf as f32).max(0.25);
+                v.wheel_angle = (v.wheel_angle - (ds as f32) / r_wheel).rem_euclid(std::f32::consts::TAU);
+            }
+
             // 3. Recompute bogie kinematics & 4. Hard anti-penetration OBB guard
             recompute_vehicle_poses(
                 v,
@@ -585,6 +595,7 @@ impl VehicleSimState {
                     v.branch_idx = prev_br;
                     v.dist_mm = prev_dist;
                     v.forward = prev_fwd;
+                    v.wheel_angle = prev_wheel_angle;
                     v.path_history.truncate(prev_hist_len);
                     v.velocity_mm_s = 0.0;
                     v.current_speed_mm_s = 0.0;

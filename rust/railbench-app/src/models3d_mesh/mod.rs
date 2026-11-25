@@ -878,7 +878,7 @@ impl<'a> ModelBuilder<'a> {
 }
 
 pub(crate) fn push_env_pine_3d(verts: &mut Vec<Vertex3D>, idxs: &mut Vec<u32>, x: f32, floor_y: f32, z: f32, h: f32) {
-    let w = h * 0.44;
+    let w = h * 0.34;
     let mut b = ModelBuilder::new(verts, idxs, [x, floor_y, z], 0.0, [w, h, w], [55.0, 135.0, 55.0]);
     let bark = Mat::matte(0x3f2e21, 0.94);
     b.cyl_y([0.0, 22.0, 0.0], 2.8, 5.2, 44.0, 7, bark);
@@ -919,9 +919,9 @@ pub(crate) fn push_builtin_model_3d(verts: &mut Vec<Vertex3D>, idxs: &mut Vec<u3
         Some("skyscraper") => build_skyscraper(verts, idxs, origin, rot_rad, [w, h, d]),
         Some("industry-building") => build_industry_building(verts, idxs, origin, rot_rad, [w, h, d]),
         Some(
-            id @ ("loco-steam"
-            | "loco-electric"
-            | "loco-diesel"
+            id @ ("loco-br243"
+            | "loco-br96"
+            | "loco-v60"
             | "wagon-passenger"
             | "wagon-freight"
             | "car-sedan"

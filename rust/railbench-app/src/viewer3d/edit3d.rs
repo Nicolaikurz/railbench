@@ -3,24 +3,32 @@ use std::collections::{HashMap, HashSet};
 use eframe::egui::{self, Color32, CornerRadius, FontId, Frame, Margin, Rect, Response, RichText, Stroke};
 use railbench_core::geometry::{norm_angle_deg, rotate};
 use railbench_core::snapping::{piece_connector_height, update_layout_connections};
-use railbench_core::types::{Catalog, CatalogEntry, Elevation, Layout, Vec2};
+use railbench_core::types::{Catalog, CatalogEntry, Elevation, Layout, Model3D, TrackPiece, Transform, Vec2};
 
-use crate::catalog::{disconnect_cross_type_connections, find_entry, is_road_id, local_connectors};
+use crate::catalog::{create_piece, disconnect_cross_type_connections, find_entry, is_road_id, local_connectors};
 use crate::export::sample_track_branches_world;
 use crate::i18n::Lang;
 
-use super::Camera3D;
+use super::{Camera3D, Viewer3DEnv};
 
 #[derive(Debug, Clone, Default)]
 pub struct Edit3DState {
     pub enabled: bool,
     pub dragging_selection: bool,
     pub dragging_vertical: bool,
+    pub dragging_rotation: bool,
     pub undo_pushed_for_drag: bool,
     pub drag_last_xz: Option<[f64; 2]>,
     pub drag_plane_y: f32,
+    pub rot_pivot_xz: [f64; 2],
+    pub rot_start_angle_deg: f64,
+    pub rot_applied_delta_deg: f64,
+    pub rot_base_angle_deg: f64,
+    pub rot_initial_piece_deg: Option<f64>,
     pub hovered_id: Option<String>,
     pub snap_preview_world: Option<[f32; 3]>,
+    pub preview_piece: Option<TrackPiece>,
+    pub preview_elev_mm: f32,
 }
 
 pub struct Edit3DParams<'a> {
@@ -29,6 +37,9 @@ pub struct Edit3DParams<'a> {
     pub catalogs: &'a [Catalog],
     pub selected: &'a mut HashSet<String>,
     pub dragging_catalog: Option<&'a CatalogEntry>,
+    pub dragging_model: Option<&'a Model3D>,
+    pub last_placed_catalog_id: Option<&'a str>,
+    pub terrain_brush: &'a mut crate::terrain_tools::TerrainBrushState,
     pub snapping_enabled: &'a mut bool,
     pub layer_protection: bool,
     pub rotation_step: f64,
@@ -43,7 +54,171 @@ pub struct Edit3DOutput {
     pub delete_requested: bool,
     pub close_gap_requested: bool,
     pub parallel_requested: bool,
+    pub add_last_track_requested: bool,
+    pub quick_add_at: Option<(String, usize)>,
     pub drop_catalog_at: Option<(CatalogEntry, Vec2, f64)>,
+    pub drop_model_at: Option<(Model3D, Vec2)>,
+}
+
+/// Computes a realistic 3D ghost `TrackPiece` for dragging `entry` onto `hit_world_xz` at `active_lh`,
+/// magnetically snapping to the closest compatible open track connector or building doorway within
+/// `snap_radius`. Returns `(ghost_piece, optional_snap_target_xyz, preview_elev_mm)`.
+pub fn compute_3d_catalog_drop_preview(
+    entry: &CatalogEntry,
+    hit_world_xz: Vec2,
+    active_lh: f64,
+    layout: &Layout,
+    catalogs: &[Catalog],
+    snapping_enabled: bool,
+    snap_radius: f64,
+) -> (TrackPiece, Option<[f32; 3]>, f32) {
+    let locals = local_connectors(entry);
+    let (cx, cy) = if locals.is_empty() {
+        (0.0, 0.0)
+    } else {
+        let sx: f64 = locals.iter().map(|c| c.x).sum();
+        let sy: f64 = locals.iter().map(|c| c.y).sum();
+        (sx / locals.len() as f64, sy / locals.len() as f64)
+    };
+    let tr = Transform {
+        x: hit_world_xz.x - cx,
+        y: hit_world_xz.y - cy,
+        rotation: 0.0,
+    };
+    let mut ghost = create_piece(
+        "__3d_ghost__".into(),
+        entry,
+        tr,
+        layout.active_layer_id.clone(),
+    );
+    if !snapping_enabled || ghost.connectors.is_empty() {
+        return (ghost, None, active_lh as f32);
+    }
+
+    let layers = layer_info_map(layout);
+    let ghost_is_road = entry.is_road == Some(true) || is_road_id(catalogs, &entry.id);
+    let max_d2 = snap_radius * snap_radius;
+
+    // Candidate target connectors (either other piece's open connectors of matching type, or building doors)
+    let mut best: Option<(f64, usize, f64, f64, f64, f64)> = None; // (d2, c1_idx, tx, ty, tang, te_mm)
+
+    for (c1_i, c1) in ghost.connectors.iter().enumerate() {
+        for other in &layout.pieces {
+            let olid = other.layer_id.as_deref().unwrap_or("layer-1");
+            let (olh, vis, _) = layers.get(olid).copied().unwrap_or((0.0, true, false));
+            if !vis {
+                continue;
+            }
+            if is_road_id(catalogs, &other.catalog_id) != ghost_is_road {
+                continue;
+            }
+            for (c2_i, c2) in other.connectors.iter().enumerate() {
+                if c2.connected_to.is_some() {
+                    continue;
+                }
+                let d2 = (c1.x - c2.x).powi(2) + (c1.y - c2.y).powi(2);
+                if d2 <= max_d2 && best.map_or(true, |b| d2 < b.0) {
+                    let h2 = piece_connector_height(other, c2_i, olh);
+                    best = Some((d2, c1_i, c2.x, c2.y, c2.angle, h2));
+                }
+            }
+        }
+        if !ghost_is_road {
+            if let Some(models) = &layout.models {
+                for m in models {
+                    let mlid = m.layer_id.as_deref().unwrap_or("layer-1");
+                    let (mlh, vis, _) = layers.get(mlid).copied().unwrap_or((0.0, true, false));
+                    if !vis {
+                        continue;
+                    }
+                    let mh = mlh + m.elevation.unwrap_or(0.0);
+                    for door in crate::building_snap::get_building_door_connectors(m) {
+                        let d2 = (c1.x - door.x).powi(2) + (c1.y - door.y).powi(2);
+                        if d2 <= max_d2 && best.map_or(true, |b| d2 < b.0) {
+                            best = Some((d2, c1_i, door.x, door.y, door.outward_angle, mh));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if let Some((_, c1_i, tx, ty, tang, te_mm)) = best {
+        let loc = locals.get(c1_i).unwrap_or(&locals[0]);
+        let rot = norm_angle_deg(tang + 180.0 - loc.angle);
+        let ro = rotate(Vec2 { x: loc.x, y: loc.y }, rot);
+        let snap_tr = Transform {
+            x: tx - ro.x,
+            y: ty - ro.y,
+            rotation: rot,
+        };
+        ghost = create_piece(
+            "__3d_ghost__".into(),
+            entry,
+            snap_tr,
+            layout.active_layer_id.clone(),
+        );
+        return (
+            ghost,
+            Some([tx as f32, te_mm as f32, ty as f32]),
+            te_mm as f32,
+        );
+    }
+
+    (ghost, None, active_lh as f32)
+}
+
+fn collect_3d_plus_connectors(
+    layout: &Layout,
+    selected: &HashSet<String>,
+    hovered_id: Option<&str>,
+    rect: Rect,
+    camera: &Camera3D,
+    can_build: bool,
+) -> Vec<(String, usize, eframe::egui::Pos2)> {
+    if !can_build || layout.pieces.is_empty() {
+        return Vec::new();
+    }
+    let layers = layer_info_map(layout);
+    let mut focus_ids: HashSet<&str> = HashSet::new();
+    for id in selected {
+        focus_ids.insert(id.as_str());
+    }
+    if let Some(hid) = hovered_id {
+        focus_ids.insert(hid);
+    }
+    if focus_ids.is_empty() {
+        for p in layout.pieces.iter().rev().take(2) {
+            focus_ids.insert(p.id.as_str());
+        }
+    }
+
+    let mut out = Vec::new();
+    for p in &layout.pieces {
+        if !focus_ids.contains(p.id.as_str()) {
+            continue;
+        }
+        let lid = p.layer_id.as_deref().unwrap_or("layer-1");
+        let (lh, vis, _) = layers.get(lid).copied().unwrap_or((0.0, true, false));
+        if !vis {
+            continue;
+        }
+        for (ci, c) in p.connectors.iter().enumerate() {
+            if c.connected_to.is_some() {
+                continue;
+            }
+            let rad = c.angle.to_radians();
+            let px = c.x + rad.cos() * 18.0;
+            let pz = c.y + rad.sin() * 18.0;
+            let py = piece_connector_height(p, ci, lh) + 12.0;
+            if let Some(sp) = camera.world_to_screen(rect, [px as f32, py as f32, pz as f32]) {
+                if rect.contains(sp) {
+                    out.push((p.id.clone(), ci, sp));
+                }
+            }
+        }
+    }
+    out
 }
 
 pub fn ray_intersect_y_plane(origin: [f32; 3], dir: [f32; 3], plane_y: f32) -> Option<[f32; 3]> {
@@ -267,6 +442,74 @@ fn active_selection_pivot_world(layout: &Layout, selected: &HashSet<String>) -> 
     }
 }
 
+/// Computes `(pivot_3d, handle_3d, base_angle_deg, single_initial_rot)` for an interactive
+/// 3D rotation handle point protruding in the XZ plane from the active selection pivot.
+pub fn compute_3d_rotation_handle_world(
+    layout: &Layout,
+    selected: &HashSet<String>,
+    layer_protection: bool,
+    camera_dist: f32,
+    edit: &Edit3DState,
+) -> Option<([f32; 3], [f32; 3], f64, Option<f64>)> {
+    if selected.is_empty() {
+        return None;
+    }
+    let layers = layer_info_map(layout);
+    let editable_pieces: Vec<&TrackPiece> = layout
+        .pieces
+        .iter()
+        .filter(|p| selected.contains(&p.id) && is_obj_editable(layout, &layers, p.layer_id.as_deref(), layer_protection))
+        .collect();
+    let editable_models: Vec<&Model3D> = layout
+        .models
+        .as_ref()
+        .map(|ms| {
+            ms.iter()
+                .filter(|m| {
+                    selected.contains(&m.id)
+                        && is_obj_editable(layout, &layers, m.layer_id.as_deref(), layer_protection)
+                        && !matches!(m.builtin_id.as_deref(), Some("mountain") | Some("ground-terrain"))
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    if editable_pieces.is_empty() && editable_models.is_empty() {
+        return None;
+    }
+
+    let mut pivot = active_selection_pivot_world(layout, selected);
+    if edit.dragging_rotation {
+        pivot[0] = edit.rot_pivot_xz[0] as f32;
+        pivot[2] = edit.rot_pivot_xz[1] as f32;
+    }
+    let r = (camera_dist * 0.085).clamp(48.0, 140.0);
+
+    if editable_pieces.len() == 1 && editable_models.is_empty() {
+        let rot = editable_pieces[0].transform.rotation;
+        let base_ang = norm_angle_deg(rot - 90.0);
+        let rad = rot.to_radians();
+        let handle_3d = [
+            pivot[0] + (rad.sin() as f32) * r,
+            pivot[1] + 8.0,
+            pivot[2] - (rad.cos() as f32) * r,
+        ];
+        return Some((pivot, handle_3d, base_ang, Some(rot)));
+    }
+
+    let ang = if edit.dragging_rotation {
+        edit.rot_base_angle_deg + edit.rot_applied_delta_deg
+    } else {
+        -90.0
+    };
+    let rad = ang.to_radians();
+    let handle_3d = [
+        pivot[0] + (rad.cos() as f32) * r,
+        pivot[1] + 8.0,
+        pivot[2] + (rad.sin() as f32) * r,
+    ];
+    Some((pivot, handle_3d, -90.0, None))
+}
+
 /// Processes 3D selection, XZ dragging with snap, Alt+Drag vertical elevation, catalog drops,
 /// and keyboard shortcuts when `Edit 3D` is enabled.
 /// Returns `(consumed_primary_pointer, Edit3DOutput)`.
@@ -281,22 +524,27 @@ pub fn handle_3d_edit_interaction(
     catalogs: &[Catalog],
     selected: &mut HashSet<String>,
     dragging_catalog: Option<&CatalogEntry>,
+    dragging_model: Option<&Model3D>,
     snapping_enabled: bool,
     layer_protection: bool,
-    _rotation_step: f64,
+    rotation_step: f64,
+    env_mode: Viewer3DEnv,
 ) -> (bool, Edit3DOutput) {
     let mut out = Edit3DOutput::default();
-    if !edit.enabled {
+    let can_build = edit.enabled || env_mode == Viewer3DEnv::Minimal;
+    if !can_build {
         edit.dragging_selection = false;
         edit.dragging_vertical = false;
+        edit.dragging_rotation = false;
         edit.undo_pushed_for_drag = false;
         edit.hovered_id = None;
         edit.snap_preview_world = None;
+        edit.preview_piece = None;
         return (false, out);
     }
 
     let hover_pos = ui.input(|i| i.pointer.hover_pos()).or_else(|| {
-        if dragging_catalog.is_some() {
+        if dragging_catalog.is_some() || dragging_model.is_some() {
             ui.input(|i| i.pointer.latest_pos())
         } else {
             None
@@ -304,23 +552,61 @@ pub fn handle_3d_edit_interaction(
     });
     let layers = layer_info_map(layout);
     let active_lid = layout.active_layer_id.as_deref().unwrap_or("layer-1").to_string();
-    let active_lh = layers.get(active_lid.as_str()).map(|v| v.0).unwrap_or(0.0) as f32;
+    let active_lh = layers.get(active_lid.as_str()).map(|v| v.0).unwrap_or(0.0);
 
-    // 1. Handle Catalog Entry Drag-and-Drop directly onto the 3D plane!
+    // 1. Handle Catalog Entry Drag-and-Drop directly onto the 3D plane with magnetic snap preview!
     if let Some(entry) = dragging_catalog {
         if let Some(hp) = hover_pos {
             if rect.contains(hp) {
                 let (ray_o, ray_d) = camera.screen_to_ray(rect, hp);
-                if let Some(hit) = ray_intersect_y_plane(ray_o, ray_d, active_lh) {
-                    edit.snap_preview_world = Some(hit);
+                if let Some(hit) = ray_intersect_y_plane(ray_o, ray_d, active_lh as f32) {
+                    let dyn_snap = (camera.distance as f64 * 0.045).clamp(45.0, 125.0);
+                    let raw_xz = Vec2 {
+                        x: hit[0] as f64,
+                        y: hit[2] as f64,
+                    };
+                    let (ghost, snap_pt, prev_elev) = compute_3d_catalog_drop_preview(
+                        entry,
+                        raw_xz,
+                        active_lh,
+                        layout,
+                        catalogs,
+                        snapping_enabled,
+                        dyn_snap,
+                    );
+                    edit.snap_preview_world = snap_pt.or(Some(hit));
+                    edit.preview_piece = Some(ghost);
+                    edit.preview_elev_mm = prev_elev;
                     if ui.input(|i| i.pointer.any_released()) {
-                        out.drop_catalog_at = Some((
-                            entry.clone(),
+                        out.drop_catalog_at = Some((entry.clone(), raw_xz, dyn_snap));
+                        edit.snap_preview_world = None;
+                        edit.preview_piece = None;
+                    }
+                    return (true, out);
+                }
+            }
+        }
+        edit.snap_preview_world = None;
+        edit.preview_piece = None;
+        return (false, out);
+    }
+    edit.preview_piece = None;
+
+    // 1b. Handle 3D Model Drag-and-Drop directly onto the 3D plane
+    if let Some(model) = dragging_model {
+        if let Some(hp) = hover_pos {
+            if rect.contains(hp) {
+                let (ray_o, ray_d) = camera.screen_to_ray(rect, hp);
+                if let Some(hit) = ray_intersect_y_plane(ray_o, ray_d, active_lh as f32) {
+                    edit.snap_preview_world = Some(hit);
+                    edit.preview_elev_mm = active_lh as f32;
+                    if ui.input(|i| i.pointer.any_released()) {
+                        out.drop_model_at = Some((
+                            model.clone(),
                             Vec2 {
                                 x: hit[0] as f64,
                                 y: hit[2] as f64,
                             },
-                            32.0,
                         ));
                         edit.snap_preview_world = None;
                     }
@@ -346,7 +632,6 @@ pub fn handle_3d_edit_interaction(
     };
 
     // 3. Keyboard PageUp/PageDown elevation & Shift+Wheel rotation while Edit 3D is active
-    // (`R` and `Delete` are handled cleanly once per frame by main.rs global shortcuts)
     if !ui.ctx().wants_keyboard_input() && !selected.is_empty() {
         let (rot_dir, elev_step) = ui.input(|i| {
             let mut r = 0.0_f64;
@@ -372,11 +657,40 @@ pub fn handle_3d_edit_interaction(
         }
     }
 
-    // 4. Primary Click Selection
+    // 4. Primary Click: Check clickable '+' Open Connector Badges FIRST, then 3D Object Picking
     let shift_held = ui.input(|i| i.modifiers.shift);
     let alt_held = ui.input(|i| i.modifiers.alt);
+    let rot_handle_proj = if !selected.is_empty() {
+        compute_3d_rotation_handle_world(layout, selected, layer_protection, camera.distance, edit)
+            .and_then(|(p3, h3, base_ang, single_rot)| {
+                camera
+                    .world_to_screen(rect, h3)
+                    .map(|hs| (p3, hs, base_ang, single_rot))
+            })
+    } else {
+        None
+    };
+
     if response.clicked_by(egui::PointerButton::Primary) {
         if let Some(hp) = hover_pos {
+            if rot_handle_proj
+                .as_ref()
+                .is_some_and(|(_, hs, _, _)| hp.distance(*hs) <= 14.0)
+            {
+                return (true, out);
+            }
+            let plus_badges = collect_3d_plus_connectors(
+                layout,
+                selected,
+                edit.hovered_id.as_deref(),
+                rect,
+                camera,
+                can_build,
+            );
+            if let Some((pid, ci, _)) = plus_badges.into_iter().find(|(_, _, sp)| hp.distance(*sp) <= 13.0) {
+                out.quick_add_at = Some((pid, ci));
+                return (true, out);
+            }
             let (ro, rd) = camera.screen_to_ray(rect, hp);
             if let Some(hit_id) = pick_3d_object(ro, rd, layout, catalogs, layer_protection) {
                 if shift_held {
@@ -394,30 +708,90 @@ pub fn handle_3d_edit_interaction(
         return (false, out);
     }
 
-    // 5. Primary Drag of Selected 3D Object(s) (or empty-space camera Orbit if not over selection)
+    // 5. Primary Drag of Selected 3D Rotation Handle OR 3D Object(s) (or empty-space camera Orbit)
     let mut consumed_drag = false;
     if response.drag_started_by(egui::PointerButton::Primary) {
         if let Some(hp) = hover_pos {
             let (ro, rd) = camera.screen_to_ray(rect, hp);
-            let picked = pick_3d_object(ro, rd, layout, catalogs, layer_protection);
-            if let Some(hit_id) = picked {
-                if !selected.contains(&hit_id) {
-                    if !shift_held {
-                        selected.clear();
-                    }
-                    selected.insert(hit_id);
+            if let Some((p3, _hs, base_ang, single_rot)) =
+                rot_handle_proj.filter(|(_, hs, _, _)| hp.distance(*hs) <= 14.5) {
+                if let Some(hit) = ray_intersect_y_plane(ro, rd, p3[1]) {
+                    let pivot_xz = [p3[0] as f64, p3[2] as f64];
+                    edit.dragging_rotation = true;
+                    edit.dragging_selection = false;
+                    edit.undo_pushed_for_drag = false;
+                    edit.drag_plane_y = p3[1];
+                    edit.rot_pivot_xz = pivot_xz;
+                    edit.rot_start_angle_deg =
+                        (hit[2] as f64 - pivot_xz[1]).atan2(hit[0] as f64 - pivot_xz[0]).to_degrees();
+                    edit.rot_applied_delta_deg = 0.0;
+                    edit.rot_base_angle_deg = base_ang;
+                    edit.rot_initial_piece_deg = single_rot;
                 }
-                let pivot = active_selection_pivot_world(layout, selected);
-                edit.dragging_selection = true;
-                edit.dragging_vertical = alt_held;
-                edit.undo_pushed_for_drag = false;
-                edit.drag_plane_y = pivot[1];
-                edit.drag_last_xz = ray_intersect_y_plane(ro, rd, pivot[1]).map(|p| [p[0] as f64, p[2] as f64]);
+            } else {
+                let picked = pick_3d_object(ro, rd, layout, catalogs, layer_protection);
+                if let Some(hit_id) = picked {
+                    if !selected.contains(&hit_id) {
+                        if !shift_held {
+                            selected.clear();
+                        }
+                        selected.insert(hit_id);
+                    }
+                    let pivot = active_selection_pivot_world(layout, selected);
+                    edit.dragging_selection = true;
+                    edit.dragging_vertical = alt_held;
+                    edit.undo_pushed_for_drag = false;
+                    edit.drag_plane_y = pivot[1];
+                    edit.drag_last_xz = ray_intersect_y_plane(ro, rd, pivot[1]).map(|p| [p[0] as f64, p[2] as f64]);
+                }
             }
         }
     }
 
-    if edit.dragging_selection && response.dragged_by(egui::PointerButton::Primary) {
+    if edit.dragging_rotation && response.dragged_by(egui::PointerButton::Primary) {
+        consumed_drag = true;
+        if let Some(hp) = hover_pos {
+            let (ro, rd) = camera.screen_to_ray(rect, hp);
+            if let Some(hit) = ray_intersect_y_plane(ro, rd, edit.drag_plane_y) {
+                let cur_ang = (hit[2] as f64 - edit.rot_pivot_xz[1])
+                    .atan2(hit[0] as f64 - edit.rot_pivot_xz[0])
+                    .to_degrees();
+                let raw_delta = crate::canvas2d::unwrap_drag_angle_delta(
+                    cur_ang,
+                    edit.rot_start_angle_deg,
+                    edit.rot_applied_delta_deg,
+                );
+                let desired_delta =
+                    crate::canvas2d::snap_drag_rotation_delta(raw_delta, rotation_step, shift_held);
+                let step_delta = desired_delta - edit.rot_applied_delta_deg;
+                if step_delta.abs() > 1e-6 {
+                    if !edit.undo_pushed_for_drag {
+                        out.push_undo = true;
+                        edit.undo_pushed_for_drag = true;
+                    }
+                    if crate::canvas2d::rotate_selection_around_pivot(
+                        layout,
+                        selected,
+                        layer_protection,
+                        Vec2 {
+                            x: edit.rot_pivot_xz[0],
+                            y: edit.rot_pivot_xz[1],
+                        },
+                        step_delta,
+                    ) {
+                        edit.rot_applied_delta_deg = desired_delta;
+                        out.layout_changed = true;
+                    }
+                }
+            }
+        }
+    } else if edit.dragging_rotation && !response.dragged_by(egui::PointerButton::Primary) {
+        update_layout_connections(layout, 4.0, 35.0, 1.0);
+        disconnect_cross_type_connections(layout, catalogs);
+        edit.dragging_rotation = false;
+        edit.undo_pushed_for_drag = false;
+        out.layout_changed = true;
+    } else if edit.dragging_selection && response.dragged_by(egui::PointerButton::Primary) {
         consumed_drag = true;
         if edit.dragging_vertical || alt_held {
             let dy_px = response.drag_delta().y;
@@ -561,8 +935,8 @@ pub(crate) fn nudge_selection_elevation(
     }
 }
 
-/// Renders 3D projected selection wireframes, hover feedback, catalog drop ghost, XYZ gizmo triad,
-/// and the bottom-center floating 3D Edit HUD bar.
+/// Renders 3D projected selection wireframes, hover feedback, catalog/model drop ghost,
+/// open-connector `+` add badges, XYZ gizmo triad, and the bottom-center floating 3D HUD bar.
 #[allow(clippy::too_many_arguments)]
 pub fn draw_3d_edit_overlays(
     ui: &mut egui::Ui,
@@ -573,15 +947,18 @@ pub fn draw_3d_edit_overlays(
     catalogs: &[Catalog],
     selected: &HashSet<String>,
     dragging_catalog: Option<&CatalogEntry>,
+    dragging_model: Option<&Model3D>,
+    last_placed_catalog_id: Option<&str>,
+    env_mode: Viewer3DEnv,
     snapping_enabled: &mut bool,
     rotation_step: f64,
-    train_mode_active: bool,
     dark_mode: bool,
     lang: Lang,
     out: &mut Edit3DOutput,
 ) -> bool {
     let mut exit_requested = false;
-    if !edit.enabled {
+    let can_build = edit.enabled || env_mode == Viewer3DEnv::Minimal;
+    if !can_build {
         return false;
     }
 
@@ -682,19 +1059,90 @@ pub fn draw_3d_edit_overlays(
         }
     }
 
-    // 2. Catalog Drag Ghost Preview in 3D
-    if let (Some(entry), Some(gp)) = (dragging_catalog, edit.snap_preview_world) {
-        let len = entry.length.unwrap_or(188.3) as f32;
-        if let (Some(a), Some(b)) = (
-            camera.world_to_screen(rect, [gp[0] - len * 0.5, gp[1] + 6.0, gp[2]]),
-            camera.world_to_screen(rect, [gp[0] + len * 0.5, gp[1] + 6.0, gp[2]]),
-        ) {
-            painter.line_segment([a, b], Stroke::new(4.0_f32, Color32::from_rgb(56, 189, 248)));
-            painter.circle_filled(a, 5.0, Color32::from_rgb(250, 204, 21));
-            painter.circle_filled(b, 5.0, Color32::from_rgb(250, 204, 21));
+    // 2. Catalog & Model Drag Ghost Preview in 3D + Open Connector `+` Badges
+    if let (Some(entry), Some(ghost)) = (dragging_catalog, edit.preview_piece.as_ref()) {
+        let y_preview = edit.preview_elev_mm + 9.0;
+        let ghost_stroke = Stroke::new(3.2_f32, Color32::from_rgb(56, 189, 248));
+        for br in sample_track_branches_world(ghost, Some(entry)) {
+            let mut spts = Vec::with_capacity(br.len());
+            for pt in br {
+                if let Some(sp) = camera.world_to_screen(rect, [pt.x as f32, y_preview, pt.y as f32]) {
+                    spts.push(sp);
+                }
+            }
+            if spts.len() >= 2 {
+                painter.add(egui::Shape::line(spts, ghost_stroke));
+            }
         }
-        let locals = local_connectors(entry);
-        let _ = locals;
+        for c in &ghost.connectors {
+            if let Some(sp) = camera.world_to_screen(rect, [c.x as f32, y_preview, c.y as f32]) {
+                painter.circle_filled(sp, 4.5, Color32::from_rgb(250, 204, 21));
+                painter.circle_stroke(sp, 5.2, Stroke::new(1.1_f32, Color32::WHITE));
+            }
+        }
+        if let Some(snap_pt) = edit.snap_preview_world {
+            if let Some(sp) = camera.world_to_screen(rect, [snap_pt[0], snap_pt[1] + 9.0, snap_pt[2]]) {
+                painter.circle_stroke(sp, 10.0, Stroke::new(2.0_f32, Color32::from_rgb(34, 197, 94)));
+            }
+        }
+    } else if let (Some(model), Some(gp)) = (dragging_model, edit.snap_preview_world) {
+        let s = model.scale.unwrap_or(1.0);
+        let hw = (model.width * 0.5 * s) as f32;
+        let hd = (model.depth * 0.5 * s) as f32;
+        let h = (model.height * s) as f32;
+        let corners_l = [(-hw, -hd), (hw, -hd), (hw, hd), (-hw, hd)];
+        let mut bot = Vec::with_capacity(4);
+        let mut top = Vec::with_capacity(4);
+        for (lx, lz) in corners_l {
+            let wx = gp[0] + lx;
+            let wz = gp[2] + lz;
+            if let (Some(sb), Some(st)) = (
+                camera.world_to_screen(rect, [wx, gp[1], wz]),
+                camera.world_to_screen(rect, [wx, gp[1] + h, wz]),
+            ) {
+                bot.push(sb);
+                top.push(st);
+            }
+        }
+        if bot.len() == 4 && top.len() == 4 {
+            let st = Stroke::new(2.0_f32, Color32::from_rgb(56, 189, 248));
+            for k in 0..4 {
+                let nk = (k + 1) % 4;
+                painter.line_segment([bot[k], bot[nk]], st);
+                painter.line_segment([top[k], top[nk]], st);
+                painter.line_segment([bot[k], top[k]], st);
+            }
+        }
+    }
+
+    if dragging_catalog.is_none() && dragging_model.is_none() {
+        let hover_pos = ui.ctx().pointer_hover_pos();
+        let badges = collect_3d_plus_connectors(
+            layout,
+            selected,
+            edit.hovered_id.as_deref(),
+            rect,
+            camera,
+            can_build,
+        );
+        for (_pid, _ci, sp) in badges {
+            let is_hov = hover_pos.is_some_and(|hp| hp.distance(sp) <= 12.0);
+            let fill = if is_hov {
+                Color32::from_rgb(34, 197, 94)
+            } else {
+                Color32::from_rgb(14, 165, 233)
+            };
+            painter.circle_filled(sp, 9.5, fill);
+            painter.circle_stroke(sp, 9.8, Stroke::new(1.3_f32, Color32::WHITE));
+            painter.line_segment(
+                [sp - egui::vec2(4.2, 0.0), sp + egui::vec2(4.2, 0.0)],
+                Stroke::new(2.0_f32, Color32::WHITE),
+            );
+            painter.line_segment(
+                [sp - egui::vec2(0.0, 4.2), sp + egui::vec2(0.0, 4.2)],
+                Stroke::new(2.0_f32, Color32::WHITE),
+            );
+        }
     }
 
     // 3. XYZ RGB Axis Triad at Active Selection Pivot
@@ -724,10 +1172,71 @@ pub fn draw_3d_edit_overlays(
             }
             painter.circle_filled(sp0, 4.0, Color32::WHITE);
         }
+
+        // 3B. Interactive 3D Track/Selection Rotation Handle Point
+        if let Some((rot_piv3, rot_hdl3, _, _)) =
+            compute_3d_rotation_handle_world(layout, selected, false, camera.distance, edit)
+        {
+            if let (Some(ps), Some(hs)) = (
+                camera.world_to_screen(rect, rot_piv3),
+                camera.world_to_screen(rect, rot_hdl3),
+            ) {
+                let is_hov = ui
+                    .ctx()
+                    .pointer_hover_pos()
+                    .is_some_and(|hp| hp.distance(hs) <= 14.0);
+                let active_or_hov = edit.dragging_rotation || is_hov;
+                painter.line_segment(
+                    [ps, hs],
+                    Stroke::new(1.8_f32, Color32::from_rgb(56, 189, 248)),
+                );
+                let knob_r = if active_or_hov { 9.0_f32 } else { 8.0_f32 };
+                painter.circle_filled(hs, knob_r, Color32::from_rgb(245, 158, 11));
+                painter.circle_stroke(hs, knob_r + 1.0, Stroke::new(1.6_f32, Color32::WHITE));
+                if edit.dragging_rotation {
+                    ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
+                    let shift_held = ui.input(|i| i.modifiers.shift);
+                    let readout = if let Some(init) = edit.rot_initial_piece_deg {
+                        let abs_deg = norm_angle_deg(init + edit.rot_applied_delta_deg);
+                        crate::canvas2d::format_rotation_readout(abs_deg, false, shift_held)
+                    } else {
+                        crate::canvas2d::format_rotation_readout(
+                            edit.rot_applied_delta_deg,
+                            true,
+                            shift_held,
+                        )
+                    };
+                    let pill = Rect::from_min_size(
+                        hs + egui::vec2(14.0, -24.0),
+                        egui::vec2(68.0, 22.0),
+                    );
+                    painter.rect_filled(
+                        pill,
+                        6.0,
+                        Color32::from_rgba_unmultiplied(15, 23, 42, 230),
+                    );
+                    painter.rect_stroke(
+                        pill,
+                        6.0,
+                        Stroke::new(1.2_f32, Color32::from_rgb(245, 158, 11)),
+                        egui::StrokeKind::Inside,
+                    );
+                    painter.text(
+                        pill.center(),
+                        egui::Align2::CENTER_CENTER,
+                        readout,
+                        FontId::proportional(11.5),
+                        Color32::WHITE,
+                    );
+                } else if is_hov {
+                    ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
+                }
+            }
+        }
     }
 
-    // 4. Floating Bottom-Center 3D Edit HUD Bar (hidden while Trains 3D HUD is open)
-    if !train_mode_active {
+    // 4. Floating Bottom-Center 3D Edit HUD Bar
+    {
         let bg = if dark_mode {
             Color32::from_rgba_unmultiplied(15, 23, 42, 232)
         } else {
@@ -749,8 +1258,13 @@ pub fn draw_3d_edit_overlays(
                     .stroke(Stroke::new(1.2_f32, border))
                     .show(ui, |ui| {
                         ui.horizontal(|ui| {
+                            let mode_title = if edit.enabled {
+                                if is_de { "3D BEARBEITEN" } else { "3D EDIT MODE" }
+                            } else {
+                                "MINIMAL CAD 3D"
+                            };
                             ui.label(
-                                RichText::new(if is_de { "3D BEARBEITEN" } else { "3D EDIT MODE" })
+                                RichText::new(mode_title)
                                     .strong()
                                     .size(11.5)
                                     .color(Color32::from_rgb(56, 189, 248)),
@@ -763,6 +1277,21 @@ pub fn draw_3d_edit_overlays(
                             });
                             ui.separator();
 
+                            let add_label = match last_placed_catalog_id {
+                                Some(cid) => format!("+ {cid}"),
+                                None => if is_de { "+ Gleis".into() } else { "+ Track".into() },
+                            };
+                            if ui
+                                .small_button(add_label)
+                                .on_hover_text(if is_de {
+                                    "Letztes Gleis hinzufuegen oder an ausgewaehltem Anschluss verlaengern"
+                                } else {
+                                    "Add track piece or extend selected open connector"
+                                })
+                                .clicked()
+                            {
+                                out.add_last_track_requested = true;
+                            }
                             if ui.selectable_label(*snapping_enabled, "Snap").clicked() {
                                 *snapping_enabled = !*snapping_enabled;
                             }
@@ -818,9 +1347,11 @@ pub fn draw_3d_edit_overlays(
                             {
                                 out.delete_requested = true;
                             }
-                            ui.separator();
-                            if ui.small_button(if is_de { "Fertig" } else { "Done" }).clicked() {
-                                exit_requested = true;
+                            if edit.enabled {
+                                ui.separator();
+                                if ui.small_button(if is_de { "Fertig" } else { "Done" }).clicked() {
+                                    exit_requested = true;
+                                }
                             }
                         });
                     });
@@ -829,6 +1360,338 @@ pub fn draw_3d_edit_overlays(
 
     let _ = norm_angle_deg(0.0);
     exit_requested
+}
+
+/// Processes direct 3D terrain sculpting when `terrain_brush.active && terrain_brush.is_heightfield_mode()`.
+/// Returns `(consumed_primary_drag, consumed_scroll, Edit3DOutput)`.
+pub fn handle_3d_terrain_sculpt_interaction(
+    ui: &mut egui::Ui,
+    rect: Rect,
+    response: &Response,
+    camera: &Camera3D,
+    brush: &mut crate::terrain_tools::TerrainBrushState,
+    layout: &mut Layout,
+) -> (bool, bool, Edit3DOutput) {
+    let mut out = Edit3DOutput::default();
+    if !brush.active || !brush.is_heightfield_mode() {
+        return (false, false, out);
+    }
+
+    let (active_lid, active_y0, editable, _) = crate::terrain_tools::active_layer_info(layout);
+    let bounds = crate::terrain_tools::active_layer_bounds(layout);
+    let hover_pos = ui.input(|i| i.pointer.hover_pos()).filter(|p| rect.contains(*p));
+    let shift_held = ui.input(|i| i.modifiers.shift);
+    let alt_held = ui.input(|i| i.modifiers.alt);
+    let ctrl_held = ui.input(|i| i.modifiers.ctrl || i.modifiers.mac_cmd);
+
+    let mut consumed_scroll = false;
+    if response.hovered() {
+        let scroll = ui.input(|i| i.smooth_scroll_delta.y);
+        if scroll.abs() > 0.01 {
+            if shift_held {
+                brush.adjust_radius(if scroll > 0.0 { 15.0 } else { -15.0 });
+                consumed_scroll = true;
+            } else if ctrl_held {
+                brush.adjust_strength(if scroll > 0.0 { 0.08 } else { -0.08 });
+                consumed_scroll = true;
+            }
+        }
+    }
+
+    if !editable {
+        brush.cursor_world = None;
+        brush.is_drawing = false;
+        return (false, consumed_scroll, out);
+    }
+
+    let boards: Vec<railbench_core::types::BaseboardConfig> =
+        crate::board_tools::get_baseboards_slice(layout)
+            .into_iter()
+            .filter(|b| b.enabled)
+            .collect();
+    let support_polys = crate::terrain_tools::collect_terrain_support_polygons(
+        layout,
+        active_lid.as_deref(),
+        &boards,
+    );
+    let (poly_offsets, poly_coords) = crate::terrain_tools::pack_support_polygons(&support_polys);
+    let active_hf = crate::terrain_tools::active_layer_heightfield(layout);
+
+    let hit_pt = hover_pos.and_then(|hp| {
+        let (ro, rd) = camera.screen_to_ray(rect, hp);
+        let ro_local = [ro[0], ro[1] - active_y0 as f32, ro[2]];
+        let hit = railbench_core::terrain::raycast_heightfield_3d(
+            ro_local,
+            rd,
+            active_hf,
+            bounds,
+        )?;
+        if poly_offsets.len() >= 2
+            && !railbench_core::geometry::is_point_in_any_polygon(
+                hit[0] as f64,
+                hit[2] as f64,
+                &poly_offsets,
+                &poly_coords,
+            )
+        {
+            return None;
+        }
+        Some(hit)
+    });
+    brush.cursor_world = hit_pt.map(|p| Vec2 {
+        x: p[0] as f64,
+        y: p[2] as f64,
+    });
+    if hover_pos.is_some() && hit_pt.is_some() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::Crosshair);
+    }
+
+    if response.clicked_by(egui::PointerButton::Secondary) {
+        brush.set_active(false, None, None);
+        return (false, consumed_scroll, out);
+    }
+
+    let mut consumed_drag = false;
+    if response.drag_started_by(egui::PointerButton::Primary) {
+        if let Some(wp) = brush.cursor_world {
+            brush.is_drawing = true;
+            brush.flatten_target_mm = None;
+            brush.last_sculpt_world = None;
+            out.push_undo = true;
+            if brush.apply_live_sculpt_step(wp, layout, shift_held, alt_held) {
+                out.layout_changed = true;
+            }
+            consumed_drag = true;
+        }
+    }
+
+    if brush.is_drawing && response.dragged_by(egui::PointerButton::Primary) {
+        consumed_drag = true;
+        if let Some(wp) = brush.cursor_world {
+            if brush.apply_live_sculpt_step(wp, layout, shift_held, alt_held) {
+                out.layout_changed = true;
+            }
+        }
+    } else if brush.is_drawing && !response.dragged_by(egui::PointerButton::Primary) {
+        brush.is_drawing = false;
+        brush.flatten_target_mm = None;
+        brush.last_sculpt_world = None;
+        if brush.auto_tunnel && crate::terrain_tools::apply_auto_tunnel_for_heightfield(layout) > 0 {
+            out.layout_changed = true;
+        }
+        out.layout_changed = true;
+    } else if response.clicked_by(egui::PointerButton::Primary) {
+        if let Some(wp) = brush.cursor_world {
+            brush.flatten_target_mm = None;
+            brush.last_sculpt_world = None;
+            out.push_undo = true;
+            if brush.apply_live_sculpt_step(wp, layout, shift_held, alt_held) {
+                out.layout_changed = true;
+            }
+            brush.flatten_target_mm = None;
+            brush.last_sculpt_world = None;
+            if brush.auto_tunnel && crate::terrain_tools::apply_auto_tunnel_for_heightfield(layout) > 0 {
+                out.layout_changed = true;
+            }
+        }
+    }
+
+    (consumed_drag, consumed_scroll, out)
+}
+
+/// Projects the terrain-conforming 3D brush reticle and draws the floating bottom-center
+/// 3D Terrain Sculpt toolbar when unified heightfield sculpting is active.
+#[allow(clippy::too_many_arguments)]
+pub fn draw_3d_terrain_brush_overlay(
+    ui: &mut egui::Ui,
+    rect: Rect,
+    camera: &Camera3D,
+    brush: &mut crate::terrain_tools::TerrainBrushState,
+    layout: &Layout,
+    dark_mode: bool,
+    lang: Lang,
+) {
+    if !brush.active || !brush.is_heightfield_mode() {
+        return;
+    }
+    let is_de = lang == Lang::De;
+    let painter = ui.painter_at(rect);
+    let shift_held = ui.input(|i| i.modifiers.shift);
+    let alt_held = ui.input(|i| i.modifiers.alt);
+    let eff_op = brush.active_sculpt_op(shift_held, alt_held);
+    let ring_col = match eff_op {
+        crate::terrain_tools::SculptOp::Raise => Color32::from_rgb(34, 197, 94),
+        crate::terrain_tools::SculptOp::Lower => Color32::from_rgb(249, 115, 22),
+        crate::terrain_tools::SculptOp::Smooth => Color32::from_rgb(56, 189, 248),
+        crate::terrain_tools::SculptOp::Flatten(_) => Color32::from_rgb(234, 179, 8),
+        crate::terrain_tools::SculptOp::GradeTrack => Color32::from_rgb(168, 85, 247),
+        crate::terrain_tools::SculptOp::PaintBiome(_) => Color32::from_rgb(20, 184, 166),
+        crate::terrain_tools::SculptOp::Reset => Color32::from_rgb(239, 68, 68),
+    };
+
+    let (_active_lid, active_y0, editable, active_layer_name) =
+        crate::terrain_tools::active_layer_info(layout);
+    if let Some(cw) = brush.cursor_world {
+        let active_hf = crate::terrain_tools::active_layer_heightfield(layout);
+        let y_base = active_y0 as f32;
+        let sample_h = |wx: f64, wz: f64| -> f32 {
+            active_hf
+                .map(|hf| railbench_core::terrain::sample_heightfield_bilinear(hf, wx, wz))
+                .unwrap_or(0.0)
+        };
+        const N: usize = 28;
+        let mut outer = Vec::with_capacity(N + 1);
+        let mut inner = Vec::with_capacity(N + 1);
+        for i in 0..=N {
+            let ang = (i as f64 / N as f64) * std::f64::consts::TAU;
+            let ox = cw.x + ang.cos() * brush.radius;
+            let oz = cw.y + ang.sin() * brush.radius;
+            let oy = y_base + sample_h(ox, oz) + 2.0;
+            if let Some(sp) = camera.world_to_screen(rect, [ox as f32, oy, oz as f32]) {
+                outer.push(sp);
+            }
+            let ix = cw.x + ang.cos() * brush.radius * 0.35;
+            let iz = cw.y + ang.sin() * brush.radius * 0.35;
+            let iy = y_base + sample_h(ix, iz) + 2.5;
+            if let Some(sp) = camera.world_to_screen(rect, [ix as f32, iy, iz as f32]) {
+                inner.push(sp);
+            }
+        }
+        if outer.len() >= 3 {
+            painter.add(egui::Shape::line(outer, Stroke::new(2.4_f32, ring_col)));
+        }
+        if inner.len() >= 3 {
+            painter.add(egui::Shape::line(
+                inner,
+                Stroke::new(
+                    1.4_f32,
+                    Color32::from_rgba_unmultiplied(255, 255, 255, 175),
+                ),
+            ));
+        }
+        let ch = sample_h(cw.x, cw.y);
+        if let Some(csp) = camera.world_to_screen(rect, [cw.x as f32, y_base + ch + 2.5, cw.y as f32]) {
+            painter.circle_filled(csp, 4.0, ring_col);
+            painter.circle_stroke(csp, 4.8, Stroke::new(1.2_f32, Color32::WHITE));
+            let txt = format!("H: {:.0} mm · R: {:.0} mm", ch, brush.radius);
+            let pill = Rect::from_min_size(csp + egui::vec2(14.0, -26.0), egui::vec2(146.0, 21.0));
+            painter.rect_filled(pill, 6.0, Color32::from_rgba_unmultiplied(15, 23, 42, 225));
+            painter.rect_stroke(pill, 6.0, Stroke::new(1.1_f32, ring_col), egui::StrokeKind::Inside);
+            painter.text(
+                pill.center(),
+                egui::Align2::CENTER_CENTER,
+                txt,
+                FontId::proportional(11.0),
+                Color32::WHITE,
+            );
+        }
+    }
+
+    // Floating Bottom-Center 3D Terrain Sculpt HUD Bar
+    let bg = if dark_mode {
+        Color32::from_rgba_unmultiplied(15, 23, 42, 236)
+    } else {
+        Color32::from_rgba_unmultiplied(248, 250, 252, 245)
+    };
+    let border = Color32::from_rgba_unmultiplied(34, 197, 94, 150);
+    egui::Area::new(egui::Id::new("hud_3d_terrain_sculpt_bar"))
+        .anchor(egui::Align2::CENTER_BOTTOM, egui::vec2(0.0, -14.0))
+        .constrain_to(rect.shrink(6.0))
+        .show(ui.ctx(), |ui| {
+            Frame::new()
+                .fill(bg)
+                .corner_radius(CornerRadius::same(10))
+                .inner_margin(Margin::symmetric(12, 7))
+                .stroke(Stroke::new(1.2_f32, border))
+                .show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        let hud_title = if editable {
+                            format!("{} · {active_layer_name}", if is_de { "3D GELAENDE" } else { "3D TERRAIN" })
+                        } else {
+                            format!("🔒 {active_layer_name}")
+                        };
+                        ui.label(
+                            RichText::new(hud_title)
+                                .strong()
+                                .size(11.5)
+                                .color(if editable {
+                                    Color32::from_rgb(34, 197, 94)
+                                } else {
+                                    Color32::from_rgb(245, 158, 11)
+                                }),
+                        );
+                        ui.separator();
+                        let tools = [
+                            (crate::terrain_tools::TerrainBrushMode::SculptRaise, if is_de { "Berg +" } else { "Raise" }),
+                            (crate::terrain_tools::TerrainBrushMode::SculptLower, if is_de { "Tal -" } else { "Lower" }),
+                            (crate::terrain_tools::TerrainBrushMode::SculptSmooth, if is_de { "Glaetten" } else { "Smooth" }),
+                            (crate::terrain_tools::TerrainBrushMode::SculptFlatten, "Plateau"),
+                            (crate::terrain_tools::TerrainBrushMode::SculptGrade, if is_de { "Damm" } else { "Grade" }),
+                            (crate::terrain_tools::TerrainBrushMode::SculptBiome, if is_de { "Biom" } else { "Biome" }),
+                            (crate::terrain_tools::TerrainBrushMode::SculptReset, if is_de { "Reset" } else { "Reset" }),
+                        ];
+                        for (m, lbl) in tools {
+                            if ui.selectable_label(brush.mode == m, lbl).clicked() {
+                                brush.mode = m;
+                            }
+                        }
+                        ui.separator();
+                        ui.label("R:");
+                        ui.add(
+                            egui::DragValue::new(&mut brush.radius)
+                                .range(40.0..=600.0)
+                                .speed(4.0)
+                                .suffix(" mm"),
+                        );
+                        let mut pct = (brush.strength * 100.0).round();
+                        if ui
+                            .add(
+                                egui::DragValue::new(&mut pct)
+                                    .range(10.0..=100.0)
+                                    .speed(2.0)
+                                    .suffix("%"),
+                            )
+                            .changed()
+                        {
+                            brush.strength = (pct / 100.0).clamp(0.10, 1.0);
+                        }
+                        if matches!(
+                            brush.mode,
+                            crate::terrain_tools::TerrainBrushMode::SculptBiome
+                                | crate::terrain_tools::TerrainBrushMode::SculptRaise
+                        ) {
+                            let biome_lbl = |b: u8| match (b, is_de) {
+                                (1, true) => "Gras",
+                                (1, false) => "Grass",
+                                (2, true) => "Wald",
+                                (2, false) => "Forest",
+                                (3, true) => "Fels",
+                                (3, false) => "Rock",
+                                (4, true) => "Schnee",
+                                (4, false) => "Snow",
+                                (5, _) => "Sand",
+                                (6, true) => "Erde",
+                                (6, false) => "Dirt",
+                                (7, true) => "Wasser",
+                                (7, false) => "Water",
+                                _ => "Auto",
+                            };
+                            egui::ComboBox::from_id_salt("hud3d_sculpt_biome")
+                                .width(74.0)
+                                .selected_text(biome_lbl(brush.biome))
+                                .show_ui(ui, |ui| {
+                                    for b in 0..=7_u8 {
+                                        ui.selectable_value(&mut brush.biome, b, biome_lbl(b));
+                                    }
+                                });
+                        }
+                        ui.separator();
+                        if ui.small_button(if is_de { "Fertig" } else { "Done" }).clicked() {
+                            brush.set_active(false, None, None);
+                        }
+                    });
+                });
+        });
 }
 
 #[cfg(test)]
@@ -911,6 +1774,7 @@ mod tests {
             active_layer_id: None,
             baseboard: None,
             baseboards: None,
+            terrain_field: None,
         };
 
         let cam = Camera3D {
@@ -935,5 +1799,122 @@ mod tests {
         let miss_scr = cam.world_to_screen(rect, [94.0, 5.5, 250.0]).unwrap();
         let (mro, mrd) = cam.screen_to_ray(rect, miss_scr);
         assert!(pick_3d_object(mro, mrd, &layout, &catalogs, true).is_none());
+    }
+
+    #[test]
+    fn catalog_drop_preview_3d_snaps_to_open_connector() {
+        let catalogs = builtin_catalogs();
+        let e24188 = find_entry(&catalogs, "24188").unwrap();
+        let p0 = create_piece(
+            "anchor-track".into(),
+            e24188,
+            Transform {
+                x: 0.0,
+                y: 0.0,
+                rotation: 0.0,
+            },
+            None,
+        );
+        let right_end = &p0.connectors[1];
+        let right_x = right_end.x;
+        let right_y = right_end.y;
+        let layout = Layout {
+            name: "Snap3DTest".into(),
+            scale: "H0".into(),
+            pieces: vec![p0],
+            models: None,
+            feed_voltage: None,
+            catenary_feed_voltage: None,
+            catenary_circuit_mode: None,
+            loco_current_ma: None,
+            loco_count: None,
+            train_current_amps: None,
+            turnout_lantern_current_ma: None,
+            turnout_decoder_current_ma: None,
+            layers: None,
+            active_layer_id: None,
+            baseboard: None,
+            baseboards: None,
+            terrain_field: None,
+        };
+
+        let drop_near_right = Vec2 {
+            x: right_x + 90.0,
+            y: right_y + 18.0,
+        };
+        let (ghost, snap_pt, elev_mm) = compute_3d_catalog_drop_preview(
+            e24188,
+            drop_near_right,
+            0.0,
+            &layout,
+            &catalogs,
+            true,
+            140.0,
+        );
+        let snap_xyz = snap_pt.expect("3D drop near open connector must magnetically snap");
+        assert!((snap_xyz[0] - right_x as f32).abs() < 1e-2);
+        assert!((snap_xyz[2] - right_y as f32).abs() < 1e-2);
+        assert!((elev_mm - 0.0).abs() < 1e-3);
+        assert!(
+            ghost
+                .connectors
+                .iter()
+                .any(|c| (c.x - right_x).hypot(c.y - right_y) < 1e-3),
+            "snapped ghost connector must align exactly with target connector"
+        );
+    }
+
+    #[test]
+    fn rotation_handle_3d_projects_valid_point_for_selected_track() {
+        let catalogs = builtin_catalogs();
+        let e24188 = find_entry(&catalogs, "24188").unwrap();
+        let p0 = create_piece(
+            "t-rot3d".into(),
+            e24188,
+            Transform {
+                x: 40.0,
+                y: -20.0,
+                rotation: 0.0,
+            },
+            None,
+        );
+        let layout = Layout {
+            name: "Rot3DTest".into(),
+            scale: "H0".into(),
+            pieces: vec![p0],
+            models: None,
+            feed_voltage: None,
+            catenary_feed_voltage: None,
+            catenary_circuit_mode: None,
+            loco_current_ma: None,
+            loco_count: None,
+            train_current_amps: None,
+            turnout_lantern_current_ma: None,
+            turnout_decoder_current_ma: None,
+            layers: None,
+            active_layer_id: None,
+            baseboard: None,
+            baseboards: None,
+            terrain_field: None,
+        };
+        let mut selected = HashSet::new();
+        selected.insert("t-rot3d".to_string());
+        let cam = Camera3D {
+            target: [134.0, 10.0, -20.0],
+            yaw: 0.35,
+            pitch: 0.7,
+            distance: 700.0,
+        };
+        let rect = Rect::from_min_size(Pos2::ZERO, egui::vec2(1000.0, 700.0));
+        let edit = Edit3DState::default();
+        let (piv, hdl, base_ang, init_rot) =
+            compute_3d_rotation_handle_world(&layout, &selected, true, cam.distance, &edit)
+                .expect("selected track produces a 3D rotation handle point");
+        assert!(piv.iter().all(|v| v.is_finite()) && hdl.iter().all(|v| v.is_finite()));
+        assert!((piv[0] - hdl[0]).hypot(piv[2] - hdl[2]) > 40.0);
+        assert!((base_ang - 270.0).abs() < 1e-4);
+        assert_eq!(init_rot, Some(0.0));
+        assert!(cam.world_to_screen(rect, piv).is_some());
+        assert!(cam.world_to_screen(rect, hdl).is_some());
     }
 }

@@ -113,6 +113,7 @@ fn compute_table_track_cutouts_cuts_sloped_ramp_but_ignores_flat_shadow_station(
         active_layer_id: None,
         baseboard: Some(board.clone()),
         baseboards: Some(vec![board.clone()]),
+        terrain_field: None,
     };
 
     let cutouts = compute_table_track_cutouts(&layout, &catalogs, &board, 0.0, 15.0);
@@ -154,6 +155,7 @@ fn table_cutout_widens_and_deepens_for_catenary_ramp() {
         active_layer_id: None,
         baseboard: Some(board.clone()),
         baseboards: Some(vec![board.clone()]),
+        terrain_field: None,
     };
 
     let cut_plain = compute_table_track_cutouts(&mk(ramp_plain), &catalogs, &board, 0.0, 20.0);
@@ -200,6 +202,7 @@ fn layer_plate_crud_and_fit_to_tracks() {
         active_layer_id: None,
         baseboard: Some(bb.clone()),
         baseboards: Some(vec![bb]),
+        terrain_field: None,
     };
 
     let b2_id = add_baseboard(&mut layout, &mut seq);

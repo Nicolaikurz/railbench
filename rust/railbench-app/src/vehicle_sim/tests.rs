@@ -22,6 +22,7 @@ fn make_test_layout(pieces: Vec<TrackPiece>) -> Layout {
         active_layer_id: Some("layer-1".into()),
         baseboard: None,
         baseboards: None,
+        terrain_field: None,
     }
 }
 
@@ -35,7 +36,7 @@ fn spawn_drive_and_transition_across_connected_tracks() {
     update_layout_connections(&mut layout, 4.0, 35.0, 1.0);
 
     let mut sim = VehicleSimState::default();
-    let vid = sim.spawn_vehicle(&layout, &cats, VehicleKind::ElectricLoco, Some("t0")).unwrap();
+    let vid = sim.spawn_vehicle(&layout, &cats, VehicleKind::Br243, Some("t0")).unwrap();
     sim.add_wagon(&vid, VehicleKind::PassengerCoach, &layout, &cats);
     sim.running = true;
 
@@ -60,12 +61,12 @@ fn heavier_consist_has_more_inertia_and_wagons_follow_curves_and_ramps() {
     update_layout_connections(&mut layout, 4.0, 35.0, 1.0);
 
     let mut sim_light = VehicleSimState::default();
-    let l_id = sim_light.spawn_vehicle(&layout, &cats, VehicleKind::DieselLoco, Some("c1")).unwrap();
+    let l_id = sim_light.spawn_vehicle(&layout, &cats, VehicleKind::V60Diesel, Some("c1")).unwrap();
     sim_light.vehicles[0].throttle = 0.8;
     sim_light.running = true;
 
     let mut sim_heavy = VehicleSimState::default();
-    let h_id = sim_heavy.spawn_vehicle(&layout, &cats, VehicleKind::DieselLoco, Some("c1")).unwrap();
+    let h_id = sim_heavy.spawn_vehicle(&layout, &cats, VehicleKind::V60Diesel, Some("c1")).unwrap();
     for _ in 0..4 {
         sim_heavy.add_wagon(&h_id, VehicleKind::PassengerCoach, &layout, &cats);
     }
@@ -102,7 +103,7 @@ fn reversing_brakes_smoothly_through_zero_without_flipping_body() {
     update_layout_connections(&mut layout, 4.0, 35.0, 1.0);
 
     let mut sim = VehicleSimState::default();
-    sim.spawn_vehicle(&layout, &cats, VehicleKind::SteamLoco, Some("t0")).unwrap();
+    sim.spawn_vehicle(&layout, &cats, VehicleKind::Br96Mallet, Some("t0")).unwrap();
     sim.vehicles[0].throttle = 0.7;
     sim.running = true;
     for _ in 0..40 {
@@ -135,7 +136,7 @@ fn street_car_spawns_on_road_and_all_vehicle_models_build() {
 
     let mut sim = VehicleSimState::default();
     assert!(sim.spawn_vehicle(&layout, &cats, VehicleKind::Sedan, None).is_ok());
-    assert!(sim.spawn_vehicle(&layout, &cats, VehicleKind::SteamLoco, None).is_err());
+    assert!(sim.spawn_vehicle(&layout, &cats, VehicleKind::Br96Mallet, None).is_err());
 
     for def in VEHICLE_CATALOG {
         let mut v = Vec::new();
@@ -168,9 +169,9 @@ fn train_wheels_match_exact_track_gauge_and_railhead_height() {
         .expect("N 9.0mm track");
 
     let rail_kinds = [
-        VehicleKind::SteamLoco,
-        VehicleKind::ElectricLoco,
-        VehicleKind::DieselLoco,
+        VehicleKind::Br96Mallet,
+        VehicleKind::Br243,
+        VehicleKind::V60Diesel,
         VehicleKind::PassengerCoach,
         VehicleKind::FreightCar,
     ];
@@ -271,8 +272,8 @@ fn turntable_rotates_loco_and_transfer_table_slides_loco() {
     let layout = make_test_layout(vec![tt, tr]);
 
     let mut sim = VehicleSimState::default();
-    sim.spawn_vehicle(&layout, &cats, VehicleKind::SteamLoco, Some("tt-1")).unwrap();
-    sim.spawn_vehicle(&layout, &cats, VehicleKind::DieselLoco, Some("tr-1")).unwrap();
+    sim.spawn_vehicle(&layout, &cats, VehicleKind::Br96Mallet, Some("tt-1")).unwrap();
+    sim.spawn_vehicle(&layout, &cats, VehicleKind::V60Diesel, Some("tr-1")).unwrap();
     let hdg_before = sim.vehicles[0].heading_deg;
     let y_before = sim.vehicles[1].world_y;
 
@@ -305,11 +306,11 @@ fn train_stops_before_rear_wagon_of_train_ahead() {
     update_layout_connections(&mut layout, 4.0, 35.0, 1.0);
 
     let mut sim = VehicleSimState::default();
-    let lead_id = sim.spawn_vehicle(&layout, &cats, VehicleKind::ElectricLoco, Some("t3")).unwrap();
+    let lead_id = sim.spawn_vehicle(&layout, &cats, VehicleKind::Br243, Some("t3")).unwrap();
     sim.add_wagon(&lead_id, VehicleKind::PassengerCoach, &layout, &cats);
     sim.vehicles[0].throttle = 0.0;
 
-    sim.spawn_vehicle(&layout, &cats, VehicleKind::DieselLoco, Some("t0")).unwrap();
+    sim.spawn_vehicle(&layout, &cats, VehicleKind::V60Diesel, Some("t0")).unwrap();
     sim.vehicles[1].throttle = 0.9;
     sim.running = true;
 
@@ -384,7 +385,7 @@ fn three_way_turnout_drives_straight_left_and_right_correctly() {
     for (state, expected_exit) in [(0usize, "exit-1"), (1usize, "exit-2"), (2usize, "exit-3")] {
         let mut sim = VehicleSimState::default();
         sim.turnout_states.insert("sw3".into(), state);
-        sim.spawn_vehicle(&layout, &cats, VehicleKind::ElectricLoco, Some("app")).unwrap();
+        sim.spawn_vehicle(&layout, &cats, VehicleKind::Br243, Some("app")).unwrap();
         sim.vehicles[0].throttle = 0.7;
         sim.running = true;
         for _ in 0..85 {
@@ -419,7 +420,7 @@ fn turntable_centers_incoming_loco_and_only_bridge_rotates() {
     update_layout_connections(&mut layout, 4.0, 35.0, 1.0);
 
     let mut sim = VehicleSimState::default();
-    sim.spawn_vehicle(&layout, &cats, VehicleKind::SteamLoco, Some("app-1")).unwrap();
+    sim.spawn_vehicle(&layout, &cats, VehicleKind::Br96Mallet, Some("app-1")).unwrap();
     sim.vehicles[0].throttle = 0.7;
     sim.running = true;
 
@@ -542,7 +543,7 @@ fn double_slip_24624_switches_all_four_entries_straight_and_curved() {
     for (state, start_leg, fwd, expected_exit) in routes {
         let mut sim = VehicleSimState::default();
         sim.turnout_states.insert("dkw".into(), state);
-        sim.spawn_vehicle(&layout, &cats, VehicleKind::ElectricLoco, Some(start_leg)).unwrap();
+        sim.spawn_vehicle(&layout, &cats, VehicleKind::Br243, Some(start_leg)).unwrap();
         sim.vehicles[0].forward = fwd;
         sim.vehicles[0].throttle = 0.7;
         sim.running = true;
@@ -609,7 +610,7 @@ fn double_slip_24624_switches_all_four_entries_straight_and_curved() {
     update_layout_connections(&mut crs_layout, 4.0, 35.0, 1.0);
     for (start_leg, expected_exit) in [("cleg-0", "cleg-1"), ("cleg-2", "cleg-3")] {
         let mut sim = VehicleSimState::default();
-        sim.spawn_vehicle(&crs_layout, &cats, VehicleKind::ElectricLoco, Some(start_leg)).unwrap();
+        sim.spawn_vehicle(&crs_layout, &cats, VehicleKind::Br243, Some(start_leg)).unwrap();
         sim.vehicles[0].forward = true;
         sim.vehicles[0].throttle = 0.7;
         sim.running = true;

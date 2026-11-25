@@ -48,7 +48,9 @@ pub fn update_scene_3d_cache(
                     Viewer3DEnv::HallLandscape => {
                         push_hall_landscape_env_3d(&mut verts, &mut idxs, boards_ref, opts.dark_mode)
                     }
-                    Viewer3DEnv::Minimal => {}
+                    Viewer3DEnv::Minimal => {
+                        push_minimal_cad_grid_3d(&mut verts, &mut idxs, boards_ref, opts.dark_mode)
+                    }
                 }
                 SceneMesh3D { vertices: verts, indices: idxs, instanced_tracks: Vec::new() }
             }))
@@ -231,6 +233,52 @@ pub fn update_scene_3d_cache(
         let terrain_handle = if need_terrain {
             Some(s.spawn(move || {
                 let mut terrain_mesh = SceneMesh3D::default();
+                let has_layer_hf = layout.layers.as_ref().map_or(false, |ls| {
+                    ls.iter().any(|l| l.visible && l.terrain_field.is_some())
+                });
+                let has_legacy_terrain = layout.models.as_ref().map_or(false, |ms| {
+                    ms.iter().any(|m| {
+                        matches!(m.builtin_id.as_deref(), Some("mountain") | Some("ground-terrain"))
+                    })
+                });
+                let chains = if layout.terrain_field.is_some() || has_layer_hf || has_legacy_terrain {
+                    build_connected_corridor_chains(layout, catalogs, layer_info_ref)
+                } else {
+                    Vec::new()
+                };
+                if let Some(layers) = &layout.layers {
+                    for lay in layers {
+                        if !lay.visible {
+                            continue;
+                        }
+                        if let Some(ref hf) = lay.terrain_field {
+                            push_heightfield_terrain_3d(
+                                &mut terrain_mesh.vertices,
+                                &mut terrain_mesh.indices,
+                                hf,
+                                Some(lay.id.as_str()),
+                                lay.height_mm.unwrap_or(0.0) as f32,
+                                layout,
+                                boards_ref,
+                                &chains,
+                                layer_info_ref,
+                            );
+                        }
+                    }
+                }
+                if let Some(ref hf) = layout.terrain_field {
+                    push_heightfield_terrain_3d(
+                        &mut terrain_mesh.vertices,
+                        &mut terrain_mesh.indices,
+                        hf,
+                        None,
+                        0.0,
+                        layout,
+                        boards_ref,
+                        &chains,
+                        layer_info_ref,
+                    );
+                }
                 if let Some(models) = &layout.models {
                     let terrain_tasks: Vec<(&Model3D, f32, bool)> = models
                         .iter()
@@ -251,7 +299,6 @@ pub fn update_scene_3d_cache(
                         .collect();
 
                     if !terrain_tasks.is_empty() {
-                        let chains = build_connected_corridor_chains(layout, catalogs, layer_info_ref);
                         let all_mountains: Vec<&Model3D> = models
                             .iter()
                             .filter(|m| m.builtin_id.as_deref() == Some("mountain"))
@@ -643,8 +690,9 @@ pub fn update_scene_3d_cache(
             });
 
             for sc in &opts.short_circuit_points {
-                push_box(&mut verts, &mut idxs, [sc.x as f32, 34.0, sc.y as f32], [6.0, 68.0, 6.0], [0.95, 0.15, 0.15]);
-                push_box(&mut verts, &mut idxs, [sc.x as f32, 74.0, sc.y as f32], [20.0, 20.0, 20.0], [1.0, 0.30, 0.12]);
+                let sy = sc[1] as f32;
+                push_box(&mut verts, &mut idxs, [sc[0] as f32, sy + 34.0, sc[2] as f32], [6.0, 68.0, 6.0], [0.95, 0.15, 0.15]);
+                push_box(&mut verts, &mut idxs, [sc[0] as f32, sy + 74.0, sc[2] as f32], [20.0, 20.0, 20.0], [1.0, 0.30, 0.12]);
             }
 
             Some(SceneMesh3D {
