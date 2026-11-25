@@ -40,48 +40,22 @@ pub(super) fn compute_track_instance_tint(
     color_mode: ColorMode,
     layer_col: Option<[f32; 3]>,
 ) -> [f32; 4] {
-    let base_ballast_col = [0.42_f32, 0.44, 0.48];
-    let is_buf = crate::catalog::is_buffer_stop_entry(entry);
+    let base_ballast_col = [0x78 as f32 / 255.0, 0x71 as f32 / 255.0, 0x6c as f32 / 255.0];
     match color_mode {
         ColorMode::Off => [base_ballast_col[0], base_ballast_col[1], base_ballast_col[2], 0.0],
         ColorMode::Types => {
             if entry.is_road == Some(true) {
                 return [base_ballast_col[0], base_ballast_col[1], base_ballast_col[2], 0.0];
             }
-            let tint = if is_buf {
-                [0.94, 0.27, 0.27]
-            } else {
-                match entry.kind.as_str() {
-                    "curve" => [0.22, 0.74, 0.97],
-                    "turnout-left"
-                    | "turnout-right"
-                    | "curved-turnout-left"
-                    | "curved-turnout-right"
-                    | "three-way" => [0.96, 0.62, 0.04],
-                    "crossing" | "double-slip" => [0.66, 0.33, 0.97],
-                    "flex" => [0.06, 0.73, 0.51],
-                    "buffer" => [0.94, 0.27, 0.27],
-                    _ => [0.39, 0.45, 0.55],
-                }
-            };
-            [
-                base_ballast_col[0] * 0.48 + tint[0] * 0.52,
-                base_ballast_col[1] * 0.48 + tint[1] * 0.52,
-                base_ballast_col[2] * 0.48 + tint[2] * 0.52,
-                1.0,
-            ]
+            let c = crate::blueprint_colors::get_track_blueprint_color(&entry.id).rgb_f32();
+            [c[0], c[1], c[2], 1.0]
         }
         ColorMode::Layers => {
             if entry.is_road == Some(true) {
                 return [base_ballast_col[0], base_ballast_col[1], base_ballast_col[2], 0.0];
             }
-            let lc = layer_col.unwrap_or([0.22, 0.74, 0.97]);
-            [
-                base_ballast_col[0] * 0.42 + lc[0] * 0.58,
-                base_ballast_col[1] * 0.42 + lc[1] * 0.58,
-                base_ballast_col[2] * 0.42 + lc[2] * 0.58,
-                1.0,
-            ]
+            let lc = layer_col.unwrap_or([0x38 as f32 / 255.0, 0xbd as f32 / 255.0, 0xf8 as f32 / 255.0]);
+            [lc[0], lc[1], lc[2], 1.0]
         }
     }
 }

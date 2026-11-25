@@ -34,6 +34,7 @@ pub(super) fn draw_track_piece(
     };
     let rail_w = (1.6 * camera.zoom).max(1.0);
 
+    let bp = crate::blueprint_colors::get_track_blueprint_color(&piece.catalog_id);
     let mut ballast_col = if is_road {
         Color32::from_rgb(55, 65, 81)
     } else if piece_power.is_some_and(|pr| pr.is_short_circuit) {
@@ -55,47 +56,41 @@ pub(super) fn draw_track_piece(
         }
     } else {
         match color_mode {
-            ColorMode::Off => Color32::from_rgb(71, 85, 105),
-            ColorMode::Layers => parse_hex_color(layer_color_hex).unwrap_or(Color32::from_rgb(71, 85, 105)),
-            ColorMode::Types => if entry.map_or(false, crate::catalog::is_buffer_stop_entry) {
-                Color32::from_rgb(239, 68, 68)
-            } else {
-                match kind {
-                    "curve" => Color32::from_rgb(37, 99, 235),
-                    "turnout-left" | "turnout-right" | "three-way" | "double-slip" | "curved-turnout-left" | "curved-turnout-right" => {
-                        Color32::from_rgb(217, 119, 6)
-                    }
-                    "flex" => Color32::from_rgb(8, 145, 178),
-                    "crossing" => Color32::from_rgb(147, 51, 234),
-                    _ => Color32::from_rgb(100, 116, 139),
-                }
-            },
+            ColorMode::Off => Color32::from_rgb(0x8a, 0x84, 0x79),
+            ColorMode::Layers => {
+                parse_hex_color(layer_color_hex).unwrap_or(Color32::from_rgb(0x38, 0xbd, 0xf8))
+            }
+            ColorMode::Types => bp.color32(),
         }
     };
-    if is_selected {
-        // Selected tracks are noticeably brighter ("heller") than unselected ones
-        ballast_col = brighten_color(ballast_col, 0.38);
-    } else if !is_active_layer {
-        // Inactive layers are desaturated & slightly dimmed
-        ballast_col = desaturate_color(ballast_col, 0.80, 0.72);
+    let (mut tie_col, mut rail_col) = if is_road || piece_power.is_some_and(|pr| pr.is_short_circuit) || power_sim_enabled {
+        (Color32::from_rgb(0x3d, 0x27, 0x1d), Color32::from_rgb(0xc8, 0xd0, 0xd8))
+    } else {
+        match color_mode {
+            ColorMode::Types | ColorMode::Layers => (
+                Color32::from_rgb(0x1e, 0x29, 0x3b),
+                Color32::from_rgb(0xf8, 0xfa, 0xfc),
+            ),
+            ColorMode::Off => (
+                Color32::from_rgb(0x3d, 0x27, 0x1d),
+                Color32::from_rgb(0xc8, 0xd0, 0xd8),
+            ),
+        }
+    };
+
+    if !is_active_layer && !is_selected {
+        // Inactive layers are desaturated & faded matching Electron track-sprite.ts (0.72, alpha 0.58)
+        ballast_col = crate::blueprint_colors::desaturate_electron_color32(ballast_col, 0.72, 0.58);
+        tie_col = crate::blueprint_colors::desaturate_electron_color32(tie_col, 0.72, 0.58);
+        rail_col = crate::blueprint_colors::desaturate_electron_color32(rail_col, 0.72, 0.58);
+    } else if !is_selected {
+        // Unselected active-layer tracks darken by 30% so selected tracks keep 100% saturation
+        ballast_col = crate::blueprint_colors::darken_color32(ballast_col, 0.30);
+        tie_col = crate::blueprint_colors::darken_color32(tie_col, 0.30);
+        rail_col = crate::blueprint_colors::darken_color32(rail_col, 0.30);
     }
     if piece.has_tunnel == Some(true) {
         ballast_col = Color32::from_rgba_unmultiplied(ballast_col.r(), ballast_col.g(), ballast_col.b(), 120);
-    }
-
-    let mut tie_col = if is_selected {
-        Color32::from_rgb(98, 78, 62)
-    } else {
-        Color32::from_rgb(54, 40, 30)
-    };
-    let mut rail_col = if is_selected {
-        Color32::from_rgb(250, 253, 255)
-    } else {
-        Color32::from_rgb(220, 228, 238)
-    };
-    if !is_active_layer && !is_selected {
-        tie_col = desaturate_color(tie_col, 0.85, 0.72);
-        rail_col = desaturate_color(rail_col, 0.85, 0.68);
     }
 
     if kind == "turntable" {

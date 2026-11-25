@@ -1,3 +1,4 @@
+mod blueprint_colors;
 mod board_tools;
 mod bridges_3d;
 mod building_snap;

@@ -92,6 +92,15 @@ pub(super) fn draw_piece_label_and_badges(
         let galley = painter.layout_no_wrap(label_text, FontId::proportional(font_sz), txt_col);
         let pill_h = (galley.size().y + pad_y * 2.0).clamp(min_h, max_h);
         let pill_rect = Rect::from_center_size(mid, EguiVec2::new(galley.size().x + pad_x * 2.0, pill_h));
+        let bp = crate::blueprint_colors::get_track_blueprint_color(&piece.catalog_id);
+        let mut border_col = if is_road {
+            Color32::from_rgb(148, 163, 184)
+        } else {
+            bp.border_color32()
+        };
+        if !is_active_layer && !is_selected {
+            border_col = crate::blueprint_colors::desaturate_electron_color32(border_col, 0.72, 0.58);
+        }
         painter.rect_filled(
             pill_rect,
             (pill_h * 0.22).clamp(2.0, 5.0),
@@ -100,15 +109,7 @@ pub(super) fn draw_piece_label_and_badges(
         painter.rect_stroke(
             pill_rect,
             (pill_h * 0.22).clamp(2.0, 5.0),
-            Stroke::new(
-                0.8_f32,
-                Color32::from_rgba_unmultiplied(
-                    148,
-                    163,
-                    184,
-                    if is_active_layer || is_selected { 120 } else { 65 },
-                ),
-            ),
+            Stroke::new(0.9_f32, border_col),
             egui::StrokeKind::Inside,
         );
         let text_pos = Pos2::new(
