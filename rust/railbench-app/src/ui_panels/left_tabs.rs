@@ -300,17 +300,12 @@ pub(super) fn draw_catalog_tab(ui: &mut egui::Ui, app: &mut RailbenchApp, roads_
             }
 
             let icon_kind = if is_buf { "buffer" } else { entry.kind.as_str() };
-            let accent = match icon_kind {
-                "curve" => Color32::from_rgb(59, 130, 246),
-                "turnout-left" | "turnout-right" | "three-way" | "double-slip" | "curved-turnout-left" | "curved-turnout-right" => {
-                    Color32::from_rgb(245, 158, 11)
-                }
-                "flex" => Color32::from_rgb(6, 182, 212),
-                "crossing" => Color32::from_rgb(168, 85, 247),
-                "buffer" => Color32::from_rgb(239, 68, 68),
-                "turntable" | "transfer-table" => Color32::from_rgb(14, 165, 233),
-                "feeder" => Color32::from_rgb(234, 179, 8),
-                _ => Color32::from_rgb(100, 116, 139),
+            let bp = crate::blueprint_colors::get_track_blueprint_color(&entry.id);
+            let is_road_entry = entry.is_road == Some(true);
+            let accent = if is_road_entry {
+                Color32::from_rgb(100, 116, 139)
+            } else {
+                bp.color32()
             };
 
             let dim_text = if let (Some(r), Some(a)) = (entry.radius, entry.angle) {
@@ -352,6 +347,10 @@ pub(super) fn draw_catalog_tab(ui: &mut egui::Ui, app: &mut RailbenchApp, roads_
                                 ui.spacing_mut().item_spacing.y = 1.0;
                                 ui.horizontal(|ui| {
                                     ui.set_max_width(col_w);
+                                    if !is_road_entry {
+                                        let (dot_r, _) = ui.allocate_exact_size(egui::vec2(8.0, 8.0), egui::Sense::hover());
+                                        ui.painter().circle_filled(dot_r.center(), 4.0, bp.color32());
+                                    }
                                     ui.label(RichText::new(&entry.id).strong().size(12.5).color(p.text_main));
                                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                         ui.spacing_mut().item_spacing.x = 3.0;

@@ -730,7 +730,7 @@ pub(super) fn draw_bom_tab(ui: &mut egui::Ui, app: &mut RailbenchApp) {
             );
             ui.add_space(3.0);
             for it in &sum.tracks.items {
-                draw_bom_piece_card(ui, p, it);
+                draw_bom_piece_card(ui, p, it, false);
             }
             ui.add_space(6.0);
         }
@@ -748,7 +748,7 @@ pub(super) fn draw_bom_tab(ui: &mut egui::Ui, app: &mut RailbenchApp) {
             );
             ui.add_space(3.0);
             for it in &sum.roads.items {
-                draw_bom_piece_card(ui, p, it);
+                draw_bom_piece_card(ui, p, it, true);
             }
             ui.add_space(6.0);
         }
@@ -803,7 +803,7 @@ pub(super) fn draw_bom_tab(ui: &mut egui::Ui, app: &mut RailbenchApp) {
     });
 }
 
-pub(super) fn draw_bom_piece_card(ui: &mut egui::Ui, p: crate::theme::RailbenchPalette, it: &crate::export::PieceSummaryItem) {
+pub(super) fn draw_bom_piece_card(ui: &mut egui::Ui, p: crate::theme::RailbenchPalette, it: &crate::export::PieceSummaryItem, is_road: bool) {
     Frame::new()
         .fill(p.bg_card)
         .corner_radius(CornerRadius::same(7))
@@ -816,7 +816,24 @@ pub(super) fn draw_bom_piece_card(ui: &mut egui::Ui, p: crate::theme::RailbenchP
                 ui.vertical(|ui| {
                     ui.spacing_mut().item_spacing.y = 1.0;
                     ui.horizontal(|ui| {
-                        ui.label(RichText::new(&it.catalog_id).strong().size(12.0).color(p.text_main));
+                        if !is_road {
+                            let bp = crate::blueprint_colors::get_track_blueprint_color(&it.catalog_id);
+                            Frame::new()
+                                .fill(bp.badge_bg_color32())
+                                .corner_radius(CornerRadius::same(4))
+                                .inner_margin(Margin::symmetric(6, 2))
+                                .stroke(Stroke::new(1.0_f32, bp.border_color32()))
+                                .show(ui, |ui| {
+                                    ui.label(
+                                        RichText::new(&it.catalog_id)
+                                            .strong()
+                                            .size(11.0)
+                                            .color(Color32::WHITE),
+                                    );
+                                });
+                        } else {
+                            ui.label(RichText::new(&it.catalog_id).strong().size(12.0).color(p.text_main));
+                        }
                         if it.total_length_meters > 0.0 {
                             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                 ui.label(
