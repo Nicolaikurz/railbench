@@ -4,6 +4,7 @@ mod blueprint_colors;
 mod board_tools;
 mod bridges_3d;
 mod building_snap;
+mod cad_tools;
 mod canvas2d;
 mod catalog;
 mod catalog_store;
@@ -11,6 +12,7 @@ mod collab;
 mod export;
 mod i18n;
 mod icons;
+mod inventory_store;
 mod model_tools;
 mod models3d_mesh;
 mod perf_monitor;
@@ -23,6 +25,7 @@ mod trains_3d;
 mod tunnels_3d;
 mod turntables_3d;
 mod ui_panels;
+mod version;
 mod viewer3d;
 mod app_actions;
 mod app_editing;
@@ -168,9 +171,12 @@ pub struct RailbenchApp {
     pub time_of_day: f32,
     pub day_night_speed: f32,
     pub last_3d_frame_time: Option<std::time::Instant>,
-    pub mesh_3d_key: (u64, bool, u8, bool, u8, usize),
+    pub mesh_3d_key: (u64, bool, u8, bool, u8, usize, u64),
     pub scene_3d_cache: viewer3d::Scene3DCache,
+    pub edit_3d: viewer3d::Edit3DState,
     pub train_3d: trains_3d::Train3DState,
+    pub cad_tools: cad_tools::CadToolsState,
+    pub inventory: inventory_store::TrackInventoryStore,
     pub perf_monitor: perf_monitor::PerfMonitor,
     pub app_settings: AppSettings,
     pub persist_settings: bool,
@@ -276,9 +282,12 @@ impl Default for RailbenchApp {
             time_of_day: 14.0,
             day_night_speed: 1.0,
             last_3d_frame_time: None,
-            mesh_3d_key: (u64::MAX, true, 0, true, 0, 0),
+            mesh_3d_key: (u64::MAX, true, 0, true, 0, 0, 0),
             scene_3d_cache: viewer3d::Scene3DCache::default(),
+            edit_3d: viewer3d::Edit3DState::default(),
             train_3d: trains_3d::Train3DState::default(),
+            cad_tools: cad_tools::CadToolsState::default(),
+            inventory: inventory_store::TrackInventoryStore::default(),
             perf_monitor: perf_monitor::PerfMonitor::default(),
             app_settings: AppSettings::default(),
             persist_settings: false,
@@ -407,9 +416,11 @@ impl eframe::App for RailbenchApp {
 
         // Dynamic customizable keyboard shortcuts (disabled while recording a new shortcut or typing text)
         if self.recording_key_action.is_none() && !ctx.wants_keyboard_input() {
+            let train_driving = self.is_3d_mode && self.train_3d.active;
             let (
                 do_undo,
                 do_redo,
+                do_save_as,
                 do_save,
                 do_open,
                 do_new_plan,
@@ -419,7 +430,16 @@ impl eframe::App for RailbenchApp {
                 do_paste,
                 do_dup,
                 do_sel_all,
+                do_deselect,
+                toggle_sel_lock,
                 do_fit,
+                zoom_in,
+                zoom_out,
+                pan_up,
+                pan_down,
+                pan_left,
+                pan_right,
+                pan_fast,
                 rot_delta,
                 do_delete,
                 toggle_3d,
@@ -427,6 +447,9 @@ impl eframe::App for RailbenchApp {
                 toggle_labels,
                 toggle_snapping,
                 toggle_power_sim,
+                shift_m,
+                toggle_measure,
+                cycle_color,
                 toggle_layers_sidebar,
                 toggle_feeder,
                 toggle_cat_feed,
@@ -439,7 +462,6 @@ impl eframe::App for RailbenchApp {
                 toggle_decoder,
                 toggle_signal,
                 open_help,
-                do_esc,
             ) = ctx.input(|i| {
                 let s = &self.app_settings;
                 let copy = i.events.iter().any(|e| matches!(e, egui::Event::Copy))
@@ -455,9 +477,14 @@ impl eframe::App for RailbenchApp {
                 } else {
                     None
                 };
+                let del_pressed = s.matches_action(KeyAction::DeleteSelected, i)
+                    && !(self.sketcher.active && i.key_pressed(egui::Key::Backspace));
+                let shift_m_pressed =
+                    !i.modifiers.command && !i.modifiers.alt && i.modifiers.shift && i.key_pressed(egui::Key::M);
                 (
                     s.matches_action(KeyAction::Undo, i),
                     s.matches_action(KeyAction::Redo, i),
+                    s.matches_action(KeyAction::SavePlanAs, i),
                     s.matches_action(KeyAction::Save, i),
                     s.matches_action(KeyAction::Open, i),
                     s.matches_action(KeyAction::NewPlan, i),
@@ -467,14 +494,26 @@ impl eframe::App for RailbenchApp {
                     paste,
                     s.matches_action(KeyAction::Duplicate, i),
                     s.matches_action(KeyAction::SelectAll, i),
+                    s.matches_action(KeyAction::DeselectAll, i),
+                    s.matches_action(KeyAction::ToggleSelectionLock, i),
                     s.matches_action(KeyAction::FitView, i),
+                    s.matches_action(KeyAction::ZoomIn, i),
+                    s.matches_action(KeyAction::ZoomOut, i),
+                    s.matches_action(KeyAction::PanUp, i),
+                    s.matches_action(KeyAction::PanDown, i),
+                    s.matches_action(KeyAction::PanLeft, i),
+                    s.matches_action(KeyAction::PanRight, i),
+                    i.modifiers.shift,
                     rot,
-                    s.matches_action(KeyAction::DeleteSelected, i),
+                    del_pressed,
                     s.matches_action(KeyAction::Toggle3D, i),
                     s.matches_action(KeyAction::ToggleRulers, i),
                     s.matches_action(KeyAction::ToggleLabels, i),
                     s.matches_action(KeyAction::ToggleSnapping, i),
                     s.matches_action(KeyAction::TogglePowerSim, i),
+                    shift_m_pressed,
+                    s.matches_action(KeyAction::ToggleMeasure, i),
+                    s.matches_action(KeyAction::CycleColorMode, i),
                     s.matches_action(KeyAction::ToggleLayersSidebar, i),
                     s.matches_action(KeyAction::ToggleFeeder, i),
                     s.matches_action(KeyAction::ToggleCatenaryFeeder, i),
@@ -487,13 +526,12 @@ impl eframe::App for RailbenchApp {
                     s.matches_action(KeyAction::ToggleDecoder, i),
                     s.matches_action(KeyAction::ToggleSignal, i),
                     s.matches_action(KeyAction::OpenHelp, i),
-                    i.key_pressed(egui::Key::Escape),
                 )
             });
 
             if do_undo { self.undo(); }
             if do_redo { self.redo(); }
-            if do_save { self.save_layout_dialog(); }
+            if do_save_as || do_save { self.save_layout_dialog(); }
             if do_open { self.open_layout_dialog(); }
             if do_new_plan { self.new_empty_layout(); }
             if do_export_csv { self.export_bom_csv_dialog(); }
@@ -502,7 +540,56 @@ impl eframe::App for RailbenchApp {
             if do_paste { self.paste_clipboard(None); }
             if do_dup { self.duplicate_selected(); }
             if do_sel_all { self.select_all(); }
+            if toggle_sel_lock {
+                self.layer_protection = !self.layer_protection;
+                self.save_current_settings();
+            }
             if do_fit { self.pending_fit_view = true; }
+            if zoom_in {
+                if self.is_3d_mode {
+                    self.camera_3d.distance = (self.camera_3d.distance / 1.15).clamp(60.0, 25000.0);
+                } else {
+                    let anchor = ctx.screen_rect().center();
+                    let wx = (anchor.x - self.camera.offset.x) / self.camera.zoom;
+                    let wy = (anchor.y - self.camera.offset.y) / self.camera.zoom;
+                    self.camera.zoom = (self.camera.zoom * 1.15).clamp(0.04, 15.0);
+                    self.camera.offset.x = anchor.x - wx * self.camera.zoom;
+                    self.camera.offset.y = anchor.y - wy * self.camera.zoom;
+                }
+            }
+            if zoom_out {
+                if self.is_3d_mode {
+                    self.camera_3d.distance = (self.camera_3d.distance * 1.15).clamp(60.0, 25000.0);
+                } else {
+                    let anchor = ctx.screen_rect().center();
+                    let wx = (anchor.x - self.camera.offset.x) / self.camera.zoom;
+                    let wy = (anchor.y - self.camera.offset.y) / self.camera.zoom;
+                    self.camera.zoom = (self.camera.zoom / 1.15).clamp(0.04, 15.0);
+                    self.camera.offset.x = anchor.x - wx * self.camera.zoom;
+                    self.camera.offset.y = anchor.y - wy * self.camera.zoom;
+                }
+            }
+            let mut pan_dx = 0.0_f32;
+            let mut pan_dy = 0.0_f32;
+            let pan_step = if pan_fast { 180.0_f32 } else { 60.0_f32 };
+            if !train_driving && pan_up { pan_dy += pan_step; }
+            if !train_driving && pan_down { pan_dy -= pan_step; }
+            if pan_left { pan_dx += pan_step; }
+            if pan_right { pan_dx -= pan_step; }
+            if pan_dx != 0.0 || pan_dy != 0.0 {
+                if self.is_3d_mode {
+                    let speed = self.camera_3d.distance * 0.0012;
+                    let rx = self.camera_3d.yaw.cos();
+                    let rz = -self.camera_3d.yaw.sin();
+                    let fx = -self.camera_3d.yaw.sin();
+                    let fz = -self.camera_3d.yaw.cos();
+                    self.camera_3d.target[0] -= (rx * pan_dx - fx * pan_dy) * speed;
+                    self.camera_3d.target[2] -= (rz * pan_dx - fz * pan_dy) * speed;
+                } else {
+                    self.camera.offset.x += pan_dx;
+                    self.camera.offset.y += pan_dy;
+                }
+            }
             if let Some(dir) = rot_delta {
                 self.rotate_selected(dir * self.rotation_step);
             }
@@ -516,13 +603,34 @@ impl eframe::App for RailbenchApp {
                 self.show_labels = !self.show_labels;
                 self.save_current_settings();
             }
-            if toggle_snapping {
+            if !train_driving && toggle_snapping {
                 self.snapping_enabled = !self.snapping_enabled;
                 self.save_current_settings();
             }
             if toggle_power_sim {
                 self.power_sim_enabled = !self.power_sim_enabled;
                 self.mark_layout_dirty();
+            }
+            if shift_m {
+                self.height_tab = 1;
+                self.show_height_dialog = true;
+            } else if toggle_measure {
+                if !self.selected.is_empty() && !self.measure_mode {
+                    self.show_height_dialog = true;
+                } else {
+                    self.measure_mode = !self.measure_mode;
+                    if !self.measure_mode {
+                        self.measure_points = None;
+                    }
+                }
+            }
+            if cycle_color {
+                self.color_mode = match self.color_mode {
+                    ColorMode::Types => ColorMode::Layers,
+                    ColorMode::Layers => ColorMode::Off,
+                    ColorMode::Off => ColorMode::Types,
+                };
+                self.save_current_settings();
             }
             if toggle_layers_sidebar {
                 self.show_right_sidebar = !self.show_right_sidebar;
@@ -534,28 +642,54 @@ impl eframe::App for RailbenchApp {
             if toggle_cat_iso { self.toggle_selected_catenary_isolator(); }
             if toggle_cat { self.toggle_selected_catenary(); }
             if toggle_bridge { self.toggle_selected_bridge(); }
-            if toggle_tunnel { self.toggle_selected_tunnel(); }
-            if toggle_lantern { self.toggle_selected_lantern(); }
+            if !train_driving && toggle_tunnel { self.toggle_selected_tunnel(); }
+            if !train_driving && toggle_lantern { self.toggle_selected_lantern(); }
             if toggle_decoder { self.toggle_selected_decoder(); }
             if toggle_signal { self.toggle_selected_signal(); }
             if open_help { self.show_help_dialog = true; }
-            if do_esc {
-                self.selected.clear();
-                self.terrain_brush.set_active(false, None, None);
-                self.measure_mode = false;
-                self.measure_points = None;
-                self.dragging_catalog_entry = None;
-                self.sketcher.stop();
-                self.dragging_board = None;
-                self.dragging_model_rot = None;
-                self.board_snap_guides.clear();
-                self.ramp_sel.pick_mode = None;
+            if do_deselect {
+                if self.measure_mode {
+                    if self.measure_points.is_some() {
+                        self.measure_points = None;
+                    } else {
+                        self.measure_mode = false;
+                    }
+                } else if self.terrain_brush.active
+                    || self.dragging_catalog_entry.is_some()
+                    || self.sketcher.active
+                    || self.dragging_board.is_some()
+                    || self.dragging_model_rot.is_some()
+                    || self.ramp_sel.pick_mode.is_some()
+                {
+                    self.terrain_brush.set_active(false, None, None);
+                    self.dragging_catalog_entry = None;
+                    self.sketcher.stop();
+                    self.dragging_board = None;
+                    self.dragging_model_rot = None;
+                    self.board_snap_guides.clear();
+                    self.ramp_sel.pick_mode = None;
+                } else if self.is_3d_mode {
+                    if self.train_3d.active {
+                        self.train_3d.active = false;
+                    } else if self.edit_3d.enabled && !self.selected.is_empty() {
+                        self.selected.clear();
+                    } else {
+                        self.toggle_3d();
+                    }
+                } else {
+                    self.selected.clear();
+                }
             }
         }
 
         // Keep cached power & 2-wire short-circuit simulation up to date (recomputes only when layout_version changes)
         if !self.layout.pieces.is_empty() || self.power_sim_enabled || self.show_power_dialog {
             let _ = self.get_or_update_power_sim();
+        }
+        if self.cad_tools.nem_check_enabled && self.cad_tools.nem_cache_version != self.layout_version {
+            self.cad_tools.nem_violations =
+                cad_tools::check_nem_clearances(&self.layout, &self.catalogs);
+            self.cad_tools.nem_cache_version = self.layout_version;
         }
 
         draw_top_bars(ctx, self);
@@ -595,13 +729,22 @@ impl eframe::App for RailbenchApp {
                     };
                     let mut train_toggle = self.train_3d.active;
                     let sc_pts = self.current_short_circuit_points();
-                    draw_viewport_3d(
+                    let edit_out = draw_viewport_3d(
                         ui,
                         &mut self.camera_3d,
                         &self.scene_3d_bundle,
                         trains_mesh,
                         &mut train_toggle,
-                        &self.layout,
+                        viewer3d::Edit3DParams {
+                            state: &mut self.edit_3d,
+                            layout: &mut self.layout,
+                            catalogs: &self.catalogs,
+                            selected: &mut self.selected,
+                            dragging_catalog: self.dragging_catalog_entry.as_ref(),
+                            snapping_enabled: &mut self.snapping_enabled,
+                            layer_protection: self.layer_protection,
+                            rotation_step: self.rotation_step,
+                        },
                         &mut self.viewer3d_env,
                         &mut self.day_night_active,
                         &mut self.time_of_day,
@@ -616,6 +759,38 @@ impl eframe::App for RailbenchApp {
                         self.train_3d.enter_mode(&self.layout, &self.catalogs, &mut self.camera_3d);
                     } else if !train_toggle && self.train_3d.active {
                         self.train_3d.active = false;
+                    }
+                    if edit_out.push_undo {
+                        self.push_undo();
+                    }
+                    if let Some((drop_entry, drop_pt, snap_r)) = edit_out.drop_catalog_at {
+                        self.dragging_catalog_entry = None;
+                        self.place_catalog_entry_at(&drop_entry, drop_pt, snap_r);
+                    }
+                    if let Some(delta_deg) = edit_out.rotate_delta_deg {
+                        self.rotate_selected(delta_deg);
+                    }
+                    if let Some(elev_mm) = edit_out.elevation_delta_mm {
+                        self.push_undo();
+                        viewer3d::edit3d::nudge_selection_elevation(
+                            &mut self.layout,
+                            &self.selected,
+                            self.layer_protection,
+                            elev_mm,
+                        );
+                        self.mark_layout_dirty();
+                    }
+                    if edit_out.delete_requested {
+                        self.delete_selected();
+                    }
+                    if edit_out.close_gap_requested {
+                        self.run_close_gap();
+                    }
+                    if edit_out.parallel_requested {
+                        self.run_parallel_tracks();
+                    }
+                    if edit_out.layout_changed {
+                        self.mark_layout_dirty();
                     }
                     if self.day_night_active || self.train_3d.needs_repaint() {
                         ctx.request_repaint();
@@ -677,6 +852,8 @@ impl eframe::App for RailbenchApp {
                         &mut self.sketcher,
                         &mut self.dragging_model_rot,
                         ramp_overlay,
+                        &mut self.cad_tools,
+                        &self.train_3d.turnout_branches,
                     );
                     if let Some((drop_world, snap_r)) = res.drop_catalog_at {
                         if let Some(entry) = self.dragging_catalog_entry.take() {
@@ -756,6 +933,7 @@ impl eframe::App for RailbenchApp {
         // Floating layers panel & dialogs overlay on top of the full-width 2D/3D viewport
         draw_right_sidebar(ctx, self, viewport_rect);
         if self.is_3d_mode && self.train_3d.active {
+            let prev_turnout_ver = self.train_3d.turnout_branches_version;
             self.train_3d.draw_hud(
                 ctx,
                 viewport_rect,
@@ -765,6 +943,9 @@ impl eframe::App for RailbenchApp {
                 self.dark_mode,
                 self.lang,
             );
+            if self.train_3d.turnout_branches_version != prev_turnout_ver {
+                ctx.request_repaint();
+            }
         }
         draw_dialogs(ctx, self);
 
@@ -904,12 +1085,85 @@ fn make_empty_layout() -> Layout {
     }
 }
 
+impl RailbenchApp {
+    pub fn run_close_gap(&mut self) {
+        let mut temp_layout = self.layout.clone();
+        let mut temp_seq = self.next_piece_seq;
+        match cad_tools::close_gap_between_selected(
+            &mut temp_layout,
+            &self.catalogs,
+            &self.selected,
+            &mut temp_seq,
+            self.selected_catalog_idx,
+        ) {
+            Ok((added, msg)) => {
+                self.push_undo();
+                self.layout = temp_layout;
+                self.next_piece_seq = temp_seq;
+                self.selected.clear();
+                for id in added {
+                    self.selected.insert(id);
+                }
+                self.status_message = Some(msg);
+                self.mark_layout_dirty();
+            }
+            Err(err) => {
+                self.status_message = Some(err);
+            }
+        }
+    }
+
+    pub fn run_parallel_tracks(&mut self) {
+        if let Some(first_id) = self.selected.iter().next() {
+            if let Some(p) = self.layout.pieces.iter().find(|pc| &pc.id == first_id) {
+                let is_default = (self.cad_tools.parallel_spacing_mm - 64.3).abs() < 0.05;
+                if is_default {
+                    self.cad_tools.parallel_spacing_mm =
+                        cad_tools::CadToolsState::default_spacing_for_catalog(
+                            &self.layout.scale,
+                            &p.catalog_id,
+                        );
+                }
+            }
+        }
+        let mut temp_layout = self.layout.clone();
+        let mut temp_seq = self.next_piece_seq;
+        match cad_tools::generate_parallel_tracks(
+            &mut temp_layout,
+            &self.catalogs,
+            &self.selected,
+            self.cad_tools.parallel_spacing_mm,
+            self.cad_tools.parallel_side,
+            &mut temp_seq,
+        ) {
+            Ok(added) => {
+                let cnt = added.len();
+                self.push_undo();
+                self.layout = temp_layout;
+                self.next_piece_seq = temp_seq;
+                self.selected.clear();
+                for id in added {
+                    self.selected.insert(id);
+                }
+                self.status_message = Some(format!(
+                    "Generated {cnt} parallel track piece(s) ({:.1} mm)",
+                    self.cad_tools.parallel_spacing_mm
+                ));
+                self.mark_layout_dirty();
+            }
+            Err(err) => {
+                self.status_message = Some(err);
+            }
+        }
+    }
+}
+
 fn main() -> eframe::Result<()> {
     let options = eframe::NativeOptions {
         renderer: eframe::Renderer::Wgpu,
         multisampling: viewer3d::WINDOW_MSAA_SAMPLES as u16,
         viewport: egui::ViewportBuilder::default()
-            .with_title("RAILbench")
+            .with_title(version::full_app_title())
             .with_inner_size([1360.0, 860.0])
             .with_decorations(false)
             .with_resizable(true),

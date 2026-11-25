@@ -681,10 +681,10 @@ pub fn draw_floating_selection_bar(ctx: &egui::Context, app: &mut RailbenchApp) 
                         }
                         if any_turnout {
                             let lantern_lbl = if app.lang == Lang::De { "Laterne" } else { "Lantern" };
-                            if toggle_pill(ui, lantern_lbl, has_lantern, Color32::from_rgb(202, 138, 4), "Turnout Lantern (Shift+L)") {
+                            if toggle_pill(ui, lantern_lbl, has_lantern, Color32::from_rgb(202, 138, 4), "Turnout Lantern (W)") {
                                 app.toggle_selected_lantern();
                             }
-                            if toggle_pill(ui, "DEC", has_decoder, Color32::from_rgb(2, 132, 199), "Turnout Decoder (Shift+D)") {
+                            if toggle_pill(ui, "DEC", has_decoder, Color32::from_rgb(2, 132, 199), "Turnout Decoder (Shift+W / Shift+D)") {
                                 app.toggle_selected_decoder();
                             }
                         }

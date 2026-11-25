@@ -25,7 +25,12 @@ pub(super) fn draw_welcome_dialog(ctx: &egui::Context, app: &mut RailbenchApp) {
     .show(ctx, |ui| {
         ui.vertical_centered(|ui| {
             ui.add_space(4.0);
-            ui.label(RichText::new("RAILbench 2D & 3D").strong().size(20.0).color(p.primary));
+            ui.label(
+                RichText::new(format!("RAILbench 2D & 3D  {}", crate::version::APP_VERSION_TAG))
+                    .strong()
+                    .size(20.0)
+                    .color(p.primary),
+            );
             ui.label(
                 RichText::new(if is_de {
                     "Professioneller Modelleisenbahn-Gleisplaner (Native Desktop)"
@@ -631,7 +636,10 @@ pub(super) fn draw_help_dialog(ctx: &egui::Context, app: &mut RailbenchApp) {
 
         egui::ScrollArea::vertical().show(ui, |ui| match app.help_tab {
             0 => {
-                ui.heading("RAILbench Native 2D & 3D Planner");
+                ui.heading(format!(
+                    "RAILbench Native 2D & 3D Planner ({})",
+                    crate::version::APP_VERSION_TAG
+                ));
                 ui.add_space(4.0);
                 ui.label(if is_de {
                     "RAILbench verbindet praezise 2D-Gleisplanung (H0, TT, N, Z, 0, 1, G + Strassen) mit direkter 3D-Ansicht, elektrischer Stromkreis-Analyse und professionellem Mehrseiten-Bauplanexport."

@@ -60,8 +60,9 @@ fn write_pdf_page_header(
     // Brand tag (matches Electron print-pdf.ts: #0284c7 bold)
     let _ = writeln!(
         s,
-        "0.01 0.52 0.78 rg BT /F2 9 Tf {margin:.1} {:.1} Td (RAILbench Track Planner) Tj ET",
-        top_y - 4.0
+        "0.01 0.52 0.78 rg BT /F2 9 Tf {margin:.1} {:.1} Td (RAILbench Track Planner {}) Tj ET",
+        top_y - 4.0,
+        crate::version::APP_VERSION_TAG
     );
     // Bold layout title (#0f172a)
     let _ = writeln!(

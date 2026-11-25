@@ -773,4 +773,33 @@ mod tests {
         assert_eq!(sim.disconnected_count, 0);
         assert!(sim.results["p7"].voltage > 15.0 && sim.results["p7"].voltage < 16.0);
     }
+
+    #[test]
+    fn unequipped_turnout_lantern_draws_zero_ma_and_equipped_draws_lantern_ma() {
+        let catalogs = builtin_catalogs();
+        let turnout = find_entry(&catalogs, "24611").expect("24611 in catalog");
+        let mut p0 = create_piece("sw0".into(), turnout, Transform { x: 0.0, y: 0.0, rotation: 0.0 }, None);
+        p0.power_feed = Some(true);
+
+        let mut layout_unequipped = make_test_layout(vec![p0.clone()]);
+        layout_unequipped.loco_count = Some(1);
+        layout_unequipped.turnout_lantern_current_ma = Some(25.0);
+        let sim_unequipped = simulate_layout_power(&layout_unequipped, &catalogs);
+        assert!(
+            (sim_unequipped.total_current_a - 0.5).abs() < 1e-9,
+            "unequipped turnout lantern should add 0 mA on top of 0.5 A traction, got {} A",
+            sim_unequipped.total_current_a
+        );
+
+        p0.has_lantern = Some(true);
+        let mut layout_equipped = make_test_layout(vec![p0]);
+        layout_equipped.loco_count = Some(1);
+        layout_equipped.turnout_lantern_current_ma = Some(25.0);
+        let sim_equipped = simulate_layout_power(&layout_equipped, &catalogs);
+        assert!(
+            (sim_equipped.total_current_a - 0.525).abs() < 1e-9,
+            "equipped turnout lantern should add 25 mA (0.525 A total), got {} A",
+            sim_equipped.total_current_a
+        );
+    }
 }

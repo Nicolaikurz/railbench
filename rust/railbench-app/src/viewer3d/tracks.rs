@@ -12,6 +12,7 @@ pub(super) fn push_track_piece_3d(
     e1: f64,
     color_mode: ColorMode,
     layer_color: Option<[f32; 3]>,
+    active_branch: usize,
     cat_ctx: &mut CatenaryMast3DContext,
 ) {
     let kind_str = entry.map(|e| e.kind.as_str()).unwrap_or("straight");
@@ -433,7 +434,10 @@ pub(super) fn push_track_piece_3d(
     }
 
     // Turnout switch tie rod, DB Wn 1 / Wn 2 Weichenlaterne & digital decoder housing in 3D
-    if piece.has_lantern == Some(true) || piece.has_decoder == Some(true) {
+    let is_turnout = crate::is_turnout_kind(kind_str);
+    let show_lantern_housing = is_turnout || piece.has_lantern == Some(true);
+    let lantern_lit = piece.has_lantern == Some(true);
+    if show_lantern_housing || piece.has_decoder == Some(true) {
         let is_left = matches!(kind_str, "turnout-left" | "curved-turnout-left");
         let side_y = if is_left { -22.0 } else { 22.0 };
         let rp = rotate(Vec2 { x: 26.0, y: side_y }, piece.transform.rotation);
@@ -453,7 +457,9 @@ pub(super) fn push_track_piece_3d(
             [tx, ly, tz],
             yaw,
             kind_str,
-            piece.has_lantern == Some(true),
+            show_lantern_housing,
+            lantern_lit,
+            active_branch,
             piece.has_decoder == Some(true),
         );
     }

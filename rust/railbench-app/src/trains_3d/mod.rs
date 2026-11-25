@@ -114,6 +114,7 @@ pub struct Train3DState {
     pub selected_idx: usize,
     pub camera_mode: TrainCameraMode,
     pub turnout_branches: HashMap<String, usize>,
+    pub turnout_branches_version: u64,
     pub mesh_version: u64,
 }
 
@@ -125,6 +126,7 @@ impl Default for Train3DState {
             selected_idx: 0,
             camera_mode: TrainCameraMode::Free,
             turnout_branches: HashMap::new(),
+            turnout_branches_version: 0,
             mesh_version: 1,
         }
     }
@@ -216,6 +218,7 @@ impl Train3DState {
             if let Some(tinfo) = net.turnouts.iter().find(|t| t.piece_id == tid) {
                 let entry = self.turnout_branches.entry(tid).or_insert(0);
                 *entry = (*entry + 1) % tinfo.num_branches.max(1);
+                self.turnout_branches_version = self.turnout_branches_version.wrapping_add(1);
             }
         }
     }

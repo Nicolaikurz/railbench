@@ -5,9 +5,13 @@ pub(super) fn is_instanceable_track_piece(
     entry: Option<&CatalogEntry>,
     e0: f64,
     e1: f64,
+    active_branch: usize,
 ) -> bool {
     let Some(e) = entry else { return false };
     if matches!(e.kind.as_str(), "turntable" | "transfer-table") {
+        return false;
+    }
+    if active_branch != 0 {
         return false;
     }
     if (e1 - e0).abs() > 0.01 {
@@ -89,6 +93,7 @@ pub(super) fn build_local_track_prototype_3d(
         0.0,
         ColorMode::Off,
         None,
+        0,
         &mut dummy_cat,
     );
     (Arc::new(pv), Arc::new(pi))
@@ -312,6 +317,19 @@ pub(super) fn compute_submesh_signatures(
     for sc in &opts.short_circuit_points {
         h_tracks = hash_f64(h_tracks, sc.x);
         h_tracks = hash_f64(h_tracks, sc.y);
+    }
+    if !opts.turnout_branches.is_empty() {
+        let mut active_switches: Vec<(&str, usize)> = opts
+            .turnout_branches
+            .iter()
+            .filter(|(_, &br)| br != 0)
+            .map(|(id, &br)| (id.as_str(), br))
+            .collect();
+        active_switches.sort_unstable_by(|a, b| a.0.cmp(b.0));
+        for (id, br) in active_switches {
+            h_tracks = fnv1a_u64(h_tracks, id.as_bytes());
+            h_tracks = fnv1a_u64(h_tracks, &(br as u64).to_le_bytes());
+        }
     }
 
     (h_env, h_boards, h_terrain, h_tracks)

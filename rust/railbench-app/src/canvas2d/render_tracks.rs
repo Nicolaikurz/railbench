@@ -18,6 +18,7 @@ pub(super) fn draw_track_piece(
     show_labels: bool,
     power_sim_enabled: bool,
     piece_power: Option<&PiecePowerResult>,
+    turnout_branches: &HashMap<String, usize>,
 ) {
     let kind = entry.map(|e| e.kind.as_str()).unwrap_or("straight");
     let is_special = matches!(kind, "turntable" | "transfer-table");
@@ -620,48 +621,63 @@ pub(super) fn draw_track_piece(
     );
 
     // Turnout lantern (DB Wn 1 / Wn 2 Weichenlaterne) & digital decoder overlays
+    let is_turnout = crate::is_turnout_kind(kind);
+    let show_lantern_housing = is_turnout || piece.has_lantern == Some(true);
+    let lantern_lit = piece.has_lantern == Some(true);
+    let active_branch = turnout_branches.get(&piece.id).copied().unwrap_or(0);
     let is_left_turnout = kind == "turnout-left" || kind == "curved-turnout-left";
     let is_right_turnout = kind == "turnout-right" || kind == "curved-turnout-right";
     let acc_side_y = if is_left_turnout { -22.0 } else { 22.0 };
-    if piece.has_lantern == Some(true) || piece.has_decoder == Some(true) {
+    if show_lantern_housing || piece.has_decoder == Some(true) {
         let root_r = rotate(Vec2 { x: 26.0, y: 0.0 }, piece.transform.rotation);
         let l_r = rotate(Vec2 { x: 26.0, y: acc_side_y }, piece.transform.rotation);
         let s_root = camera.world_to_screen(rect, piece.transform.x + root_r.x, piece.transform.y + root_r.y);
         let s_lant = camera.world_to_screen(rect, piece.transform.x + l_r.x, piece.transform.y + l_r.y);
         painter.line_segment([s_root, s_lant], Stroke::new((1.6 * camera.zoom).clamp(1.0, 2.4), Color32::from_rgb(100, 116, 139)));
 
-        if piece.has_lantern == Some(true) {
+        if show_lantern_housing {
             let sz = (8.8 * camera.zoom).clamp(6.5, 13.0);
             let r = Rect::from_center_size(s_lant, EguiVec2::splat(sz));
-            // Warm glow halo + cast-iron base ring
-            painter.circle_filled(s_lant, sz * 0.85, Color32::from_rgba_unmultiplied(254, 240, 138, 42));
-            painter.circle_stroke(s_lant, sz * 0.72, Stroke::new(1.0_f32, Color32::from_rgba_unmultiplied(254, 240, 138, 135)));
+            if lantern_lit {
+                // Warm glow halo + illuminated ring only when lantern is equipped/lit
+                painter.circle_filled(s_lant, sz * 0.85, Color32::from_rgba_unmultiplied(254, 240, 138, 42));
+                painter.circle_stroke(s_lant, sz * 0.72, Stroke::new(1.0_f32, Color32::from_rgba_unmultiplied(254, 240, 138, 135)));
+            }
             // Black DB lantern housing with metallic border
             painter.rect_filled(r, 2.0, Color32::from_rgb(11, 17, 32));
             painter.rect_stroke(r, 2.0, Stroke::new(1.1_f32, Color32::from_rgb(100, 116, 139)), egui::StrokeKind::Inside);
 
-            // Illuminated milk-glass DB Wn 1 / Wn 2 symbol rotated with the turnout
-            let milk = Color32::from_rgb(254, 249, 195);
+            // DB Wn 1 / Wn 2 position bar: bright warm milk-glass when lit, matte unlit white-grey otherwise
+            let aspect_col = if lantern_lit {
+                Color32::from_rgb(254, 249, 195)
+            } else {
+                Color32::from_rgb(186, 198, 214)
+            };
             let bar_len = sz * 0.34;
             let bar_w = (sz * 0.20).clamp(1.4, 2.6);
-            let sym_ang = (piece.transform.rotation as f32).to_radians()
-                + if is_left_turnout {
-                    -std::f32::consts::FRAC_PI_4
-                } else if is_right_turnout {
-                    std::f32::consts::FRAC_PI_4
-                } else {
-                    0.0
-                };
+            let branch_offset = if active_branch == 0 {
+                0.0
+            } else if is_left_turnout || (kind == "three-way" && active_branch == 1) {
+                -std::f32::consts::FRAC_PI_4
+            } else if is_right_turnout
+                || (kind == "three-way" && active_branch >= 2)
+                || kind == "double-slip"
+            {
+                std::f32::consts::FRAC_PI_4
+            } else {
+                0.0
+            };
+            let sym_ang = (piece.transform.rotation as f32).to_radians() + branch_offset;
             let dx = sym_ang.cos() * bar_len;
             let dy = sym_ang.sin() * bar_len;
             painter.line_segment(
                 [Pos2::new(s_lant.x - dx, s_lant.y - dy), Pos2::new(s_lant.x + dx, s_lant.y + dy)],
-                Stroke::new(bar_w, milk),
+                Stroke::new(bar_w, aspect_col),
             );
         }
 
         if piece.has_decoder == Some(true) {
-            let dec_x_local = if piece.has_lantern == Some(true) { 38.0 } else { 26.0 };
+            let dec_x_local = if show_lantern_housing { 38.0 } else { 26.0 };
             let d_r = rotate(Vec2 { x: dec_x_local, y: acc_side_y }, piece.transform.rotation);
             let s_dec = camera.world_to_screen(rect, piece.transform.x + d_r.x, piece.transform.y + d_r.y);
             let dr = Rect::from_center_size(s_dec, EguiVec2::new(22.0, 11.0));

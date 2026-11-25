@@ -7,7 +7,7 @@ pub fn draw_viewport_3d(
     cached_bundle: &Option<Scene3DBundle>,
     trains_mesh: Option<(u64, Arc<SceneMesh3D>)>,
     train_mode_active: &mut bool,
-    layout: &Layout,
+    edit: Edit3DParams<'_>,
     env_mode: &mut Viewer3DEnv,
     day_night_active: &mut bool,
     time_of_day: &mut f32,
@@ -17,7 +17,7 @@ pub fn draw_viewport_3d(
     dark_mode: bool,
     lang: Lang,
     dt_secs: f32,
-) {
+) -> Edit3DOutput {
     if *day_night_active {
         let delta_hours = dt_secs * (24.0 / 1200.0) * (*day_night_speed);
         *time_of_day = (*time_of_day + delta_hours).rem_euclid(24.0);
@@ -26,8 +26,23 @@ pub fn draw_viewport_3d(
     let avail = ui.available_size();
     let (rect, response) = ui.allocate_exact_size(avail, Sense::click_and_drag());
 
-    // Full 360° / 180° Orbit (left drag, including underneath table)
-    if response.dragged_by(egui::PointerButton::Primary) {
+    let (consumed_primary_drag, mut edit_out) = handle_3d_edit_interaction(
+        ui,
+        rect,
+        &response,
+        camera,
+        edit.state,
+        edit.layout,
+        edit.catalogs,
+        edit.selected,
+        edit.dragging_catalog,
+        *edit.snapping_enabled,
+        edit.layer_protection,
+        edit.rotation_step,
+    );
+
+    // Full 360° / 180° Orbit (left drag, skipping only when Edit 3D is dragging an object)
+    if !consumed_primary_drag && response.dragged_by(egui::PointerButton::Primary) {
         let d = response.drag_delta();
         camera.yaw -= d.x * 0.0065;
         camera.pitch = (camera.pitch + d.y * 0.0065).clamp(-1.48, 1.48);
@@ -153,6 +168,25 @@ pub fn draw_viewport_3d(
                             .clicked()
                         {
                             *train_mode_active = !*train_mode_active;
+                            if *train_mode_active {
+                                edit.state.enabled = false;
+                            }
+                        }
+
+                        let edit_lbl = if is_de { "3D Bearbeiten" } else { "Edit 3D" };
+                        if ui
+                            .selectable_label(edit.state.enabled, edit_lbl)
+                            .on_hover_text(if is_de {
+                                "Direkte 3D-Bearbeitung in CAD / Minimal (oder Halle) ein/ausschalten"
+                            } else {
+                                "Enable or disable editing directly in CAD / Minimal (or Hall) 3D view"
+                            })
+                            .clicked()
+                        {
+                            edit.state.enabled = !edit.state.enabled;
+                            if edit.state.enabled {
+                                *train_mode_active = false;
+                            }
                         }
 
                         ui.separator();
@@ -189,17 +223,45 @@ pub fn draw_viewport_3d(
                             }
                         }
 
-                        ui.label(
-                            RichText::new("LMB: Orbit  •  RMB: Pan  •  Wheel: Zoom")
-                                .size(10.5)
-                                .color(hud_muted),
-                        );
+                        let hint_txt = if edit.state.enabled {
+                            if is_de {
+                                "Klick: Auswaehlen • Ziehen: Verschieben • Alt+Ziehen: Hoehe • Leer-Ziehen: Orbit"
+                            } else {
+                                "Click: Select • Drag: Move • Alt+Drag: Height • Empty Drag: Orbit"
+                            }
+                        } else {
+                            "LMB: Orbit  •  RMB: Pan  •  Wheel: Zoom"
+                        };
+                        ui.label(RichText::new(hint_txt).size(10.5).color(hud_muted));
                     });
                 });
         });
 
     // Interactive CAD ViewCube Widget below top-left HUD bar
-    draw_viewcube_widget(ui, rect, camera, layout, is_de, dark_mode);
+    draw_viewcube_widget(ui, rect, camera, edit.layout, is_de, dark_mode);
+
+    // 3D Edit Mode selection wireframes, XYZ triad & bottom Edit HUD bar
+    let exit_edit = draw_3d_edit_overlays(
+        ui,
+        rect,
+        camera,
+        edit.state,
+        edit.layout,
+        edit.catalogs,
+        edit.selected,
+        edit.dragging_catalog,
+        edit.snapping_enabled,
+        edit.rotation_step,
+        *train_mode_active,
+        dark_mode,
+        lang,
+        &mut edit_out,
+    );
+    if exit_edit {
+        edit.state.enabled = false;
+    }
+
+    edit_out
 }
 
 pub(super) fn draw_viewcube_widget(

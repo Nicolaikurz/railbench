@@ -4,7 +4,7 @@ impl RailbenchApp {
     pub fn release_3d_cpu_memory(&mut self) {
         self.scene_3d_bundle = None;
         self.scene_3d_cache.clear();
-        self.mesh_3d_key = (u64::MAX, true, 0, true, 0, 0);
+        self.mesh_3d_key = (u64::MAX, true, 0, true, 0, 0, 0);
     }
 
     fn trim_undo_stack(&mut self) {
@@ -92,6 +92,7 @@ impl RailbenchApp {
         };
         app.perf_monitor.visible = s.perf_monitor_visible;
         app.app_settings = s;
+        app.inventory = crate::inventory_store::TrackInventoryStore::load_from_disk();
 
         match app.app_settings.startup_action {
             StartupAction::Ask => {
@@ -304,6 +305,7 @@ impl RailbenchApp {
             self.dark_mode,
             cm_u8,
             sc_pts.len(),
+            self.train_3d.turnout_branches_version,
         );
         if self.mesh_3d_key != key || self.scene_3d_bundle.is_none() {
             let opts = Scene3DOptions {
@@ -313,6 +315,7 @@ impl RailbenchApp {
                 color_mode: self.color_mode,
                 time_of_day: self.time_of_day,
                 short_circuit_points: sc_pts,
+                turnout_branches: self.train_3d.turnout_branches.clone(),
             };
             self.scene_3d_bundle = Some(viewer3d::update_scene_3d_cache(
                 &self.layout,

@@ -255,6 +255,8 @@ pub fn draw_canvas_2d(
     sketcher: &mut BoardSketcherState,
     dragging_model_rot: &mut Option<String>,
     ramp_overlay: Option<(&mut crate::ramp_tools::RampSelectionState, f64, f64)>,
+    cad_tools: &mut crate::cad_tools::CadToolsState,
+    turnout_branches: &HashMap<String, usize>,
 ) -> CanvasInteraction {
     let mut interaction = CanvasInteraction::default();
 
@@ -316,6 +318,18 @@ pub fn draw_canvas_2d(
         board_snap_guides,
         dark_mode,
     );
+
+    // 2B. Arm-Reachability Heatmap Overlay (under tracks so track geometry stays sharp)
+    if cad_tools.reachability_enabled {
+        cad_tools.last_unreachable_pct = crate::cad_tools::draw_reachability_heatmap_2d(
+            &painter,
+            rect,
+            camera,
+            layout,
+            cad_tools.max_reach_mm,
+            is_de,
+        );
+    }
 
     let active_layer_id = layout
         .active_layer_id
@@ -430,6 +444,7 @@ pub fn draw_canvas_2d(
                     show_labels,
                     power_sim_enabled,
                     piece_power,
+                    turnout_branches,
                 );
             }
         }
@@ -514,6 +529,17 @@ pub fn draw_canvas_2d(
                 );
             }
         }
+    }
+
+    // 3B. NEM 102/103 Clearance & Headroom Conflict Markers
+    if cad_tools.nem_check_enabled {
+        crate::cad_tools::draw_nem_clearance_overlay_2d(
+            &painter,
+            rect,
+            camera,
+            &cad_tools.nem_violations,
+            is_de,
+        );
     }
 
     // 4. Connectors (snap points) & Connector '+' Quick-Add buttons
