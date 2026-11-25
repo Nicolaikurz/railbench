@@ -233,8 +233,9 @@ fn turnout_lantern_follows_active_switch_direction() {
         [26.0, 0.0, 0.0],
         0.0,
         "turnout-left",
-        0,
         true,
+        true,
+        0,
         false,
     );
     let (mut v_div, mut i_div) = (Vec::new(), Vec::new());
@@ -245,8 +246,9 @@ fn turnout_lantern_follows_active_switch_direction() {
         [26.0, 0.0, 0.0],
         0.0,
         "turnout-left",
-        1,
         true,
+        true,
+        1,
         false,
     );
     assert!(!v_straight.is_empty() && !v_div.is_empty());

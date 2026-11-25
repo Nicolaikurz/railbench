@@ -434,11 +434,11 @@ pub(super) fn draw_overlays_and_context_menu(
                     }
                 }
                 if any_turnout_sel {
-                    if ui.button("Toggle Turnout Lantern (Shift+L)").clicked() {
+                    if ui.button("Toggle Turnout Lantern (W)").clicked() {
                         interaction.toggle_lantern = true;
                         ui.close_menu();
                     }
-                    if ui.button("Toggle Turnout Decoder (Shift+D)").clicked() {
+                    if ui.button("Toggle Turnout Decoder (Shift+W)").clicked() {
                         interaction.toggle_decoder = true;
                         ui.close_menu();
                     }

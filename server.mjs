@@ -259,10 +259,10 @@ const wss = new WebSocketServer({ server });
 wss.on("connection", (ws, req) => {
   let currentRoom = null;
   let currentUser = null;
-  let isAlive = true;
+  ws.isAlive = true;
 
   ws.on("pong", () => {
-    isAlive = true;
+    ws.isAlive = true;
   });
 
   ws.on("message", (raw) => {

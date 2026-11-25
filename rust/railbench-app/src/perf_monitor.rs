@@ -254,13 +254,17 @@ impl PerfMonitor {
                 let in_flight = Arc::clone(&self.nvidia_poll_in_flight);
                 let disabled = Arc::clone(&self.nvidia_disabled);
                 std::thread::spawn(move || {
-                    match Command::new("nvidia-smi")
-                        .args([
-                            "--query-gpu=utilization.gpu,memory.used,memory.total,temperature.gpu",
-                            "--format=csv,noheader,nounits",
-                        ])
-                        .output()
+                    let mut cmd = Command::new("nvidia-smi");
+                    cmd.args([
+                        "--query-gpu=utilization.gpu,memory.used,memory.total,temperature.gpu",
+                        "--format=csv,noheader,nounits",
+                    ]);
+                    #[cfg(target_os = "windows")]
                     {
+                        use std::os::windows::process::CommandExt;
+                        cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+                    }
+                    match cmd.output() {
                         Ok(out) if out.status.success() => {
                             let stdout = String::from_utf8_lossy(&out.stdout);
                             if let Some(first_line) = stdout.lines().next() {

@@ -39,10 +39,17 @@ pub fn draw_top_bars(ctx: &egui::Context, app: &mut RailbenchApp) {
         .show(ctx, |ui| {
             style_toolbar_ui(ui, p);
             egui::menu::bar(ui, |ui| {
-                // RAILbench brand badge
+                // RAILbench brand badge + CalVer tag
                 ui.label(RichText::new("RAIL").strong().size(14.5).color(p.primary));
                 ui.add_space(-6.0);
                 ui.label(RichText::new("bench").strong().size(14.5).color(Color32::WHITE));
+                ui.add_space(-2.0);
+                ui.label(
+                    RichText::new(crate::version::APP_VERSION_TAG)
+                        .size(10.5)
+                        .monospace()
+                        .color(p.text_muted),
+                );
                 ui.add_space(10.0);
 
                 ui.menu_button(t.menu_file, |ui| {
@@ -191,34 +198,34 @@ pub fn draw_top_bars(ctx: &egui::Context, app: &mut RailbenchApp) {
                         app.pending_fit_view = true;
                         ui.close_menu();
                     }
-                    let view3d_lbl = if is_de { "3D-Ansicht umschalten" } else { "Toggle 3D View" };
+                    let view3d_lbl = if is_de { "3D-Ansicht umschalten (3)" } else { "Toggle 3D View (3)" };
                     if ui.button(view3d_lbl).clicked() {
                         app.toggle_3d();
                         ui.close_menu();
                     }
                     ui.separator();
                     let mut view_changed = false;
-                    view_changed |= ui.checkbox(&mut app.show_labels, t.labels).changed();
+                    view_changed |= ui.checkbox(&mut app.show_labels, format!("{} (N)", t.labels)).changed();
                     view_changed |= ui.checkbox(&mut app.show_connectors, t.connectors).changed();
                     view_changed |= ui
-                        .checkbox(&mut app.show_rulers, if is_de { "Lineale & Raster" } else { "Rulers & Grid" })
+                        .checkbox(&mut app.show_rulers, if is_de { "Lineale & Raster (Shift+L)" } else { "Rulers & Grid (Shift+L)" })
                         .changed();
-                    view_changed |= ui.checkbox(&mut app.snapping_enabled, t.snapping).changed();
+                    view_changed |= ui.checkbox(&mut app.snapping_enabled, format!("{} (S)", t.snapping)).changed();
                     view_changed |= ui
                         .checkbox(
                             &mut app.layer_protection,
                             if is_de {
-                                "Ebenenschutz (nur aktive Ebene bewegbar)"
+                                "Ebenenschutz (Alt+L)"
                             } else {
-                                "Layer Protection (only active layer movable)"
+                                "Layer Protection (Alt+L)"
                             },
                         )
                         .changed();
                     view_changed |= ui
                         .checkbox(&mut app.show_wood_plates, if is_de { "Holzplatten anzeigen" } else { "Show Wood Plates" })
                         .changed();
-                    view_changed |= ui.checkbox(&mut app.show_right_sidebar, t.layers_title).changed();
-                    ui.checkbox(&mut app.power_sim_enabled, t.volt_btn);
+                    view_changed |= ui.checkbox(&mut app.show_right_sidebar, format!("{} (Shift+B)", t.layers_title)).changed();
+                    ui.checkbox(&mut app.power_sim_enabled, format!("{} (P)", t.volt_btn));
                     view_changed |= ui.checkbox(&mut app.perf_monitor.visible, "Hardware Monitor (F3)").changed();
                     ui.separator();
                     view_changed |= ui.radio_value(&mut app.color_mode, ColorMode::Types, t.color_types).changed();
@@ -543,6 +550,129 @@ pub fn draw_top_bars(ctx: &egui::Context, app: &mut RailbenchApp) {
                         app.measure_points = None;
                     }
                 }
+
+                // CAD Planning Tools Dropdown (Gap Closer, Parallel Tracks, NEM Clearance, Reachability Heatmap)
+                let is_de_cad = app.lang == Lang::De;
+                let cad_lbl = if is_de_cad { "CAD-Tools ▾" } else { "CAD ▾" };
+                ui.menu_button(cad_lbl, |ui| {
+                    ui.set_min_width(240.0);
+                    if ui
+                        .button(if is_de_cad {
+                            "Gleisluecke schliessen (Auto)"
+                        } else {
+                            "Close Track Gap (Auto)"
+                        })
+                        .on_hover_text(if is_de_cad {
+                            "Verbindet zwei offene Gleisenden automatisch mit Katalog- oder Flexgleis"
+                        } else {
+                            "Bridges two open track connectors with exact catalog or flex pieces"
+                        })
+                        .clicked()
+                    {
+                        app.run_close_gap();
+                        ui.close_menu();
+                    }
+
+                    ui.separator();
+                    ui.strong(if is_de_cad {
+                        "Parallelgleis-Generator"
+                    } else {
+                        "Parallel Track Generator"
+                    });
+                    ui.horizontal(|ui| {
+                        ui.label(if is_de_cad { "Abstand:" } else { "Spacing:" });
+                        ui.add(
+                            egui::DragValue::new(&mut app.cad_tools.parallel_spacing_mm)
+                                .range(20.0..=250.0)
+                                .speed(0.5)
+                                .suffix(" mm"),
+                        );
+                        if ui
+                            .selectable_label(app.cad_tools.parallel_side < 0.0, if is_de_cad { "Links" } else { "L" })
+                            .clicked()
+                        {
+                            app.cad_tools.parallel_side = -1.0;
+                        }
+                        if ui
+                            .selectable_label(app.cad_tools.parallel_side >= 0.0, if is_de_cad { "Rechts" } else { "R" })
+                            .clicked()
+                        {
+                            app.cad_tools.parallel_side = 1.0;
+                        }
+                    });
+                    if ui
+                        .button(if is_de_cad {
+                            "Parallelgleis aus Auswahl erzeugen"
+                        } else {
+                            "Generate Parallel from Selection"
+                        })
+                        .clicked()
+                    {
+                        app.run_parallel_tracks();
+                        ui.close_menu();
+                    }
+
+                    ui.separator();
+                    if ui
+                        .checkbox(
+                            &mut app.cad_tools.nem_check_enabled,
+                            if is_de_cad {
+                                "Lichtraumprofil NEM 102/103 pruefen"
+                            } else {
+                                "Check NEM 102/103 Clearances"
+                            },
+                        )
+                        .changed()
+                    {
+                        app.cad_tools.nem_cache_version = 0;
+                    }
+                    ui.checkbox(
+                        &mut app.cad_tools.reachability_enabled,
+                        if is_de_cad {
+                            "Greifweite-Heatmap anzeigen"
+                        } else {
+                            "Show Reachability Heatmap"
+                        },
+                    );
+                    if app.cad_tools.reachability_enabled {
+                        ui.horizontal(|ui| {
+                            ui.label(if is_de_cad { "Armreichweite:" } else { "Arm reach:" });
+                            ui.add(
+                                egui::DragValue::new(&mut app.cad_tools.max_reach_mm)
+                                    .range(450.0..=1200.0)
+                                    .speed(10.0)
+                                    .suffix(" mm"),
+                            );
+                        });
+                    }
+                });
+
+                if app.cad_tools.nem_check_enabled && !app.cad_tools.nem_violations.is_empty() {
+                    let cnt = app.cad_tools.nem_violations.len();
+                    if ui
+                        .add(
+                            egui::Button::new(
+                                RichText::new(format!("NEM ({cnt})"))
+                                    .strong()
+                                    .size(11.0)
+                                    .color(Color32::BLACK),
+                            )
+                            .fill(Color32::from_rgb(251, 191, 36))
+                            .corner_radius(CornerRadius::same(6)),
+                        )
+                        .on_hover_text(if is_de_cad {
+                            "NEM-Lichtraumkonflikt fokussieren"
+                        } else {
+                            "Cycle and focus NEM clearance violation"
+                        })
+                        .clicked()
+                    {
+                        let idx = app.cad_tools.nem_focus_idx % cnt;
+                        let pos = app.cad_tools.nem_violations[idx].pos;
+                        app.cad_tools.nem_focus_idx = (idx + 1) % cnt;
+                        app.focus_world_point(pos.x, pos.y);
+                    }
+                }
                 if tb_icon(ui, Icon::RotateCcw, false, t.rotate_ccw) {
                     app.rotate_selected(-app.rotation_step);
                 }
@@ -682,9 +812,28 @@ pub fn draw_top_bars(ctx: &egui::Context, app: &mut RailbenchApp) {
                     app.show_cab_window = !app.show_cab_window;
                 }
 
-                // 3D Toggle
+                // 3D Toggle + Separate 3D Train Mode
                 if tb_icon(ui, Icon::Box3d, app.is_3d_mode, "3D View (3)") {
                     app.toggle_3d();
+                }
+                let tr_active = app.is_3d_mode && app.train_3d.active;
+                let tr_btn_lbl = if app.lang == Lang::De { "Zuege 3D" } else { "Trains 3D" };
+                if pill_btn(ui, tr_btn_lbl, tr_active)
+                    .on_hover_text(if app.lang == Lang::De {
+                        "Separater 3D Zug-Modus (BR 243, BR 96 Mallet, V 60)"
+                    } else {
+                        "Separate 3D Train Mode (BR 243, BR 96 Mallet, V 60)"
+                    })
+                    .clicked()
+                {
+                    if tr_active {
+                        app.train_3d.active = false;
+                    } else {
+                        if !app.is_3d_mode {
+                            app.toggle_3d();
+                        }
+                        app.train_3d.enter_mode(&app.layout, &app.catalogs, &mut app.camera_3d);
+                    }
                 }
 
                 // Right-aligned utilities (matches TS toolbar-right: DE/EN, Collab, Theme, Layers)

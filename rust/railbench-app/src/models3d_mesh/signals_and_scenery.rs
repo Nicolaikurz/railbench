@@ -66,7 +66,9 @@ pub(crate) fn build_light_signal(verts: &mut Vec<Vertex3D>, idxs: &mut Vec<u32>,
 /// Builds a realistic 3D DB Turnout Lantern (Weichenlaterne Wn 1 / Wn 2) & optional digital decoder box.
 /// - Placed at `origin` (`[lx, ly, lz]`) rotated by `yaw` (track piece rotation in radians).
 /// - `track_rod_start` (`[tx, ly, tz]`) is the point on the switch tie where the steel actuator rod connects.
-/// - `kind_str` determines the DB Wn 1 / Wn 2 milk-glass signal symbols on the 4 faces of the rotating lantern cube.
+/// - `has_lantern_housing` renders the mechanical lantern & position sign for every turnout so switch state is visible.
+/// - `lantern_lit` switches the aspect between matte painted enamel (unlit, 0 mA) and warm glowing milk-glass (lit, +mA).
+/// - `active_branch` selects straight (0) vs. diverging (1, 2) Wn 1 / Wn 2 aspect symbols.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn build_turnout_accessories_3d(
     verts: &mut Vec<Vertex3D>,
@@ -75,8 +77,9 @@ pub(crate) fn build_turnout_accessories_3d(
     track_rod_start: [f32; 3],
     yaw: f32,
     kind_str: &str,
-    turnout_state: usize,
-    has_lantern: bool,
+    has_lantern_housing: bool,
+    lantern_lit: bool,
+    active_branch: usize,
     has_decoder: bool,
 ) {
     let is_left = matches!(kind_str, "turnout-left" | "curved-turnout-left");
@@ -88,7 +91,11 @@ pub(crate) fn build_turnout_accessories_3d(
     let base_cast = Mat::metal(0x1e293b, 0.65, 0.45);
     let housing_black = Mat::matte(0x0b1120, 0.55);
     let frame_trim = Mat::metal(0x334155, 0.48, 0.60);
-    let milk_glass = Mat::emissive(0xfef9c3, 1.15);
+    let aspect_mat = if lantern_lit {
+        Mat::emissive(0xfef9c3, 1.15)
+    } else {
+        Mat::matte(0xdbe3ee, 0.52)
+    };
     let dec_body = Mat::metal(0x0f172a, 0.42, 0.50);
     let dec_rib = Mat::metal(0x1e293b, 0.50, 0.45);
     let led_blue = Mat::emissive(0x38bdf8, 1.20);
@@ -101,7 +108,7 @@ pub(crate) fn build_turnout_accessories_3d(
     // Point-machine drive plate (Weichenantriebskasten) beside the sleepers
     b.rbox([0.0, 1.4, -side_sign * 3.2], [5.8, 2.4, 7.2], base_cast);
 
-    if has_lantern {
+    if has_lantern_housing {
         // 2. Stepped circular cast-iron pedestal & vertical spindle shaft
         b.cyl_y([0.0, 1.5, 0.0], 3.4, 4.0, 3.0, 18, base_cast);
         b.cyl_y([0.0, 3.5, 0.0], 1.2, 1.5, 1.6, 14, frame_trim);
@@ -111,31 +118,43 @@ pub(crate) fn build_turnout_accessories_3d(
         b.rbox([0.0, hc_y, 0.0], [5.5, 6.0, 5.5], housing_black);
         // Upper and lower metallic frame collars on housing
         b.rbox([0.0, hc_y - 2.85, 0.0], [5.8, 0.45, 5.8], frame_trim);
+        if lantern_lit {
+            b.rbox([0.0, hc_y + 2.55, 0.0], [5.65, 0.35, 5.65], Mat::emissive(0xfde68a, 0.55));
+        }
         b.rbox([0.0, hc_y + 2.85, 0.0], [5.8, 0.45, 5.8], frame_trim);
 
-        // 4. Authentic DB Wn 1 / Wn 2 illuminated milk-glass symbols on all 4 faces,
-        //    rotated to match the active turnout direction (`turnout_state`):
+        // 4. Authentic DB Wn 1 / Wn 2 symbols on all 4 faces reflecting active turnout branch:
         //    Face +X (heel / Ferse), Face -X (toe / Spitze), Face +Z (right side), Face -Z (left side)
         //    0 = Wn 1 vertical bar (Geradeaus), 1 = Wn 2b round disc (Fersenansicht),
         //    2 = Wn 2a diagonal bar sloping left (\), 3 = Wn 2a diagonal bar sloping right (/)
-        let (sym_pos_x, sym_neg_x, sym_pos_z, sym_neg_z) = if kind_str == "double-slip" {
-            if turnout_state % 2 == 0 {
-                (0u8, 0u8, 1u8, 1u8)
+        let (sym_pos_x, sym_neg_x, sym_pos_z, sym_neg_z, dir_yaw) = if kind_str == "double-slip" {
+            if active_branch % 2 == 0 {
+                (0u8, 0u8, 3u8, 2u8, 0.0_f32)
             } else {
-                (1u8, 3u8, 0u8, 0u8)
+                (1u8, 3u8, 0u8, 0u8, -std::f32::consts::FRAC_PI_4)
             }
-        } else if turnout_state == 0 {
-            // Straight route (Wn 1): vertical white bar visible from both toe (-X) and heel (+X)
-            let idle_div = if is_left { 2u8 } else if is_right { 3u8 } else { 1u8 };
-            (0u8, 0u8, idle_div, 1u8)
-        } else if is_left || (kind_str == "three-way" && turnout_state == 1) {
-            // Diverging left (Wn 2a left at toe -X, Wn 2b disc at heel +X)
-            (1u8, 2u8, 0u8, 0u8)
-        } else if is_right || kind_str == "three-way" {
-            // Diverging right (Wn 2a right at toe -X, Wn 2b disc at heel +X)
-            (1u8, 3u8, 0u8, 0u8)
+        } else if is_left {
+            if active_branch == 0 {
+                (0u8, 0u8, 1u8, 2u8, 0.0_f32)
+            } else {
+                (1u8, 2u8, 0u8, 0u8, std::f32::consts::FRAC_PI_4)
+            }
+        } else if is_right {
+            if active_branch == 0 {
+                (0u8, 0u8, 1u8, 3u8, 0.0_f32)
+            } else {
+                (1u8, 3u8, 0u8, 0u8, -std::f32::consts::FRAC_PI_4)
+            }
+        } else if kind_str == "three-way" {
+            match active_branch {
+                0 => (0u8, 0u8, 3u8, 2u8, 0.0_f32),
+                1 => (1u8, 2u8, 0u8, 0u8, std::f32::consts::FRAC_PI_4),
+                _ => (1u8, 3u8, 0u8, 0u8, -std::f32::consts::FRAC_PI_4),
+            }
+        } else if active_branch == 0 {
+            (0u8, 0u8, 3u8, 2u8, 0.0_f32)
         } else {
-            (0u8, 0u8, 3u8, 2u8)
+            (2u8, 3u8, 0u8, 0u8, -std::f32::consts::FRAC_PI_4)
         };
 
         // Helper for X-facing lantern faces (+X at x = +2.82, -X at x = -2.82)
@@ -144,22 +163,22 @@ pub(crate) fn build_turnout_accessories_3d(
             b.rbox([x_pos - sign_x * 0.03, hc_y, 0.0], [0.10, 4.7, 4.7], frame_trim);
             match sym {
                 0 => {
-                    // Wn 1: Vertical milk-glass bar
-                    b.rbox([x_pos, hc_y, 0.0], [0.16, 4.1, 1.25], milk_glass);
+                    // Wn 1: Vertical bar
+                    b.rbox([x_pos, hc_y, 0.0], [0.16, 4.1, 1.25], aspect_mat);
                 }
                 1 => {
-                    // Wn 2b: Circular white milk-glass disc (Fersenansicht)
-                    b.cyl_x([x_pos, hc_y, 0.0], 1.65, 1.65, 0.18, 18, milk_glass);
+                    // Wn 2b: Circular white disc (Fersenansicht)
+                    b.cyl_x([x_pos, hc_y, 0.0], 1.65, 1.65, 0.18, 18, aspect_mat);
                 }
                 2 => {
-                    // Wn 2a: Diagonal white bar sloping to the left
+                    // Wn 2a: Diagonal bar sloping to the left
                     let tilt = 0.72_f32 * sign_x;
-                    b.obox([x_pos, hc_y, 0.0], [0.16, 4.2, 1.18], [tilt, 0.0, 0.0], milk_glass);
+                    b.obox([x_pos, hc_y, 0.0], [0.16, 4.2, 1.18], [tilt, 0.0, 0.0], aspect_mat);
                 }
                 _ => {
-                    // Wn 2a: Diagonal white bar sloping to the right
+                    // Wn 2a: Diagonal bar sloping to the right
                     let tilt = -0.72_f32 * sign_x;
-                    b.obox([x_pos, hc_y, 0.0], [0.16, 4.2, 1.18], [tilt, 0.0, 0.0], milk_glass);
+                    b.obox([x_pos, hc_y, 0.0], [0.16, 4.2, 1.18], [tilt, 0.0, 0.0], aspect_mat);
                 }
             }
         }
@@ -169,30 +188,31 @@ pub(crate) fn build_turnout_accessories_3d(
             b.rbox([0.0, hc_y, z_pos - sign_z * 0.03], [4.7, 4.7, 0.10], frame_trim);
             match sym {
                 0 => {
-                    b.rbox([0.0, hc_y, z_pos], [1.25, 4.1, 0.16], milk_glass);
+                    b.rbox([0.0, hc_y, z_pos], [1.25, 4.1, 0.16], aspect_mat);
                 }
                 1 => {
-                    b.cyl_z([0.0, hc_y, z_pos], 1.65, 1.65, 0.18, 18, milk_glass);
+                    b.cyl_z([0.0, hc_y, z_pos], 1.65, 1.65, 0.18, 18, aspect_mat);
                 }
                 2 => {
                     let tilt = -0.72_f32 * sign_z;
-                    b.obox([0.0, hc_y, z_pos], [1.18, 4.2, 0.16], [0.0, 0.0, tilt], milk_glass);
+                    b.obox([0.0, hc_y, z_pos], [1.18, 4.2, 0.16], [0.0, 0.0, tilt], aspect_mat);
                 }
                 _ => {
                     let tilt = 0.72_f32 * sign_z;
-                    b.obox([0.0, hc_y, z_pos], [1.18, 4.2, 0.16], [0.0, 0.0, tilt], milk_glass);
+                    b.obox([0.0, hc_y, z_pos], [1.18, 4.2, 0.16], [0.0, 0.0, tilt], aspect_mat);
                 }
             }
         }
 
-        // 5. Pyramidal 4-sided lantern roof cap + top vent finial knob
+        // 5. Pyramidal 4-sided lantern roof cap, top vent finial knob & overhead branch indicator bar
         b.cone_y([0.0, 10.6, 0.0], 4.4, 2.0, 4, std::f32::consts::FRAC_PI_4, housing_black);
         b.cyl_y([0.0, 11.7, 0.0], 0.55, 0.75, 0.7, 12, frame_trim);
+        b.obox([0.0, 11.45, 0.0], [5.2, 0.55, 1.3], [0.0, dir_yaw, 0.0], aspect_mat);
     }
 
     if has_decoder {
         // 6. Trackside digital turnout decoder housing with cooling ribs, cable conduit & glowing blue status LED
-        let dec_x = if has_lantern { 11.0_f32 } else { 0.0 };
+        let dec_x = if has_lantern_housing { 11.0_f32 } else { 0.0 };
         b.cyl_between([0.0, 1.4, -side_sign * 2.0], [dec_x, 1.4, 0.0], 0.45, 0.45, 8, frame_trim);
         b.rbox([dec_x, 2.0, 0.0], [9.2, 3.2, 11.6], dec_body);
         for rz in [-3.6_f32, -1.2, 1.2, 3.6] {

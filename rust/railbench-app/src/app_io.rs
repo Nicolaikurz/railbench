@@ -92,6 +92,7 @@ impl RailbenchApp {
         };
         app.perf_monitor.visible = s.perf_monitor_visible;
         app.app_settings = s;
+        app.inventory = crate::inventory_store::TrackInventoryStore::load_from_disk();
 
         match app.app_settings.startup_action {
             StartupAction::Ask => {
@@ -306,7 +307,8 @@ impl RailbenchApp {
             sc_pts.len(),
             self.vehicle_sim
                 .turnout_version
-                .wrapping_add(self.vehicle_sim.bridge_mesh_version.wrapping_mul(31)),
+                .wrapping_add(self.vehicle_sim.bridge_mesh_version.wrapping_mul(31))
+                .wrapping_add(self.train_3d.turnout_branches_version.wrapping_mul(131)),
         );
         if self.mesh_3d_key != key || self.scene_3d_bundle.is_none() {
             let opts = Scene3DOptions {
@@ -417,29 +419,14 @@ impl RailbenchApp {
     }
 
     pub fn import_catalog_json_str(&mut self, raw: &str) -> Result<String, String> {
-        let cat: Catalog = serde_json::from_str(raw).map_err(|e| e.to_string())?;
-        if cat.entries.is_empty() {
-            return Err("Catalog contains no track entries".into());
-        }
-        let name = cat.name.clone();
-        let is_road = cat.is_road == Some(true);
-        if let Some(existing_idx) = self.catalogs.iter().position(|c| c.name == cat.name && c.scale == cat.scale) {
-            self.catalogs[existing_idx] = cat;
-            if is_road {
-                self.selected_road_catalog_idx = existing_idx;
-            } else {
-                self.selected_catalog_idx = existing_idx;
-            }
+        let res = crate::catalog_store::import_and_persist_catalog(&mut self.catalogs, raw)?;
+        if res.is_road {
+            self.selected_road_catalog_idx = res.index;
         } else {
-            self.catalogs.push(cat);
-            let idx = self.catalogs.len() - 1;
-            if is_road {
-                self.selected_road_catalog_idx = idx;
-            } else {
-                self.selected_catalog_idx = idx;
-            }
+            self.selected_catalog_idx = res.index;
         }
-        Ok(name)
+        self.mark_layout_dirty();
+        Ok(res.name)
     }
 
     pub fn import_catalog_dialog(&mut self) {

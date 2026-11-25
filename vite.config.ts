@@ -1,5 +1,6 @@
 /// <reference types="vitest/config" />
 import { defineConfig, type Plugin } from "vite";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { WebSocketServer, WebSocket } from "ws";
 
@@ -211,51 +212,64 @@ function collabDevPlugin(): Plugin {
   };
 }
 
-export default defineConfig({
-  base: "./",
-  resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
-  server: {
-    // Port/HMR explizit trennen, falls Vite ins Gehege kommt:
-    hmr: {
-      path: "/@vite/hmr",
+export default defineConfig(({ command }) => {
+  const buildDefine: Record<string, string> = {};
+  if (command === "build") {
+    const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8"));
+    const patch = String(pkg.version || "26.11.1").split(".")[2] || "1";
+    const now = new Date();
+    const yy = String(now.getUTCFullYear() % 100).padStart(2, "0");
+    const mm = String(now.getUTCMonth() + 1).padStart(2, "0");
+    buildDefine.__RAILBENCH_BUILD_VERSION__ = JSON.stringify(`${yy}.${mm}.${patch}`);
+  }
+
+  return {
+    ...(Object.keys(buildDefine).length > 0 ? { define: buildDefine } : {}),
+    base: "./",
+    resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
+    server: {
+      // Port/HMR explizit trennen, falls Vite ins Gehege kommt:
+      hmr: {
+        path: "/@vite/hmr",
+      },
+      watch: {
+        ignored: [
+          "**/packaging/**",
+          "**/.flatpak-builder/**",
+          "**/build-flatpak/**",
+          "**/release/**",
+          "**/dist/**",
+          "**/dist-electron/**",
+        ],
+      },
     },
-    watch: {
-      ignored: [
-        "**/packaging/**",
-        "**/.flatpak-builder/**",
-        "**/build-flatpak/**",
-        "**/release/**",
+    test: {
+      include: ["tests/**/*.test.ts"],
+      maxConcurrency: 5,
+      maxWorkers: 2,
+      exclude: [
+        "**/node_modules/**",
         "**/dist/**",
         "**/dist-electron/**",
+        "**/release/**",
+        "**/build-flatpak/**",
+        "**/packaging/**",
+        "**/.flatpak-builder/**",
       ],
     },
-  },
-  test: {
-    include: ["tests/**/*.test.ts"],
-    maxConcurrency: 5,
-    maxWorkers: 2,
-    exclude: [
-      "**/node_modules/**",
-      "**/dist/**",
-      "**/dist-electron/**",
-      "**/release/**",
-      "**/build-flatpak/**",
-      "**/packaging/**",
-      "**/.flatpak-builder/**",
-    ],
-  },
-  build: {
-    chunkSizeWarningLimit: 1200,
-    rolldownOptions: {
-      output: {
-        codeSplitting: {
-          groups: [
-            { name: "vendor-three", test: /node_modules[\\/]three[\\/]/, priority: 20 },
-            { name: "vendor-pixi", test: /node_modules[\\/]pixi\.js[\\/]/, priority: 10 },
-          ],
+    build: {
+      chunkSizeWarningLimit: 1200,
+      rolldownOptions: {
+        output: {
+          codeSplitting: {
+            groups: [
+              { name: "vendor-three", test: /node_modules[\\/]three[\\/]/, priority: 20 },
+              { name: "vendor-pixi", test: /node_modules[\\/]pixi\.js[\\/]/, priority: 10 },
+            ],
+          },
         },
       },
     },
-  },
-  plugins: [collabDevPlugin()],
+    plugins: [collabDevPlugin()],
+  };
 });

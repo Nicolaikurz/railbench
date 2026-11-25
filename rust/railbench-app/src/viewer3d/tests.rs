@@ -1156,3 +1156,80 @@ fn double_slip_24624_and_crossing_24640_generate_correct_3d_geometry() {
     );
     assert!(dkw_proto.vertices.iter().all(|v| v.pos[0].is_finite() && v.pos[1].is_finite() && v.pos[2].is_finite()));
 }
+
+#[test]
+fn default_turnout_lantern_is_unlit_and_reflects_branch_position() {
+    let catalogs = builtin_catalogs();
+    let turnout_entry = find_entry(&catalogs, "24611").expect("24611 in catalog");
+    let plain_turnout = create_piece("sw1".into(), turnout_entry, Transform { x: 0.0, y: 0.0, rotation: 0.0 }, None);
+    let mut lit_turnout = plain_turnout.clone();
+    lit_turnout.has_lantern = Some(true);
+
+    let make_layout = |p: TrackPiece| Layout {
+        name: "Lantern3D".into(),
+        scale: "H0".into(),
+        pieces: vec![p],
+        models: None,
+        feed_voltage: None,
+        catenary_feed_voltage: None,
+        catenary_circuit_mode: None,
+        loco_current_ma: None,
+        loco_count: None,
+        train_current_amps: None,
+        turnout_lantern_current_ma: None,
+        turnout_decoder_current_ma: None,
+        layers: None,
+        active_layer_id: None,
+        baseboard: None,
+        baseboards: None,
+    };
+
+    let all_verts = |mesh: &SceneMesh3D| -> Vec<Vertex3D> {
+        mesh.vertices
+            .iter()
+            .copied()
+            .chain(mesh.instanced_tracks.iter().flat_map(|p| p.vertices.iter().copied()))
+            .collect()
+    };
+
+    let minimal = |turnout_states| Scene3DOptions {
+        env_mode: Viewer3DEnv::Minimal,
+        show_wood_plates: false,
+        turnout_states,
+        ..Default::default()
+    };
+
+    // 1. Default turnout: lantern housing is built into geometry, all vertices finite & UNLIT (emissive == 0)
+    let m_default_b0 = build_scene_mesh_3d(&make_layout(plain_turnout.clone()), &catalogs, &minimal(Default::default()));
+    let v_b0 = all_verts(&m_default_b0);
+    assert!(v_b0.len() > 150, "expected turnout + mechanical lantern vertices");
+    assert!(
+        v_b0.iter().all(|v| v.mat_f32()[2].abs() < 1e-3),
+        "default unequipped turnout lantern must have zero emissive vertices"
+    );
+
+    // 2. Switching turnout branch to diverging (1) changes generated 3D geometry while remaining UNLIT
+    let mut branches_div = std::collections::HashMap::new();
+    branches_div.insert("sw1".to_string(), 1usize);
+    let m_default_b1 = build_scene_mesh_3d(&make_layout(plain_turnout), &catalogs, &minimal(branches_div));
+    assert!(
+        !m_default_b1.vertices.is_empty(),
+        "switched turnout branch should de-instance and emit active-branch geometry"
+    );
+    let v_b1 = all_verts(&m_default_b1);
+    assert!(
+        v_b1.iter().all(|v| v.mat_f32()[2].abs() < 1e-3),
+        "switched unequipped turnout lantern must stay unlit"
+    );
+    let b0_flat: Vec<[f32; 3]> = v_b0.iter().map(|v| v.pos).collect();
+    let b1_flat: Vec<[f32; 3]> = v_b1.iter().map(|v| v.pos).collect();
+    assert_ne!(b0_flat, b1_flat, "diverging turnout lantern aspect should differ from straight");
+
+    // 3. Equipping has_lantern = Some(true) lights up the lantern with emissive vertices
+    let m_lit = build_scene_mesh_3d(&make_layout(lit_turnout), &catalogs, &minimal(Default::default()));
+    let v_lit = all_verts(&m_lit);
+    assert!(
+        v_lit.iter().any(|v| v.mat_f32()[2] > 0.5),
+        "equipped turnout lantern should emit warm milk-glass emissive vertices"
+    );
+}

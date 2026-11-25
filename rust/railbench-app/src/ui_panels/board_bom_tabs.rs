@@ -685,6 +685,60 @@ pub(super) fn draw_bom_tab(ui: &mut egui::Ui, app: &mut RailbenchApp) {
 
     ui.add_space(6.0);
 
+    // Budget & Personal Track Stock Card
+    let budget = app.inventory.compute_bom_budget(&sum);
+    let mut inv_dirty = false;
+    Frame::new()
+        .fill(p.bg_card)
+        .corner_radius(CornerRadius::same(7))
+        .inner_margin(Margin::same(8))
+        .stroke(Stroke::new(1.0_f32, p.border_main))
+        .show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            ui.horizontal(|ui| {
+                ui.label(
+                    RichText::new(if is_de { "LAGER & KOSTEN" } else { "STOCK & BUDGET" })
+                        .strong()
+                        .size(10.5)
+                        .color(p.text_muted),
+                );
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    egui::ComboBox::from_id_salt("bom_currency")
+                        .width(56.0)
+                        .selected_text(&app.inventory.currency)
+                        .show_ui(ui, |ui| {
+                            for cur in ["EUR", "USD", "CHF", "GBP"] {
+                                if ui.selectable_value(&mut app.inventory.currency, cur.into(), cur).changed() {
+                                    inv_dirty = true;
+                                }
+                            }
+                        });
+                });
+            });
+            ui.add_space(3.0);
+            let sym = app.inventory.currency_symbol().to_string();
+            egui::Grid::new("bom_budget_grid")
+                .num_columns(2)
+                .spacing([10.0, 3.0])
+                .show(ui, |ui| {
+                    ui.label(RichText::new(if is_de { "Vorhanden:" } else { "In Stock:" }).size(10.5).color(p.text_muted));
+                    ui.label(RichText::new(format!("{} / {}", budget.total_owned_used, budget.total_needed)).strong().size(11.0).color(Color32::from_rgb(34, 197, 94)));
+                    ui.end_row();
+                    ui.label(RichText::new(if is_de { "Zuzukaufen:" } else { "To Buy:" }).size(10.5).color(p.text_muted));
+                    ui.label(
+                        RichText::new(format!("{} Stk ({:.2} {sym})", budget.total_to_buy, budget.remaining_buy_cost))
+                            .strong()
+                            .size(11.0)
+                            .color(if budget.total_to_buy > 0 { Color32::from_rgb(245, 158, 11) } else { Color32::from_rgb(34, 197, 94) }),
+                    );
+                    ui.end_row();
+                    ui.label(RichText::new(if is_de { "Gesamtwert:" } else { "Total Value:" }).size(10.5).color(p.text_muted));
+                    ui.label(RichText::new(format!("{:.2} {sym}", budget.total_layout_cost)).strong().size(11.0).color(p.text_main));
+                    ui.end_row();
+                });
+        });
+    ui.add_space(6.0);
+
     // Category filter tabs
     ui.horizontal_wrapped(|ui| {
         ui.spacing_mut().item_spacing = egui::vec2(4.0, 4.0);
@@ -730,7 +784,7 @@ pub(super) fn draw_bom_tab(ui: &mut egui::Ui, app: &mut RailbenchApp) {
             );
             ui.add_space(3.0);
             for it in &sum.tracks.items {
-                draw_bom_piece_card(ui, p, it);
+                inv_dirty |= draw_bom_piece_card(ui, p, it, false, &mut app.inventory, is_de);
             }
             ui.add_space(6.0);
         }
@@ -748,7 +802,7 @@ pub(super) fn draw_bom_tab(ui: &mut egui::Ui, app: &mut RailbenchApp) {
             );
             ui.add_space(3.0);
             for it in &sum.roads.items {
-                draw_bom_piece_card(ui, p, it);
+                inv_dirty |= draw_bom_piece_card(ui, p, it, true, &mut app.inventory, is_de);
             }
             ui.add_space(6.0);
         }
@@ -801,9 +855,25 @@ pub(super) fn draw_bom_tab(ui: &mut egui::Ui, app: &mut RailbenchApp) {
             );
         }
     });
+    if inv_dirty {
+        app.inventory.save_to_disk();
+    }
 }
 
-pub(super) fn draw_bom_piece_card(ui: &mut egui::Ui, p: crate::theme::RailbenchPalette, it: &crate::export::PieceSummaryItem) {
+pub(super) fn draw_bom_piece_card(
+    ui: &mut egui::Ui,
+    p: crate::theme::RailbenchPalette,
+    it: &crate::export::PieceSummaryItem,
+    is_road: bool,
+    inv: &mut crate::inventory_store::TrackInventoryStore,
+    is_de: bool,
+) -> bool {
+    let mut dirty = false;
+    let mut owned = inv.owned(&it.catalog_id);
+    let mut price = inv.unit_price(&it.catalog_id);
+    let to_buy = it.count.saturating_sub(owned);
+    let sym = inv.currency_symbol().to_string();
+
     Frame::new()
         .fill(p.bg_card)
         .corner_radius(CornerRadius::same(7))
@@ -814,9 +884,26 @@ pub(super) fn draw_bom_piece_card(ui: &mut egui::Ui, p: crate::theme::RailbenchP
             ui.horizontal(|ui| {
                 ui.label(RichText::new(format!("{}x", it.count)).strong().color(p.primary));
                 ui.vertical(|ui| {
-                    ui.spacing_mut().item_spacing.y = 1.0;
+                    ui.spacing_mut().item_spacing.y = 2.0;
                     ui.horizontal(|ui| {
-                        ui.label(RichText::new(&it.catalog_id).strong().size(12.0).color(p.text_main));
+                        if !is_road {
+                            let bp = crate::blueprint_colors::get_track_blueprint_color(&it.catalog_id);
+                            Frame::new()
+                                .fill(bp.badge_bg_color32())
+                                .corner_radius(CornerRadius::same(4))
+                                .inner_margin(Margin::symmetric(6, 2))
+                                .stroke(Stroke::new(1.0_f32, bp.border_color32()))
+                                .show(ui, |ui| {
+                                    ui.label(
+                                        RichText::new(&it.catalog_id)
+                                            .strong()
+                                            .size(11.0)
+                                            .color(Color32::WHITE),
+                                    );
+                                });
+                        } else {
+                            ui.label(RichText::new(&it.catalog_id).strong().size(12.0).color(p.text_main));
+                        }
                         if it.total_length_meters > 0.0 {
                             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                 ui.label(
@@ -833,8 +920,41 @@ pub(super) fn draw_bom_piece_card(ui: &mut egui::Ui, p: crate::theme::RailbenchP
                     if !it.specification.is_empty() {
                         ui.label(RichText::new(&it.specification).size(10.0).color(p.text_muted));
                     }
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new(if is_de { "Lager:" } else { "Stock:" }).size(10.0).color(p.text_muted));
+                        if ui
+                            .add(egui::DragValue::new(&mut owned).range(0..=9999).speed(0.2))
+                            .changed()
+                        {
+                            dirty = true;
+                        }
+                        ui.label(RichText::new(format!("{sym}:")).size(10.0).color(p.text_muted));
+                        if ui
+                            .add(egui::DragValue::new(&mut price).range(0.0..=9999.0).speed(0.1).max_decimals(2))
+                            .changed()
+                        {
+                            dirty = true;
+                        }
+                        let st_col = if to_buy == 0 {
+                            Color32::from_rgb(34, 197, 94)
+                        } else {
+                            Color32::from_rgb(245, 158, 11)
+                        };
+                        let st_txt = if to_buy == 0 {
+                            if is_de { "OK".into() } else { "OK".into() }
+                        } else if is_de {
+                            format!("+{to_buy}")
+                        } else {
+                            format!("Buy {to_buy}")
+                        };
+                        ui.label(RichText::new(st_txt).strong().size(10.0).color(st_col));
+                    });
                 });
             });
         });
+    if dirty {
+        inv.set_entry(&it.catalog_id, owned, price);
+    }
+    dirty
 }
 

@@ -1,6 +1,6 @@
 {
   "name": "RAILbench",
-  "version": "0.6.1",
+  "version": "26.11.1",
   "description": "Modellbahn Gleisplanungs-Tool",
   "author": "RAILbench Team",
   "private": true,
@@ -27,7 +27,7 @@
     "dist:linux:appimage:arm64": "bash scripts/build-linux-appimage.sh arm64",
     "dist:linux:appimage:all": "bash scripts/build-linux-appimage.sh all",
     "dist:linux:dir": "npm run build:all && electron-builder --linux dir",
-    "dist:linux:tar": "npm run dist:linux:dir && tar -czf release/railbench-0.6.1-linux-x64.tar.gz -C release/linux-unpacked .",
+    "dist:linux:tar": "npm run dist:linux:dir && tar -czf release/railbench-26.11.1-linux-x64.tar.gz -C release/linux-unpacked .",
     "dist:linux:flatpak": "bash scripts/build-flatpak.sh x64",
     "dist:linux:flatpak:x64": "bash scripts/build-flatpak.sh x64",
     "dist:linux:flatpak:arm64": "bash scripts/build-flatpak.sh arm64",

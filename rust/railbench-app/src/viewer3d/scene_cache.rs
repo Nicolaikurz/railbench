@@ -5,9 +5,13 @@ pub(super) fn is_instanceable_track_piece(
     entry: Option<&CatalogEntry>,
     e0: f64,
     e1: f64,
+    active_branch: usize,
 ) -> bool {
     let Some(e) = entry else { return false };
     if matches!(e.kind.as_str(), "turntable" | "transfer-table") {
+        return false;
+    }
+    if active_branch != 0 {
         return false;
     }
     if (e1 - e0).abs() > 0.01 {
@@ -40,48 +44,22 @@ pub(super) fn compute_track_instance_tint(
     color_mode: ColorMode,
     layer_col: Option<[f32; 3]>,
 ) -> [f32; 4] {
-    let base_ballast_col = [0.42_f32, 0.44, 0.48];
-    let is_buf = crate::catalog::is_buffer_stop_entry(entry);
+    let base_ballast_col = [0x78 as f32 / 255.0, 0x71 as f32 / 255.0, 0x6c as f32 / 255.0];
     match color_mode {
         ColorMode::Off => [base_ballast_col[0], base_ballast_col[1], base_ballast_col[2], 0.0],
         ColorMode::Types => {
             if entry.is_road == Some(true) {
                 return [base_ballast_col[0], base_ballast_col[1], base_ballast_col[2], 0.0];
             }
-            let tint = if is_buf {
-                [0.94, 0.27, 0.27]
-            } else {
-                match entry.kind.as_str() {
-                    "curve" => [0.22, 0.74, 0.97],
-                    "turnout-left"
-                    | "turnout-right"
-                    | "curved-turnout-left"
-                    | "curved-turnout-right"
-                    | "three-way" => [0.96, 0.62, 0.04],
-                    "crossing" | "double-slip" => [0.66, 0.33, 0.97],
-                    "flex" => [0.06, 0.73, 0.51],
-                    "buffer" => [0.94, 0.27, 0.27],
-                    _ => [0.39, 0.45, 0.55],
-                }
-            };
-            [
-                base_ballast_col[0] * 0.48 + tint[0] * 0.52,
-                base_ballast_col[1] * 0.48 + tint[1] * 0.52,
-                base_ballast_col[2] * 0.48 + tint[2] * 0.52,
-                1.0,
-            ]
+            let c = crate::blueprint_colors::get_track_blueprint_color(&entry.id).rgb_f32();
+            [c[0], c[1], c[2], 1.0]
         }
         ColorMode::Layers => {
             if entry.is_road == Some(true) {
                 return [base_ballast_col[0], base_ballast_col[1], base_ballast_col[2], 0.0];
             }
-            let lc = layer_col.unwrap_or([0.22, 0.74, 0.97]);
-            [
-                base_ballast_col[0] * 0.42 + lc[0] * 0.58,
-                base_ballast_col[1] * 0.42 + lc[1] * 0.58,
-                base_ballast_col[2] * 0.42 + lc[2] * 0.58,
-                1.0,
-            ]
+            let lc = layer_col.unwrap_or([0x38 as f32 / 255.0, 0xbd as f32 / 255.0, 0xf8 as f32 / 255.0]);
+            [lc[0], lc[1], lc[2], 1.0]
         }
     }
 }
@@ -374,6 +352,19 @@ pub(super) fn compute_submesh_signatures(
     for sc in &opts.short_circuit_points {
         h_tracks = hash_f64(h_tracks, sc.x);
         h_tracks = hash_f64(h_tracks, sc.y);
+    }
+    if !opts.turnout_states.is_empty() {
+        let mut active_switches: Vec<(&str, usize)> = opts
+            .turnout_states
+            .iter()
+            .filter(|(_, &br)| br != 0)
+            .map(|(id, &br)| (id.as_str(), br))
+            .collect();
+        active_switches.sort_unstable_by(|a, b| a.0.cmp(b.0));
+        for (id, br) in active_switches {
+            h_tracks = fnv1a_u64(h_tracks, id.as_bytes());
+            h_tracks = fnv1a_u64(h_tracks, &(br as u64).to_le_bytes());
+        }
     }
 
     (h_env, h_boards, h_terrain, h_tracks)

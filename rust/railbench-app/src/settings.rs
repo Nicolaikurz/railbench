@@ -58,6 +58,7 @@ pub enum KeyAction {
     Undo,
     Redo,
     Save,
+    SavePlanAs,
     Open,
     NewPlan,
     ExportCsv,
@@ -66,7 +67,15 @@ pub enum KeyAction {
     Paste,
     Duplicate,
     SelectAll,
+    DeselectAll,
+    ToggleSelectionLock,
     FitView,
+    ZoomIn,
+    ZoomOut,
+    PanUp,
+    PanDown,
+    PanLeft,
+    PanRight,
     RotateCw,
     RotateCcw,
     DeleteSelected,
@@ -75,6 +84,8 @@ pub enum KeyAction {
     ToggleLabels,
     ToggleSnapping,
     TogglePowerSim,
+    ToggleMeasure,
+    CycleColorMode,
     ToggleLayersSidebar,
     TogglePerfMonitor,
     ToggleFeeder,
@@ -153,6 +164,16 @@ pub const KEY_ACTION_DEFS: &[KeyActionDef] = &[
         default_key: "Ctrl+S",
     },
     KeyActionDef {
+        action: KeyAction::SavePlanAs,
+        id: "savePlanAs",
+        category: KeyCategory::File,
+        label_de: "Plan speichern unter...",
+        label_en: "Save Plan As...",
+        desc_de: "Speichert den Plan unter neuem Dateinamen",
+        desc_en: "Save layout under a new file name",
+        default_key: "Ctrl+Shift+S",
+    },
+    KeyActionDef {
         action: KeyAction::ExportCsv,
         id: "exportCsv",
         category: KeyCategory::File,
@@ -213,6 +234,26 @@ pub const KEY_ACTION_DEFS: &[KeyActionDef] = &[
         default_key: "Ctrl+A",
     },
     KeyActionDef {
+        action: KeyAction::DeselectAll,
+        id: "deselectAll",
+        category: KeyCategory::Edit,
+        label_de: "Auswahl aufheben",
+        label_en: "Deselect All",
+        desc_de: "Hebt Auswahl auf oder beendet aktives Werkzeug / 3D",
+        desc_en: "Clear selection or cancel active tool / exit 3D",
+        default_key: "Escape",
+    },
+    KeyActionDef {
+        action: KeyAction::ToggleSelectionLock,
+        id: "toggleSelectionLock",
+        category: KeyCategory::Edit,
+        label_de: "Ebenenschutz / Auswahlsperre",
+        label_en: "Toggle Selection Lock",
+        desc_de: "Nur aktive Ebene auswaehlbar/verschiebbar umschalten",
+        desc_en: "Toggle layer selection and movement lock",
+        default_key: "Alt+L",
+    },
+    KeyActionDef {
         action: KeyAction::RotateCw,
         id: "rotateCw",
         category: KeyCategory::Edit,
@@ -253,6 +294,66 @@ pub const KEY_ACTION_DEFS: &[KeyActionDef] = &[
         default_key: "Ctrl+0",
     },
     KeyActionDef {
+        action: KeyAction::ZoomIn,
+        id: "zoomIn",
+        category: KeyCategory::View,
+        label_de: "Ansicht vergroessern",
+        label_en: "Zoom In",
+        desc_de: "Vergroessert die 2D/3D Ansicht",
+        desc_en: "Zoom into the 2D/3D viewport",
+        default_key: "Plus",
+    },
+    KeyActionDef {
+        action: KeyAction::ZoomOut,
+        id: "zoomOut",
+        category: KeyCategory::View,
+        label_de: "Ansicht verkleinern",
+        label_en: "Zoom Out",
+        desc_de: "Verkleinert die 2D/3D Ansicht",
+        desc_en: "Zoom out of the 2D/3D viewport",
+        default_key: "Minus",
+    },
+    KeyActionDef {
+        action: KeyAction::PanUp,
+        id: "panUp",
+        category: KeyCategory::View,
+        label_de: "Ansicht nach oben schieben",
+        label_en: "Pan View Up",
+        desc_de: "Bildausschnitt nach oben verschieben (Umschalt = schnell)",
+        desc_en: "Pan viewport upwards (Shift = fast)",
+        default_key: "Up",
+    },
+    KeyActionDef {
+        action: KeyAction::PanDown,
+        id: "panDown",
+        category: KeyCategory::View,
+        label_de: "Ansicht nach unten schieben",
+        label_en: "Pan View Down",
+        desc_de: "Bildausschnitt nach unten verschieben (Umschalt = schnell)",
+        desc_en: "Pan viewport downwards (Shift = fast)",
+        default_key: "Down",
+    },
+    KeyActionDef {
+        action: KeyAction::PanLeft,
+        id: "panLeft",
+        category: KeyCategory::View,
+        label_de: "Ansicht nach links schieben",
+        label_en: "Pan View Left",
+        desc_de: "Bildausschnitt nach links verschieben (Umschalt = schnell)",
+        desc_en: "Pan viewport left (Shift = fast)",
+        default_key: "Left",
+    },
+    KeyActionDef {
+        action: KeyAction::PanRight,
+        id: "panRight",
+        category: KeyCategory::View,
+        label_de: "Ansicht nach rechts schieben",
+        label_en: "Pan View Right",
+        desc_de: "Bildausschnitt nach rechts verschieben (Umschalt = schnell)",
+        desc_en: "Pan viewport right (Shift = fast)",
+        default_key: "Right",
+    },
+    KeyActionDef {
         action: KeyAction::Toggle3D,
         id: "toggle3D",
         category: KeyCategory::View,
@@ -270,7 +371,17 @@ pub const KEY_ACTION_DEFS: &[KeyActionDef] = &[
         label_en: "Toggle Rulers",
         desc_de: "Millimeter-Lineale am Rand umschalten",
         desc_en: "Toggle viewport edge rulers",
-        default_key: "Shift+K",
+        default_key: "Shift+L",
+    },
+    KeyActionDef {
+        action: KeyAction::CycleColorMode,
+        id: "cycleColorMode",
+        category: KeyCategory::View,
+        label_de: "Farbmodus durchschalten",
+        label_en: "Cycle Color Mode",
+        desc_de: "Zwischen Gleistyp, Ebene und Realistisch wechseln",
+        desc_en: "Cycle track colors between Types, Layers, and Off",
+        default_key: "C",
     },
     KeyActionDef {
         action: KeyAction::ToggleLabels,
@@ -301,6 +412,16 @@ pub const KEY_ACTION_DEFS: &[KeyActionDef] = &[
         desc_de: "Spannungsabfall & Kurzschluss-Analyse",
         desc_en: "Voltage drop & short circuit simulation",
         default_key: "P",
+    },
+    KeyActionDef {
+        action: KeyAction::ToggleMeasure,
+        id: "toggleMeasure",
+        category: KeyCategory::Tools,
+        label_de: "Messwerkzeug / Gleishoehe",
+        label_en: "Measure Tool / Height",
+        desc_de: "Messwerkzeug oder Hoehendialog fuer Auswahl oeffnen",
+        desc_en: "Toggle distance measure or open height dialog for selection",
+        default_key: "M",
     },
     KeyActionDef {
         action: KeyAction::ToggleLayersSidebar,
@@ -398,9 +519,9 @@ pub const KEY_ACTION_DEFS: &[KeyActionDef] = &[
         category: KeyCategory::Tools,
         label_de: "Weichenlaterne",
         label_en: "Toggle Turnout Lantern",
-        desc_de: "Beleuchtete Weichenlaterne",
-        desc_en: "Toggle turnout lantern on switches",
-        default_key: "Shift+L",
+        desc_de: "Beleuchtete Weichenlaterne umschalten",
+        desc_en: "Toggle illuminated turnout lantern on switches",
+        default_key: "W",
     },
     KeyActionDef {
         action: KeyAction::ToggleDecoder,
@@ -410,7 +531,7 @@ pub const KEY_ACTION_DEFS: &[KeyActionDef] = &[
         label_en: "Toggle Turnout Decoder",
         desc_de: "Digital-Weichendecoder umschalten",
         desc_en: "Toggle digital turnout decoder",
-        default_key: "Shift+D",
+        default_key: "Shift+W",
     },
     KeyActionDef {
         action: KeyAction::ToggleSignal,
@@ -485,6 +606,7 @@ const KEY_TOKENS: &[(&str, egui::Key)] = &[
     ("F12", egui::Key::F12),
     ("Delete", egui::Key::Delete),
     ("Backspace", egui::Key::Backspace),
+    ("Escape", egui::Key::Escape),
     ("Space", egui::Key::Space),
     ("Tab", egui::Key::Tab),
     ("Enter", egui::Key::Enter),
@@ -496,6 +618,7 @@ const KEY_TOKENS: &[(&str, egui::Key)] = &[
     ("Plus", egui::Key::Plus),
     ("Minus", egui::Key::Minus),
     ("Equals", egui::Key::Equals),
+    ("?", egui::Key::Questionmark),
     ("Up", egui::Key::ArrowUp),
     ("Down", egui::Key::ArrowDown),
     ("Left", egui::Key::ArrowLeft),
@@ -518,18 +641,31 @@ pub enum KeyCapture {
 }
 
 pub fn parse_shortcut(s: &str) -> Option<ShortcutSpec> {
+    let trimmed = s.trim();
+    if trimmed == "+" {
+        return Some(ShortcutSpec {
+            ctrl: false,
+            shift: false,
+            alt: false,
+            key: egui::Key::Plus,
+        });
+    }
     let mut ctrl = false;
     let mut shift = false;
     let mut alt = false;
     let mut key = None;
 
-    for raw_part in s.split('+') {
+    for raw_part in trimmed.split('+') {
         let part = raw_part.trim();
         match part.to_ascii_lowercase().as_str() {
             "ctrl" | "control" | "cmd" | "command" => ctrl = true,
             "shift" => shift = true,
             "alt" | "option" => alt = true,
             "del" | "delete" => key = Some(egui::Key::Delete),
+            "esc" | "escape" => key = Some(egui::Key::Escape),
+            "numpadadd" => key = Some(egui::Key::Plus),
+            "-" | "_" | "numpadsubtract" => key = Some(egui::Key::Minus),
+            "=" => key = Some(egui::Key::Equals),
             "arrowup" => key = Some(egui::Key::ArrowUp),
             "arrowdown" => key = Some(egui::Key::ArrowDown),
             "arrowleft" => key = Some(egui::Key::ArrowLeft),
@@ -649,8 +785,29 @@ impl AppSettings {
         if let Some(xdg) = std::env::var_os("XDG_CONFIG_HOME") {
             return Some(PathBuf::from(xdg).join("railbench").join("settings.json"));
         }
-        std::env::var_os("HOME")
-            .map(|h| PathBuf::from(h).join(".config").join("railbench").join("settings.json"))
+        #[cfg(target_os = "windows")]
+        {
+            if let Some(appdata) = std::env::var_os("APPDATA") {
+                return Some(PathBuf::from(appdata).join("railbench").join("settings.json"));
+            }
+            return std::env::var_os("USERPROFILE")
+                .map(|p| PathBuf::from(p).join(".config").join("railbench").join("settings.json"));
+        }
+        #[cfg(target_os = "macos")]
+        {
+            return std::env::var_os("HOME").map(|h| {
+                PathBuf::from(h)
+                    .join("Library")
+                    .join("Application Support")
+                    .join("railbench")
+                    .join("settings.json")
+            });
+        }
+        #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+        {
+            std::env::var_os("HOME")
+                .map(|h| PathBuf::from(h).join(".config").join("railbench").join("settings.json"))
+        }
     }
 
     pub fn effective_key(&self, action: KeyAction) -> String {
@@ -678,6 +835,27 @@ impl AppSettings {
                 KeyAction::Redo => return matches_input("Ctrl+Shift+Z", i),
                 KeyAction::DeleteSelected => return matches_input("Backspace", i),
                 KeyAction::Toggle3D => return matches_input("V", i),
+                KeyAction::ToggleDecoder => return matches_input("Shift+D", i),
+                KeyAction::ZoomIn => {
+                    return !i.modifiers.command
+                        && !i.modifiers.alt
+                        && (i.key_pressed(egui::Key::Plus) || i.key_pressed(egui::Key::Equals));
+                }
+                KeyAction::ZoomOut => {
+                    return !i.modifiers.command
+                        && !i.modifiers.alt
+                        && i.key_pressed(egui::Key::Minus);
+                }
+                KeyAction::PanUp => return matches_input("Shift+Up", i),
+                KeyAction::PanDown => return matches_input("Shift+Down", i),
+                KeyAction::PanLeft => return matches_input("Shift+Left", i),
+                KeyAction::PanRight => return matches_input("Shift+Right", i),
+                KeyAction::OpenHelp => {
+                    return !i.modifiers.command
+                        && !i.modifiers.alt
+                        && (i.key_pressed(egui::Key::Questionmark)
+                            || i.events.iter().any(|e| matches!(e, egui::Event::Text(t) if t == "?")));
+                }
                 _ => {}
             }
         }
@@ -878,5 +1056,35 @@ mod tests {
         assert_eq!(f3.key, egui::Key::F3);
         assert_eq!(format_shortcut(f3), "F3");
         assert!(parse_shortcut("Ctrl+").is_none());
+
+        assert_eq!(parse_shortcut("+").unwrap().key, egui::Key::Plus);
+        assert_eq!(parse_shortcut("-").unwrap().key, egui::Key::Minus);
+        assert_eq!(parse_shortcut("Escape").unwrap().key, egui::Key::Escape);
+        let alt_l = parse_shortcut("Alt+L").unwrap();
+        assert!(alt_l.alt && !alt_l.ctrl && !alt_l.shift && alt_l.key == egui::Key::L);
+        let save_as = parse_shortcut("Ctrl+Shift+S").unwrap();
+        assert!(save_as.ctrl && save_as.shift && !save_as.alt && save_as.key == egui::Key::S);
+        assert_eq!(parse_shortcut("?").unwrap().key, egui::Key::Questionmark);
+    }
+
+    #[test]
+    fn default_keymap_matches_electron_bindings() {
+        let cfg = AppSettings::default();
+        assert_eq!(cfg.effective_key(KeyAction::ToggleRulers), "Shift+L");
+        assert_eq!(cfg.effective_key(KeyAction::ToggleLantern), "W");
+        assert_eq!(cfg.effective_key(KeyAction::ToggleDecoder), "Shift+W");
+        assert_eq!(cfg.effective_key(KeyAction::ToggleSelectionLock), "Alt+L");
+        assert_eq!(cfg.effective_key(KeyAction::ToggleMeasure), "M");
+        assert_eq!(cfg.effective_key(KeyAction::CycleColorMode), "C");
+        assert_eq!(cfg.effective_key(KeyAction::SavePlanAs), "Ctrl+Shift+S");
+        assert_eq!(cfg.effective_key(KeyAction::DeselectAll), "Escape");
+        assert_eq!(cfg.effective_key(KeyAction::ZoomIn), "Plus");
+        assert_eq!(cfg.effective_key(KeyAction::ZoomOut), "Minus");
+        assert_eq!(cfg.effective_key(KeyAction::PanUp), "Up");
+        assert_eq!(cfg.effective_key(KeyAction::PanDown), "Down");
+        assert_eq!(cfg.effective_key(KeyAction::PanLeft), "Left");
+        assert_eq!(cfg.effective_key(KeyAction::PanRight), "Right");
+        assert_eq!(cfg.effective_key(KeyAction::TogglePerfMonitor), "F3");
+        assert_eq!(cfg.effective_key(KeyAction::OpenHelp), "F1");
     }
 }

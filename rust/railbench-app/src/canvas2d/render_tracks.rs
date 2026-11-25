@@ -37,6 +37,7 @@ pub(super) fn draw_track_piece(
     };
     let rail_w = (1.6 * camera.zoom).max(1.0);
 
+    let bp = crate::blueprint_colors::get_track_blueprint_color(&piece.catalog_id);
     let mut ballast_col = if is_road {
         Color32::from_rgb(55, 65, 81)
     } else if piece_power.is_some_and(|pr| pr.is_short_circuit) {
@@ -58,47 +59,41 @@ pub(super) fn draw_track_piece(
         }
     } else {
         match color_mode {
-            ColorMode::Off => Color32::from_rgb(71, 85, 105),
-            ColorMode::Layers => parse_hex_color(layer_color_hex).unwrap_or(Color32::from_rgb(71, 85, 105)),
-            ColorMode::Types => if entry.map_or(false, crate::catalog::is_buffer_stop_entry) {
-                Color32::from_rgb(239, 68, 68)
-            } else {
-                match kind {
-                    "curve" => Color32::from_rgb(37, 99, 235),
-                    "turnout-left" | "turnout-right" | "three-way" | "double-slip" | "curved-turnout-left" | "curved-turnout-right" => {
-                        Color32::from_rgb(217, 119, 6)
-                    }
-                    "flex" => Color32::from_rgb(8, 145, 178),
-                    "crossing" => Color32::from_rgb(147, 51, 234),
-                    _ => Color32::from_rgb(100, 116, 139),
-                }
-            },
+            ColorMode::Off => Color32::from_rgb(0x8a, 0x84, 0x79),
+            ColorMode::Layers => {
+                parse_hex_color(layer_color_hex).unwrap_or(Color32::from_rgb(0x38, 0xbd, 0xf8))
+            }
+            ColorMode::Types => bp.color32(),
         }
     };
-    if is_selected {
-        // Selected tracks are noticeably brighter ("heller") than unselected ones
-        ballast_col = brighten_color(ballast_col, 0.38);
-    } else if !is_active_layer {
-        // Inactive layers are desaturated & slightly dimmed
-        ballast_col = desaturate_color(ballast_col, 0.80, 0.72);
+    let (mut tie_col, mut rail_col) = if is_road || piece_power.is_some_and(|pr| pr.is_short_circuit) || power_sim_enabled {
+        (Color32::from_rgb(0x3d, 0x27, 0x1d), Color32::from_rgb(0xc8, 0xd0, 0xd8))
+    } else {
+        match color_mode {
+            ColorMode::Types | ColorMode::Layers => (
+                Color32::from_rgb(0x1e, 0x29, 0x3b),
+                Color32::from_rgb(0xf8, 0xfa, 0xfc),
+            ),
+            ColorMode::Off => (
+                Color32::from_rgb(0x3d, 0x27, 0x1d),
+                Color32::from_rgb(0xc8, 0xd0, 0xd8),
+            ),
+        }
+    };
+
+    if !is_active_layer && !is_selected {
+        // Inactive layers are desaturated & faded matching Electron track-sprite.ts (0.72, alpha 0.58)
+        ballast_col = crate::blueprint_colors::desaturate_electron_color32(ballast_col, 0.72, 0.58);
+        tie_col = crate::blueprint_colors::desaturate_electron_color32(tie_col, 0.72, 0.58);
+        rail_col = crate::blueprint_colors::desaturate_electron_color32(rail_col, 0.72, 0.58);
+    } else if !is_selected {
+        // Unselected active-layer tracks darken by 30% so selected tracks keep 100% saturation
+        ballast_col = crate::blueprint_colors::darken_color32(ballast_col, 0.30);
+        tie_col = crate::blueprint_colors::darken_color32(tie_col, 0.30);
+        rail_col = crate::blueprint_colors::darken_color32(rail_col, 0.30);
     }
     if piece.has_tunnel == Some(true) {
         ballast_col = Color32::from_rgba_unmultiplied(ballast_col.r(), ballast_col.g(), ballast_col.b(), 120);
-    }
-
-    let mut tie_col = if is_selected {
-        Color32::from_rgb(98, 78, 62)
-    } else {
-        Color32::from_rgb(54, 40, 30)
-    };
-    let mut rail_col = if is_selected {
-        Color32::from_rgb(250, 253, 255)
-    } else {
-        Color32::from_rgb(220, 228, 238)
-    };
-    if !is_active_layer && !is_selected {
-        tie_col = desaturate_color(tie_col, 0.85, 0.72);
-        rail_col = desaturate_color(rail_col, 0.85, 0.68);
     }
 
     if kind == "turntable" {
@@ -630,59 +625,66 @@ pub(super) fn draw_track_piece(
     );
 
     // Turnout lantern (DB Wn 1 / Wn 2 Weichenlaterne) & digital decoder overlays
+    let is_turnout = crate::is_turnout_kind(kind);
+    let show_lantern_housing = is_turnout || piece.has_lantern == Some(true);
+    let lantern_lit = piece.has_lantern == Some(true);
+    let active_branch = turnout_state;
     let is_left_turnout = kind == "turnout-left" || kind == "curved-turnout-left";
     let is_right_turnout = kind == "turnout-right" || kind == "curved-turnout-right";
     let acc_side_y = if is_left_turnout { -22.0 } else { 22.0 };
-    if piece.has_lantern == Some(true) || piece.has_decoder == Some(true) {
+    if show_lantern_housing || piece.has_decoder == Some(true) {
         let root_r = rotate(Vec2 { x: 26.0, y: 0.0 }, piece.transform.rotation);
         let l_r = rotate(Vec2 { x: 26.0, y: acc_side_y }, piece.transform.rotation);
         let s_root = camera.world_to_screen(rect, piece.transform.x + root_r.x, piece.transform.y + root_r.y);
         let s_lant = camera.world_to_screen(rect, piece.transform.x + l_r.x, piece.transform.y + l_r.y);
         painter.line_segment([s_root, s_lant], Stroke::new((1.6 * camera.zoom).clamp(1.0, 2.4), Color32::from_rgb(100, 116, 139)));
 
-        if piece.has_lantern == Some(true) {
+        if show_lantern_housing {
             let sz = (8.8 * camera.zoom).clamp(6.5, 13.0);
             let r = Rect::from_center_size(s_lant, EguiVec2::splat(sz));
-            // Warm glow halo + cast-iron base ring
-            painter.circle_filled(s_lant, sz * 0.85, Color32::from_rgba_unmultiplied(254, 240, 138, 42));
-            painter.circle_stroke(s_lant, sz * 0.72, Stroke::new(1.0_f32, Color32::from_rgba_unmultiplied(254, 240, 138, 135)));
+            if lantern_lit {
+                // Warm glow halo + illuminated ring only when lantern is equipped/lit
+                painter.circle_filled(s_lant, sz * 0.85, Color32::from_rgba_unmultiplied(254, 240, 138, 42));
+                painter.circle_stroke(s_lant, sz * 0.72, Stroke::new(1.0_f32, Color32::from_rgba_unmultiplied(254, 240, 138, 135)));
+            }
             // Black DB lantern housing with metallic border
             painter.rect_filled(r, 2.0, Color32::from_rgb(11, 17, 32));
             painter.rect_stroke(r, 2.0, Stroke::new(1.1_f32, Color32::from_rgb(100, 116, 139)), egui::StrokeKind::Inside);
 
-            // Illuminated milk-glass DB Wn 1 / Wn 2 symbol aligned to the active turnout route
-            let milk = Color32::from_rgb(254, 249, 195);
+            // DB Wn 1 / Wn 2 position bar: bright warm milk-glass when lit, matte unlit white-grey otherwise
+            let aspect_col = if lantern_lit {
+                Color32::from_rgb(254, 249, 195)
+            } else {
+                Color32::from_rgb(186, 198, 214)
+            };
             let bar_len = sz * 0.34;
             let bar_w = (sz * 0.20).clamp(1.4, 2.6);
-            let sym_ang = (piece.transform.rotation as f32).to_radians()
-                + if kind == "double-slip" {
-                    if turnout_state % 2 == 0 {
-                        0.0
-                    } else {
-                        std::f32::consts::FRAC_PI_4
-                    }
-                } else if turnout_state == 0 {
-                    // Wn 1: Straight route
+            let branch_offset = if kind == "double-slip" {
+                if active_branch % 2 == 0 {
                     0.0
-                } else if is_left_turnout || (kind == "three-way" && turnout_state == 1) {
-                    // Wn 2a: Diverging left
-                    -std::f32::consts::FRAC_PI_4
-                } else if is_right_turnout || kind == "three-way" {
-                    // Wn 2a: Diverging right
-                    std::f32::consts::FRAC_PI_4
                 } else {
-                    0.0
-                };
+                    std::f32::consts::FRAC_PI_4
+                }
+            } else if active_branch == 0 {
+                0.0
+            } else if is_left_turnout || (kind == "three-way" && active_branch == 1) {
+                -std::f32::consts::FRAC_PI_4
+            } else if is_right_turnout || kind == "three-way" {
+                std::f32::consts::FRAC_PI_4
+            } else {
+                0.0
+            };
+            let sym_ang = (piece.transform.rotation as f32).to_radians() + branch_offset;
             let dx = sym_ang.cos() * bar_len;
             let dy = sym_ang.sin() * bar_len;
             painter.line_segment(
                 [Pos2::new(s_lant.x - dx, s_lant.y - dy), Pos2::new(s_lant.x + dx, s_lant.y + dy)],
-                Stroke::new(bar_w, milk),
+                Stroke::new(bar_w, aspect_col),
             );
         }
 
         if piece.has_decoder == Some(true) {
-            let dec_x_local = if piece.has_lantern == Some(true) { 38.0 } else { 26.0 };
+            let dec_x_local = if show_lantern_housing { 38.0 } else { 26.0 };
             let d_r = rotate(Vec2 { x: dec_x_local, y: acc_side_y }, piece.transform.rotation);
             let s_dec = camera.world_to_screen(rect, piece.transform.x + d_r.x, piece.transform.y + d_r.y);
             let dr = Rect::from_center_size(s_dec, EguiVec2::new(22.0, 11.0));

@@ -375,9 +375,9 @@ pub fn update_scene_3d_cache(
             let mut inst_order: Vec<(&str, &CatalogEntry, bool)> = Vec::new();
             let mut inst_groups: std::collections::HashMap<&str, Vec<Instance3D>> =
                 std::collections::HashMap::new();
-            let mut non_cat_pieces: Vec<(&TrackPiece, Option<&CatalogEntry>, bool, f64, f64, Option<[f32; 3]>)> =
+            let mut non_cat_pieces: Vec<(&TrackPiece, Option<&CatalogEntry>, bool, f64, f64, Option<[f32; 3]>, usize)> =
                 Vec::new();
-            let mut cat_pieces: Vec<(&TrackPiece, Option<&CatalogEntry>, bool, f64, f64, Option<[f32; 3]>)> =
+            let mut cat_pieces: Vec<(&TrackPiece, Option<&CatalogEntry>, bool, f64, f64, Option<[f32; 3]>, usize)> =
                 Vec::new();
 
             for piece in &layout.pieces {
@@ -391,8 +391,9 @@ pub fn update_scene_3d_cache(
                 let entry = find_entry(catalogs, &piece.catalog_id);
                 let is_road = is_road_id(catalogs, &piece.catalog_id);
                 let layer_col = layer_colors_ref.get(lid).copied();
+                let active_branch = opts.turnout_states.get(&piece.id).copied().unwrap_or(0);
 
-                if is_instanceable_track_piece(piece, entry, e0, e1) {
+                if is_instanceable_track_piece(piece, entry, e0, e1, active_branch) {
                     let e = entry.unwrap();
                     let cid = e.id.as_str();
                     let list = inst_groups.entry(cid).or_insert_with(|| {
@@ -409,9 +410,9 @@ pub fn update_scene_3d_cache(
                         tint_w: compute_track_instance_tint(e, opts.color_mode, layer_col),
                     });
                 } else if piece.has_catenary == Some(true) {
-                    cat_pieces.push((piece, entry, is_road, e0, e1, layer_col));
+                    cat_pieces.push((piece, entry, is_road, e0, e1, layer_col, active_branch));
                 } else {
-                    non_cat_pieces.push((piece, entry, is_road, e0, e1, layer_col));
+                    non_cat_pieces.push((piece, entry, is_road, e0, e1, layer_col, active_branch));
                 }
             }
 
@@ -502,7 +503,7 @@ pub fn update_scene_3d_cache(
                                 let mut tv = Vec::with_capacity(chunk.len() * 160);
                                 let mut ti = Vec::with_capacity(chunk.len() * 320);
                                 let mut dummy_cat = CatenaryMast3DContext::default();
-                                for &(piece, entry, is_road, e0, e1, layer_col) in chunk {
+                                for &(piece, entry, is_road, e0, e1, layer_col, active_branch) in chunk {
                                     push_track_piece_3d(
                                         &mut tv,
                                         &mut ti,
@@ -514,7 +515,7 @@ pub fn update_scene_3d_cache(
                                         e1,
                                         opts.color_mode,
                                         layer_col,
-                                        opts.turnout_states.get(&piece.id).copied().unwrap_or(0),
+                                        active_branch,
                                         opts.turntable_angles_deg.get(&piece.id).copied().unwrap_or(0.0),
                                         opts.transfer_offsets_mm.get(&piece.id).copied(),
                                         &mut dummy_cat,
@@ -571,7 +572,7 @@ pub fn update_scene_3d_cache(
                     }
                 } else {
                     let mut dummy_cat = CatenaryMast3DContext::default();
-                    for &(piece, entry, is_road, e0, e1, layer_col) in &non_cat_pieces {
+                    for &(piece, entry, is_road, e0, e1, layer_col, active_branch) in &non_cat_pieces {
                         push_track_piece_3d(
                             &mut verts,
                             &mut idxs,
@@ -583,7 +584,7 @@ pub fn update_scene_3d_cache(
                             e1,
                             opts.color_mode,
                             layer_col,
-                            opts.turnout_states.get(&piece.id).copied().unwrap_or(0),
+                            active_branch,
                             opts.turntable_angles_deg.get(&piece.id).copied().unwrap_or(0.0),
                             opts.transfer_offsets_mm.get(&piece.id).copied(),
                             &mut dummy_cat,
@@ -607,7 +608,7 @@ pub fn update_scene_3d_cache(
 
                 // Catenary pieces share CatenaryMast3DContext so masts at shared joints are deduplicated
                 let mut cat_ctx = CatenaryMast3DContext::default();
-                for (piece, entry, is_road, e0, e1, layer_col) in cat_pieces {
+                for (piece, entry, is_road, e0, e1, layer_col, active_branch) in cat_pieces {
                     push_track_piece_3d(
                         &mut verts,
                         &mut idxs,
@@ -619,7 +620,7 @@ pub fn update_scene_3d_cache(
                         e1,
                         opts.color_mode,
                         layer_col,
-                        opts.turnout_states.get(&piece.id).copied().unwrap_or(0),
+                        active_branch,
                         opts.turntable_angles_deg.get(&piece.id).copied().unwrap_or(0.0),
                         opts.transfer_offsets_mm.get(&piece.id).copied(),
                         &mut cat_ctx,

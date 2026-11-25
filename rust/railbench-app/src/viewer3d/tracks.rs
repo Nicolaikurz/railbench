@@ -59,40 +59,31 @@ pub(super) fn push_track_piece_3d(
     let rail_h = 2.5_f32;
     let rail_w = 1.35_f32;
 
-    // Realistic model railway crushed granite/basalt ballast color (warm gray-brown Schotterbett)
+    // Matches Electron `viewer-3d-track.ts`: realistic #78716c ballast in Off mode,
+    // direct blueprint article color in Types mode, and layer color in Layers mode.
     let base_ballast_col = if piece.has_tunnel == Some(true) {
         [0.25, 0.24, 0.23]
     } else {
-        [0.44, 0.41, 0.38]
+        [0x78 as f32 / 255.0, 0x71 as f32 / 255.0, 0x6c as f32 / 255.0]
     };
     let ballast_col = match color_mode {
         ColorMode::Off => base_ballast_col,
         ColorMode::Types => {
-            let tint = if is_buffer_piece {
-                [0.94, 0.27, 0.27]
+            let _ = is_buffer_piece;
+            let c = crate::blueprint_colors::get_track_blueprint_color(&piece.catalog_id).rgb_f32();
+            if piece.has_tunnel == Some(true) {
+                [c[0] * 0.70, c[1] * 0.70, c[2] * 0.70]
             } else {
-                match kind_str {
-                    "curve" => [0.22, 0.74, 0.97],
-                    "turnout-left" | "turnout-right" | "curved-turnout-left" | "curved-turnout-right" | "three-way" => [0.96, 0.62, 0.04],
-                    "crossing" | "double-slip" => [0.66, 0.33, 0.97],
-                    "flex" => [0.06, 0.73, 0.51],
-                    "buffer" => [0.94, 0.27, 0.27],
-                    _ => [0.39, 0.45, 0.55],
-                }
-            };
-            [
-                base_ballast_col[0] * 0.48 + tint[0] * 0.52,
-                base_ballast_col[1] * 0.48 + tint[1] * 0.52,
-                base_ballast_col[2] * 0.48 + tint[2] * 0.52,
-            ]
+                c
+            }
         }
         ColorMode::Layers => {
-            let lc = layer_color.unwrap_or([0.22, 0.74, 0.97]);
-            [
-                base_ballast_col[0] * 0.42 + lc[0] * 0.58,
-                base_ballast_col[1] * 0.42 + lc[1] * 0.58,
-                base_ballast_col[2] * 0.42 + lc[2] * 0.58,
-            ]
+            let lc = layer_color.unwrap_or([0x38 as f32 / 255.0, 0xbd as f32 / 255.0, 0xf8 as f32 / 255.0]);
+            if piece.has_tunnel == Some(true) {
+                [lc[0] * 0.70, lc[1] * 0.70, lc[2] * 0.70]
+            } else {
+                lc
+            }
         }
     };
     let tie_col = [0.23, 0.16, 0.11];
@@ -453,7 +444,10 @@ pub(super) fn push_track_piece_3d(
     }
 
     // Turnout switch tie rod, DB Wn 1 / Wn 2 Weichenlaterne & digital decoder housing in 3D
-    if piece.has_lantern == Some(true) || piece.has_decoder == Some(true) {
+    let is_turnout = crate::is_turnout_kind(kind_str);
+    let show_lantern_housing = is_turnout || piece.has_lantern == Some(true);
+    let lantern_lit = piece.has_lantern == Some(true);
+    if show_lantern_housing || piece.has_decoder == Some(true) {
         let is_left = matches!(kind_str, "turnout-left" | "curved-turnout-left");
         let side_y = if is_left { -22.0 } else { 22.0 };
         let rp = rotate(Vec2 { x: 26.0, y: side_y }, piece.transform.rotation);
@@ -473,8 +467,9 @@ pub(super) fn push_track_piece_3d(
             [tx, ly, tz],
             yaw,
             kind_str,
+            show_lantern_housing,
+            lantern_lit,
             turnout_state,
-            piece.has_lantern == Some(true),
             piece.has_decoder == Some(true),
         );
     }

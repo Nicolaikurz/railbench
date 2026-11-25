@@ -611,11 +611,49 @@ impl Camera3D {
         }
     }
 
-    fn view_proj(&self, aspect: f32) -> [[f32; 4]; 4] {
+    pub(crate) fn view_proj(&self, aspect: f32) -> [[f32; 4]; 4] {
         let eye = self.eye();
         let view = mat4_look_at(eye, self.target, [0.0, 1.0, 0.0]);
         let proj = mat4_perspective(45.0_f32.to_radians(), aspect.max(0.1), 8.0, 100000.0);
         mat4_mul(proj, view)
+    }
+
+    /// Casts a normalized world-space ray `(origin, dir)` from screen pixel `pos` inside `rect`.
+    pub fn screen_to_ray(&self, rect: Rect, pos: Pos2) -> ([f32; 3], [f32; 3]) {
+        let eye = self.eye();
+        let f = normalize3([
+            self.target[0] - eye[0],
+            self.target[1] - eye[1],
+            self.target[2] - eye[2],
+        ]);
+        let s = normalize3(cross3(f, [0.0, 1.0, 0.0]));
+        let u = cross3(s, f);
+        let aspect = (rect.width() / rect.height().max(1.0)).max(0.1);
+        let tan_half_y = (45.0_f32.to_radians() * 0.5).tan();
+        let ndc_x = ((pos.x - rect.min.x) / rect.width().max(1.0)) * 2.0 - 1.0;
+        let ndc_y = 1.0 - ((pos.y - rect.min.y) / rect.height().max(1.0)) * 2.0;
+        let dx = f[0] + s[0] * (ndc_x * tan_half_y * aspect) + u[0] * (ndc_y * tan_half_y);
+        let dy = f[1] + s[1] * (ndc_x * tan_half_y * aspect) + u[1] * (ndc_y * tan_half_y);
+        let dz = f[2] + s[2] * (ndc_x * tan_half_y * aspect) + u[2] * (ndc_y * tan_half_y);
+        (eye, normalize3([dx, dy, dz]))
+    }
+
+    /// Projects a 3D world point `[x, y, z]` into egui screen coordinates inside `rect`.
+    pub fn world_to_screen(&self, rect: Rect, world: [f32; 3]) -> Option<Pos2> {
+        let aspect = (rect.width() / rect.height().max(1.0)).max(0.1);
+        let vp = self.view_proj(aspect);
+        let cx = vp[0][0] * world[0] + vp[1][0] * world[1] + vp[2][0] * world[2] + vp[3][0];
+        let cy = vp[0][1] * world[0] + vp[1][1] * world[1] + vp[2][1] * world[2] + vp[3][1];
+        let cw = vp[0][3] * world[0] + vp[1][3] * world[1] + vp[2][3] * world[2] + vp[3][3];
+        if cw <= 0.1 {
+            return None;
+        }
+        let ndc_x = cx / cw;
+        let ndc_y = cy / cw;
+        Some(Pos2::new(
+            rect.min.x + (ndc_x * 0.5 + 0.5) * rect.width(),
+            rect.min.y + (0.5 - ndc_y * 0.5) * rect.height(),
+        ))
     }
 }
 
@@ -628,6 +666,14 @@ pub struct SceneMesh3D {
 
 impl SceneMesh3D {
     pub fn from_raw(vertices: Vec<Vertex3D>, indices: Vec<u32>) -> Self {
+        Self {
+            vertices,
+            indices,
+            instanced_tracks: Vec::new(),
+        }
+    }
+
+    pub(crate) fn from_parts(vertices: Vec<Vertex3D>, indices: Vec<u32>) -> Self {
         Self {
             vertices,
             indices,
@@ -764,6 +810,9 @@ mod viewport;
 use viewport::*;
 #[allow(unused_imports)]
 pub use viewport::{draw_cab_viewport_3d, draw_viewport_3d, CabCameraMode};
+pub mod edit3d;
+#[allow(unused_imports)]
+pub use edit3d::*;
 mod environment;
 #[allow(unused_imports)]
 use environment::*;
