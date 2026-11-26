@@ -98,8 +98,8 @@ fn is_turnout_entry(entry: Option<&CatalogEntry>) -> bool {
 }
 
 fn is_feeder_piece(piece: &TrackPiece, entry: Option<&CatalogEntry>) -> bool {
-    if piece.power_feed == Some(true) {
-        return true;
+    if let Some(enabled) = piece.power_feed {
+        return enabled;
     }
     if piece.catalog_id == "24088" {
         return true;
@@ -944,5 +944,24 @@ mod tests {
         let sim = simulate_layout_power(&layout, &catalogs);
         assert_eq!(sim.catenary_piece_count, 2);
         assert_eq!(sim.catenary_feeder_count, 1);
+    }
+
+    #[test]
+    fn disabled_catalog_feeder_track_does_not_energize_layout() {
+        let catalogs = builtin_catalogs();
+        let entry_24088 = find_entry(&catalogs, "24088").expect("24088 feeder");
+        let mut p_off = create_piece(
+            "f0".into(),
+            entry_24088,
+            Transform { x: 0.0, y: 0.0, rotation: 0.0 },
+            None,
+        );
+        p_off.power_feed = Some(false);
+        let sim_off = simulate_layout_power(&make_test_layout(vec![p_off.clone()]), &catalogs);
+        assert_eq!(sim_off.results.get("f0").unwrap().status, PowerStatus::Disconnected);
+
+        p_off.power_feed = Some(true);
+        let sim_on = simulate_layout_power(&make_test_layout(vec![p_off]), &catalogs);
+        assert_eq!(sim_on.results.get("f0").unwrap().status, PowerStatus::Optimal);
     }
 }

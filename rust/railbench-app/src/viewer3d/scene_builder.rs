@@ -44,15 +44,14 @@ pub fn update_scene_3d_cache(
             Some(s.spawn(move || {
                 let mut verts = Vec::with_capacity(2048);
                 let mut idxs = Vec::with_capacity(4096);
+                let mut glass_idxs = Vec::with_capacity(512);
                 match opts.env_mode {
                     Viewer3DEnv::HallLandscape => {
-                        push_hall_landscape_env_3d(&mut verts, &mut idxs, boards_ref, opts.dark_mode)
+                        push_hall_landscape_env_3d(&mut verts, &mut idxs, &mut glass_idxs, boards_ref, opts.dark_mode)
                     }
-                    Viewer3DEnv::Minimal => {
-                        push_minimal_cad_grid_3d(&mut verts, &mut idxs, boards_ref, opts.dark_mode)
-                    }
+                    Viewer3DEnv::Minimal => {}
                 }
-                SceneMesh3D { vertices: verts, indices: idxs, instanced_tracks: Vec::new() }
+                SceneMesh3D { vertices: verts, indices: idxs, glass_indices: glass_idxs, instanced_tracks: Vec::new(), textured_meshes: Vec::new() }
             }))
         } else {
             None
@@ -224,7 +223,7 @@ pub fn update_scene_3d_cache(
                         }
                     }
                 }
-                SceneMesh3D { vertices: verts, indices: idxs, instanced_tracks: Vec::new() }
+                SceneMesh3D { vertices: verts, indices: idxs, glass_indices: Vec::new(), instanced_tracks: Vec::new(), textured_meshes: Vec::new() }
             }))
         } else {
             None
@@ -338,7 +337,7 @@ pub fn update_scene_3d_cache(
                                                     chains_ref,
                                                 );
                                             }
-                                            SceneMesh3D { vertices: v, indices: idx, instanced_tracks: Vec::new() }
+                                            SceneMesh3D { vertices: v, indices: idx, glass_indices: Vec::new(), instanced_tracks: Vec::new(), textured_meshes: Vec::new() }
                                         })
                                     })
                                     .collect();
@@ -520,6 +519,7 @@ pub fn update_scene_3d_cache(
                 .retain(|cid, _| active_proto_ids.contains(cid));
 
             // Parallelize non-terrain 3D building/model meshes alongside chunked non-catenary custom/sloped track meshes
+            let mut textured_meshes: Vec<TexturedSubmesh3D> = Vec::new();
             std::thread::scope(|s_trk| {
                 let model_chunks_handle = if hw_threads > 1 && visible_models.len() >= 2 {
                     let chunk_sz = (visible_models.len() + hw_threads - 1) / hw_threads;
@@ -529,10 +529,11 @@ pub fn update_scene_3d_cache(
                             s_trk.spawn(move || {
                                 let mut mv = Vec::with_capacity(chunk.len() * 320);
                                 let mut mi = Vec::with_capacity(chunk.len() * 640);
+                                let mut mtex = Vec::new();
                                 for &(m, y0) in chunk {
-                                    push_model_3d(&mut mv, &mut mi, m, y0);
+                                    push_model_3d(&mut mv, &mut mi, &mut mtex, m, y0);
                                 }
-                                SceneMesh3D { vertices: mv, indices: mi, instanced_tracks: Vec::new() }
+                                SceneMesh3D { vertices: mv, indices: mi, glass_indices: Vec::new(), instanced_tracks: Vec::new(), textured_meshes: mtex }
                             })
                         })
                         .collect();
@@ -565,6 +566,7 @@ pub fn update_scene_3d_cache(
                                         active_branch,
                                         opts.turntable_angles_deg.get(&piece.id).copied().unwrap_or(0.0),
                                         opts.transfer_offsets_mm.get(&piece.id).copied(),
+                                        opts.active_uncouplers.contains(&piece.id),
                                         &mut dummy_cat,
                                     );
                                     if piece.has_tunnel == Some(true) && piece.connectors.len() < 6 {
@@ -582,7 +584,7 @@ pub fn update_scene_3d_cache(
                                         );
                                     }
                                 }
-                                SceneMesh3D { vertices: tv, indices: ti, instanced_tracks: Vec::new() }
+                                SceneMesh3D { vertices: tv, indices: ti, glass_indices: Vec::new(), instanced_tracks: Vec::new(), textured_meshes: Vec::new() }
                             })
                         })
                         .collect();
@@ -599,11 +601,14 @@ pub fn update_scene_3d_cache(
                                 verts.extend_from_slice(&sm.vertices);
                                 idxs.extend(sm.indices.into_iter().map(|i| base + i));
                             }
+                            for tm in sm.textured_meshes {
+                                merge_textured_submesh(&mut textured_meshes, tm);
+                            }
                         }
                     }
                 } else {
                     for &(m, y0) in &visible_models {
-                        push_model_3d(&mut verts, &mut idxs, m, y0);
+                        push_model_3d(&mut verts, &mut idxs, &mut textured_meshes, m, y0);
                     }
                 }
 
@@ -634,6 +639,7 @@ pub fn update_scene_3d_cache(
                             active_branch,
                             opts.turntable_angles_deg.get(&piece.id).copied().unwrap_or(0.0),
                             opts.transfer_offsets_mm.get(&piece.id).copied(),
+                            opts.active_uncouplers.contains(&piece.id),
                             &mut dummy_cat,
                         );
                         if piece.has_tunnel == Some(true) && piece.connectors.len() < 6 {
@@ -670,6 +676,7 @@ pub fn update_scene_3d_cache(
                         active_branch,
                         opts.turntable_angles_deg.get(&piece.id).copied().unwrap_or(0.0),
                         opts.transfer_offsets_mm.get(&piece.id).copied(),
+                        opts.active_uncouplers.contains(&piece.id),
                         &mut cat_ctx,
                     );
                     if piece.has_tunnel == Some(true) && piece.connectors.len() < 6 {
@@ -698,7 +705,9 @@ pub fn update_scene_3d_cache(
             Some(SceneMesh3D {
                 vertices: verts,
                 indices: idxs,
+                glass_indices: Vec::new(),
                 instanced_tracks,
+                textured_meshes,
             })
         } else {
             None
@@ -729,11 +738,14 @@ pub fn update_scene_3d_cache(
         cache.tracks_rebuilds += 1;
     }
 
+    let (shadow_center, shadow_half_extent) = compute_shadow_bounds(layout, &boards);
     Scene3DBundle {
         env: cache.env.as_ref().map(|(s, m)| (*s, Arc::clone(m))),
         boards: cache.boards.as_ref().map(|(s, m)| (*s, Arc::clone(m))),
         terrain: cache.terrain.as_ref().map(|(s, m)| (*s, Arc::clone(m))),
         tracks: cache.tracks_and_models.as_ref().map(|(s, m)| (*s, Arc::clone(m))),
+        shadow_center,
+        shadow_half_extent,
     }
 }
 

@@ -24,272 +24,10 @@ use crate::ColorMode;
 //  WGSL Shaders: 3D Lit Scene (with Depth Buffer + Fog + Day/Night) & Blit
 // ============================================================================
 
-const SCENE_SHADER_WGSL: &str = r#"
-struct Uniforms {
-    view_proj: mat4x4<f32>,
-    sun_dir: vec4<f32>,
-    cam_pos: vec4<f32>,
-    fog_color: vec4<f32>,
-    sun_color_int: vec4<f32>,
-    hemi_sky_int: vec4<f32>,
-    hemi_ground_pad: vec4<f32>,
-    cam_right: vec4<f32>,
-    cam_up: vec4<f32>,
-    cam_fwd: vec4<f32>,
-    sky_zenith: vec4<f32>,
-};
 
-@group(0) @binding(0)
-var<uniform> u: Uniforms;
-
-struct VertexIn {
-    @location(0) pos: vec3<f32>,
-    @location(1) normal: vec4<f32>,
-    @location(2) color: vec4<f32>,
-    @location(3) mat: vec4<f32>,
-    @location(4) inst_pos_rot: vec4<f32>,
-    @location(5) inst_tint_w: vec4<f32>,
-};
-
-struct VertexOut {
-    @builtin(position) clip_pos: vec4<f32>,
-    @location(0) world_pos: vec3<f32>,
-    @location(1) normal: vec3<f32>,
-    @location(2) color: vec3<f32>,
-    @location(3) mat: vec3<f32>,
-};
-
-@vertex
-fn vs_main(in: VertexIn) -> VertexOut {
-    var out: VertexOut;
-    let c = cos(in.inst_pos_rot.w);
-    let s = sin(in.inst_pos_rot.w);
-    let rx = in.pos.x * c - in.pos.z * s;
-    let rz = in.pos.x * s + in.pos.z * c;
-    let wp = vec3<f32>(
-        in.inst_pos_rot.x + rx,
-        in.inst_pos_rot.y + in.pos.y,
-        in.inst_pos_rot.z + rz,
-    );
-    let nx = in.normal.x * c - in.normal.z * s;
-    let nz = in.normal.x * s + in.normal.z * c;
-    out.clip_pos = u.view_proj * vec4<f32>(wp, 1.0);
-    out.world_pos = wp;
-    out.normal = vec3<f32>(nx, in.normal.y, nz);
-    // Unpack emissive (in.mat.z stored scaled by 0.5 in Snorm8x4 to cover [-2.0, +2.0])
-    let mat_xyz = vec3<f32>(in.mat.x, in.mat.y, in.mat.z * 2.0);
-    // Only tint non-metallic ballast vertices (MAT_BALLAST = roughness ~0.96) when inst_tint_w.w > 0
-    let apply_tint = select(0.0, in.inst_tint_w.w, mat_xyz.y < 0.25 && mat_xyz.x > 0.90 && in.pos.y < 6.0);
-    out.color = mix(in.color.rgb, in.inst_tint_w.rgb, apply_tint);
-    out.mat = mat_xyz;
-    return out;
-}
-
-@fragment
-fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
-    var n = normalize(in.normal);
-    let l = normalize(u.sun_dir.xyz);
-    let v_vec = u.cam_pos.xyz - in.world_pos;
-    let dist = length(v_vec);
-    let v = v_vec / max(dist, 0.001);
-    let night = clamp(u.hemi_ground_pad.w, 0.0, 1.0);
-
-    var base_col = in.color;
-    var rough = clamp(in.mat.x, 0.04, 1.0);
-    let metal = clamp(in.mat.y, 0.0, 1.0);
-    var emissive_col = vec3<f32>(0.0);
-
-    if (in.mat.z < -0.001) {
-        let glow_t = smoothstep(0.08, 0.82, night);
-        let glass_day = vec3<f32>(0.10, 0.19, 0.30);
-        base_col = mix(glass_day, in.color, glow_t * 0.92);
-        emissive_col = in.color * (-in.mat.z) * (0.03 + 1.15 * glow_t);
-        rough = 0.12;
-    } else if (in.mat.z > 0.001) {
-        emissive_col = in.color * in.mat.z * (0.55 + 0.90 * night);
-    } else if (rough > 0.935 && metal < 0.1) {
-        // Procedural multi-octave crushed granite/basalt gravel ballast texture & micro-normal relief
-        let gravel_fade = 1.0 - smoothstep(380.0, 1450.0, dist);
-        let gp1 = in.world_pos * 1.45;
-        let gp2 = in.world_pos * 3.10;
-        let gp3 = in.world_pos * 5.80;
-        let n1 = sin(gp1.x * 1.7 + cos(gp1.z * 1.9)) * cos(gp1.z * 1.6 - sin(gp1.x * 1.4));
-        let n2 = sin(gp2.x * 2.3 - gp2.z * 1.8 + sin(gp2.y * 2.1)) * cos(gp2.z * 2.5 + gp2.x * 1.3);
-        let n3 = sin(gp3.x * 2.7 + gp3.z * 2.9) * cos(gp3.x * 3.1 - gp3.z * 2.4);
-        let pebble = (n1 * 0.45 + n2 * 0.35 + n3 * 0.20) * gravel_fade;
-        let dark_pore = smoothstep(0.28, 0.75, -n2 * n3) * gravel_fade;
-        // Varied mineral aggregate hues (warm granite brown, dark basalt, light quartz fleck)
-        let mineral_warm = vec3<f32>(0.025, 0.014, -0.012) * n1 * gravel_fade;
-        base_col = clamp(
-            base_col * (1.0 + pebble * 0.19 - dark_pore * 0.16) + mineral_warm,
-            vec3<f32>(0.04),
-            vec3<f32>(0.96),
-        );
-        n = normalize(n + vec3<f32>(n2 * 0.18, 0.0, n3 * 0.18) * gravel_fade);
-    } else if (rough > 0.52) {
-        let detail_fade = 1.0 - smoothstep(260.0, 950.0, dist);
-        let p = in.world_pos * 0.14;
-        let grain = sin(p.x * 2.1 + sin(p.z * 1.9)) * cos(p.y * 2.7 + p.z * 1.5);
-        base_col = clamp(base_col * (1.0 + grain * 0.016 * detail_fade), vec3<f32>(0.0), vec3<f32>(1.0));
-    }
-    let h = normalize(l + v);
-
-    let ndotl = max(dot(n, l), 0.0);
-    let diff = ndotl * u.sun_color_int.w;
-    let fill_l = normalize(vec3<f32>(-u.sun_dir.x, 0.45, -u.sun_dir.z));
-    let fill_diff = max(dot(n, fill_l), 0.0) * (0.22 * u.hemi_sky_int.w);
-
-    let hemi = n.y * 0.5 + 0.5;
-    let crevice_ao = mix(0.76, 1.0, clamp(n.y * 0.5 + 0.65, 0.0, 1.0));
-    let ambient = mix(u.hemi_ground_pad.rgb, u.hemi_sky_int.rgb, hemi) * (0.64 * u.hemi_sky_int.w * crevice_ao);
-
-    let f0 = mix(vec3<f32>(0.04), base_col, metal);
-    let ndoth = max(dot(n, h), 0.0);
-    let ndotv = max(dot(n, v), 0.0);
-    let fresnel = f0 + (vec3<f32>(1.0) - f0) * pow(clamp(1.0 - max(dot(h, v), 0.0), 0.0, 1.0), 5.0);
-    let shininess = mix(160.0, 10.0, rough * rough);
-    let spec_norm = mix(0.45, 0.08, rough);
-    let direct_spec = fresnel * pow(ndoth, shininess) * spec_norm * ndotl * u.sun_color_int.w;
-
-    let r_dir = reflect(-v, n);
-    let r_hemi = clamp(r_dir.y * 0.5 + 0.5, 0.0, 1.0);
-    let env_col = mix(u.hemi_ground_pad.rgb, u.hemi_sky_int.rgb * 1.15, r_hemi);
-    let view_fresnel = f0 + (vec3<f32>(1.0) - f0) * pow(clamp(1.0 - ndotv, 0.0, 1.0), 4.0);
-    let env_spec = view_fresnel * env_col * (1.0 - rough * 0.72) * 0.55 * max(u.hemi_sky_int.w, 0.35);
-
-    let diffuse_col = base_col * (1.0 - metal * 0.55);
-    var lit = diffuse_col * (ambient + u.sun_color_int.rgb * diff + u.hemi_sky_int.rgb * fill_diff)
-            + u.sun_color_int.rgb * direct_spec
-            + env_spec
-            + emissive_col;
-    let excess = max(lit - vec3<f32>(0.88), vec3<f32>(0.0));
-    lit = min(lit, vec3<f32>(0.88)) + excess / (vec3<f32>(1.0) + excess * 1.6);
-
-    var fog_factor: f32;
-    if (u.cam_fwd.w < 0.5) {
-        let haze = smoothstep(25000.0, 160000.0, dist) * 0.34;
-        let horizon_blend = smoothstep(140000.0, 290000.0, dist);
-        fog_factor = clamp(max(haze, horizon_blend) * u.fog_color.w, 0.0, 1.0);
-    } else {
-        fog_factor = clamp((dist - 12000.0) / 45000.0, 0.0, u.fog_color.w);
-    }
-    let final_col = mix(lit, u.fog_color.rgb, fog_factor);
-    return vec4<f32>(final_col, 1.0);
-}
-"#;
-
-const SKY_SHADER_WGSL: &str = r#"
-struct Uniforms {
-    view_proj: mat4x4<f32>,
-    sun_dir: vec4<f32>,
-    cam_pos: vec4<f32>,
-    fog_color: vec4<f32>,
-    sun_color_int: vec4<f32>,
-    hemi_sky_int: vec4<f32>,
-    hemi_ground_pad: vec4<f32>,
-    cam_right: vec4<f32>,
-    cam_up: vec4<f32>,
-    cam_fwd: vec4<f32>,
-    sky_zenith: vec4<f32>,
-};
-
-@group(0) @binding(0)
-var<uniform> u: Uniforms;
-
-struct SkyOut {
-    @builtin(position) pos: vec4<f32>,
-    @location(0) ndc: vec2<f32>,
-};
-
-@vertex
-fn vs_sky(@builtin(vertex_index) idx: u32) -> SkyOut {
-    var positions = array<vec2<f32>, 3>(
-        vec2<f32>(-1.0, -3.0),
-        vec2<f32>(-1.0,  1.0),
-        vec2<f32>( 3.0,  1.0),
-    );
-    let p = positions[idx];
-    var out: SkyOut;
-    out.pos = vec4<f32>(p, 0.9999, 1.0);
-    out.ndc = p;
-    return out;
-}
-
-@fragment
-fn fs_sky(in: SkyOut) -> @location(0) vec4<f32> {
-    let aspect = u.cam_right.w;
-    let tan_half_y = u.cam_up.w;
-    let dir = normalize(
-        u.cam_fwd.xyz
-        + u.cam_right.xyz * (in.ndc.x * aspect * tan_half_y)
-        + u.cam_up.xyz * (in.ndc.y * tan_half_y)
-    );
-
-    if (u.cam_fwd.w >= 0.5) {
-        let up_t = clamp(dir.y * 0.5 + 0.5, 0.0, 1.0);
-        let grad = mix(u.fog_color.rgb * 0.92, u.sky_zenith.rgb, smoothstep(0.15, 0.95, up_t));
-        return vec4<f32>(grad, 1.0);
-    }
-
-    let elev = clamp(dir.y, 0.0, 1.0);
-    let horizon_mix = pow(1.0 - elev, 3.2);
-    let zenith_mix = smoothstep(0.06, 0.72, elev);
-    let mid_sky = mix(u.fog_color.rgb, u.sky_zenith.rgb * 1.25, 0.52);
-    var col = mix(mid_sky, u.sky_zenith.rgb, zenith_mix);
-    col = mix(col, u.fog_color.rgb, horizon_mix);
-
-    let night = clamp(u.sky_zenith.w, 0.0, 1.0);
-    let l_dir = normalize(u.sun_dir.xyz);
-    let sun_dot = max(dot(dir, l_dir), 0.0);
-
-    if (dir.y > -0.05) {
-        let glow_col = mix(u.sun_color_int.rgb, vec3<f32>(0.75, 0.86, 1.0), night);
-        let wide_halo = pow(sun_dot, 8.0) * mix(0.28, 0.08, night) * smoothstep(-0.04, 0.25, dir.y);
-        let disc = smoothstep(0.99935, 0.99985, sun_dot) * mix(1.4, 0.65, night);
-        col = col + glow_col * (wide_halo + disc);
-    }
-
-    if (night > 0.15 && dir.y > 0.02) {
-        let star_cell = floor(dir * 260.0);
-        let h = fract(sin(dot(star_cell, vec3<f32>(12.9898, 78.233, 37.719))) * 43758.5453);
-        let star = step(0.9965, h) * smoothstep(0.02, 0.28, dir.y) * smoothstep(0.15, 0.75, night);
-        col = col + vec3<f32>(0.85, 0.90, 1.0) * star * 0.75;
-    }
-
-    return vec4<f32>(col, 1.0);
-}
-"#;
-
-const BLIT_SHADER_WGSL: &str = r#"
-@group(0) @binding(0)
-var t_color: texture_2d<f32>;
-@group(0) @binding(1)
-var s_color: sampler;
-
-struct VsOut {
-    @builtin(position) pos: vec4<f32>,
-    @location(0) uv: vec2<f32>,
-};
-
-@vertex
-fn vs_blit(@builtin(vertex_index) idx: u32) -> VsOut {
-    var positions = array<vec2<f32>, 3>(
-        vec2<f32>(-1.0, -3.0),
-        vec2<f32>(-1.0,  1.0),
-        vec2<f32>( 3.0,  1.0),
-    );
-    let p = positions[idx];
-    var out: VsOut;
-    out.pos = vec4<f32>(p, 0.0, 1.0);
-    out.uv = vec2<f32>(p.x * 0.5 + 0.5, 0.5 - p.y * 0.5);
-    return out;
-}
-
-@fragment
-fn fs_blit(in: VsOut) -> @location(0) vec4<f32> {
-    return textureSample(t_color, s_color, in.uv);
-}
-"#;
+mod shaders;
+#[allow(unused_imports)]
+use shaders::*;
 
 pub(crate) const MAT_DEFAULT: [f32; 3] = [0.78, 0.04, 0.0];
 const MAT_BALLAST: [f32; 3] = [0.96, 0.02, 0.0];
@@ -320,6 +58,11 @@ pub struct Vertex3D {
 impl Vertex3D {
     #[inline]
     pub fn new(pos: [f32; 3], normal: [f32; 3], color: [f32; 3], mat: [f32; 3]) -> Self {
+        Self::new_alpha(pos, normal, color, 1.0, mat)
+    }
+
+    #[inline]
+    pub fn new_alpha(pos: [f32; 3], normal: [f32; 3], color: [f32; 3], alpha: f32, mat: [f32; 3]) -> Self {
         Self {
             pos,
             normal: [
@@ -332,7 +75,7 @@ impl Vertex3D {
                 pack_unorm8(color[0]),
                 pack_unorm8(color[1]),
                 pack_unorm8(color[2]),
-                255,
+                pack_unorm8(alpha),
             ],
             mat: [
                 pack_snorm8(mat[0]),
@@ -410,6 +153,7 @@ pub struct Scene3DOptions {
     pub turnout_states: std::collections::HashMap<String, usize>,
     pub turntable_angles_deg: std::collections::HashMap<String, f64>,
     pub transfer_offsets_mm: std::collections::HashMap<String, f64>,
+    pub active_uncouplers: std::collections::HashSet<String>,
 }
 
 impl Default for Scene3DOptions {
@@ -424,6 +168,7 @@ impl Default for Scene3DOptions {
             turnout_states: std::collections::HashMap::new(),
             turntable_angles_deg: std::collections::HashMap::new(),
             transfer_offsets_mm: std::collections::HashMap::new(),
+            active_uncouplers: std::collections::HashSet::new(),
         }
     }
 }
@@ -444,9 +189,43 @@ pub enum CameraViewPreset {
 }
 
 #[repr(C)]
+#[derive(Copy, Clone, Debug, Pod, Zeroable)]
+pub struct TexturedVertex3D {
+    pub pos: [f32; 3],
+    pub normal: [f32; 3],
+    pub uv: [f32; 2],
+    pub color: [f32; 4],
+    pub mat: [f32; 4],
+}
+
+#[derive(Clone, Debug)]
+pub struct TexturedSubmesh3D {
+    pub texture_id: u64,
+    pub tex_width: u32,
+    pub tex_height: u32,
+    pub tex_rgba: Arc<Vec<u8>>,
+    pub vertices: Vec<TexturedVertex3D>,
+    pub indices: Vec<u32>,
+}
+
+pub(super) fn merge_textured_submesh(dest: &mut Vec<TexturedSubmesh3D>, src: TexturedSubmesh3D) {
+    if src.vertices.is_empty() || src.indices.is_empty() || src.tex_width == 0 || src.tex_height == 0 {
+        return;
+    }
+    if let Some(existing) = dest.iter_mut().find(|d| d.texture_id == src.texture_id) {
+        let base = existing.vertices.len() as u32;
+        existing.vertices.extend_from_slice(&src.vertices);
+        existing.indices.extend(src.indices.into_iter().map(|i| base + i));
+    } else {
+        dest.push(src);
+    }
+}
+
+#[repr(C)]
 #[derive(Copy, Clone, Pod, Zeroable)]
-struct Uniforms3D {
+pub(super) struct Uniforms3D {
     view_proj: [[f32; 4]; 4],
+    sun_view_proj: [[f32; 4]; 4],
     sun_dir: [f32; 4],
     cam_pos: [f32; 4],
     fog_color: [f32; 4],
@@ -457,6 +236,7 @@ struct Uniforms3D {
     cam_up: [f32; 4],
     cam_fwd: [f32; 4],
     sky_zenith: [f32; 4],
+    shadow_params: [f32; 4],
 }
 
 #[derive(Clone, Copy)]
@@ -522,14 +302,14 @@ pub(super) fn camera_basis(eye: [f32; 3], target: [f32; 3]) -> ([f32; 3], [f32; 
     (right, up, fwd)
 }
 
-struct SkyUniformState {
-    clear_color: [f64; 3],
-    sky_zenith: [f32; 4],
-    fog_color: [f32; 4],
-    sun_dir: [f32; 4],
-    sun_color_int: [f32; 4],
-    hemi_sky_int: [f32; 4],
-    hemi_ground_pad: [f32; 4],
+pub(super) struct SkyUniformState {
+    pub(super) clear_color: [f64; 3],
+    pub(super) sky_zenith: [f32; 4],
+    pub(super) fog_color: [f32; 4],
+    pub(super) sun_dir: [f32; 4],
+    pub(super) sun_color_int: [f32; 4],
+    pub(super) hemi_sky_int: [f32; 4],
+    pub(super) hemi_ground_pad: [f32; 4],
 }
 
 fn eval_sky_state(time_of_day: f32, env: Viewer3DEnv, dark_mode: bool) -> SkyUniformState {
@@ -577,26 +357,34 @@ fn eval_sky_state(time_of_day: f32, env: Viewer3DEnv, dark_mode: bool) -> SkyUni
 
     if env == Viewer3DEnv::Minimal {
         let dusk_warmth =
-            (1.0 - ((h - 6.0).abs().min((h - 18.5).abs()) / 2.2).clamp(0.0, 1.0)) * 0.35;
-        let day_clear = if dark_mode {
-            [0.014_f32, 0.022, 0.052]
+            (1.0 - ((h - 6.0).abs().min((h - 18.5).abs()) / 2.2).clamp(0.0, 1.0)) * 0.18;
+        let day_zenith = if dark_mode {
+            [0.038_f32, 0.056, 0.092]
         } else {
-            [0.72_f32, 0.76, 0.80]
+            [0.25_f32, 0.37, 0.56]
         };
-        let night_clear = [0.008_f32, 0.013, 0.030];
-        let clear_lin = lerp3(lerp3(day_clear, night_clear, night_factor), sky_lin, dusk_warmth);
-        let fog_day = if dark_mode {
-            [0.024_f32, 0.038, 0.085]
+        let day_horizon = if dark_mode {
+            [0.095_f32, 0.118, 0.156]
         } else {
-            [0.78_f32, 0.82, 0.86]
+            [0.66_f32, 0.74, 0.84]
         };
-        let fog_night = [0.014_f32, 0.024, 0.052];
-        let fog_rgb = lerp3(lerp3(fog_day, fog_night, night_factor), fog_lin, dusk_warmth);
-        let fog_a = if dark_mode { 0.25 } else { 0.20 + 0.06 * night_factor };
+        let night_zenith = [0.014_f32, 0.022, 0.044];
+        let night_horizon = [0.030_f32, 0.044, 0.072];
+        let zenith_lin = lerp3(lerp3(day_zenith, night_zenith, night_factor), sky_lin, dusk_warmth);
+        let horizon_lin = lerp3(
+            lerp3(day_horizon, night_horizon, night_factor),
+            fog_lin,
+            dusk_warmth,
+        );
+        let fog_a = if dark_mode { 0.22 } else { 0.18 + 0.06 * night_factor };
         return SkyUniformState {
-            clear_color: [clear_lin[0] as f64, clear_lin[1] as f64, clear_lin[2] as f64],
-            sky_zenith: [clear_lin[0], clear_lin[1], clear_lin[2], night_factor],
-            fog_color: [fog_rgb[0], fog_rgb[1], fog_rgb[2], fog_a],
+            clear_color: [
+                horizon_lin[0] as f64,
+                horizon_lin[1] as f64,
+                horizon_lin[2] as f64,
+            ],
+            sky_zenith: [zenith_lin[0], zenith_lin[1], zenith_lin[2], night_factor],
+            fog_color: [horizon_lin[0], horizon_lin[1], horizon_lin[2], fog_a],
             sun_dir,
             sun_color_int: [sun_c[0], sun_c[1], sun_c[2], sun_int.max(0.45)],
             hemi_sky_int: [hemi_sky[0], hemi_sky[1], hemi_sky[2], hemi_int.max(0.44)],
@@ -777,7 +565,9 @@ impl Camera3D {
 pub struct SceneMesh3D {
     pub(crate) vertices: Vec<Vertex3D>,
     indices: Vec<u32>,
+    pub(crate) glass_indices: Vec<u32>,
     pub instanced_tracks: Vec<InstancedTrackPrototype3D>,
+    pub textured_meshes: Vec<TexturedSubmesh3D>,
 }
 
 impl SceneMesh3D {
@@ -785,7 +575,9 @@ impl SceneMesh3D {
         Self {
             vertices,
             indices,
+            glass_indices: Vec::new(),
             instanced_tracks: Vec::new(),
+            textured_meshes: Vec::new(),
         }
     }
 
@@ -796,14 +588,24 @@ impl SceneMesh3D {
                 .iter()
                 .map(|p| p.vertices.len())
                 .sum::<usize>()
+            + self
+                .textured_meshes
+                .iter()
+                .map(|m| m.vertices.len())
+                .sum::<usize>()
     }
 
     pub fn triangle_count(&self) -> usize {
-        self.indices.len() / 3
+        (self.indices.len() + self.glass_indices.len()) / 3
             + self
                 .instanced_tracks
                 .iter()
                 .map(|p| (p.indices.len() / 3) * p.instances.len())
+                .sum::<usize>()
+            + self
+                .textured_meshes
+                .iter()
+                .map(|m| m.indices.len() / 3)
                 .sum::<usize>()
     }
 
@@ -817,7 +619,7 @@ impl SceneMesh3D {
 
     pub fn gpu_buffer_bytes(&self) -> usize {
         let base_bytes = self.vertices.len() * std::mem::size_of::<Vertex3D>()
-            + self.indices.len() * std::mem::size_of::<u32>();
+            + (self.indices.len() + self.glass_indices.len()) * std::mem::size_of::<u32>();
         let proto_bytes: usize = self
             .instanced_tracks
             .iter()
@@ -827,7 +629,15 @@ impl SceneMesh3D {
                     + p.instances.len() * std::mem::size_of::<Instance3D>()
             })
             .sum();
-        base_bytes + proto_bytes
+        let tex_bytes: usize = self
+            .textured_meshes
+            .iter()
+            .map(|m| {
+                m.vertices.len() * std::mem::size_of::<TexturedVertex3D>()
+                    + m.indices.len() * std::mem::size_of::<u32>()
+            })
+            .sum();
+        base_bytes + proto_bytes + tex_bytes
     }
 
     pub fn append_from(&mut self, other: &SceneMesh3D) {
@@ -838,9 +648,18 @@ impl SceneMesh3D {
             for &idx in &other.indices {
                 self.indices.push(base + idx);
             }
+            if !other.glass_indices.is_empty() {
+                self.glass_indices.reserve(other.glass_indices.len());
+                for &idx in &other.glass_indices {
+                    self.glass_indices.push(base + idx);
+                }
+            }
         }
         if !other.instanced_tracks.is_empty() {
             self.instanced_tracks.extend_from_slice(&other.instanced_tracks);
+        }
+        for tm in &other.textured_meshes {
+            merge_textured_submesh(&mut self.textured_meshes, tm.clone());
         }
     }
 }
@@ -869,12 +688,27 @@ impl Scene3DCache {
     }
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct Scene3DBundle {
     pub env: Option<(u64, Arc<SceneMesh3D>)>,
     pub boards: Option<(u64, Arc<SceneMesh3D>)>,
     pub terrain: Option<(u64, Arc<SceneMesh3D>)>,
     pub tracks: Option<(u64, Arc<SceneMesh3D>)>,
+    pub shadow_center: [f32; 3],
+    pub shadow_half_extent: f32,
+}
+
+impl Default for Scene3DBundle {
+    fn default() -> Self {
+        Self {
+            env: None,
+            boards: None,
+            terrain: None,
+            tracks: None,
+            shadow_center: [0.0, 40.0, 0.0],
+            shadow_half_extent: 1600.0,
+        }
+    }
 }
 
 impl Scene3DBundle {
@@ -905,8 +739,9 @@ impl Scene3DBundle {
     }
 }
 
-const MSAA_SAMPLE_COUNT: u32 = 4;
+pub(super) const MSAA_SAMPLE_COUNT: u32 = 4;
 pub const WINDOW_MSAA_SAMPLES: u32 = 4;
+pub const SHADOW_MAP_SIZE: u32 = 2048;
 
 mod gpu;
 #[allow(unused_imports)]
@@ -917,7 +752,16 @@ mod viewport;
 #[allow(unused_imports)]
 use viewport::*;
 #[allow(unused_imports)]
-pub use viewport::{draw_cab_viewport_3d, draw_viewport_3d, CabCameraMode};
+pub use viewport::draw_viewport_3d;
+mod cab_viewport;
+#[allow(unused_imports)]
+use cab_viewport::*;
+#[allow(unused_imports)]
+pub use cab_viewport::{
+    draw_cab_viewport_3d, speedometer_needle_angle, CabCameraMode, CabHudInfo,
+    CabHudInteraction,
+};
+mod viewcube;
 pub mod edit3d;
 #[allow(unused_imports)]
 pub use edit3d::*;
@@ -939,11 +783,16 @@ mod tracks;
 use tracks::*;
 #[allow(unused_imports)]
 pub(crate) use tracks::{sample_track_branches_3d};
-mod terrain_and_models;
+mod mountain_mesh;
 #[allow(unused_imports)]
-use terrain_and_models::*;
+use mountain_mesh::*;
+mod ground_and_models;
 #[allow(unused_imports)]
-pub(crate) use terrain_and_models::{rot_xz};
+use ground_and_models::*;
+pub(crate) use ground_and_models::rot_xz;
+mod heightfield_mesh;
+#[allow(unused_imports)]
+use heightfield_mesh::*;
 mod primitives;
 #[allow(unused_imports)]
 use primitives::*;

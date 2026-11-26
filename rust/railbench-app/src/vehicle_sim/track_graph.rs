@@ -486,6 +486,109 @@ pub(super) fn walk_track_graph(
     (0.0, 0.0, 0.0, 0.0)
 }
 
+/// Walks `signed_delta_mm` along the connected track graph and returns `(piece_id, branch_idx, dist_mm, travel_dir_pos)`.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn walk_track_graph_location(
+    layout: &Layout,
+    catalogs: &[Catalog],
+    turnout_states: &HashMap<String, usize>,
+    tt_angles: &HashMap<String, f64>,
+    tr_offsets: &HashMap<String, f64>,
+    path_history: &[(String, usize)],
+    start_piece_id: &str,
+    start_branch_idx: usize,
+    start_dist_mm: f64,
+    signed_delta_mm: f64,
+    domain: VehicleDomain,
+) -> (String, usize, f64, bool) {
+    let mut cur_pid = start_piece_id.to_string();
+    let mut cur_br = start_branch_idx;
+    let mut cur_dist = start_dist_mm;
+    let mut dir_pos = signed_delta_mm >= 0.0;
+    let mut remain = signed_delta_mm.abs();
+
+    for _hop in 0..16 {
+        let Some(piece) = layout.pieces.iter().find(|p| p.id == cur_pid) else {
+            break;
+        };
+        let entry = find_entry(catalogs, &piece.catalog_id);
+        let is_special = entry
+            .is_some_and(|e| matches!(e.kind.as_str(), "turntable" | "transfer-table"));
+        let branches = sample_active_piece_branches(piece, entry, tt_angles, tr_offsets);
+        if branches.is_empty() {
+            break;
+        }
+        let br_idx = cur_br.min(branches.len() - 1);
+        let br = &branches[br_idx];
+        let seg_len = polyline_length(br).max(1e-3);
+
+        if dir_pos {
+            if cur_dist + remain <= seg_len {
+                return (cur_pid, br_idx, cur_dist + remain, true);
+            }
+            remain -= (seg_len - cur_dist).max(0.0);
+            let exit_conn = if is_special {
+                br.last().copied().and_then(|pt| find_special_exit_connector(piece, pt))
+            } else {
+                Some(branch_endpoint_connectors(piece, entry, br_idx).1)
+            };
+            if let Some((next_pid, entry_conn)) = exit_conn
+                .and_then(|ec| find_connected_next(layout, catalogs, piece, ec, domain))
+            {
+                if let Ok((np, nb, nd, nf)) = transition_walk_to_next(
+                    layout,
+                    catalogs,
+                    turnout_states,
+                    tt_angles,
+                    tr_offsets,
+                    path_history,
+                    next_pid,
+                    entry_conn,
+                ) {
+                    cur_pid = np;
+                    cur_br = nb;
+                    cur_dist = nd;
+                    dir_pos = nf;
+                    continue;
+                }
+            }
+            return (cur_pid, br_idx, seg_len, true);
+        } else {
+            if cur_dist - remain >= 0.0 {
+                return (cur_pid, br_idx, cur_dist - remain, false);
+            }
+            remain -= cur_dist.max(0.0);
+            let exit_conn = if is_special {
+                br.first().copied().and_then(|pt| find_special_exit_connector(piece, pt))
+            } else {
+                Some(branch_endpoint_connectors(piece, entry, br_idx).0)
+            };
+            if let Some((next_pid, entry_conn)) = exit_conn
+                .and_then(|ec| find_connected_next(layout, catalogs, piece, ec, domain))
+            {
+                if let Ok((np, nb, nd, nf)) = transition_walk_to_next(
+                    layout,
+                    catalogs,
+                    turnout_states,
+                    tt_angles,
+                    tr_offsets,
+                    path_history,
+                    next_pid,
+                    entry_conn,
+                ) {
+                    cur_pid = np;
+                    cur_br = nb;
+                    cur_dist = nd;
+                    dir_pos = nf;
+                    continue;
+                }
+            }
+            return (cur_pid, br_idx, 0.0, false);
+        }
+    }
+    (cur_pid, cur_br, cur_dist, dir_pos)
+}
+
 #[allow(clippy::too_many_arguments)]
 fn sample_bogie_car_pose(
     layout: &Layout,

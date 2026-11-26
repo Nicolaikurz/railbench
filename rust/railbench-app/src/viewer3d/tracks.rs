@@ -15,6 +15,7 @@ pub(super) fn push_track_piece_3d(
     turnout_state: usize,
     turntable_angle_deg: f64,
     transfer_offset_mm: Option<f64>,
+    uncoupler_active: bool,
     cat_ctx: &mut CatenaryMast3DContext,
 ) {
     let kind_str = entry.map(|e| e.kind.as_str()).unwrap_or("straight");
@@ -472,6 +473,75 @@ pub(super) fn push_track_piece_3d(
             turnout_state,
             piece.has_decoder == Some(true),
         );
+    }
+
+    // Pass 4: Maerklin 24997 / Catalog Uncoupler Ramp (Entkupplerbohle + Solenoid Box)
+    if !is_road && entry.is_some_and(crate::catalog::is_uncoupler_entry) {
+        if let Some(pts) = branches.first().filter(|b| b.len() >= 2) {
+            let mid_i = pts.len() / 2;
+            let p_a = pts[mid_i.saturating_sub(1)];
+            let p_b = pts[(mid_i + 1).min(pts.len() - 1)];
+            let dx = p_b[0] - p_a[0];
+            let dz = p_b[2] - p_a[2];
+            let yaw = dz.atan2(dx);
+            let sc = (gauge / 16.5).clamp(0.45, 2.5);
+            let lift_y = if uncoupler_active { 2.3 * sc } else { 0.0 };
+            let plate_col = if uncoupler_active {
+                [0.95, 0.72, 0.16]
+            } else {
+                [0.26, 0.30, 0.36]
+            };
+            let plate_mat = if uncoupler_active {
+                [0.24, 0.75, 0.28]
+            } else {
+                [0.36, 0.65, 0.0]
+            };
+            // Center uncoupler lifting ramp (Entkupplerbohle) between rails
+            let base_y = pts[mid_i][1] + ballast_h + tie_h + 1.0 + lift_y;
+            push_rotated_box_mat(
+                verts,
+                idxs,
+                [pts[mid_i][0], base_y, pts[mid_i][2]],
+                yaw,
+                [0.0, 0.0, 0.0],
+                [38.0 * sc, 1.8 * sc, 9.2 * sc],
+                plate_col,
+                plate_mat,
+            );
+            // Trackside black actuator solenoid housing & status LED
+            let lat_z = gauge * 0.85 + 8.5 * sc;
+            let sol_base_y = pts[mid_i][1] + ballast_h * 0.55;
+            push_rotated_box_mat(
+                verts,
+                idxs,
+                [pts[mid_i][0], sol_base_y, pts[mid_i][2]],
+                yaw,
+                [0.0, 2.4 * sc, lat_z],
+                [18.0 * sc, 4.8 * sc, 8.8 * sc],
+                [0.10, 0.12, 0.16],
+                MAT_DEFAULT,
+            );
+            let led_col = if uncoupler_active {
+                [0.98, 0.78, 0.18]
+            } else {
+                [0.22, 0.28, 0.36]
+            };
+            let led_mat = if uncoupler_active {
+                [0.20, 0.10, 0.85]
+            } else {
+                MAT_DEFAULT
+            };
+            push_rotated_box_mat(
+                verts,
+                idxs,
+                [pts[mid_i][0], sol_base_y, pts[mid_i][2]],
+                yaw,
+                [6.0 * sc, 5.1 * sc, lat_z],
+                [2.4 * sc, 1.2 * sc, 2.4 * sc],
+                led_col,
+                led_mat,
+            );
+        }
     }
 
     // Trackside DB Lichthauptsignal(s) in 3D (full detailed model scaled to track gauge)

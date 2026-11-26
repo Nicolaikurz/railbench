@@ -315,6 +315,11 @@ impl VehicleSimState {
             let v = &mut self.vehicles[vi];
             v.blocked_ahead = blocked_lookahead;
             let def = v.kind.def();
+            if def.tractive_kn <= 0.0 && v.throttle < 0.01 && v.current_speed_mm_s < 0.5 {
+                v.velocity_mm_s = 0.0;
+                v.current_speed_mm_s = 0.0;
+                continue;
+            }
             let max_v = def.max_speed_mm_s * veh_sf;
             let dir_sign = if v.reverse { -1.0 } else { 1.0 };
             let v_target = if blocked_lookahead {

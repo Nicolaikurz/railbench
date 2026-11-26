@@ -1,0 +1,728 @@
+use super::*;
+
+#[test]
+fn turntable_3d_generates_pit_bridge_rails_catenary_and_tight_hole() {
+    let catalogs = builtin_catalogs();
+    let entry = find_entry(&catalogs, "74862").expect("74862 turntable in catalog");
+    let mut tt = create_piece("tt-1".into(), entry, Transform { x: 400.0, y: 400.0, rotation: 30.0 }, None);
+    let bb = BaseboardConfig {
+        id: Some("b1".into()),
+        name: Some("B1".into()),
+        enabled: true,
+        shape: Some("rect".into()),
+        custom_polygon: None,
+        triangle_type: None,
+        width: 1200.0,
+        depth: 1200.0,
+        rotation: Some(0.0),
+        l_wing_width: None,
+        l_wing_depth: None,
+        l_side: None,
+        u_left_wing_width: None,
+        u_right_wing_width: None,
+        u_back_depth: None,
+        t_bar_depth: None,
+        t_stem_width: None,
+        position_mode: "center".into(),
+        custom_x: None,
+        custom_y: None,
+        style: "wood".into(),
+        corner_radius: Some(0.0),
+        show_dimensions: None,
+    };
+    let outer = board_tools::get_baseboard_polygon(&bb);
+    let layer_info = std::collections::HashMap::new();
+    let mk_layout = |piece: TrackPiece| Layout {
+        name: "TurntableTest".into(),
+        scale: "H0".into(),
+        pieces: vec![piece],
+        models: None,
+        feed_voltage: None,
+        catenary_feed_voltage: None,
+        catenary_circuit_mode: None,
+        loco_current_ma: None,
+        loco_count: None,
+        train_current_amps: None,
+        turnout_lantern_current_ma: None,
+        turnout_decoder_current_ma: None,
+        layers: None,
+        active_layer_id: None,
+        baseboard: Some(bb.clone()),
+        baseboards: Some(vec![bb.clone()]),
+        terrain_field: None,
+    };
+
+    let plain_layout = mk_layout(tt.clone());
+    let plain = build_scene_mesh_3d(&plain_layout, &catalogs, &Scene3DOptions::default());
+    assert!(plain.vertices.len() > 4000, "turntable mesh too small: {}", plain.vertices.len());
+    assert!(plain.vertices.iter().all(|v| v.pos[0].is_finite() && v.pos[1].is_finite() && v.pos[2].is_finite()));
+    assert!(plain.vertices.iter().any(|v| v.pos[1] < -14.0), "missing deep pit floor");
+    assert!(plain.vertices.iter().any(|v| (v.pos[1] - 9.6).abs() < 0.05), "missing flush 9.6mm rail top");
+
+    let holes = collect_turntable_holes(&plain_layout, &catalogs, &outer, 0.0, &layer_info);
+    assert_eq!(holes.len(), 1);
+    assert_eq!(holes[0].len(), 36);
+    for pt in &holes[0] {
+        let dist = (pt.x - 400.0).hypot(pt.y - 400.0);
+        assert!((dist - 142.0).abs() < 0.1 && dist < 189.0, "hole radius {dist} must stay inside outer_r");
+    }
+
+    tt.has_catenary = Some(true);
+    let cat_mesh = build_scene_mesh_3d(&mk_layout(tt), &catalogs, &Scene3DOptions::default());
+    assert!(cat_mesh.vertices.len() > plain.vertices.len() + 1000);
+    assert!(cat_mesh.vertices.iter().any(|v| v.pos[1] > 78.0), "missing Drehscheiben-Spinne catenary");
+}
+
+#[test]
+fn transfer_table_3d_generates_pit_bridge_centered_ties_and_rect_hole() {
+    let catalogs = builtin_catalogs();
+    let entry = find_entry(&catalogs, "72941").expect("72941 transfer-table in catalog");
+    let mut tf = create_piece("tf-1".into(), entry, Transform { x: 0.0, y: -154.8, rotation: 90.0 }, None);
+    tf.has_catenary = Some(true);
+    let bb = BaseboardConfig {
+        id: Some("b1".into()),
+        name: Some("B1".into()),
+        enabled: true,
+        shape: Some("rect".into()),
+        custom_polygon: None,
+        triangle_type: None,
+        width: 1400.0,
+        depth: 1400.0,
+        rotation: Some(0.0),
+        l_wing_width: None,
+        l_wing_depth: None,
+        l_side: None,
+        u_left_wing_width: None,
+        u_right_wing_width: None,
+        u_back_depth: None,
+        t_bar_depth: None,
+        t_stem_width: None,
+        position_mode: "center".into(),
+        custom_x: None,
+        custom_y: None,
+        style: "wood".into(),
+        corner_radius: Some(0.0),
+        show_dimensions: None,
+    };
+    let outer = board_tools::get_baseboard_polygon(&bb);
+    let layer_info = std::collections::HashMap::new();
+    let layout = Layout {
+        name: "TransferTest".into(),
+        scale: "H0".into(),
+        pieces: vec![tf],
+        models: None,
+        feed_voltage: None,
+        catenary_feed_voltage: None,
+        catenary_circuit_mode: None,
+        loco_current_ma: None,
+        loco_count: None,
+        train_current_amps: None,
+        turnout_lantern_current_ma: None,
+        turnout_decoder_current_ma: None,
+        layers: None,
+        active_layer_id: None,
+        baseboard: Some(bb.clone()),
+        baseboards: Some(vec![bb]),
+        terrain_field: None,
+    };
+
+    let mesh = build_scene_mesh_3d(&layout, &catalogs, &Scene3DOptions::default());
+    assert!(mesh.vertices.len() > 4000, "transfer-table mesh too small: {}", mesh.vertices.len());
+    assert!(mesh.vertices.iter().all(|v| v.pos[0].is_finite() && v.pos[1].is_finite() && v.pos[2].is_finite()));
+    assert!(mesh.vertices.iter().any(|v| v.pos[1] < -11.5), "missing recessed transfer pit floor");
+    assert!(mesh.vertices.iter().any(|v| (v.pos[1] - 9.6).abs() < 0.05), "missing flush 9.6mm rails");
+    assert!(mesh.vertices.iter().any(|v| v.pos[1] > 80.0), "missing overhead power portal arch / catenary");
+
+    let holes = collect_turntable_holes(&layout, &catalogs, &outer, 0.0, &layer_info);
+    assert_eq!(holes.len(), 1);
+    assert_eq!(holes[0].len(), 4);
+}
+
+#[test]
+fn scene_3d_cache_reuses_unchanged_submeshes_and_parallel_terrain() {
+    let catalogs = builtin_catalogs();
+    let entry = find_entry(&catalogs, "24188").expect("24188 in catalog");
+    let p1 = create_piece("p1".into(), entry, Transform { x: 0.0, y: 0.0, rotation: 0.0 }, None);
+    let m1 = Model3D {
+        id: "mtn-1".into(),
+        name: "Alps 1".into(),
+        category: "nature".into(),
+        model_type: "builtin".into(),
+        builtin_id: Some("mountain".into()),
+        file_name: None,
+        file_data: None,
+        transform: Transform { x: -300.0, y: 0.0, rotation: 0.0 },
+        width: 300.0,
+        depth: 260.0,
+        height: 150.0,
+        mountain_style: Some("alpine".into()),
+        mountain_path: None,
+        ground_terrain_type: None,
+        scale: Some(1.0),
+        elevation: Some(0.0),
+        layer_id: None,
+    };
+    let m2 = Model3D {
+        id: "mtn-2".into(),
+        name: "Alps 2".into(),
+        category: "nature".into(),
+        model_type: "builtin".into(),
+        builtin_id: Some("ground-terrain".into()),
+        file_name: None,
+        file_data: None,
+        transform: Transform { x: 300.0, y: 0.0, rotation: 0.0 },
+        width: 280.0,
+        depth: 260.0,
+        height: 30.0,
+        mountain_style: None,
+        mountain_path: None,
+        ground_terrain_type: Some("hill".into()),
+        scale: Some(1.0),
+        elevation: Some(0.0),
+        layer_id: None,
+    };
+    let mut layout = Layout {
+        name: "CacheTest".into(),
+        scale: "H0".into(),
+        pieces: vec![p1],
+        models: Some(vec![m1, m2]),
+        feed_voltage: None,
+        catenary_feed_voltage: None,
+        catenary_circuit_mode: None,
+        loco_current_ma: None,
+        loco_count: None,
+        train_current_amps: None,
+        turnout_lantern_current_ma: None,
+        turnout_decoder_current_ma: None,
+        layers: None,
+        active_layer_id: None,
+        baseboard: None,
+        baseboards: None,
+        terrain_field: None,
+    };
+
+    let mut cache = Scene3DCache::default();
+    let mut opts = Scene3DOptions::default();
+    let mesh1 = build_scene_mesh_3d_cached(&layout, &catalogs, &opts, &mut cache);
+    assert!(mesh1.vertex_count() > 2000);
+    assert!(cache.last_build_threads >= 1);
+    assert_eq!(cache.env_rebuilds, 1);
+    assert_eq!(cache.boards_rebuilds, 1);
+    assert_eq!(cache.terrain_rebuilds, 1);
+    assert_eq!(cache.tracks_rebuilds, 1);
+
+    // Changing only time_of_day or color_mode should NOT rebuild env, boards, or terrain
+    opts.time_of_day = 18.0;
+    let _mesh2 = build_scene_mesh_3d_cached(&layout, &catalogs, &opts, &mut cache);
+    assert_eq!(cache.env_rebuilds, 1);
+    assert_eq!(cache.boards_rebuilds, 1);
+    assert_eq!(cache.terrain_rebuilds, 1);
+    assert_eq!(cache.tracks_rebuilds, 1);
+
+    opts.color_mode = ColorMode::Types;
+    let _mesh3 = build_scene_mesh_3d_cached(&layout, &catalogs, &opts, &mut cache);
+    assert_eq!(cache.env_rebuilds, 1);
+    assert_eq!(cache.boards_rebuilds, 1);
+    assert_eq!(cache.terrain_rebuilds, 1);
+    assert_eq!(cache.tracks_rebuilds, 2);
+
+    // Toggling catenary on a track piece rebuilds tracks_and_models, leaving env & boards cached
+    layout.pieces[0].has_catenary = Some(true);
+    let mesh4 = build_scene_mesh_3d_cached(&layout, &catalogs, &opts, &mut cache);
+    assert!(mesh4.vertex_count() > mesh1.vertex_count());
+    assert_eq!(cache.env_rebuilds, 1);
+    assert_eq!(cache.boards_rebuilds, 1);
+    assert_eq!(cache.terrain_rebuilds, 1);
+    assert_eq!(cache.tracks_rebuilds, 3);
+}
+
+#[test]
+fn gpu_track_instancing_shares_one_prototype_per_track_type() {
+    let catalogs = builtin_catalogs();
+    let straight = find_entry(&catalogs, "24188").expect("24188 in catalog");
+    let curve = find_entry(&catalogs, "24130").expect("24130 in catalog");
+
+    let mut pieces = Vec::new();
+    for i in 0..50 {
+        pieces.push(create_piece(
+            format!("s-{i}"),
+            straight,
+            Transform {
+                x: (i as f64) * 200.0,
+                y: 0.0,
+                rotation: 0.0,
+            },
+            None,
+        ));
+        pieces.push(create_piece(
+            format!("c-{i}"),
+            curve,
+            Transform {
+                x: (i as f64) * 200.0,
+                y: 120.0,
+                rotation: (i as f64) * 15.0,
+            },
+            None,
+        ));
+    }
+
+    let layout = Layout {
+        name: "InstancingTest".into(),
+        scale: "H0".into(),
+        pieces,
+        models: None,
+        feed_voltage: None,
+        catenary_feed_voltage: None,
+        catenary_circuit_mode: None,
+        loco_current_ma: None,
+        loco_count: None,
+        train_current_amps: None,
+        turnout_lantern_current_ma: None,
+        turnout_decoder_current_ma: None,
+        layers: None,
+        active_layer_id: None,
+        baseboard: None,
+        baseboards: None,
+        terrain_field: None,
+    };
+
+    let opts = Scene3DOptions {
+        env_mode: Viewer3DEnv::Minimal,
+        show_wood_plates: false,
+        ..Default::default()
+    };
+    let mut cache = Scene3DCache::default();
+    let mesh = build_scene_mesh_3d_cached(&layout, &catalogs, &opts, &mut cache);
+
+    // 100 track pieces of 2 catalog types must produce exactly 2 shared prototype meshes and 100 instances!
+    assert_eq!(mesh.track_prototype_count(), 2);
+    assert_eq!(mesh.track_instance_count(), 100);
+    assert_eq!(cache.track_prototypes.len(), 2);
+    for proto in &mesh.instanced_tracks {
+        assert_eq!(proto.instances.len(), 50);
+        assert!(!proto.vertices.is_empty());
+    }
+}
+
+#[test]
+fn vertex3d_is_compact_24_bytes_and_preserves_material_thresholds() {
+    assert_eq!(std::mem::size_of::<Vertex3D>(), 24);
+
+    let ballast = Vertex3D::new([1.0, 2.0, 3.0], [0.0, 1.0, 0.0], [0.5, 0.45, 0.4], MAT_BALLAST);
+    let terrain = Vertex3D::new([0.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.2, 0.5, 0.1], MAT_TERRAIN);
+    let night_win = Vertex3D::new([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.85, 0.4], [0.14, 0.18, -0.85]);
+    let sun = Vertex3D::new([0.0, 100.0, 0.0], [0.0, -1.0, 0.0], [1.0, 0.95, 0.68], [0.10, 0.0, 1.35]);
+
+    // WGSL gravel threshold > 0.935 must separate MAT_BALLAST from MAT_TERRAIN after 8-bit quantization
+    assert!(ballast.mat_f32()[0] > 0.935);
+    assert!(terrain.mat_f32()[0] <= 0.935);
+    // Signed emissive range [-2.0, +2.0] preserved for night windows & celestial HDR sun
+    assert!((night_win.mat_f32()[2] - -0.85).abs() < 0.02);
+    assert!((sun.mat_f32()[2] - 1.35).abs() < 0.02);
+    assert!((ballast.normal_f32()[1] - 1.0).abs() < 1e-4);
+    assert!((sun.color_f32()[0] - 1.0).abs() < 1e-4);
+}
+
+#[test]
+fn scene_3d_bundle_shares_arcs_and_prunes_unused_prototypes() {
+    let catalogs = builtin_catalogs();
+    let straight = find_entry(&catalogs, "24188").expect("24188 in catalog");
+    let curve = find_entry(&catalogs, "24130").expect("24130 in catalog");
+    let mut layout = Layout {
+        name: "BundleTest".into(),
+        scale: "H0".into(),
+        pieces: vec![
+            create_piece("s1".into(), straight, Transform { x: 0.0, y: 0.0, rotation: 0.0 }, None),
+            create_piece("c1".into(), curve, Transform { x: 300.0, y: 0.0, rotation: 0.0 }, None),
+        ],
+        models: None,
+        feed_voltage: None,
+        catenary_feed_voltage: None,
+        catenary_circuit_mode: None,
+        loco_current_ma: None,
+        loco_count: None,
+        train_current_amps: None,
+        turnout_lantern_current_ma: None,
+        turnout_decoder_current_ma: None,
+        layers: None,
+        active_layer_id: None,
+        baseboard: None,
+        baseboards: None,
+        terrain_field: None,
+    };
+
+    let mut cache = Scene3DCache::default();
+    let opts = Scene3DOptions {
+        show_wood_plates: false,
+        ..Default::default()
+    };
+    let bundle1 = update_scene_3d_cache(&layout, &catalogs, &opts, &mut cache);
+    assert_eq!(cache.track_prototypes.len(), 2);
+
+    // Bundle shares exact Arcs with Scene3DCache and InstancedTrackPrototype3D shares Arc with track_prototypes
+    assert!(Arc::ptr_eq(&bundle1.env.as_ref().unwrap().1, &cache.env.as_ref().unwrap().1));
+    assert!(Arc::ptr_eq(&bundle1.boards.as_ref().unwrap().1, &cache.boards.as_ref().unwrap().1));
+    assert!(Arc::ptr_eq(&bundle1.terrain.as_ref().unwrap().1, &cache.terrain.as_ref().unwrap().1));
+    let tracks_mesh = &bundle1.tracks.as_ref().unwrap().1;
+    for proto in &tracks_mesh.instanced_tracks {
+        let (cached_v, cached_i) = cache.track_prototypes.get(&proto.catalog_id).unwrap();
+        assert!(Arc::ptr_eq(&proto.vertices, cached_v));
+        assert!(Arc::ptr_eq(&proto.indices, cached_i));
+    }
+
+    // Remove the curve piece: unused track_prototype must be pruned, while env, boards & terrain keep exact Arcs
+    layout.pieces.pop();
+    let bundle2 = update_scene_3d_cache(&layout, &catalogs, &opts, &mut cache);
+    assert_eq!(cache.track_prototypes.len(), 1);
+    assert!(cache.track_prototypes.contains_key("24188"));
+    assert!(Arc::ptr_eq(&bundle1.env.as_ref().unwrap().1, &bundle2.env.as_ref().unwrap().1));
+    assert!(Arc::ptr_eq(&bundle1.boards.as_ref().unwrap().1, &bundle2.boards.as_ref().unwrap().1));
+    assert!(Arc::ptr_eq(&bundle1.terrain.as_ref().unwrap().1, &bundle2.terrain.as_ref().unwrap().1));
+
+    cache.clear();
+    assert!(cache.env.is_none() && cache.tracks_and_models.is_none() && cache.track_prototypes.is_empty());
+}
+
+#[test]
+fn window_msaa_samples_is_enabled_for_2d_antialiasing() {
+    assert_eq!(WINDOW_MSAA_SAMPLES, 4);
+    assert!(WINDOW_MSAA_SAMPLES.is_power_of_two());
+}
+
+#[test]
+fn terrain_3d_mountain_and_water_never_exceed_table_or_upper_plate() {
+    use railbench_core::types::{Layer, LayerPlate};
+
+    let catalogs = builtin_catalogs();
+    let bb = BaseboardConfig {
+        id: Some("b1".into()),
+        name: Some("Table".into()),
+        enabled: true,
+        shape: Some("rect".into()),
+        custom_polygon: None,
+        triangle_type: None,
+        width: 2400.0,
+        depth: 1200.0,
+        rotation: Some(0.0),
+        l_wing_width: None,
+        l_wing_depth: None,
+        l_side: None,
+        u_left_wing_width: None,
+        u_right_wing_width: None,
+        u_back_depth: None,
+        t_bar_depth: None,
+        t_stem_width: None,
+        position_mode: "center".into(),
+        custom_x: None,
+        custom_y: None,
+        style: "wood".into(),
+        corner_radius: Some(0.0),
+        show_dimensions: None,
+    };
+    let upper_plate = LayerPlate {
+        id: "pl-1".into(),
+        name: Some("Upper".into()),
+        baseboard_id: Some("b1".into()),
+        shape: Some("rect".into()),
+        custom_polygon: None,
+        triangle_type: None,
+        l_wing_width: None,
+        l_wing_depth: None,
+        l_side: None,
+        u_left_wing_width: None,
+        u_right_wing_width: None,
+        u_back_depth: None,
+        t_bar_depth: None,
+        t_stem_width: None,
+        rotation: Some(0.0),
+        width: 500.0,
+        depth: 400.0,
+        x: Some(950.0),
+        y: Some(400.0),
+        thickness_mm: Some(12.0),
+        position_mode: Some("custom".into()),
+        style: None,
+    };
+    let mtn_table = Model3D {
+        id: "mtn-edge".into(),
+        name: "EdgeMtn".into(),
+        category: "terrain".into(),
+        transform: Transform { x: 1180.0, y: 0.0, rotation: 0.0 },
+        elevation: Some(0.0),
+        scale: Some(1.0),
+        layer_id: Some("layer-1".into()),
+        width: 600.0,
+        depth: 500.0,
+        height: 220.0,
+        model_type: "builtin".into(),
+        builtin_id: Some("mountain".into()),
+        mountain_style: Some("alpine".into()),
+        mountain_path: None,
+        ground_terrain_type: None,
+        file_data: None,
+        file_name: None,
+    };
+    let water_edge = Model3D {
+        id: "water-edge".into(),
+        name: "EdgeLake".into(),
+        category: "terrain".into(),
+        transform: Transform { x: -1180.0, y: 0.0, rotation: 0.0 },
+        elevation: Some(0.0),
+        scale: Some(1.0),
+        layer_id: Some("layer-1".into()),
+        width: 500.0,
+        depth: 400.0,
+        height: 8.0,
+        model_type: "builtin".into(),
+        builtin_id: Some("ground-terrain".into()),
+        mountain_style: None,
+        mountain_path: None,
+        ground_terrain_type: Some("water".into()),
+        file_data: None,
+        file_name: None,
+    };
+    let mtn_plate = Model3D {
+        id: "mtn-plate".into(),
+        name: "PlateMtn".into(),
+        category: "terrain".into(),
+        transform: Transform { x: 240.0, y: 0.0, rotation: 0.0 },
+        elevation: Some(0.0),
+        scale: Some(1.0),
+        layer_id: Some("layer-2".into()),
+        width: 450.0,
+        depth: 400.0,
+        height: 150.0,
+        model_type: "builtin".into(),
+        builtin_id: Some("mountain".into()),
+        mountain_style: Some("alpine".into()),
+        mountain_path: None,
+        ground_terrain_type: None,
+        file_data: None,
+        file_name: None,
+    };
+
+    let layout = Layout {
+        name: "Clip3D".into(),
+        scale: "H0".into(),
+        pieces: Vec::new(),
+        models: Some(vec![mtn_table, water_edge, mtn_plate]),
+        feed_voltage: None,
+        catenary_feed_voltage: None,
+        catenary_circuit_mode: None,
+        loco_current_ma: None,
+        loco_count: None,
+        train_current_amps: None,
+        turnout_lantern_current_ma: None,
+        turnout_decoder_current_ma: None,
+        layers: Some(vec![
+            Layer {
+                id: "layer-1".into(),
+                name: "Base".into(),
+                color: None,
+                visible: true,
+                locked: false,
+                height_mm: Some(0.0),
+                wood_plate_mode: Some("table".into()),
+                wood_plate_thickness_mm: None,
+                wood_plate_style: None,
+                plates: None,
+                terrain_field: None,
+            },
+            Layer {
+                id: "layer-2".into(),
+                name: "Upper".into(),
+                color: None,
+                visible: true,
+                locked: false,
+                height_mm: Some(300.0),
+                wood_plate_mode: Some("table".into()),
+                wood_plate_thickness_mm: Some(12.0),
+                wood_plate_style: None,
+                plates: Some(vec![upper_plate]),
+                terrain_field: None,
+            },
+        ]),
+        active_layer_id: Some("layer-1".into()),
+        baseboard: Some(bb),
+        baseboards: None,
+        terrain_field: None,
+    };
+
+    let mut cache = Scene3DCache::default();
+    let bundle = update_scene_3d_cache(&layout, &catalogs, &Scene3DOptions::default(), &mut cache);
+    let terrain = &bundle.terrain.expect("terrain mesh").1;
+    assert!(!terrain.indices.is_empty());
+
+    for &vi in &terrain.indices {
+        let p = terrain.vertices[vi as usize].pos;
+        if p[1] >= 295.0 {
+            // Elevated layer-2 terrain must stay strictly within its 500x400 plate ([-250..250, -200..200])
+            assert!(
+                p[0].abs() <= 250.5 && p[2].abs() <= 200.5,
+                "elevated terrain vertex ({:.1}, {:.1}, {:.1}) escaped plate!",
+                p[0],
+                p[1],
+                p[2]
+            );
+        } else {
+            // Table-level terrain must stay strictly within the 2400x1200 table ([-1200..1200, -600..600])
+            assert!(
+                p[0].abs() <= 1200.5 && p[2].abs() <= 600.5,
+                "table terrain vertex ({:.1}, {:.1}, {:.1}) escaped table!",
+                p[0],
+                p[1],
+                p[2]
+            );
+        }
+    }
+}
+
+#[test]
+fn double_slip_24624_and_crossing_24640_generate_correct_3d_geometry() {
+    let catalogs = builtin_catalogs();
+    let e_dkw = find_entry(&catalogs, "24624").expect("24624 entry");
+    let e_crs = find_entry(&catalogs, "24640").expect("24640 entry");
+    let e_curv_sw = find_entry(&catalogs, "24671").expect("24671 entry");
+
+    let c_dkw = crate::catalog::local_connectors(e_dkw);
+    assert_eq!(c_dkw.len(), 4, "24624 must have 4 local connectors");
+    assert!((c_dkw[0].x - 0.0).abs() < 1e-3 && (c_dkw[0].y - 0.0).abs() < 1e-3 && (c_dkw[0].angle - 180.0).abs() < 1e-3);
+    assert!((c_dkw[1].x - 188.3).abs() < 1e-3 && (c_dkw[1].y - 0.0).abs() < 1e-3 && (c_dkw[1].angle - 0.0).abs() < 1e-3);
+    assert!((c_dkw[2].x - 8.3414).abs() < 1e-2 && (c_dkw[2].y + 38.7441).abs() < 1e-2 && (c_dkw[2].angle - 204.3).abs() < 1e-2);
+    assert!((c_dkw[3].x - 179.9586).abs() < 1e-2 && (c_dkw[3].y - 38.7441).abs() < 1e-2 && (c_dkw[3].angle - 24.3).abs() < 1e-2);
+
+    let c_crs = crate::catalog::local_connectors(e_crs);
+    assert_eq!(c_crs.len(), 4, "24640 must have 4 centered connectors");
+    assert!((c_crs[0].x + 94.15).abs() < 1e-3 && (c_crs[1].x - 94.15).abs() < 1e-3);
+
+    let c_curv = crate::catalog::local_connectors(e_curv_sw);
+    assert_eq!(c_curv.len(), 3, "24671 curved turnout must have 3 connectors");
+
+    let dkw_piece = create_piece("dkw-1".into(), e_dkw, Transform { x: 0.0, y: 0.0, rotation: 0.0 }, None);
+    let branches_dkw = super::tracks::sample_track_branches_3d(&dkw_piece, Some(e_dkw), 0.0, 0.0);
+    assert_eq!(branches_dkw.len(), 4, "24624 must emit 2 crossing straights + 2 curved slip branches");
+    let mid_br2_z = branches_dkw[2][branches_dkw[2].len() / 2][2];
+    let mid_br3_z = branches_dkw[3][branches_dkw[3].len() / 2][2];
+    assert!(
+        mid_br2_z.abs() > 8.5 && mid_br3_z.abs() > 8.5,
+        "24624 curved slip branches must bow at midpoint (got z={mid_br2_z}, {mid_br3_z})"
+    );
+
+    let crs_piece = create_piece("crs-1".into(), e_crs, Transform { x: 0.0, y: 0.0, rotation: 0.0 }, None);
+    let branches_crs = super::tracks::sample_track_branches_3d(&crs_piece, Some(e_crs), 0.0, 0.0);
+    assert_eq!(branches_crs.len(), 2, "24640 crossing must emit 2 straight branches");
+
+    let layout = Layout {
+        name: "DKW24624".into(),
+        scale: "H0".into(),
+        pieces: vec![dkw_piece],
+        models: None,
+        feed_voltage: None,
+        catenary_feed_voltage: None,
+        catenary_circuit_mode: None,
+        loco_current_ma: None,
+        loco_count: None,
+        train_current_amps: None,
+        turnout_lantern_current_ma: None,
+        turnout_decoder_current_ma: None,
+        layers: None,
+        active_layer_id: None,
+        baseboard: None,
+        baseboards: None,
+        terrain_field: None,
+    };
+
+    let scene = build_scene_mesh_3d(&layout, &catalogs, &Scene3DOptions::default());
+    let dkw_proto = scene
+        .instanced_tracks
+        .iter()
+        .find(|p| p.catalog_id == "24624")
+        .expect("24624 should produce an instanced 3D prototype");
+    assert!(!dkw_proto.vertices.is_empty() && !dkw_proto.indices.is_empty());
+    let min_z = dkw_proto.vertices.iter().map(|v| v.pos[2]).fold(f32::INFINITY, f32::min);
+    let max_z = dkw_proto.vertices.iter().map(|v| v.pos[2]).fold(f32::NEG_INFINITY, f32::max);
+    assert!(
+        min_z < -40.0 && max_z > 40.0,
+        "24624 3D prototype must span both crossing arms & slips (got z range [{min_z}, {max_z}])"
+    );
+    assert!(dkw_proto.vertices.iter().all(|v| v.pos[0].is_finite() && v.pos[1].is_finite() && v.pos[2].is_finite()));
+}
+
+#[test]
+fn default_turnout_lantern_is_unlit_and_reflects_branch_position() {
+    let catalogs = builtin_catalogs();
+    let turnout_entry = find_entry(&catalogs, "24611").expect("24611 in catalog");
+    let plain_turnout = create_piece("sw1".into(), turnout_entry, Transform { x: 0.0, y: 0.0, rotation: 0.0 }, None);
+    let mut lit_turnout = plain_turnout.clone();
+    lit_turnout.has_lantern = Some(true);
+
+    let make_layout = |p: TrackPiece| Layout {
+        name: "Lantern3D".into(),
+        scale: "H0".into(),
+        pieces: vec![p],
+        models: None,
+        feed_voltage: None,
+        catenary_feed_voltage: None,
+        catenary_circuit_mode: None,
+        loco_current_ma: None,
+        loco_count: None,
+        train_current_amps: None,
+        turnout_lantern_current_ma: None,
+        turnout_decoder_current_ma: None,
+        layers: None,
+        active_layer_id: None,
+        baseboard: None,
+        baseboards: None,
+        terrain_field: None,
+    };
+
+    let all_verts = |mesh: &SceneMesh3D| -> Vec<Vertex3D> {
+        mesh.vertices
+            .iter()
+            .copied()
+            .chain(mesh.instanced_tracks.iter().flat_map(|p| p.vertices.iter().copied()))
+            .collect()
+    };
+
+    let minimal = |turnout_states| Scene3DOptions {
+        env_mode: Viewer3DEnv::Minimal,
+        show_wood_plates: false,
+        turnout_states,
+        ..Default::default()
+    };
+
+    // 1. Default turnout: lantern housing is built into geometry, all vertices finite & UNLIT (emissive == 0)
+    let m_default_b0 = build_scene_mesh_3d(&make_layout(plain_turnout.clone()), &catalogs, &minimal(Default::default()));
+    let v_b0 = all_verts(&m_default_b0);
+    assert!(v_b0.len() > 150, "expected turnout + mechanical lantern vertices");
+    assert!(
+        v_b0.iter().all(|v| v.mat_f32()[2].abs() < 1e-3),
+        "default unequipped turnout lantern must have zero emissive vertices"
+    );
+
+    // 2. Switching turnout branch to diverging (1) changes generated 3D geometry while remaining UNLIT
+    let mut branches_div = std::collections::HashMap::new();
+    branches_div.insert("sw1".to_string(), 1usize);
+    let m_default_b1 = build_scene_mesh_3d(&make_layout(plain_turnout), &catalogs, &minimal(branches_div));
+    assert!(
+        !m_default_b1.vertices.is_empty(),
+        "switched turnout branch should de-instance and emit active-branch geometry"
+    );
+    let v_b1 = all_verts(&m_default_b1);
+    assert!(
+        v_b1.iter().all(|v| v.mat_f32()[2].abs() < 1e-3),
+        "switched unequipped turnout lantern must stay unlit"
+    );
+    let b0_flat: Vec<[f32; 3]> = v_b0.iter().map(|v| v.pos).collect();
+    let b1_flat: Vec<[f32; 3]> = v_b1.iter().map(|v| v.pos).collect();
+    assert_ne!(b0_flat, b1_flat, "diverging turnout lantern aspect should differ from straight");
+
+    // 3. Equipping has_lantern = Some(true) lights up the lantern with emissive vertices
+    let m_lit = build_scene_mesh_3d(&make_layout(lit_turnout), &catalogs, &minimal(Default::default()));
+    let v_lit = all_verts(&m_lit);
+    assert!(
+        v_lit.iter().any(|v| v.mat_f32()[2] > 0.5),
+        "equipped turnout lantern should emit warm milk-glass emissive vertices"
+    );
+}
+

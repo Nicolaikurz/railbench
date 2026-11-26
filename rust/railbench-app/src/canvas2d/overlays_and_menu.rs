@@ -20,7 +20,7 @@ pub(super) fn draw_overlays_and_context_menu(
     show_rulers: bool,
     snapping_enabled: bool,
     measure_mode: bool,
-    rotation_step: f64,
+    sketcher_active: bool,
     interaction: &mut CanvasInteraction,
 ) {
     // 7. Measure tool overlay
@@ -460,8 +460,8 @@ pub(super) fn draw_overlays_and_context_menu(
         draw_rulers(&painter, rect, camera, dark_mode);
     }
 
-    // 9. Right-click context menu (matches src/ui/track-context-menu.ts)
-    if !selected.is_empty() {
+    // 9. Right-click context menu (empty canvas + selection)
+    if !sketcher_active {
         let sel_pieces: Vec<&TrackPiece> = layout
             .pieces
             .iter()
@@ -473,9 +473,6 @@ pub(super) fn draw_overlays_and_context_menu(
         let any_turnout_sel = sel_pieces.iter().any(|p| {
             find_entry(catalogs, &p.catalog_id).map_or(false, |e| crate::is_turnout_kind(&e.kind))
         });
-        let any_flex_sel = sel_pieces
-            .iter()
-            .any(|p| crate::catalog::is_flex_id(catalogs, &p.catalog_id));
         let all_grouped = sel_pieces.len() >= 2
             && first_piece.and_then(|p| p.group_id.as_ref()).is_some()
             && sel_pieces.iter().all(|p| p.group_id == first_piece.and_then(|f| f.group_id.clone()));
@@ -508,6 +505,27 @@ pub(super) fn draw_overlays_and_context_menu(
 
         response.context_menu(|ui| {
             ui.set_min_width(220.0);
+            if selected.is_empty() {
+                if ui.button(if is_de { "Einfuegen (Strg+V)" } else { "Paste (Ctrl+V)" }).clicked() {
+                    interaction.paste_clipboard = true;
+                    ui.close_menu();
+                }
+                if ui.button(if is_de { "Alles auswaehlen (Strg+A)" } else { "Select All (Ctrl+A)" }).clicked() {
+                    interaction.select_all = true;
+                    ui.close_menu();
+                }
+                if ui.button(if is_de { "Ansicht einpassen" } else { "Fit View" }).clicked() {
+                    interaction.fit_view = true;
+                    ui.close_menu();
+                }
+                ui.separator();
+                if ui.button(if is_de { "Gleisluecke schliessen (Auto)" } else { "Close Track Gap (Auto)" }).clicked() {
+                    interaction.close_track_gap = true;
+                    ui.close_menu();
+                }
+                return;
+            }
+
             if let Some(fp) = first_piece {
                 let title = if sel_pieces.len() == 1 {
                     let name = first_entry
@@ -539,16 +557,8 @@ pub(super) fn draw_overlays_and_context_menu(
                 ui.separator();
             }
 
-            if ui.button(if is_de { format!("↺ Drehen -{rotation_step}°") } else { format!("↺ Rotate -{rotation_step}°") }).clicked() {
-                interaction.rotate_delta = Some(-rotation_step);
-                ui.close_menu();
-            }
-            if ui.button(if is_de { format!("↻ Drehen +{rotation_step}°") } else { format!("↻ Rotate +{rotation_step}°") }).clicked() {
-                interaction.rotate_delta = Some(rotation_step);
-                ui.close_menu();
-            }
             if any_track_sel
-                && ui.button(if is_de { "⇄ Spiegeln / Wenden (Alt+F)" } else { "⇄ Mirror / Flip (Alt+F)" }).clicked()
+                && ui.button(if is_de { "↔ Spiegeln / Wenden (Alt+F)" } else { "↔ Mirror / Flip (Alt+F)" }).clicked()
             {
                 interaction.flip_selected = true;
                 ui.close_menu();
@@ -610,71 +620,82 @@ pub(super) fn draw_overlays_and_context_menu(
                             interaction.open_replace_split = Some(fp.id.clone());
                             ui.close_menu();
                         }
-                        if any_flex_sel
-                            && ui.button(if is_de { "↺ Flexgleis zuruecksetzen" } else { "↺ Reset Flextrack" }).clicked()
-                        {
-                            interaction.reset_flex = Some(fp.id.clone());
-                            ui.close_menu();
-                        }
                         if ui.button(if is_de { "ℹ Eigenschaften / Info..." } else { "ℹ Properties / Info..." }).clicked() {
                             interaction.open_track_props = Some(fp.id.clone());
                             ui.close_menu();
                         }
                     }
                 }
+                ui.menu_button(if is_de { "CAD-Tools" } else { "CAD" }, |ui| {
+                    if ui.button(if is_de { "Gleisluecke schliessen (Auto)" } else { "Close Track Gap (Auto)" }).clicked() {
+                        interaction.close_track_gap = true;
+                        ui.close_menu();
+                    }
+                    if ui.button(if is_de { "Parallelgleis aus Auswahl" } else { "Parallel Track from Selection" }).clicked() {
+                        interaction.generate_parallel_tracks = true;
+                        ui.close_menu();
+                    }
+                });
                 ui.separator();
-                if ui.button(if is_de { "⚡ Stromeinspeisung (F)" } else { "⚡ Toggle Power Feeder (F)" }).clicked() {
-                    interaction.toggle_feeder = true;
-                    ui.close_menu();
-                }
-                if ui.button(if is_de { "⊘ Isolierverbinder (I)" } else { "⊘ Toggle Isolator (I)" }).clicked() {
-                    interaction.toggle_isolator = true;
-                    ui.close_menu();
-                }
-                if ui.button(if is_de { "⌁ Oberleitung (O)" } else { "⌁ Toggle Catenary (O)" }).clicked() {
-                    interaction.toggle_catenary = true;
-                    ui.close_menu();
-                }
-                if ui.button(if is_de { "⚡ Oberleitungs-Speisung (Shift+F)" } else { "⚡ Catenary Feeder (Shift+F)" }).clicked() {
-                    interaction.toggle_catenary_feeder = true;
-                    ui.close_menu();
-                }
-                if ui.button(if is_de { "⊘ Oberleitungs-Trenner (Shift+I)" } else { "⊘ Catenary Isolator (Shift+I)" }).clicked() {
-                    interaction.toggle_catenary_isolator = true;
-                    ui.close_menu();
-                }
-                if ui.button(if is_de { "🚦 Signal (Shift+S)" } else { "🚦 Toggle Signal (Shift+S)" }).clicked() {
-                    interaction.toggle_signal = true;
-                    ui.close_menu();
-                }
-                if any_signal_sel {
-                    if ui.button(if is_de { format!("Signal-Seite: {ctx_sig_side}") } else { format!("Signal Side: {ctx_sig_side}") }).clicked() {
-                        interaction.cycle_signal_side = true;
+                ui.menu_button(if is_de { "⚡ Elektrik" } else { "⚡ Electrical" }, |ui| {
+                    if ui.button(if is_de { "⚡ Stromeinspeisung (F)" } else { "⚡ Power Feeder (F)" }).clicked() {
+                        interaction.toggle_feeder = true;
                         ui.close_menu();
                     }
-                    if ui.button(if is_de { format!("Signal-Richtung: {ctx_sig_dir}") } else { format!("Signal Direction: {ctx_sig_dir}") }).clicked() {
-                        interaction.cycle_signal_direction = true;
+                    if ui.button(if is_de { "⛔ Isolierverbinder (I)" } else { "⛔ Isolator (I)" }).clicked() {
+                        interaction.toggle_isolator = true;
                         ui.close_menu();
                     }
-                }
-                if any_turnout_sel {
-                    if ui.button(if is_de { "Weichenlaterne (W)" } else { "Turnout Lantern (W)" }).clicked() {
-                        interaction.toggle_lantern = true;
+                    ui.separator();
+                    if ui.button(if is_de { "〰 Oberleitung (O)" } else { "〰 Catenary (O)" }).clicked() {
+                        interaction.toggle_catenary = true;
                         ui.close_menu();
                     }
-                    if ui.button(if is_de { "Weichendecoder (Shift+W)" } else { "Turnout Decoder (Shift+W)" }).clicked() {
-                        interaction.toggle_decoder = true;
+                    if ui.button(if is_de { "⚡ Oberleitungs-Speisung (Shift+F)" } else { "⚡ Catenary Feeder (Shift+F)" }).clicked() {
+                        interaction.toggle_catenary_feeder = true;
                         ui.close_menu();
                     }
-                }
-                if ui.button(if is_de { "🌉 Bruecke (B)" } else { "🌉 Toggle Bridge (B)" }).clicked() {
-                    interaction.toggle_bridge = true;
-                    ui.close_menu();
-                }
-                if ui.button(if is_de { "🚇 Tunnel (T)" } else { "🚇 Toggle Tunnel (T)" }).clicked() {
-                    interaction.toggle_tunnel = true;
-                    ui.close_menu();
-                }
+                    if ui.button(if is_de { "⛔ Oberleitungs-Trenner (Shift+I)" } else { "⛔ Catenary Isolator (Shift+I)" }).clicked() {
+                        interaction.toggle_catenary_isolator = true;
+                        ui.close_menu();
+                    }
+                });
+                ui.menu_button(if is_de { "🚦 Signale & Bauwerke" } else { "🚦 Signals & Structures" }, |ui| {
+                    if ui.button(if is_de { "🚦 Signal (Shift+S)" } else { "🚦 Signal (Shift+S)" }).clicked() {
+                        interaction.toggle_signal = true;
+                        ui.close_menu();
+                    }
+                    if any_signal_sel {
+                        if ui.button(if is_de { format!("Signal-Seite: {ctx_sig_side}") } else { format!("Signal Side: {ctx_sig_side}") }).clicked() {
+                            interaction.cycle_signal_side = true;
+                            ui.close_menu();
+                        }
+                        if ui.button(if is_de { format!("Signal-Richtung: {ctx_sig_dir}") } else { format!("Signal Direction: {ctx_sig_dir}") }).clicked() {
+                            interaction.cycle_signal_direction = true;
+                            ui.close_menu();
+                        }
+                    }
+                    if any_turnout_sel {
+                        ui.separator();
+                        if ui.button(if is_de { "Weichenlaterne (W)" } else { "Turnout Lantern (W)" }).clicked() {
+                            interaction.toggle_lantern = true;
+                            ui.close_menu();
+                        }
+                        if ui.button(if is_de { "Weichendecoder (Shift+W)" } else { "Turnout Decoder (Shift+W)" }).clicked() {
+                            interaction.toggle_decoder = true;
+                            ui.close_menu();
+                        }
+                    }
+                    ui.separator();
+                    if ui.button(if is_de { "🌉 Bruecke (B)" } else { "🌉 Bridge (B)" }).clicked() {
+                        interaction.toggle_bridge = true;
+                        ui.close_menu();
+                    }
+                    if ui.button(if is_de { "🚇 Tunnel (T)" } else { "🚇 Tunnel (T)" }).clicked() {
+                        interaction.toggle_tunnel = true;
+                        ui.close_menu();
+                    }
+                });
             }
             ui.separator();
             if ui.button(if is_de { "Loeschen (Entf)" } else { "Delete Selected (Del)" }).clicked() {

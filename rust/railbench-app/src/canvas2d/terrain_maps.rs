@@ -1,4 +1,5 @@
-use eframe::egui::Color32;
+use eframe::egui::{self, Color32, Rect, Stroke};
+use crate::canvas2d::Camera2D;
 use railbench_core::geometry::{is_point_in_any_polygon, rotate};
 use railbench_core::terrain::{
     BIOME_DIRT, BIOME_FOREST, BIOME_GRASS, BIOME_ROCK, BIOME_SAND, BIOME_SNOW, BIOME_WATER,
@@ -659,3 +660,67 @@ pub(super) fn build_heightfield_map_2d(
     }
 }
 
+pub(super) fn draw_heightfield_map_2d(
+    painter: &egui::Painter,
+    rect: Rect,
+    camera: &Camera2D,
+    hf_map: &super::cache::CachedHeightfieldMap2D,
+    faded: bool,
+) {
+    let alpha_scale = if faded { 0.55_f32 } else { 1.0_f32 };
+    let scale_c = |col: Color32| -> Color32 {
+        if !faded {
+            col
+        } else {
+            Color32::from_rgba_premultiplied(
+                (col.r() as f32 * alpha_scale) as u8,
+                (col.g() as f32 * alpha_scale) as u8,
+                (col.b() as f32 * alpha_scale) as u8,
+                (col.a() as f32 * alpha_scale) as u8,
+            )
+        }
+    };
+    if !hf_map.quads.is_empty() {
+        let mut mesh = egui::Mesh::default();
+        mesh.vertices.reserve(hf_map.quads.len() * 4);
+        mesh.indices.reserve(hf_map.quads.len() * 6);
+        for &(pts, col) in &hf_map.quads {
+            let base = mesh.vertices.len() as u32;
+            let c = scale_c(col);
+            for pt in pts {
+                mesh.vertices.push(egui::epaint::Vertex {
+                    pos: camera.world_to_screen(rect, pt.x, pt.y),
+                    uv: egui::epaint::WHITE_UV,
+                    color: c,
+                });
+            }
+            mesh.indices
+                .extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
+        }
+        painter.add(egui::Shape::mesh(mesh));
+    }
+    let sub_a = if faded { 68 } else { 125 };
+    let idx_a = if faded { 115 } else { 210 };
+    let rip_a = if faded { 85 } else { 155 };
+    let sub_stroke = Stroke::new(1.0_f32, Color32::from_rgba_unmultiplied(146, 108, 56, sub_a));
+    let idx_stroke = Stroke::new(1.7_f32, Color32::from_rgba_unmultiplied(120, 82, 38, idx_a));
+    for &(a, b, is_idx) in &hf_map.contour_segs {
+        painter.line_segment(
+            [
+                camera.world_to_screen(rect, a.x, a.y),
+                camera.world_to_screen(rect, b.x, b.y),
+            ],
+            if is_idx { idx_stroke } else { sub_stroke },
+        );
+    }
+    let ripple_stroke = Stroke::new(1.2_f32, Color32::from_rgba_unmultiplied(224, 242, 254, rip_a));
+    for &(a, b) in &hf_map.water_ripples {
+        painter.line_segment(
+            [
+                camera.world_to_screen(rect, a.x, a.y),
+                camera.world_to_screen(rect, b.x, b.y),
+            ],
+            ripple_stroke,
+        );
+    }
+}

@@ -6,7 +6,7 @@ pub(super) fn find_building_at(layout: &Layout, wp: Vec2, layer_protection: bool
         if !is_layer_editable_with_protection(layout, m.layer_id.as_deref(), layer_protection) {
             continue;
         }
-        if matches!(m.builtin_id.as_deref(), Some("ground-terrain") | Some("mountain")) {
+        if crate::terrain_tools::is_terrain_model(m) {
             continue;
         }
         if model_contains_point(m, wp) {
@@ -22,7 +22,7 @@ pub(super) fn find_terrain_at(layout: &Layout, wp: Vec2, layer_protection: bool)
         if !is_layer_editable_with_protection(layout, m.layer_id.as_deref(), layer_protection) {
             continue;
         }
-        if !matches!(m.builtin_id.as_deref(), Some("ground-terrain") | Some("mountain")) {
+        if !crate::terrain_tools::is_terrain_model(m) {
             continue;
         }
         if model_contains_point(m, wp) {
@@ -30,6 +30,22 @@ pub(super) fn find_terrain_at(layout: &Layout, wp: Vec2, layer_protection: bool)
         }
     }
     None
+}
+
+pub(super) fn find_canvas_object_at(
+    layout: &Layout,
+    cache: &Canvas2DCache,
+    wp: Vec2,
+    piece_tol: f64,
+    layer_protection: bool,
+    terrain_only_selection: bool,
+) -> Option<String> {
+    if terrain_only_selection {
+        return find_terrain_at(layout, wp, layer_protection);
+    }
+    find_building_at(layout, wp, layer_protection)
+        .or_else(|| find_piece_at(layout, cache, wp, piece_tol, layer_protection))
+        .or_else(|| find_terrain_at(layout, wp, layer_protection))
 }
 
 pub(super) fn find_piece_at(

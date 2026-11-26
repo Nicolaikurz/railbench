@@ -58,15 +58,28 @@ pub fn base64_decode(input: &str) -> Result<Vec<u8>, String> {
 }
 
 #[derive(Debug, Clone)]
+pub struct DecodedTexture {
+    pub id: u64,
+    pub width: u32,
+    pub height: u32,
+    pub rgba: std::sync::Arc<Vec<u8>>,
+}
+
+#[derive(Debug, Clone)]
 pub struct CustomMeshTri {
     pub positions: [[f32; 3]; 3],
     pub normals: [[f32; 3]; 3],
+    pub uvs: [[f32; 2]; 3],
     pub color: [f32; 3],
+    pub texture_idx: Option<usize>,
+    pub roughness: f32,
+    pub metallic: f32,
 }
 
 #[derive(Debug, Clone)]
 pub struct ParsedGltfMesh {
     pub triangles: Vec<CustomMeshTri>,
+    pub textures: Vec<DecodedTexture>,
     pub min: [f32; 3],
     pub max: [f32; 3],
 }
@@ -242,7 +255,11 @@ pub(super) fn read_component_as_f32(buf: &[u8], off: usize, comp_type: u64, norm
     }
 }
 
-pub(super) fn read_accessor_vec3(doc: &Value, buffers: &[Vec<u8>], accessor_idx: usize) -> Option<Vec<[f32; 3]>> {
+fn accessor_slice<'a>(
+    doc: &'a Value,
+    buffers: &'a [Vec<u8>],
+    accessor_idx: usize,
+) -> Option<(&'a [u8], usize, u64, bool, usize, usize, usize, usize)> {
     let acc = doc.get("accessors")?.as_array()?.get(accessor_idx)?;
     let bv_idx = acc.get("bufferView")?.as_u64()? as usize;
     let bv = doc.get("bufferViews")?.as_array()?.get(bv_idx)?;
@@ -262,10 +279,15 @@ pub(super) fn read_accessor_vec3(doc: &Value, buffers: &[Vec<u8>], accessor_idx:
         .map(|v| v as usize)
         .filter(|&s| s >= comp_sz * tcount)
         .unwrap_or(comp_sz * tcount);
+    Some((raw, count, comp_type, norm, tcount, bv_off + acc_off, comp_sz, stride))
+}
 
+pub(super) fn read_accessor_vec3(doc: &Value, buffers: &[Vec<u8>], accessor_idx: usize) -> Option<Vec<[f32; 3]>> {
+    let (raw, count, comp_type, norm, tcount, base_off, comp_sz, stride) =
+        accessor_slice(doc, buffers, accessor_idx)?;
     let mut out = Vec::with_capacity(count);
     for i in 0..count {
-        let base = bv_off + acc_off + i * stride;
+        let base = base_off + i * stride;
         let x = read_component_as_f32(raw, base, comp_type, norm)?;
         let y = if tcount >= 2 {
             read_component_as_f32(raw, base + comp_sz, comp_type, norm).unwrap_or(0.0)
@@ -280,6 +302,98 @@ pub(super) fn read_accessor_vec3(doc: &Value, buffers: &[Vec<u8>], accessor_idx:
         out.push([x, y, z]);
     }
     Some(out)
+}
+
+pub(super) fn read_accessor_vec2(doc: &Value, buffers: &[Vec<u8>], accessor_idx: usize) -> Option<Vec<[f32; 2]>> {
+    let (raw, count, comp_type, norm, tcount, base_off, comp_sz, stride) =
+        accessor_slice(doc, buffers, accessor_idx)?;
+    let mut out = Vec::with_capacity(count);
+    for i in 0..count {
+        let base = base_off + i * stride;
+        let u = read_component_as_f32(raw, base, comp_type, norm)?;
+        let v = if tcount >= 2 {
+            read_component_as_f32(raw, base + comp_sz, comp_type, norm).unwrap_or(0.0)
+        } else {
+            0.0
+        };
+        out.push([u, v]);
+    }
+    Some(out)
+}
+
+fn hash_texture_rgba(w: u32, h: u32, rgba: &[u8]) -> u64 {
+    let mut hash = 0xcbf2_9ce4_8422_2325_u64;
+    for &b in w
+        .to_le_bytes()
+        .iter()
+        .chain(h.to_le_bytes().iter())
+        .chain(rgba.iter())
+    {
+        hash ^= b as u64;
+        hash = hash.wrapping_mul(0x1000_0000_01b3);
+    }
+    hash
+}
+
+fn decode_gltf_images(
+    doc: &Value,
+    buffers: &[Vec<u8>],
+    base_dir: Option<&Path>,
+) -> Vec<Option<DecodedTexture>> {
+    let Some(images) = doc.get("images").and_then(|v| v.as_array()) else {
+        return Vec::new();
+    };
+    let bvs = doc.get("bufferViews").and_then(|v| v.as_array());
+    images
+        .iter()
+        .map(|img| {
+            let owned: Vec<u8>;
+            let raw_bytes: &[u8] = if let Some(bv_idx) = img.get("bufferView").and_then(|v| v.as_u64()) {
+                let bv = bvs?.get(bv_idx as usize)?;
+                let buf_idx = bv.get("buffer")?.as_u64()? as usize;
+                let off = bv.get("byteOffset").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+                let len = bv.get("byteLength")?.as_u64()? as usize;
+                buffers.get(buf_idx)?.get(off..off.checked_add(len)?)?
+            } else if let Some(uri) = img.get("uri").and_then(|v| v.as_str()) {
+                if uri.starts_with("data:") {
+                    owned = base64_decode(uri).ok()?;
+                    &owned
+                } else {
+                    let dir = base_dir?;
+                    owned = std::fs::read(dir.join(uri)).ok()?;
+                    &owned
+                }
+            } else {
+                return None;
+            };
+
+            let mut rgba_img = image::load_from_memory(raw_bytes).ok()?.to_rgba8();
+            let (w, h) = rgba_img.dimensions();
+            if w > 2048 || h > 2048 {
+                let scale = 2048.0_f64 / (w.max(h) as f64);
+                let nw = ((w as f64) * scale).round().max(1.0) as u32;
+                let nh = ((h as f64) * scale).round().max(1.0) as u32;
+                rgba_img = image::imageops::resize(
+                    &rgba_img,
+                    nw,
+                    nh,
+                    image::imageops::FilterType::Triangle,
+                );
+            }
+            let (width, height) = rgba_img.dimensions();
+            if width == 0 || height == 0 {
+                return None;
+            }
+            let rgba = rgba_img.into_raw();
+            let id = hash_texture_rgba(width, height, &rgba);
+            Some(DecodedTexture {
+                id,
+                width,
+                height,
+                rgba: std::sync::Arc::new(rgba),
+            })
+        })
+        .collect()
 }
 
 pub(super) fn read_accessor_indices(doc: &Value, buffers: &[Vec<u8>], accessor_idx: usize) -> Option<Vec<usize>> {
@@ -386,6 +500,19 @@ pub fn parse_gltf_json(
     let nodes = doc.get("nodes").and_then(|v| v.as_array());
     let meshes = doc.get("meshes").and_then(|v| v.as_array());
     let materials = doc.get("materials").and_then(|v| v.as_array());
+    let gltf_textures = doc.get("textures").and_then(|v| v.as_array());
+
+    let mut textures: Vec<DecodedTexture> = Vec::new();
+    let mut image_to_tex_idx: Vec<Option<usize>> = Vec::new();
+    for opt_tex in decode_gltf_images(&doc, &buffers, base_dir) {
+        if let Some(tex) = opt_tex {
+            let idx = textures.len();
+            textures.push(tex);
+            image_to_tex_idx.push(Some(idx));
+        } else {
+            image_to_tex_idx.push(None);
+        }
+    }
 
     let mut triangles = Vec::new();
     let mut min = [f32::INFINITY; 3];
@@ -417,6 +544,10 @@ pub fn parse_gltf_json(
                 .get("NORMAL")
                 .and_then(|v| v.as_u64())
                 .and_then(|idx| read_accessor_vec3(&doc, &buffers, idx as usize));
+            let texcoords = attrs
+                .get("TEXCOORD_0")
+                .and_then(|v| v.as_u64())
+                .and_then(|idx| read_accessor_vec2(&doc, &buffers, idx as usize));
             let vcolors = attrs
                 .get("COLOR_0")
                 .and_then(|v| v.as_u64())
@@ -427,21 +558,48 @@ pub fn parse_gltf_json(
                 .and_then(|idx| read_accessor_indices(&doc, &buffers, idx as usize))
                 .unwrap_or_else(|| (0..positions.len()).collect());
 
-            let mat_col = prim
+            let mat_obj = prim
                 .get("material")
                 .and_then(|v| v.as_u64())
-                .and_then(|mi| materials.and_then(|ms| ms.get(mi as usize)))
-                .and_then(|mat| mat.get("pbrMetallicRoughness"))
-                .and_then(|pbr| pbr.get("baseColorFactor"))
+                .and_then(|mi| materials.and_then(|ms| ms.get(mi as usize)));
+            let pbr = mat_obj.and_then(|mat| mat.get("pbrMetallicRoughness"));
+            let texture_idx = if texcoords.is_some() {
+                pbr.and_then(|p| p.get("baseColorTexture"))
+                    .and_then(|bt| bt.get("index"))
+                    .and_then(|v| v.as_u64())
+                    .and_then(|ti| gltf_textures.and_then(|ts| ts.get(ti as usize)))
+                    .and_then(|t| t.get("source"))
+                    .and_then(|v| v.as_u64())
+                    .and_then(|si| image_to_tex_idx.get(si as usize).copied().flatten())
+            } else {
+                None
+            };
+            let default_col = if texture_idx.is_some() {
+                [1.0, 1.0, 1.0]
+            } else {
+                [0.76, 0.76, 0.78]
+            };
+            let mat_col = pbr
+                .and_then(|p| p.get("baseColorFactor"))
                 .and_then(|v| v.as_array())
                 .map(|arr| {
                     [
-                        arr.first().and_then(|v| v.as_f64()).unwrap_or(0.76) as f32,
-                        arr.get(1).and_then(|v| v.as_f64()).unwrap_or(0.76) as f32,
-                        arr.get(2).and_then(|v| v.as_f64()).unwrap_or(0.78) as f32,
+                        arr.first().and_then(|v| v.as_f64()).unwrap_or(default_col[0] as f64) as f32,
+                        arr.get(1).and_then(|v| v.as_f64()).unwrap_or(default_col[1] as f64) as f32,
+                        arr.get(2).and_then(|v| v.as_f64()).unwrap_or(default_col[2] as f64) as f32,
                     ]
                 })
-                .unwrap_or([0.76, 0.76, 0.78]);
+                .unwrap_or(default_col);
+            let roughness = pbr
+                .and_then(|p| p.get("roughnessFactor"))
+                .and_then(|v| v.as_f64())
+                .map(|v| (v as f32).clamp(0.04, 1.0))
+                .unwrap_or(0.72);
+            let metallic = pbr
+                .and_then(|p| p.get("metallicFactor"))
+                .and_then(|v| v.as_f64())
+                .map(|v| (v as f32).clamp(0.0, 1.0))
+                .unwrap_or(0.08);
 
             for tri_idx in indices.chunks_exact(3) {
                 let (i0, i1, i2) = (tri_idx[0], tri_idx[1], tri_idx[2]);
@@ -479,6 +637,15 @@ pub fn parse_gltf_json(
                 } else {
                     (face_norm, face_norm, face_norm)
                 };
+                let uvs = if let Some(ref tc) = texcoords {
+                    if i0 < tc.len() && i1 < tc.len() && i2 < tc.len() {
+                        [tc[i0], tc[i1], tc[i2]]
+                    } else {
+                        [[0.0, 0.0]; 3]
+                    }
+                } else {
+                    [[0.0, 0.0]; 3]
+                };
                 let col = if let Some(ref vc) = vcolors {
                     if i0 < vc.len() && i1 < vc.len() && i2 < vc.len() {
                         let avg = [
@@ -496,7 +663,11 @@ pub fn parse_gltf_json(
                 tris.push(CustomMeshTri {
                     positions: [p0, p1, p2],
                     normals: [n0, n1, n2],
+                    uvs,
                     color: col,
+                    texture_idx,
+                    roughness,
+                    metallic,
                 });
             }
         }
@@ -543,7 +714,12 @@ pub fn parse_gltf_json(
         max = [1.0, 1.0, 1.0];
     }
 
-    Ok(ParsedGltfMesh { triangles, min, max })
+    Ok(ParsedGltfMesh {
+        triangles,
+        textures,
+        min,
+        max,
+    })
 }
 
 pub(super) fn inline_external_gltf_buffers(json_str: &str, base_dir: &Path) -> String {
@@ -551,16 +727,30 @@ pub(super) fn inline_external_gltf_buffers(json_str: &str, base_dir: &Path) -> S
         return json_str.to_string();
     };
     let mut modified = false;
-    if let Some(bufs) = doc.get_mut("buffers").and_then(|v| v.as_array_mut()) {
-        for b in bufs {
-            if let Some(uri) = b.get("uri").and_then(|v| v.as_str()).map(|s| s.to_string()) {
-                if !uri.starts_with("data:") {
-                    if let Ok(bytes) = std::fs::read(base_dir.join(&uri)) {
-                        let embedded = format!("data:application/octet-stream;base64,{}", base64_encode(&bytes));
-                        if let Some(obj) = b.as_object_mut() {
-                            obj.insert("uri".into(), Value::String(embedded));
-                            modified = true;
-                        }
+    for (section, is_image) in [("buffers", false), ("images", true)] {
+        if let Some(entries) = doc.get_mut(section).and_then(|v| v.as_array_mut()) {
+            for item in entries {
+                let Some(uri) = item.get("uri").and_then(|v| v.as_str()).map(|s| s.to_string()) else {
+                    continue;
+                };
+                if uri.starts_with("data:") {
+                    continue;
+                }
+                if let Ok(bytes) = std::fs::read(base_dir.join(&uri)) {
+                    let mime = if !is_image {
+                        "application/octet-stream"
+                    } else if uri.to_ascii_lowercase().ends_with(".jpg")
+                        || uri.to_ascii_lowercase().ends_with(".jpeg")
+                        || bytes.starts_with(&[0xFF, 0xD8])
+                    {
+                        "image/jpeg"
+                    } else {
+                        "image/png"
+                    };
+                    let embedded = format!("data:{mime};base64,{}", base64_encode(&bytes));
+                    if let Some(obj) = item.as_object_mut() {
+                        obj.insert("uri".into(), Value::String(embedded));
+                        modified = true;
                     }
                 }
             }

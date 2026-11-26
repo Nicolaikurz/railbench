@@ -584,6 +584,40 @@ impl RailbenchApp {
         id
     }
 
+    /// Creates a new layer at `height_mm` without opening a modal or pushing a separate undo
+    /// entry so callers can bundle layer creation and ramp piece generation into one undo step.
+    pub fn create_layer_at_height(&mut self, height_mm: f64, is_above: bool) -> String {
+        let layers = self.layout.layers.get_or_insert_with(Vec::new);
+        let idx = layers.len() + 1;
+        let mut id = format!("layer-{idx}");
+        let mut suffix = 1usize;
+        while layers.iter().any(|l| l.id == id) {
+            id = format!("layer-{idx}-{suffix}");
+            suffix += 1;
+        }
+        let palette_hex = ["#38bdf8", "#f59e0b", "#10b981", "#a855f7", "#ef4444", "#ec4899"];
+        let prefix = if self.lang == crate::i18n::Lang::De {
+            "Ebene"
+        } else {
+            "Level"
+        };
+        let sign = if is_above { "+" } else { "-" };
+        layers.push(Layer {
+            id: id.clone(),
+            name: format!("{prefix} {sign}{}", layers.len()),
+            color: Some(palette_hex[layers.len() % palette_hex.len()].into()),
+            visible: true,
+            locked: false,
+            height_mm: Some((height_mm * 10.0).round() / 10.0),
+            wood_plate_mode: Some("none".into()),
+            wood_plate_thickness_mm: Some(10.0),
+            wood_plate_style: None,
+            plates: None,
+            terrain_field: None,
+        });
+        id
+    }
+
     pub fn count_items_on_layer(&self, layer_id: &str) -> usize {
         let p_cnt = self
             .layout

@@ -48,15 +48,19 @@ pub(super) fn draw_piece_label_and_badges(
     rect: Rect,
     camera: &Camera2D,
     piece: &TrackPiece,
+    entry: Option<&CatalogEntry>,
     label_world: Vec2,
     ballast_w: f32,
     gauge: f64,
     is_road: bool,
     is_selected: bool,
     is_active_layer: bool,
+    is_editable: bool,
     show_labels: bool,
     power_sim_enabled: bool,
     piece_power: Option<&PiecePowerResult>,
+    uncoupler_state: Option<(bool, bool)>,
+    accessory_buttons: &mut Vec<TrackAccessoryButton>,
 ) {
     let mid = camera.world_to_screen(rect, label_world.x, label_world.y);
     if show_labels && (is_selected || ballast_w >= 5.5) && rect.expand(48.0).contains(mid) {
@@ -119,13 +123,282 @@ pub(super) fn draw_piece_label_and_badges(
         painter.galley(text_pos, galley, txt_col);
     }
 
-    if piece.power_feed == Some(true) {
-        painter.circle_filled(Pos2::new(mid.x, mid.y - 10.0), 4.5, Color32::from_rgb(245, 158, 11));
-        painter.circle_stroke(Pos2::new(mid.x, mid.y - 10.0), 5.5, Stroke::new(1.0_f32, Color32::WHITE));
+    let has_roadbed = entry.and_then(|e| e.has_roadbed).unwrap_or(true);
+    let ballast_half_mm = if has_roadbed {
+        if gauge >= 30.0 {
+            gauge * 1.09
+        } else if gauge >= 16.0 {
+            18.0
+        } else {
+            gauge * 1.1
+        }
+    } else {
+        gauge * 0.75
+    };
+    let stem_start_mm = (ballast_half_mm - 6.0).max(12.0);
+    let badge_offset_mm = (ballast_half_mm + 8.0).max(26.0);
+    let badge_r_px = (11.0 * camera.zoom).clamp(6.5, 16.0);
+    let ring_w = (2.0 * camera.zoom).clamp(1.4, 2.8);
+    let stem_w = (2.0 * camera.zoom).clamp(1.2, 3.0);
+    let rot_rad = piece.transform.rotation.to_radians();
+    let (nx, ny) = (-rot_rad.sin(), rot_rad.cos());
+
+    let feeder_active = piece.power_feed == Some(true);
+    let feeder_grey = !feeder_active && entry.is_some_and(crate::catalog::is_feeder_entry);
+    if (feeder_active || feeder_grey) && !is_road {
+        let s_stem0 = camera.world_to_screen(
+            rect,
+            label_world.x + nx * stem_start_mm,
+            label_world.y + ny * stem_start_mm,
+        );
+        let badge_c = camera.world_to_screen(
+            rect,
+            label_world.x + nx * badge_offset_mm,
+            label_world.y + ny * badge_offset_mm,
+        );
+        let dv = badge_c - s_stem0;
+        let dlen = dv.length().max(1.0);
+        let s_stem1 = badge_c - dv * ((badge_r_px - 0.5).min(dlen) / dlen);
+        let stem_col = if feeder_active {
+            Color32::from_rgba_unmultiplied(234, 179, 8, 230)
+        } else {
+            Color32::from_rgba_unmultiplied(148, 163, 184, 155)
+        };
+        painter.line_segment([s_stem0, s_stem1], Stroke::new(stem_w, stem_col));
+        painter.circle_filled(
+            badge_c + EguiVec2::new(1.0, 1.5),
+            badge_r_px,
+            Color32::from_rgba_unmultiplied(0, 0, 0, 95),
+        );
+        if feeder_active {
+            painter.circle_filled(badge_c, badge_r_px, Color32::from_rgb(234, 179, 8));
+            painter.circle_stroke(badge_c, badge_r_px, Stroke::new(ring_w, Color32::WHITE));
+        } else {
+            painter.circle_filled(
+                badge_c,
+                badge_r_px,
+                Color32::from_rgba_unmultiplied(100, 116, 139, 195),
+            );
+            painter.circle_stroke(
+                badge_c,
+                badge_r_px,
+                Stroke::new(
+                    (1.5 * camera.zoom).clamp(1.0, 2.2),
+                    Color32::from_rgb(148, 163, 184),
+                ),
+            );
+        }
+        let r = badge_r_px;
+        let pt = |u: f32, v: f32| Pos2::new(badge_c.x + u * r, badge_c.y + v * r);
+        let bolt_col = if feeder_active {
+            Color32::from_rgb(254, 240, 138)
+        } else {
+            Color32::from_rgb(226, 232, 240)
+        };
+        let mut mesh = egui::Mesh::default();
+        for tri in [
+            [pt(0.12, -0.55), pt(-0.38, 0.08), pt(0.06, 0.08)],
+            [pt(-0.06, -0.08), pt(0.38, -0.08), pt(-0.12, 0.55)],
+        ] {
+            let base = mesh.vertices.len() as u32;
+            for p in tri {
+                mesh.colored_vertex(p, bolt_col);
+            }
+            mesh.add_triangle(base, base + 1, base + 2);
+        }
+        painter.add(egui::Shape::mesh(mesh));
+        if is_editable {
+            accessory_buttons.push(TrackAccessoryButton {
+                piece_id: piece.id.clone(),
+                kind: TrackAccessoryButtonKind::Feeder,
+                screen_center: badge_c,
+                radius_px: badge_r_px,
+                active: feeder_active,
+            });
+        }
     }
-    if piece.is_isolator == Some(true) {
-        painter.circle_filled(Pos2::new(mid.x + 10.0, mid.y - 10.0), 4.5, Color32::from_rgb(220, 38, 38));
-        painter.circle_stroke(Pos2::new(mid.x + 10.0, mid.y - 10.0), 5.5, Stroke::new(1.0_f32, Color32::WHITE));
+
+    let iso_active = piece.is_isolator == Some(true);
+    let iso_grey = !iso_active && entry.is_some_and(crate::catalog::is_isolating_entry);
+    if (iso_active || iso_grey) && !is_road {
+        let c_idx = piece.isolated_connector_index.unwrap_or(0);
+        if let Some(c) = piece.connectors.get(c_idx).or_else(|| piece.connectors.first()) {
+            let rad = c.angle.to_radians();
+            let in_x = -rad.cos();
+            let in_y = -rad.sin();
+            let perp_x = -rad.sin();
+            let perp_y = rad.cos();
+            let cx = c.x + in_x * 5.0;
+            let cy = c.y + in_y * 5.0;
+            let cut_half = ballast_half_mm.max(18.0);
+            let c0 = camera.world_to_screen(rect, cx - perp_x * cut_half, cy - perp_y * cut_half);
+            let c1 = camera.world_to_screen(rect, cx + perp_x * cut_half, cy + perp_y * cut_half);
+            if iso_active {
+                painter.line_segment(
+                    [c0, c1],
+                    Stroke::new(
+                        (4.0 * camera.zoom).clamp(2.2, 6.0),
+                        Color32::from_rgba_unmultiplied(220, 38, 38, 245),
+                    ),
+                );
+                let rx = cx + in_x * 1.5;
+                let ry = cy + in_y * 1.5;
+                let r0 = camera.world_to_screen(rect, rx - perp_x * cut_half, ry - perp_y * cut_half);
+                let r1 = camera.world_to_screen(rect, rx + perp_x * cut_half, ry + perp_y * cut_half);
+                painter.line_segment(
+                    [r0, r1],
+                    Stroke::new(
+                        (1.5 * camera.zoom).clamp(1.0, 2.5),
+                        Color32::from_rgba_unmultiplied(255, 255, 255, 220),
+                    ),
+                );
+            } else {
+                painter.line_segment(
+                    [c0, c1],
+                    Stroke::new(
+                        (3.0 * camera.zoom).clamp(1.8, 4.5),
+                        Color32::from_rgba_unmultiplied(100, 116, 139, 160),
+                    ),
+                );
+            }
+
+            let side = if perp_x * nx + perp_y * ny >= 0.0 { 1.0 } else { -1.0 };
+            let bx_dir = perp_x * side;
+            let by_dir = perp_y * side;
+            let s_stem0 = camera.world_to_screen(
+                rect,
+                cx + bx_dir * stem_start_mm,
+                cy + by_dir * stem_start_mm,
+            );
+            let badge_c = camera.world_to_screen(
+                rect,
+                cx + bx_dir * badge_offset_mm,
+                cy + by_dir * badge_offset_mm,
+            );
+            let dv = badge_c - s_stem0;
+            let dlen = dv.length().max(1.0);
+            let s_stem1 = badge_c - dv * ((badge_r_px - 0.5).min(dlen) / dlen);
+            let stem_col = if iso_active {
+                Color32::from_rgba_unmultiplied(220, 38, 38, 230)
+            } else {
+                Color32::from_rgba_unmultiplied(148, 163, 184, 155)
+            };
+            painter.line_segment([s_stem0, s_stem1], Stroke::new(stem_w, stem_col));
+            painter.circle_filled(
+                badge_c + EguiVec2::new(1.0, 1.5),
+                badge_r_px,
+                Color32::from_rgba_unmultiplied(0, 0, 0, 115),
+            );
+            if iso_active {
+                painter.circle_filled(badge_c, badge_r_px, Color32::from_rgb(220, 38, 38));
+                painter.circle_stroke(badge_c, badge_r_px, Stroke::new(ring_w, Color32::WHITE));
+                let bar_r = Rect::from_center_size(
+                    badge_c,
+                    EguiVec2::new(badge_r_px * 1.12, (badge_r_px * 0.34).max(2.0)),
+                );
+                painter.rect_filled(bar_r, (badge_r_px * 0.14).max(1.0), Color32::WHITE);
+            } else {
+                painter.circle_filled(
+                    badge_c,
+                    badge_r_px,
+                    Color32::from_rgba_unmultiplied(100, 116, 139, 195),
+                );
+                painter.circle_stroke(
+                    badge_c,
+                    badge_r_px,
+                    Stroke::new(
+                        (1.5 * camera.zoom).clamp(1.0, 2.2),
+                        Color32::from_rgb(148, 163, 184),
+                    ),
+                );
+                let sym_col = Color32::from_rgb(226, 232, 240);
+                let inner_r = badge_r_px * 0.48;
+                let slash_d = inner_r * std::f32::consts::FRAC_1_SQRT_2;
+                painter.circle_stroke(badge_c, inner_r, Stroke::new(1.4, sym_col));
+                painter.line_segment(
+                    [
+                        Pos2::new(badge_c.x - slash_d, badge_c.y + slash_d),
+                        Pos2::new(badge_c.x + slash_d, badge_c.y - slash_d),
+                    ],
+                    Stroke::new(1.4, sym_col),
+                );
+            }
+            if is_editable {
+                accessory_buttons.push(TrackAccessoryButton {
+                    piece_id: piece.id.clone(),
+                    kind: TrackAccessoryButtonKind::Isolator,
+                    screen_center: badge_c,
+                    radius_px: badge_r_px,
+                    active: iso_active,
+                });
+            }
+        }
+    }
+
+    if !is_road && entry.is_some_and(crate::catalog::is_uncoupler_entry) {
+        let (raised, armed) = uncoupler_state.unwrap_or((false, false));
+        let active = raised || armed;
+        let side_s = if piece.power_feed == Some(true) || entry.is_some_and(crate::catalog::is_feeder_entry) {
+            -1.0_f64
+        } else {
+            1.0_f64
+        };
+        let ux = nx * side_s;
+        let uy = ny * side_s;
+        let s_stem0 = camera.world_to_screen(rect, label_world.x + ux * stem_start_mm, label_world.y + uy * stem_start_mm);
+        let badge_c = camera.world_to_screen(rect, label_world.x + ux * badge_offset_mm, label_world.y + uy * badge_offset_mm);
+        let dv = badge_c - s_stem0;
+        let dlen = dv.length().max(1.0);
+        let s_stem1 = badge_c - dv * ((badge_r_px - 0.5).min(dlen) / dlen);
+        let stem_col = if raised {
+            Color32::from_rgba_unmultiplied(245, 158, 11, 235)
+        } else if armed {
+            Color32::from_rgba_unmultiplied(139, 92, 246, 235)
+        } else {
+            Color32::from_rgba_unmultiplied(59, 130, 246, 175)
+        };
+        painter.line_segment([s_stem0, s_stem1], Stroke::new(stem_w, stem_col));
+        painter.circle_filled(
+            badge_c + EguiVec2::new(1.0, 1.5),
+            badge_r_px,
+            Color32::from_rgba_unmultiplied(0, 0, 0, 105),
+        );
+        let fill_col = if raised {
+            Color32::from_rgb(217, 119, 6)
+        } else if armed {
+            Color32::from_rgb(124, 58, 237)
+        } else {
+            Color32::from_rgb(30, 64, 175)
+        };
+        let ring_col = if raised {
+            Color32::from_rgb(254, 240, 138)
+        } else {
+            Color32::WHITE
+        };
+        painter.circle_filled(badge_c, badge_r_px, fill_col);
+        painter.circle_stroke(badge_c, badge_r_px, Stroke::new(ring_w, ring_col));
+        // Vector split-coupler icon: two separated jaws & central lift wedge
+        let r = badge_r_px;
+        let sym = Stroke::new((r * 0.19).clamp(1.2, 2.6), Color32::WHITE);
+        painter.line_segment(
+            [Pos2::new(badge_c.x - r * 0.48, badge_c.y), Pos2::new(badge_c.x - r * 0.16, badge_c.y)],
+            sym,
+        );
+        painter.line_segment(
+            [Pos2::new(badge_c.x + r * 0.16, badge_c.y), Pos2::new(badge_c.x + r * 0.48, badge_c.y)],
+            sym,
+        );
+        painter.line_segment(
+            [Pos2::new(badge_c.x, badge_c.y - r * 0.34), Pos2::new(badge_c.x, badge_c.y + r * 0.34)],
+            Stroke::new((r * 0.16).clamp(1.1, 2.2), Color32::from_rgb(254, 240, 138)),
+        );
+        accessory_buttons.push(TrackAccessoryButton {
+            piece_id: piece.id.clone(),
+            kind: TrackAccessoryButtonKind::Uncoupler,
+            screen_center: badge_c,
+            radius_px: badge_r_px,
+            active,
+        });
     }
 
     if piece.catenary_power_feed == Some(true) && !is_road {
@@ -184,10 +457,12 @@ pub(super) fn draw_turntable_2d(
     color_mode: ColorMode,
     is_selected: bool,
     is_active_layer: bool,
+    is_editable: bool,
     show_labels: bool,
     power_sim_enabled: bool,
     piece_power: Option<&PiecePowerResult>,
     bridge_angle_deg: f64,
+    accessory_buttons: &mut Vec<TrackAccessoryButton>,
 ) {
     let outer_r = crate::turntables_3d::turntable_outer_radius(piece, entry);
     let scale_f = (outer_r / 189.0).clamp(0.4, 2.5);
@@ -384,15 +659,19 @@ pub(super) fn draw_turntable_2d(
         rect,
         camera,
         piece,
+        entry,
         label_world,
         ballast_w,
         gauge,
         false,
         is_selected,
         is_active_layer,
+        is_editable,
         show_labels,
         power_sim_enabled,
         piece_power,
+        None,
+        accessory_buttons,
     );
 }
 
@@ -414,10 +693,12 @@ pub(super) fn draw_transfer_table_2d(
     color_mode: ColorMode,
     is_selected: bool,
     is_active_layer: bool,
+    is_editable: bool,
     show_labels: bool,
     power_sim_enabled: bool,
     piece_power: Option<&PiecePowerResult>,
     bridge_z_override: Option<f64>,
+    accessory_buttons: &mut Vec<TrackAccessoryButton>,
 ) {
     let (_, l, top_z, bot_z) = crate::turntables_3d::transfer_table_local_bounds(entry);
     let pit_left = 36.0;
@@ -630,15 +911,19 @@ pub(super) fn draw_transfer_table_2d(
         rect,
         camera,
         piece,
+        entry,
         label_world,
         ballast_w,
         gauge,
         false,
         is_selected,
         is_active_layer,
+        is_editable,
         show_labels,
         power_sim_enabled,
         piece_power,
+        None,
+        accessory_buttons,
     );
 }
 

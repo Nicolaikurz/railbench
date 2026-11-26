@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use eframe::egui::{self, Color32, CornerRadius, Frame, Margin, Pos2, Rect, RichText, Stroke};
+use eframe::egui::{self, Color32, Pos2, Rect, RichText, Stroke};
 use railbench_core::types::Layout;
 
 use crate::i18n::Lang;
@@ -292,12 +292,14 @@ impl PerfMonitor {
         layout: &Layout,
         mesh_3d: Option<&Scene3DBundle>,
         is_3d_mode: bool,
+        dark_mode: bool,
         lang: Lang,
     ) -> Option<usize> {
         if !self.visible {
             return None;
         }
         let is_de = lang == Lang::De;
+        let pal = crate::theme::palette(dark_mode);
         let mut open = self.visible;
         let mut stress_request: Option<usize> = None;
 
@@ -310,19 +312,14 @@ impl PerfMonitor {
 
         egui::Window::new(title)
             .id(egui::Id::new("railbench_perf_monitor_window"))
-            .open(&mut open)
+            .title_bar(false)
             .collapsible(false)
             .resizable(false)
             .default_width(280.0)
             .default_pos(default_pos)
-            .frame(
-                Frame::new()
-                    .fill(Color32::from_rgba_unmultiplied(15, 23, 42, 236))
-                    .corner_radius(CornerRadius::same(10))
-                    .inner_margin(Margin::same(10))
-                    .stroke(Stroke::new(1.2_f32, Color32::from_rgba_unmultiplied(56, 189, 248, 120))),
-            )
+            .frame(crate::theme::railbench_window_frame(dark_mode))
             .show(ctx, |ui| {
+                crate::theme::show_railbench_dialog_body(ui, dark_mode, title, Some(&mut open), 10, |ui| {
                 // 1. FPS + Sparkline
                 let fps_col = if self.fps >= 55.0 {
                     Color32::from_rgb(16, 185, 129)
@@ -332,7 +329,7 @@ impl PerfMonitor {
                     Color32::from_rgb(239, 68, 68)
                 };
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new("FPS:").size(11.5).color(Color32::from_rgb(148, 163, 184)));
+                    ui.label(RichText::new("FPS:").size(11.5).color(pal.text_muted));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.label(
                             RichText::new(format!("{:.0} FPS ({:.1} ms)", self.fps, self.frame_time_ms))
@@ -347,14 +344,14 @@ impl PerfMonitor {
 
                 // 2. CPU Metrics
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new("CPU:").size(11.5).color(Color32::from_rgb(148, 163, 184)));
+                    ui.label(RichText::new("CPU:").size(11.5).color(pal.text_muted));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         let sys_s = self.sys_cpu_pct.map_or("--".into(), |v| format!("{v:.1}%"));
                         let app_s = self.app_cpu_pct.map_or("--".into(), |v| format!("{v:.1}%"));
                         ui.label(
                             RichText::new(format!("Sys {sys_s} | App {app_s} ({:.2} ms)", self.cpu_frame_ms))
                                 .size(11.0)
-                                .color(Color32::WHITE),
+                                .color(pal.text_main),
                         );
                     });
                 });
@@ -367,13 +364,13 @@ impl PerfMonitor {
                         self.cpu_model, self.cpu_cores, self.process_threads
                     ))
                     .size(10.0)
-                    .color(Color32::from_rgb(100, 116, 139)),
+                    .color(pal.text_muted),
                 );
                 ui.add_space(3.0);
 
                 // 3. RAM Metrics
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new("RAM:").size(11.5).color(Color32::from_rgb(148, 163, 184)));
+                    ui.label(RichText::new("RAM:").size(11.5).color(pal.text_muted));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         let app_mb = self.app_ram_mb.map_or("--".into(), |v| format!("{v:.1} MB"));
                         let sys_s = match (self.sys_ram_used_gb, self.sys_ram_total_gb) {
@@ -383,7 +380,7 @@ impl PerfMonitor {
                         ui.label(
                             RichText::new(format!("App {app_mb} | Sys {sys_s}"))
                                 .size(11.0)
-                                .color(Color32::WHITE),
+                                .color(pal.text_main),
                         );
                     });
                 });
@@ -403,18 +400,18 @@ impl PerfMonitor {
                     ))
                     .strong()
                     .size(10.5)
-                    .color(Color32::from_rgb(56, 189, 248)),
+                    .color(pal.primary),
                 );
                 if !self.gpu_meta.driver.is_empty() {
                     ui.label(
                         RichText::new(format!("Driver: {}", self.gpu_meta.driver))
                             .size(9.8)
-                            .color(Color32::from_rgb(148, 163, 184)),
+                            .color(pal.text_muted),
                     );
                 }
                 if let Some(gpu_pct) = self.gpu_telemetry.busy_pct {
                     ui.horizontal(|ui| {
-                        ui.label(RichText::new("GPU Load:").size(10.8).color(Color32::from_rgb(148, 163, 184)));
+                        ui.label(RichText::new("GPU Load:").size(10.8).color(pal.text_muted));
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             let temp = self
                                 .gpu_telemetry
@@ -423,7 +420,7 @@ impl PerfMonitor {
                             ui.label(
                                 RichText::new(format!("{gpu_pct:.0}%{temp}"))
                                     .size(10.8)
-                                    .color(Color32::WHITE),
+                                    .color(pal.text_main),
                             );
                         });
                     });
@@ -432,12 +429,12 @@ impl PerfMonitor {
                 if let (Some(vu), Some(vt)) = (self.gpu_telemetry.vram_used_mb, self.gpu_telemetry.vram_total_mb) {
                     if vt > 0.0 {
                         ui.horizontal(|ui| {
-                            ui.label(RichText::new("VRAM:").size(10.8).color(Color32::from_rgb(148, 163, 184)));
+                            ui.label(RichText::new("VRAM:").size(10.8).color(pal.text_muted));
                             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                 ui.label(
                                     RichText::new(format!("{vu:.0} / {vt:.0} MB ({:.0}%)", (vu / vt) * 100.0))
                                         .size(10.8)
-                                        .color(Color32::WHITE),
+                                        .color(pal.text_main),
                                 );
                             });
                         });
@@ -452,7 +449,7 @@ impl PerfMonitor {
                             mesh.vertex_count()
                         ))
                         .size(10.2)
-                        .color(Color32::from_rgb(148, 163, 184)),
+                        .color(pal.text_muted),
                     );
                     let proto_cnt = mesh.track_prototype_count();
                     let inst_cnt = mesh.track_instance_count();
@@ -462,7 +459,7 @@ impl PerfMonitor {
                                 "GPU Instancing: {proto_cnt} track types -> {inst_cnt} instances"
                             ))
                             .size(9.8)
-                            .color(Color32::from_rgb(56, 189, 248)),
+                            .color(pal.primary),
                         );
                     }
                 }
@@ -476,7 +473,7 @@ impl PerfMonitor {
                     ui.label(
                         RichText::new(if is_de { "Szene:" } else { "Scene:" })
                             .size(10.8)
-                            .color(Color32::from_rgb(148, 163, 184)),
+                            .color(pal.text_muted),
                     );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         let mode_tag = if is_3d_mode { "3D" } else { "2D" };
@@ -485,7 +482,7 @@ impl PerfMonitor {
                                 "{piece_cnt} tracks | {model_cnt} models | {board_cnt} boards [{mode_tag}]"
                             ))
                             .size(10.5)
-                            .color(Color32::WHITE),
+                            .color(pal.text_main),
                         );
                     });
                 });
@@ -496,7 +493,7 @@ impl PerfMonitor {
                     ui.label(
                         RichText::new(if is_de { "Stresstest:" } else { "Stress Test:" })
                             .size(10.5)
-                            .color(Color32::from_rgb(148, 163, 184)),
+                            .color(pal.text_muted),
                     );
                     if ui.small_button("+500").clicked() {
                         stress_request = Some(500);
@@ -504,6 +501,7 @@ impl PerfMonitor {
                     if ui.small_button("+1000").clicked() {
                         stress_request = Some(1000);
                     }
+                });
                 });
             });
 

@@ -1,11 +1,22 @@
 use super::*;
+use eframe::egui::{FontId, Pos2, Rect, Sense};
 
 pub fn draw_left_sidebar(ctx: &egui::Context, app: &mut RailbenchApp) {
     let p = palette(app.dark_mode);
+    let min_w = ctx
+        .data(|d| d.get_temp::<f32>(egui::Id::new(LEFT_SIDEBAR_MIN_W_KEY)))
+        .unwrap_or(320.0)
+        .clamp(260.0, 520.0);
+    let init_w = app
+        .app_settings
+        .left_sidebar_width
+        .unwrap_or(min_w)
+        .clamp(min_w, 520.0);
 
-    egui::SidePanel::left("left_sidebar")
-        .exact_width(276.0)
-        .resizable(false)
+    let panel_resp = egui::SidePanel::left("left_sidebar")
+        .default_width(init_w)
+        .width_range(min_w..=520.0)
+        .resizable(!app.bars_locked)
         .frame(
             Frame::new()
                 .fill(p.bg_sidebar)
@@ -13,9 +24,6 @@ pub fn draw_left_sidebar(ctx: &egui::Context, app: &mut RailbenchApp) {
                 .stroke(Stroke::new(1.0_f32, p.border_main)),
         )
         .show(ctx, |ui| {
-            let panel_w = 256.0_f32;
-            ui.set_min_width(panel_w);
-            ui.set_max_width(panel_w);
             match app.sidebar_tab {
                 SidebarTab::Tracks => draw_catalog_tab(ui, app, false),
                 SidebarTab::Roads => draw_catalog_tab(ui, app, true),
@@ -25,559 +33,287 @@ pub fn draw_left_sidebar(ctx: &egui::Context, app: &mut RailbenchApp) {
                 SidebarTab::Bom => draw_bom_tab(ui, app),
             }
         });
+    let cur_w = panel_resp.response.rect.width().clamp(min_w, 520.0);
+    ctx.data_mut(|d| {
+        d.insert_temp(egui::Id::new(LEFT_SIDEBAR_ACTUAL_W_KEY), cur_w);
+    });
+    if (cur_w - app.app_settings.left_sidebar_width.unwrap_or(min_w)).abs() > 2.0 {
+        app.app_settings.left_sidebar_width = Some(cur_w);
+        app.save_current_settings();
+    }
 }
 
-pub(super) fn draw_catalog_tab(ui: &mut egui::Ui, app: &mut RailbenchApp, roads_only: bool) {
-    let t = tr(app.lang);
-    let p = palette(app.dark_mode);
-
-    let indices: Vec<usize> = app
-        .catalogs
-        .iter()
-        .enumerate()
-        .filter(|(_, c)| (c.is_road == Some(true)) == roads_only)
-        .map(|(i, _)| i)
-        .collect();
-
-    if indices.is_empty() {
-        ui.label("No catalogs available.");
-        return;
+pub(crate) fn road_width_mm_for_scale(scale: &str) -> u32 {
+    match scale.trim().to_ascii_uppercase().as_str() {
+        "H0" | "HO" => 60,
+        "TT" => 45,
+        "N" => 35,
+        "Z" => 25,
+        "0" => 115,
+        "1" => 160,
+        "G" => 230,
+        _ => 60,
     }
+}
 
-    let sel_idx = if roads_only {
-        &mut app.selected_road_catalog_idx
-    } else {
-        &mut app.selected_catalog_idx
-    };
-    if !indices.contains(sel_idx) {
-        *sel_idx = indices[0];
-    }
-
-    let mut trigger_import_catalog = false;
-    let mut trigger_export_catalog = false;
-    let imp_tip = if app.lang == Lang::De {
-        "Eigenen Gleiskatalog (.json) importieren"
-    } else {
-        "Import custom track catalog (.json)"
-    };
-    let exp_tip = if app.lang == Lang::De {
-        "Aktiven Gleiskatalog als .json exportieren"
-    } else {
-        "Export active catalog as .json"
-    };
-
-    let prev_cat_idx = *sel_idx;
-    if roads_only {
-        ui.horizontal(|ui| {
-            let road_lbl = if app.lang == Lang::De { "STRASSENSYSTEM" } else { "ROAD SYSTEM" };
-            ui.label(RichText::new(road_lbl).strong().size(10.0).color(p.text_muted));
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui
-                    .small_button(RichText::new("⤓ JSON").size(10.0))
-                    .on_hover_text(exp_tip)
-                    .clicked()
-                {
-                    trigger_export_catalog = true;
-                }
-                if ui
-                    .small_button(RichText::new("+ JSON").size(10.0))
-                    .on_hover_text(imp_tip)
-                    .clicked()
-                {
-                    trigger_import_catalog = true;
-                }
-            });
-        });
-        let current_name = app.catalogs[*sel_idx].name.clone();
-        egui::ComboBox::from_id_salt("road_cat_sel")
-            .width(ui.available_width())
-            .selected_text(current_name)
-            .show_ui(ui, |ui| {
-                for &idx in &indices {
-                    let c = &app.catalogs[idx];
-                    let lbl = format!("{} ({})", c.name, c.scale);
-                    ui.selectable_value(sel_idx, idx, lbl);
-                }
-            });
-    } else {
-        // 2-Step Manufacturer -> Track System Selector (matches TS sidebar)
-        let mut manufacturers: Vec<String> = Vec::new();
-        for &idx in &indices {
-            let m = app.catalogs[idx]
-                .manufacturer
-                .clone()
-                .filter(|s| !s.is_empty())
-                .unwrap_or_else(|| "Other".into());
-            if !manufacturers.contains(&m) {
-                manufacturers.push(m);
+pub(crate) fn scale_description_for_road(scale: &str, is_de: bool) -> &'static str {
+    match scale.trim().to_ascii_uppercase().as_str() {
+        "H0" | "HO" => {
+            if is_de {
+                "1:87 (Fahrbahn ~60 mm)"
+            } else {
+                "1:87 (Roadway ~60 mm)"
             }
         }
-        manufacturers.sort();
+        "TT" => {
+            if is_de {
+                "1:120 (Fahrbahn ~45 mm)"
+            } else {
+                "1:120 (Roadway ~45 mm)"
+            }
+        }
+        "N" => {
+            if is_de {
+                "1:160 (Fahrbahn ~35 mm)"
+            } else {
+                "1:160 (Roadway ~35 mm)"
+            }
+        }
+        "Z" => {
+            if is_de {
+                "1:220 (Fahrbahn ~25 mm)"
+            } else {
+                "1:220 (Roadway ~25 mm)"
+            }
+        }
+        "0" => {
+            if is_de {
+                "1:45 (Fahrbahn ~115 mm)"
+            } else {
+                "1:45 (Roadway ~115 mm)"
+            }
+        }
+        "1" => {
+            if is_de {
+                "1:32 (Fahrbahn ~160 mm)"
+            } else {
+                "1:32 (Roadway ~160 mm)"
+            }
+        }
+        "G" => {
+            if is_de {
+                "1:22,5 (Fahrbahn ~230 mm)"
+            } else {
+                "1:22.5 (Roadway ~230 mm)"
+            }
+        }
+        _ => {
+            if is_de {
+                "1:87 (Fahrbahn ~60 mm)"
+            } else {
+                "1:87 (Roadway ~60 mm)"
+            }
+        }
+    }
+}
 
-        let mut selected_mfr = app.catalogs[*sel_idx]
+pub(crate) fn format_gauge_mm(gauge: f64) -> String {
+    let rounded = gauge.round();
+    if (gauge - rounded).abs() < 0.05 {
+        format!("{}", rounded as i64)
+    } else {
+        format!("{gauge:.1}")
+    }
+}
+
+pub(crate) fn format_catalog_trigger_title(
+    cat: &railbench_core::types::Catalog,
+    roads_only: bool,
+    show_favorites: bool,
+    is_de: bool,
+) -> String {
+    if !roads_only && show_favorites {
+        return if is_de {
+            "★ Meine Favoriten".into()
+        } else {
+            "★ My Favorites".into()
+        };
+    }
+    if roads_only {
+        return cat.name.clone();
+    }
+    let mfr = cat
+        .manufacturer
+        .as_deref()
+        .filter(|s| !s.is_empty())
+        .unwrap_or("Other");
+    let sys = cat
+        .system
+        .as_deref()
+        .filter(|s| !s.is_empty())
+        .unwrap_or(&cat.name);
+    format!("{mfr} — {sys}")
+}
+
+pub(crate) fn format_catalog_trigger_subtitle(
+    cat: &railbench_core::types::Catalog,
+    roads_only: bool,
+    show_favorites: bool,
+    fav_count: usize,
+    is_de: bool,
+) -> String {
+    if !roads_only && show_favorites {
+        return if is_de {
+            format!("{fav_count} gespeicherte Favoriten")
+        } else {
+            format!("{fav_count} saved favorites")
+        };
+    }
+    if roads_only {
+        let w = road_width_mm_for_scale(&cat.scale);
+        return if is_de {
+            format!("Fahrbahnbreite {w} mm, 2-spurig")
+        } else {
+            format!("Road width {w} mm, 2-lane")
+        };
+    }
+    let gauge = format_gauge_mm(cat.gauge.unwrap_or(16.5));
+    let roadbed = if cat.has_roadbed == Some(false) {
+        if is_de { "ohne Bettung" } else { "without roadbed" }
+    } else if is_de {
+        "mit Bettung"
+    } else {
+        "roadbed"
+    };
+    match cat.conductors {
+        Some(3) => format!(
+            "{gauge} mm, {roadbed}, {}",
+            if is_de { "3-Leiter" } else { "3-rail" }
+        ),
+        Some(2) => format!(
+            "{gauge} mm, {roadbed}, {}",
+            if is_de { "2-Leiter" } else { "2-rail" }
+        ),
+        Some(n) => format!(
+            "{gauge} mm, {roadbed}, {n}{}",
+            if is_de { " Leiter" } else { "-conductor" }
+        ),
+        None => format!("{gauge} mm, {roadbed}"),
+    }
+}
+
+pub(crate) fn collect_track_manufacturers_in_order(
+    catalogs: &[railbench_core::types::Catalog],
+    indices: &[usize],
+) -> Vec<String> {
+    let mut manufacturers = Vec::new();
+    for &idx in indices {
+        let m = catalogs[idx]
             .manufacturer
             .clone()
             .filter(|s| !s.is_empty())
-            .unwrap_or_else(|| manufacturers[0].clone());
-
-        let mfr_label = if app.lang == Lang::De { "HERSTELLER" } else { "MANUFACTURER" };
-        let sys_label = if app.lang == Lang::De { "GLEISSYSTEM" } else { "TRACK SYSTEM" };
-
-        ui.horizontal(|ui| {
-            ui.label(RichText::new(mfr_label).strong().size(10.0).color(p.text_muted));
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui
-                    .small_button(RichText::new("⤓ JSON").size(10.0))
-                    .on_hover_text(exp_tip)
-                    .clicked()
-                {
-                    trigger_export_catalog = true;
-                }
-                if ui
-                    .small_button(RichText::new("+ JSON").size(10.0))
-                    .on_hover_text(imp_tip)
-                    .clicked()
-                {
-                    trigger_import_catalog = true;
-                }
-            });
-        });
-        let prev_mfr = selected_mfr.clone();
-        egui::ComboBox::from_id_salt("track_mfr_sel")
-            .width(ui.available_width())
-            .selected_text(&selected_mfr)
-            .show_ui(ui, |ui| {
-                for m in &manufacturers {
-                    ui.selectable_value(&mut selected_mfr, m.clone(), m);
-                }
-            });
-
-        // If manufacturer changed, switch to the first catalog of that manufacturer
-        if selected_mfr != prev_mfr {
-            if let Some(&first_idx) = indices.iter().find(|&&idx| {
-                app.catalogs[idx]
-                    .manufacturer
-                    .as_deref()
-                    .filter(|s| !s.is_empty())
-                    .unwrap_or("Other")
-                    == selected_mfr
-            }) {
-                *sel_idx = first_idx;
-            }
-        }
-
-        let sys_indices: Vec<usize> = indices
-            .iter()
-            .copied()
-            .filter(|&idx| {
-                app.catalogs[idx]
-                    .manufacturer
-                    .as_deref()
-                    .filter(|s| !s.is_empty())
-                    .unwrap_or("Other")
-                    == selected_mfr
-            })
-            .collect();
-
-        ui.add_space(4.0);
-        ui.label(RichText::new(sys_label).strong().size(10.0).color(p.text_muted));
-        let cur_sys_label = {
-            let c = &app.catalogs[*sel_idx];
-            let sys = c.system.as_deref().unwrap_or(&c.name);
-            format!("{sys} ({})", c.scale)
-        };
-        egui::ComboBox::from_id_salt("track_sys_sel")
-            .width(ui.available_width())
-            .selected_text(cur_sys_label)
-            .show_ui(ui, |ui| {
-                for &idx in &sys_indices {
-                    let c = &app.catalogs[idx];
-                    let sys = c.system.as_deref().unwrap_or(&c.name);
-                    let lbl = format!("{sys} ({})", c.scale);
-                    ui.selectable_value(sel_idx, idx, lbl);
-                }
-            });
-    }
-
-    ui.add_space(4.0);
-    let search_w = ui.available_width();
-    ui.add(
-        egui::TextEdit::singleline(&mut app.catalog_search)
-            .hint_text(t.search_hint)
-            .desired_width(search_w),
-    );
-    let cat_idx = *sel_idx;
-    if !roads_only && cat_idx != prev_cat_idx && app.layout.pieces.is_empty() {
-        let new_scale = app.catalogs[cat_idx].scale.clone();
-        if !new_scale.is_empty() {
-            app.layout.scale = new_scale.clone();
-            app.layout.feed_voltage = Some(match new_scale.trim().to_uppercase().as_str() {
-                "Z" => 10.0,
-                "N" => 12.0,
-                "TT" | "H0M" => 14.0,
-                "1" => 18.0,
-                "G" => 24.0,
-                _ => 16.0,
-            });
-            app.model_scale = crate::model_tools::parse_scale_code(&app.layout.scale).into();
+            .unwrap_or_else(|| "Other".into());
+        if !manufacturers.contains(&m) {
+            manufacturers.push(m);
         }
     }
-    if trigger_import_catalog {
-        app.import_catalog_dialog();
-    }
-    if trigger_export_catalog {
-        app.export_catalog_dialog(cat_idx);
-    }
-
-    ui.add_space(4.0);
-    let is_de = app.lang == Lang::De;
-    let fav_count = app.app_settings.favorite_tracks.len();
-    let fav_pill_label = if fav_count > 0 {
-        format!("★ {fav_count}")
-    } else {
-        "★".to_string()
-    };
-    let pills: &[(&str, &str)] = if roads_only {
-        &[
-            ("fav", fav_pill_label.as_str()),
-            ("all", if is_de { "Alle" } else { "All" }),
-            ("straights", if is_de { "Geraden" } else { "Straights" }),
-            ("curves", if is_de { "Kurven" } else { "Curves" }),
-            ("crossings", if is_de { "Kreuz." } else { "Crossings" }),
-            ("accessories", if is_de { "Zubehör" } else { "Special" }),
-        ]
-    } else {
-        &[
-            ("fav", fav_pill_label.as_str()),
-            ("all", if is_de { "Alle" } else { "All" }),
-            ("straights", if is_de { "Geraden" } else { "Straights" }),
-            ("curves", if is_de { "Kurven" } else { "Curves" }),
-            ("turnouts", if is_de { "Weichen" } else { "Turnouts" }),
-            ("crossings", if is_de { "Kreuz." } else { "Cross." }),
-            ("accessories", if is_de { "Zubehör" } else { "Special" }),
-        ]
-    };
-    ui.horizontal_wrapped(|ui| {
-        ui.spacing_mut().item_spacing = egui::vec2(3.5, 3.5);
-        for &(cid, clbl) in pills {
-            let active = app.catalog_category_filter == cid;
-            let txt = RichText::new(clbl).size(10.5).color(if active {
-                Color32::WHITE
-            } else if cid == "fav" {
-                Color32::from_rgb(250, 204, 21)
-            } else {
-                p.text_sub
-            });
-            let btn = egui::Button::new(txt)
-                .fill(if active { p.primary } else { p.bg_input })
-                .corner_radius(CornerRadius::same(6));
-            if ui.add(btn).clicked() {
-                app.catalog_category_filter = cid.to_string();
-            }
-        }
-    });
-    ui.add_space(6.0);
-
-    let filter = app.catalog_search.trim().to_lowercase();
-    let cat_filter = app.catalog_category_filter.clone();
-    let lang = app.lang;
-    let mut dragged_entry_opt: Option<railbench_core::types::CatalogEntry> = None;
-    let mut clicked_entry_opt: Option<railbench_core::types::CatalogEntry> = None;
-    let mut toggled_fav: Option<(String, String)> = None;
-    let mut toggled_feeder_id: Option<String> = None;
-    let mut toggled_iso_id: Option<String> = None;
-
-    let active_cat_id = app.catalogs[cat_idx].id.clone();
-    // Build display list: when in "fav" filter, show favorites across ALL matching catalogs (Tracks or Roads),
-    // otherwise sort entries within categories naturally by article number.
-    let mut items: Vec<(String, String, &railbench_core::types::CatalogEntry)> = Vec::new();
-    if cat_filter == "fav" {
-        for c in &app.catalogs {
-            if (c.is_road == Some(true)) != roads_only {
-                continue;
-            }
-            for e in &c.entries {
-                if app.is_favorite_track_entry(&c.id, &e.id) {
-                    items.push((c.id.clone(), c.name.clone(), e));
-                }
-            }
-        }
-        items.sort_by(|a, b| crate::catalog::compare_catalog_entries_by_number(a.2, b.2));
-    } else {
-        let mut cat_entries: Vec<&railbench_core::types::CatalogEntry> = app.catalogs[cat_idx].entries.iter().collect();
-        cat_entries.sort_by(|a, b| {
-            a.category
-                .cmp(&b.category)
-                .then_with(|| crate::catalog::compare_catalog_entries_by_number(a, b))
-        });
-        for e in cat_entries {
-            items.push((active_cat_id.clone(), e.category.clone(), e));
-        }
-    }
-
-    egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-        let mut last_cat = String::new();
-        for (item_cat_id, group_header, entry) in items {
-            let is_fav = app.is_favorite_track_entry(&item_cat_id, &entry.id);
-            let is_buf = crate::catalog::is_buffer_stop_entry(entry);
-            let kind_matches_pill = match cat_filter.as_str() {
-                "fav" => true,
-                "straights" => matches!(entry.kind.as_str(), "straight" | "flex") && !is_buf,
-                "curves" => entry.kind == "curve",
-                "turnouts" => matches!(
-                    entry.kind.as_str(),
-                    "turnout-left"
-                        | "turnout-right"
-                        | "curved-turnout-left"
-                        | "curved-turnout-right"
-                        | "three-way"
-                        | "double-slip"
-                ),
-                "crossings" => matches!(entry.kind.as_str(), "crossing" | "double-slip"),
-                "accessories" => {
-                    is_buf
-                        || crate::catalog::is_feeder_entry(entry)
-                        || crate::catalog::is_isolating_entry(entry)
-                        || matches!(
-                            entry.kind.as_str(),
-                            "buffer" | "buffer-stop" | "accessory" | "turntable" | "transfer-table" | "feeder" | "uncoupler" | "isolating" | "isolator"
-                        )
-                }
-                _ => true,
-            };
-            if !kind_matches_pill {
-                continue;
-            }
-            let display_name = if lang == Lang::En {
-                entry.name_en.as_deref().unwrap_or(&entry.name)
-            } else {
-                &entry.name
-            };
-            if !filter.is_empty()
-                && !contains_ignore_case(&entry.id, &filter)
-                && !contains_ignore_case(&entry.name, &filter)
-                && !contains_ignore_case(entry.name_en.as_deref().unwrap_or(""), &filter)
-                && !contains_ignore_case(&entry.description, &filter)
-                && !contains_ignore_case(&entry.category, &filter)
-            {
-                continue;
-            }
-            if group_header != last_cat {
-                if !last_cat.is_empty() {
-                    ui.add_space(6.0);
-                }
-                ui.label(
-                    RichText::new(group_header.to_uppercase())
-                        .strong()
-                        .size(10.5)
-                        .color(p.text_muted),
-                );
-                last_cat = group_header;
-            }
-
-            let icon_kind = if is_buf { "buffer" } else { entry.kind.as_str() };
-            let bp = crate::blueprint_colors::get_track_blueprint_color(&entry.id);
-            let is_road_entry = entry.is_road == Some(true);
-            let accent = if is_road_entry {
-                Color32::from_rgb(100, 116, 139)
-            } else {
-                bp.color32()
-            };
-
-            let dim_text = if crate::is_turnout_kind(&entry.kind) {
-                if let (Some(l), Some(ba)) = (entry.length, entry.branch_angle) {
-                    format!("{l:.0} mm • {ba:.1}°")
-                } else if let Some(ba) = entry.branch_angle {
-                    format!("{ba:.1}°")
-                } else if let Some(l) = entry.length {
-                    format!("{l:.1} mm")
-                } else {
-                    String::new()
-                }
-            } else if let (Some(r), Some(a)) = (entry.radius, entry.angle) {
-                format!("R{r:.0} mm • {a:.1}°")
-            } else if let Some(l) = entry.length {
-                format!("{l:.1} mm")
-            } else {
-                String::new()
-            };
-
-            let is_feeder = crate::catalog::is_feeder_entry(entry);
-            let is_iso = crate::catalog::is_isolating_entry(entry);
-            let power_enabled = is_feeder && app.catalog_entry_power_enabled.contains(&entry.id);
-            let iso_enabled = is_iso && app.catalog_entry_isolating_enabled.contains(&entry.id);
-
-            let mut star_clicked = false;
-            let mut feeder_toggle_clicked = false;
-            let mut iso_toggle_clicked = false;
-            let mut plus_clicked = false;
-            let card_w = ui.available_width();
-            let card_resp = Frame::new()
-                .fill(p.bg_card)
-                .corner_radius(CornerRadius::same(8))
-                .inner_margin(Margin::symmetric(9, 6))
-                .stroke(Stroke::new(1.0_f32, p.border_main))
-                .show(ui, |ui| {
-                    let inner_w = (card_w - 20.0).max(120.0);
-                    ui.set_width(inner_w);
-                    ui.set_max_width(inner_w);
-                    ui.horizontal(|ui| {
-                        let (icon_rect, _) = ui.allocate_exact_size(egui::vec2(28.0, 28.0), egui::Sense::hover());
-                        draw_track_kind_icon(ui.painter(), icon_rect, icon_kind, accent, p.bg_input);
-                        let col_w = (ui.available_width() - 2.0).max(70.0);
-                        ui.allocate_ui_with_layout(
-                            egui::vec2(col_w, 28.0),
-                            egui::Layout::top_down(egui::Align::Min),
-                            |ui| {
-                                ui.set_max_width(col_w);
-                                ui.spacing_mut().item_spacing.y = 1.0;
-                                ui.horizontal(|ui| {
-                                    ui.set_max_width(col_w);
-                                    if !is_road_entry {
-                                        let (dot_r, _) = ui.allocate_exact_size(egui::vec2(8.0, 8.0), egui::Sense::hover());
-                                        ui.painter().circle_filled(dot_r.center(), 4.0, bp.color32());
-                                    }
-                                    ui.label(RichText::new(&entry.id).strong().size(12.5).color(p.text_main));
-                                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                        ui.spacing_mut().item_spacing.x = 3.0;
-                                        if ui
-                                            .small_button(RichText::new("+").strong().size(11.0).color(p.primary))
-                                            .on_hover_text(if is_de { "Gleis platzieren" } else { "Place track" })
-                                            .clicked()
-                                        {
-                                            plus_clicked = true;
-                                        }
-                                        let star_sym = if is_fav { "★" } else { "☆" };
-                                        let star_col = if is_fav {
-                                            Color32::from_rgb(250, 204, 21)
-                                        } else {
-                                            p.text_muted
-                                        };
-                                        if ui
-                                            .small_button(RichText::new(star_sym).size(11.0).color(star_col))
-                                            .on_hover_text(if is_de { "Favorit umschalten" } else { "Toggle favorite" })
-                                            .clicked()
-                                        {
-                                            star_clicked = true;
-                                        }
-                                        if is_iso {
-                                            let iso_tip = if iso_enabled {
-                                                if is_de {
-                                                    "Trennstrecke aktiv (Klicken zum Ausschalten)"
-                                                } else {
-                                                    "Track isolator active (click to disable)"
-                                                }
-                                            } else if is_de {
-                                                "Trennstrecke isolieren (Klicken zum Einschalten)"
-                                            } else {
-                                                "Isolate track (click to enable)"
-                                            };
-                                            let btn = egui::Button::new(
-                                                RichText::new("⊘")
-                                                    .strong()
-                                                    .size(11.5)
-                                                    .color(if iso_enabled { Color32::WHITE } else { p.text_muted }),
-                                            )
-                                            .fill(if iso_enabled {
-                                                Color32::from_rgb(220, 38, 38)
-                                            } else {
-                                                p.bg_input
-                                            })
-                                            .small();
-                                            if ui.add(btn).on_hover_text(iso_tip).clicked() {
-                                                iso_toggle_clicked = true;
-                                            }
-                                        }
-                                        if is_feeder {
-                                            let feed_tip = if power_enabled {
-                                                if is_de {
-                                                    "Gleis-Einspeisung aktiv (Klicken zum Ausschalten)"
-                                                } else {
-                                                    "Track power feed active (click to disable)"
-                                                }
-                                            } else if is_de {
-                                                "Gleis-Einspeisung hinzufügen (Klicken zum Einschalten)"
-                                            } else {
-                                                "Add power feed to track (click to enable)"
-                                            };
-                                            let btn = egui::Button::new(
-                                                RichText::new("⚡")
-                                                    .strong()
-                                                    .size(11.0)
-                                                    .color(if power_enabled { Color32::WHITE } else { p.text_muted }),
-                                            )
-                                            .fill(if power_enabled {
-                                                Color32::from_rgb(217, 119, 6)
-                                            } else {
-                                                p.bg_input
-                                            })
-                                            .small();
-                                            if ui.add(btn).on_hover_text(feed_tip).clicked() {
-                                                feeder_toggle_clicked = true;
-                                            }
-                                        }
-                                        if !dim_text.is_empty() {
-                                            ui.add(
-                                                egui::Label::new(RichText::new(&dim_text).size(10.5).color(p.text_muted))
-                                                    .truncate(),
-                                            );
-                                        }
-                                    });
-                                });
-                                ui.add(
-                                    egui::Label::new(RichText::new(display_name).size(11.0).color(p.text_sub))
-                                        .truncate(),
-                                );
-                            },
-                        );
-                    });
-                })
-                .response
-                .interact(egui::Sense::click_and_drag());
-
-            if card_resp.hovered() {
-                ui.painter().rect_stroke(
-                    card_resp.rect,
-                    CornerRadius::same(8),
-                    Stroke::new(1.2_f32, p.primary),
-                    egui::StrokeKind::Inside,
-                );
-                ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
-            }
-            if star_clicked {
-                toggled_fav = Some((item_cat_id, entry.id.clone()));
-            } else if feeder_toggle_clicked {
-                toggled_feeder_id = Some(entry.id.clone());
-            } else if iso_toggle_clicked {
-                toggled_iso_id = Some(entry.id.clone());
-            } else if plus_clicked || card_resp.clicked() {
-                clicked_entry_opt = Some(entry.clone());
-            } else if card_resp.drag_started_by(egui::PointerButton::Primary) {
-                dragged_entry_opt = Some(entry.clone());
-            }
-        }
-    });
-
-    if let Some((fcid, ftid)) = toggled_fav {
-        app.toggle_favorite_track_entry(&fcid, &ftid);
-    }
-    if let Some(eid) = toggled_feeder_id {
-        if !app.catalog_entry_power_enabled.remove(&eid) {
-            app.catalog_entry_power_enabled.insert(eid);
-        }
-    }
-    if let Some(eid) = toggled_iso_id {
-        if !app.catalog_entry_isolating_enabled.remove(&eid) {
-            app.catalog_entry_isolating_enabled.insert(eid);
-        }
-    }
-    if let Some(entry_clone) = dragged_entry_opt {
-        app.dragging_catalog_entry = Some(entry_clone);
-    }
-    if let Some(entry_clone) = clicked_entry_opt {
-        app.place_catalog_entry(&entry_clone);
-    }
+    manufacturers
 }
+
+pub(super) fn draw_popover_divider(ui: &mut egui::Ui, dark_mode: bool) {
+    let (r, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 5.0), Sense::hover());
+    let col = if dark_mode {
+        Color32::from_rgba_unmultiplied(255, 255, 255, 20)
+    } else {
+        Color32::from_rgba_unmultiplied(15, 23, 42, 20)
+    };
+    ui.painter().hline(r.x_range(), r.center().y, Stroke::new(1.0_f32, col));
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn draw_popover_row(
+    ui: &mut egui::Ui,
+    p: crate::theme::RailbenchPalette,
+    dark_mode: bool,
+    title: &str,
+    subtitle: Option<&str>,
+    right_badge: Option<&str>,
+    active: bool,
+    title_color_override: Option<Color32>,
+) -> bool {
+    let h = if subtitle.is_some() { 40.0 } else { 30.0 };
+    let w = ui.available_width();
+    let (rect, resp) = ui.allocate_exact_size(egui::vec2(w, h), Sense::click());
+    let fill = if active {
+        Color32::from_rgb(2, 132, 199)
+    } else if resp.hovered() {
+        if dark_mode {
+            Color32::from_rgba_unmultiplied(255, 255, 255, 20)
+        } else {
+            Color32::from_rgba_unmultiplied(15, 23, 42, 14)
+        }
+    } else {
+        Color32::TRANSPARENT
+    };
+    let painter = ui.painter_at(rect);
+    painter.rect_filled(rect, 6.0, fill);
+    let fg = if active {
+        Color32::WHITE
+    } else {
+        title_color_override.unwrap_or(p.text_main)
+    };
+    let sub_fg = if active {
+        Color32::from_rgba_unmultiplied(255, 255, 255, 210)
+    } else {
+        p.text_muted
+    };
+    if let Some(badge) = right_badge {
+        painter.text(
+            Pos2::new(rect.max.x - 10.0, rect.center().y),
+            egui::Align2::RIGHT_CENTER,
+            badge,
+            FontId::proportional(12.0),
+            if active {
+                Color32::WHITE
+            } else {
+                title_color_override.unwrap_or(p.text_muted)
+            },
+        );
+    }
+    let text_right = if right_badge.is_some() {
+        rect.max.x - 26.0
+    } else {
+        rect.max.x - 10.0
+    };
+    let clip = Rect::from_min_max(Pos2::new(rect.min.x + 10.0, rect.min.y), Pos2::new(text_right, rect.max.y));
+    let tp = ui.painter_at(clip);
+    if let Some(sub) = subtitle {
+        tp.text(
+            Pos2::new(clip.min.x, rect.min.y + 6.0),
+            egui::Align2::LEFT_TOP,
+            title,
+            FontId::proportional(12.0),
+            fg,
+        );
+        tp.text(
+            Pos2::new(clip.min.x, rect.min.y + 22.0),
+            egui::Align2::LEFT_TOP,
+            sub,
+            FontId::proportional(10.0),
+            sub_fg,
+        );
+    } else {
+        tp.text(
+            Pos2::new(clip.min.x, rect.center().y),
+            egui::Align2::LEFT_CENTER,
+            title,
+            FontId::proportional(12.0),
+            fg,
+        );
+    }
+    resp.clicked()
+}
+
 
 #[inline]
 pub(super) fn contains_ignore_case(haystack: &str, needle_lower: &str) -> bool {
@@ -810,3 +546,13 @@ pub(super) fn draw_models_tab(ui: &mut egui::Ui, app: &mut RailbenchApp) {
     }
 }
 
+
+/// Favorites accent color: bright amber/yellow on dark backgrounds, deep amber (#b45309)
+/// in light mode so the star and labels keep strong contrast on crema surfaces.
+pub(crate) fn favorite_accent(dark_mode: bool, dark_col: Color32) -> Color32 {
+    if dark_mode {
+        dark_col
+    } else {
+        Color32::from_rgb(180, 83, 9)
+    }
+}

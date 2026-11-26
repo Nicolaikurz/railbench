@@ -735,6 +735,13 @@ pub fn make_mountain_preset_model(
     }
 }
 
+pub fn is_terrain_model(m: &railbench_core::types::Model3D) -> bool {
+    matches!(
+        m.builtin_id.as_deref(),
+        Some("ground-terrain") | Some("mountain")
+    ) || m.category.eq_ignore_ascii_case("terrain")
+}
+
 mod mountain_ops;
 #[allow(unused_imports)]
 use mountain_ops::*;

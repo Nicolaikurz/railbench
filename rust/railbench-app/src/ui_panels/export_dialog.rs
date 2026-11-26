@@ -56,6 +56,26 @@ fn draw_mini_plan_preview(
         )
     };
 
+    if app.export_opts.show_grid {
+        let grid_col = Color32::from_rgba_unmultiplied(148, 163, 184, 70);
+        let sx = (min_x / 500.0).ceil() as i64;
+        let ex = (max_x / 500.0).floor() as i64;
+        let sy = (min_y / 500.0).ceil() as i64;
+        let ey = (max_y / 500.0).floor() as i64;
+        if (ex - sx) <= 40 && (ey - sy) <= 40 {
+            for ix in sx..=ex {
+                let a = to_scr(ix as f64 * 500.0, min_y);
+                let b = to_scr(ix as f64 * 500.0, max_y);
+                painter.line_segment([a, b], Stroke::new(0.6_f32, grid_col));
+            }
+            for iy in sy..=ey {
+                let a = to_scr(min_x, iy as f64 * 500.0);
+                let b = to_scr(max_x, iy as f64 * 500.0);
+                painter.line_segment([a, b], Stroke::new(0.6_f32, grid_col));
+            }
+        }
+    }
+
     if app.export_opts.show_baseboards {
         for bb in get_baseboards_slice(&app.layout) {
             if !bb.enabled {
@@ -180,6 +200,30 @@ fn draw_mini_plan_preview(
     }
     draw_pass(false);
 
+    if app.export_opts.show_labels && app.layout.pieces.len() <= 160 {
+        let lbl_col = if app.export_opts.monochrome {
+            Color32::from_rgb(30, 41, 59)
+        } else {
+            Color32::from_rgb(15, 23, 42)
+        };
+        for p in &app.layout.pieces {
+            let p_lid = p.layer_id.as_deref().unwrap_or("layer-1");
+            if let Some(flid) = filter_layer_id {
+                if flid != p_lid {
+                    continue;
+                }
+            }
+            let pos = to_scr(p.transform.x, p.transform.y);
+            painter.text(
+                pos + egui::vec2(0.0, -5.0),
+                egui::Align2::CENTER_CENTER,
+                &p.catalog_id,
+                egui::FontId::proportional(7.5),
+                lbl_col,
+            );
+        }
+    }
+
     // Real 2D top-view projected buildings in live Print Preview (toggleable via show_models)
     if app.export_opts.show_models {
         if let Some(models) = &app.layout.models {
@@ -245,16 +289,20 @@ pub(super) fn draw_export_dialog(ctx: &egui::Context, app: &mut RailbenchApp) {
     let mut open = app.show_export_dialog;
     let mut trigger: Option<u8> = None;
 
-    egui::Window::new(if is_de {
+    let title = if is_de {
         "Bauplan-Export & PDF Druckvorschau"
     } else {
         "Blueprint Export & PDF Print Preview"
-    })
-    .open(&mut open)
-    .collapsible(false)
-    .resizable(true)
-    .default_size([740.0, 520.0])
-    .show(ctx, |ui| {
+    };
+    egui::Window::new(title)
+        .id(egui::Id::new("railbench_export_dialog"))
+        .title_bar(false)
+        .collapsible(false)
+        .resizable(true)
+        .default_size([740.0, 520.0])
+        .frame(crate::theme::railbench_window_frame(app.dark_mode))
+        .show(ctx, |ui| {
+            crate::theme::show_railbench_dialog_body(ui, app.dark_mode, title, Some(&mut open), 12, |ui| {
         // Compute selected layers in elevation order (matching Electron print.ts)
         let all_layers: Vec<(String, String, f64, Option<String>, usize)> = app
             .layout
@@ -352,7 +400,7 @@ pub(super) fn draw_export_dialog(ctx: &egui::Context, app: &mut RailbenchApp) {
                 );
                 ui.checkbox(
                     &mut app.export_opts.include_bom_page,
-                    if is_de { "Stueckliste (BOM) anhaengen" } else { "Include Bill of Materials (BOM)" },
+                    if is_de { "Teileliste anhängen" } else { "Include Part List" },
                 );
 
                 ui.add_space(8.0);
@@ -467,7 +515,7 @@ pub(super) fn draw_export_dialog(ctx: &egui::Context, app: &mut RailbenchApp) {
                                 .show(ui, |ui| {
                                     ui.horizontal(|ui| {
                                         ui.label(RichText::new(format!("#{page_idx}")).strong().color(Color32::from_rgb(16, 185, 129)));
-                                        ui.label(RichText::new(if is_de { "Stueckliste (BOM)" } else { "Bill of Materials" }).strong().size(12.0));
+                                        ui.label(RichText::new(if is_de { "Teileliste" } else { "Part List" }).strong().size(12.0));
                                     });
                                     Frame::new()
                                         .fill(Color32::WHITE)
@@ -510,16 +558,30 @@ pub(super) fn draw_export_dialog(ctx: &egui::Context, app: &mut RailbenchApp) {
             {
                 trigger = Some(1);
             }
+            if ui
+                .button(if is_de { "Drucken / PDF oeffnen..." } else { "Print / Open PDF..." })
+                .clicked()
+            {
+                trigger = Some(5);
+            }
             if ui.button("SVG (1:1 mm)...").clicked() {
                 trigger = Some(2);
             }
             if ui.button("XML (.xml)...").clicked() {
                 trigger = Some(3);
             }
-            if ui.button("BOM (CSV)...").clicked() {
+            if ui
+                .button(if is_de {
+                    "Teileliste (CSV)..."
+                } else {
+                    "Part List (CSV)..."
+                })
+                .clicked()
+            {
                 trigger = Some(4);
             }
         });
+            });
     });
 
     app.show_export_dialog = open;
@@ -528,6 +590,7 @@ pub(super) fn draw_export_dialog(ctx: &egui::Context, app: &mut RailbenchApp) {
         Some(2) => app.export_svg_dialog(),
         Some(3) => app.export_xml_dialog(),
         Some(4) => app.export_bom_csv_dialog(),
+        Some(5) => app.print_or_open_pdf(),
         _ => {}
     }
 }

@@ -623,3 +623,98 @@ fn double_slip_24624_switches_all_four_entries_straight_and_curved() {
         assert_eq!(sim.vehicles[0].piece_id, expected_exit, "crossing from {start_leg} must route to {expected_exit}");
     }
 }
+
+#[test]
+fn maerklin_24997_is_recognized_as_uncoupler_and_disconnects_train_wagons() {
+    let cats = builtin_catalogs();
+    let e_std = find_entry(&cats, "24188").unwrap();
+    let e_unc = find_entry(&cats, "24997").expect("Maerklin C-Gleis 24997 in catalog");
+    assert!(!crate::catalog::is_uncoupler_entry(e_std));
+    assert!(crate::catalog::is_uncoupler_entry(e_unc));
+
+    // Layout: [24188] -> [24997 uncoupler] -> [24188] -> [24188] -> [24188]
+    let p0 = create_piece("t0".into(), e_std, Transform { x: 0.0, y: 0.0, rotation: 0.0 }, Some("layer-1".into()));
+    let c0_end = p0.connectors[1].clone();
+    let p1 = create_piece("u1".into(), e_unc, Transform { x: c0_end.x, y: c0_end.y, rotation: c0_end.angle }, Some("layer-1".into()));
+    let c1_end = p1.connectors[1].clone();
+    let p2 = create_piece("t2".into(), e_std, Transform { x: c1_end.x, y: c1_end.y, rotation: c1_end.angle }, Some("layer-1".into()));
+    let c2_end = p2.connectors[1].clone();
+    let p3 = create_piece("t3".into(), e_std, Transform { x: c2_end.x, y: c2_end.y, rotation: c2_end.angle }, Some("layer-1".into()));
+    let c3_end = p3.connectors[1].clone();
+    let p4 = create_piece("t4".into(), e_std, Transform { x: c3_end.x, y: c3_end.y, rotation: c3_end.angle }, Some("layer-1".into()));
+
+    let mut layout = make_test_layout(vec![p0, p1, p2, p3, p4]);
+    update_layout_connections(&mut layout, 4.0, 35.0, 1.0);
+
+    let mut sim = VehicleSimState::default();
+    let vid = sim.spawn_vehicle(&layout, &cats, VehicleKind::Br243, Some("t2")).unwrap();
+    sim.add_wagon(&vid, VehicleKind::PassengerCoach, &layout, &cats);
+    sim.add_wagon(&vid, VehicleKind::FreightCar, &layout, &cats);
+
+    // Position locomotive at dist_mm=50 on t2 (world_x = 332.5) so coupler #0 (~world_x = 235.1)
+    // rests directly over the center of Maerklin 24997 u1 (world_x = 188.3..282.5).
+    sim.vehicles[0].dist_mm = 50.0;
+    recompute_vehicle_poses(
+        &mut sim.vehicles[0],
+        &layout,
+        &cats,
+        &sim.turnout_states,
+        &sim.turntable_angles_deg,
+        &sim.transfer_offsets_mm,
+    );
+    assert!(
+        sim.find_coupler_over_piece("u1", &layout, &cats).is_some(),
+        "coupler should align above Maerklin 24997 uncoupler"
+    );
+
+    // 1. Trigger Maerklin 24997 uncoupler -> raises ramp and disconnects both wagons as a parked cut
+    let cut_id = sim
+        .trigger_uncoupler("u1", &layout, &cats)
+        .expect("24997 uncoupler should detach wagon cut");
+    assert!(sim.is_uncoupler_raised("u1"));
+    assert_eq!(sim.vehicles.len(), 2);
+    assert_eq!(sim.vehicles[0].coupled_cars.len(), 0);
+    let cut = sim.vehicles.iter().find(|v| v.id == cut_id).unwrap();
+    assert_eq!(cut.kind, VehicleKind::PassengerCoach);
+    assert_eq!(cut.coupled_cars, vec![VehicleKind::FreightCar]);
+    assert_eq!(cut.velocity_mm_s, 0.0);
+    let cut_x = cut.world_x;
+
+    // 2. Locomotive pulls away cleanly while detached wagons stay parked behind
+    sim.vehicles[0].throttle = 0.8;
+    sim.running = true;
+    for _ in 0..25 {
+        sim.step(0.05, &layout, &cats);
+        sim.step_uncouplers(0.05, &layout, &cats);
+    }
+    assert!(sim.vehicles[0].world_x > cut_x + 150.0, "loco must pull cleanly away from uncoupled cut");
+    assert!(!sim.vehicles[0].blocked_ahead);
+
+    // 3. Verify timer lowers ramp after >= 2.0 s, and direct train uncouple + re-couple work
+    for _ in 0..25 {
+        sim.step_uncouplers(0.05, &layout, &cats);
+    }
+    assert!(!sim.is_uncoupler_raised("u1"));
+
+    // Spawn second train directly on t4 with 2 wagons and test direct uncouple_last + couple_nearby
+    let v2 = sim.spawn_vehicle(&layout, &cats, VehicleKind::V60Diesel, Some("t4")).unwrap();
+    sim.add_wagon(&v2, VehicleKind::FreightCar, &layout, &cats);
+    sim.add_wagon(&v2, VehicleKind::PassengerCoach, &layout, &cats);
+    let det2 = sim.uncouple_last_wagon(&v2, &layout, &cats).expect("direct uncouple_last");
+    assert_eq!(sim.vehicles.iter().find(|v| v.id == v2).unwrap().coupled_cars.len(), 1);
+    assert!(sim.vehicles.iter().any(|v| v.id == det2));
+    assert!(sim.couple_nearby_wagons(&v2, &layout, &cats) >= 1);
+    assert_eq!(sim.vehicles.iter().find(|v| v.id == v2).unwrap().coupled_cars.len(), 2);
+
+    // 4. Verify armed Auto-Uncouple mode decouples cleanly when passing over 24997
+    assert!(sim.toggle_uncoupler_armed("u1"));
+    assert!(sim.is_uncoupler_raised("u1"));
+    let v1_idx = sim.vehicles.iter().position(|v| v.id == vid).unwrap();
+    sim.vehicles[v1_idx].uncouple_cooldown_s = 0.0;
+    sim.vehicles[v1_idx].piece_id = "t2".to_string();
+    sim.vehicles[v1_idx].dist_mm = 50.0;
+    sim.add_wagon(&vid, VehicleKind::FreightCar, &layout, &cats);
+    let before_cnt = sim.vehicles.len();
+    sim.step_uncouplers(0.05, &layout, &cats);
+    assert_eq!(sim.vehicles.len(), before_cnt + 1);
+}

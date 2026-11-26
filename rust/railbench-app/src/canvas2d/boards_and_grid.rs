@@ -7,12 +7,12 @@ pub(super) fn draw_grid(painter: &egui::Painter, rect: Rect, camera: &Camera2D, 
     let fine_color = if dark_mode {
         Color32::from_rgba_unmultiplied(148, 163, 184, 18)
     } else {
-        Color32::from_rgba_unmultiplied(71, 85, 105, 22)
+        Color32::from_rgba_unmultiplied(102, 92, 78, 22)
     };
     let major_color = if dark_mode {
         Color32::from_rgba_unmultiplied(148, 163, 184, 42)
     } else {
-        Color32::from_rgba_unmultiplied(71, 85, 105, 50)
+        Color32::from_rgba_unmultiplied(102, 92, 78, 50)
     };
 
     let draw_step = |step: f64, color: Color32, width: f32| {
@@ -153,6 +153,7 @@ pub(super) fn poly_centroid(poly: &[Vec2]) -> Vec2 {
 }
 
 pub(super) fn find_board_drag_hit(
+    board_edit_enabled: bool,
     layout: &Layout,
     wp: Vec2,
     sp: Pos2,
@@ -160,6 +161,9 @@ pub(super) fn find_board_drag_hit(
     header_rects: &[(String, Rect)],
     allow_interior: bool,
 ) -> Option<(String, BoardBounds)> {
+    if !board_edit_enabled {
+        return None;
+    }
     let boards = board_tools::get_baseboards_slice(layout);
     for (bid, hrect) in header_rects.iter().rev() {
         if hrect.expand(4.0).contains(sp) {
@@ -192,6 +196,7 @@ pub(super) fn draw_baseboards(
     active_board_id: Option<&str>,
     snap_guides: &[BaseboardSnapGuide],
     dark_mode: bool,
+    board_edit_enabled: bool,
 ) -> Vec<(String, Rect)> {
     let mut header_rects = Vec::new();
     let multi = cached_boards.len() > 1;
@@ -202,7 +207,7 @@ pub(super) fn draw_baseboards(
         let is_active = active_board_id.map_or_else(|| Some(bid) == first_id, |aid| aid == bid);
         let (fill, border_col, grain_col) = board_style_colors(&cb.style);
 
-        if multi && is_active {
+        if board_edit_enabled && multi && is_active {
             let pts: Vec<Pos2> = cb
                 .mesh
                 .outer
@@ -215,7 +220,7 @@ pub(super) fn draw_baseboards(
             ));
         }
 
-        let border_stroke = if multi && is_active {
+        let border_stroke = if board_edit_enabled && multi && is_active {
             Stroke::new(2.2_f32, Color32::from_rgb(56, 189, 248))
         } else {
             Stroke::new(2.0_f32, border_col)
@@ -253,21 +258,28 @@ pub(super) fn draw_baseboards(
         }
 
         // Header badge (for clicking/dragging/identifying boards)
-        if multi || cb.name.is_some() {
+        if multi || cb.name.is_some() || camera.zoom >= 0.12 {
             let sp = camera.world_to_screen(rect, cb.anchor.x, cb.anchor.y);
-            let title = cb.name.as_deref().unwrap_or("Tisch");
+            let title = cb.name.as_deref().unwrap_or("Baseboard");
             let pill_w = (title.len() as f32 * 6.5 + 22.0).clamp(58.0, 170.0);
             let hrect = Rect::from_min_size(Pos2::new(sp.x + 6.0, sp.y + 6.0), EguiVec2::new(pill_w, 18.0));
-            let pill_bg = if is_active {
+            let pill_bg = if board_edit_enabled && is_active {
                 Color32::from_rgba_unmultiplied(14, 116, 144, 225)
             } else {
-                Color32::from_rgba_unmultiplied(30, 41, 59, 195)
+                Color32::from_rgba_unmultiplied(30, 41, 59, 175)
             };
             painter.rect_filled(hrect, 4.0, pill_bg);
             painter.rect_stroke(
                 hrect,
                 4.0,
-                Stroke::new(1.0_f32, if is_active { Color32::from_rgb(56, 189, 248) } else { border_col }),
+                Stroke::new(
+                    1.0_f32,
+                    if board_edit_enabled && is_active {
+                        Color32::from_rgb(56, 189, 248)
+                    } else {
+                        border_col
+                    },
+                ),
                 egui::StrokeKind::Inside,
             );
             painter.text(
@@ -277,7 +289,9 @@ pub(super) fn draw_baseboards(
                 FontId::proportional(10.0),
                 Color32::WHITE,
             );
-            header_rects.push((cb.id.clone(), hrect));
+            if board_edit_enabled {
+                header_rects.push((cb.id.clone(), hrect));
+            }
         }
 
         // Dimension lines

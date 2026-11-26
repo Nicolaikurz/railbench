@@ -8,7 +8,9 @@ pub(super) fn is_instanceable_track_piece(
     active_branch: usize,
 ) -> bool {
     let Some(e) = entry else { return false };
-    if matches!(e.kind.as_str(), "turntable" | "transfer-table") {
+    if matches!(e.kind.as_str(), "turntable" | "transfer-table")
+        || crate::catalog::is_uncoupler_entry(e)
+    {
         return false;
     }
     if active_branch != 0 {
@@ -96,6 +98,7 @@ pub(super) fn build_local_track_prototype_3d(
         0,
         0.0,
         None,
+        false,
         &mut dummy_cat,
     );
     (Arc::new(pv), Arc::new(pi))
@@ -333,7 +336,15 @@ pub(super) fn compute_submesh_signatures(
             | (((p.has_lantern == Some(true)) as u8) << 5)
             | (((p.has_decoder == Some(true)) as u8) << 6)
             | (((p.has_signal == Some(true)) as u8) << 7);
-        h_tracks = fnv1a_u64(h_tracks, &[flags, (p.power_feed == Some(true)) as u8, (p.is_isolator == Some(true)) as u8]);
+        h_tracks = fnv1a_u64(
+            h_tracks,
+            &[
+                flags,
+                (p.power_feed == Some(true)) as u8,
+                (p.is_isolator == Some(true)) as u8,
+                opts.active_uncouplers.contains(&p.id) as u8,
+            ],
+        );
         if p.has_lantern == Some(true) {
             let sw_state = opts.turnout_states.get(&p.id).copied().unwrap_or(0) as u64;
             h_tracks = fnv1a_u64(h_tracks, &sw_state.to_le_bytes());
@@ -366,6 +377,10 @@ pub(super) fn compute_submesh_signatures(
                 h_tracks = hash_f64(h_tracks, m.height);
                 h_tracks = hash_f64(h_tracks, m.elevation.unwrap_or(0.0));
                 h_tracks = hash_f64(h_tracks, m.scale.unwrap_or(1.0));
+                h_tracks = fnv1a_u64(
+                    h_tracks,
+                    &m.file_data.as_ref().map_or(0u64, |d| d.len() as u64).to_le_bytes(),
+                );
             }
         }
     }
@@ -418,7 +433,9 @@ pub fn build_scene_mesh_3d_cached(
     let mut combined = SceneMesh3D {
         vertices: Vec::with_capacity(total_verts),
         indices: Vec::with_capacity(total_idxs),
+        glass_indices: Vec::new(),
         instanced_tracks: Vec::new(),
+        textured_meshes: Vec::new(),
     };
     if let Some((_, ref m)) = bundle.env {
         combined.append_from(m);

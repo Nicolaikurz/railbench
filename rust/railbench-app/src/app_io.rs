@@ -163,6 +163,7 @@ impl RailbenchApp {
         app.power_sim_enabled = s.power_sim_enabled;
         app.bars_locked = s.bars_locked;
         app.low_gpu_mode = s.low_gpu_mode;
+        app.use_discrete_gpu = s.use_discrete_gpu;
         app.sidebar_tab = match s.active_sidebar_tab.as_str() {
             "roads" => SidebarTab::Roads,
             "models" => SidebarTab::Models,
@@ -281,6 +282,7 @@ impl RailbenchApp {
         self.app_settings.power_sim_enabled = self.power_sim_enabled;
         self.app_settings.bars_locked = self.bars_locked;
         self.app_settings.low_gpu_mode = self.low_gpu_mode;
+        self.app_settings.use_discrete_gpu = self.use_discrete_gpu;
         self.app_settings.selected_catalog_id = self
             .catalogs
             .get(self.selected_catalog_idx)
@@ -335,6 +337,9 @@ impl RailbenchApp {
         self.show_wood_plates = self.app_settings.show_wood_plates;
         self.show_right_sidebar = self.app_settings.show_right_sidebar;
         self.rotation_step = self.app_settings.rotation_step;
+        self.bars_locked = self.app_settings.bars_locked;
+        self.low_gpu_mode = self.app_settings.low_gpu_mode;
+        self.use_discrete_gpu = self.app_settings.use_discrete_gpu;
         self.viewer3d_env = Viewer3DEnv::HallLandscape;
         self.perf_monitor.visible = self.app_settings.perf_monitor_visible;
         if self.persist_settings {
@@ -424,6 +429,50 @@ impl RailbenchApp {
         }
     }
 
+    /// Generates the blueprint PDF into a temporary file and opens it in the OS viewer/printer dialog.
+    pub fn print_or_open_pdf(&mut self) {
+        let pdf = export_layout_pdf_with_options(
+            &self.layout,
+            &self.catalogs,
+            &self.export_opts,
+            self.lang == Lang::De,
+        );
+        let safe_name: String = self
+            .layout
+            .name
+            .chars()
+            .map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+            .collect();
+        let stem = if safe_name.is_empty() { "layout" } else { safe_name.as_str() };
+        let path = std::env::temp_dir().join(format!("railbench-print-{stem}.pdf"));
+        if let Err(e) = std::fs::write(&path, pdf) {
+            self.status_message = Some(format!("PDF write error: {e}"));
+            return;
+        }
+        let path_str = path.to_string_lossy().into_owned();
+        #[cfg(target_os = "linux")]
+        let res = std::process::Command::new("xdg-open").arg(&path_str).spawn();
+        #[cfg(target_os = "macos")]
+        let res = std::process::Command::new("open").arg(&path_str).spawn();
+        #[cfg(target_os = "windows")]
+        let res = std::process::Command::new("cmd")
+            .args(["/C", "start", "", &path_str])
+            .spawn();
+
+        match res {
+            Ok(_) => {
+                self.show_toast(if self.lang == Lang::De {
+                    "PDF zum Drucken geoeffnet"
+                } else {
+                    "Opened PDF for printing"
+                });
+            }
+            Err(e) => {
+                self.status_message = Some(format!("Could not open PDF viewer: {e}"));
+            }
+        }
+    }
+
     pub fn toggle_3d(&mut self) {
         self.is_3d_mode = !self.is_3d_mode;
         if self.is_3d_mode {
@@ -505,6 +554,7 @@ impl RailbenchApp {
                 turnout_states: self.vehicle_sim.turnout_states.clone(),
                 turntable_angles_deg: self.vehicle_sim.turntable_angles_deg.clone(),
                 transfer_offsets_mm: self.vehicle_sim.transfer_offsets_mm.clone(),
+                active_uncouplers: self.vehicle_sim.active_uncoupler_ids(),
             };
             self.scene_3d_bundle = Some(viewer3d::update_scene_3d_cache(
                 &self.layout,
@@ -812,7 +862,7 @@ impl RailbenchApp {
                 self.clear_autosave();
                 self.status_message = Some(format!("Loaded {source_label}"));
                 if let Some(rp) = record_path {
-                    self.app_settings.last_opened_path = Some(rp.to_string());
+                    self.app_settings.push_recent_file(rp);
                     self.save_current_settings();
                 }
             }
@@ -831,7 +881,7 @@ impl RailbenchApp {
                     }
                     if let Some(s) = path.to_str() {
                         self.current_file_path = Some(s.to_string());
-                        self.app_settings.last_opened_path = Some(s.to_string());
+                        self.app_settings.push_recent_file(s);
                         self.save_current_settings();
                     }
                     self.saved_layout_version = self.layout_version;

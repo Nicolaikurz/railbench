@@ -14,7 +14,6 @@ pub enum Icon {
     Palette,
     Tag,
     Zap,
-    #[allow(dead_code)]
     Isolator,
     Box3d,
     Sun,
@@ -30,6 +29,69 @@ pub enum Icon {
     WinMaximize,
     WinRestore,
     WinClose,
+    Train,
+    Clock,
+    Sparkle,
+    Mountain,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChevronDir {
+    Down,
+    Up,
+    Right,
+}
+
+/// Paints a crisp vector chevron (replacing Unicode triangles missing from bundled fonts).
+pub fn paint_chevron(
+    painter: &egui::Painter,
+    center: Pos2,
+    dir: ChevronDir,
+    half_size: f32,
+    col: Color32,
+) {
+    let s = Stroke::new(1.5_f32, col);
+    let h = half_size * 0.55;
+    let pts = match dir {
+        ChevronDir::Down => vec![
+            Pos2::new(center.x - half_size, center.y - h),
+            Pos2::new(center.x, center.y + h),
+            Pos2::new(center.x + half_size, center.y - h),
+        ],
+        ChevronDir::Up => vec![
+            Pos2::new(center.x - half_size, center.y + h),
+            Pos2::new(center.x, center.y - h),
+            Pos2::new(center.x + half_size, center.y + h),
+        ],
+        ChevronDir::Right => vec![
+            Pos2::new(center.x - h, center.y - half_size),
+            Pos2::new(center.x + h, center.y),
+            Pos2::new(center.x - h, center.y + half_size),
+        ],
+    };
+    painter.add(egui::Shape::line(pts, s));
+}
+
+/// Paints a crisp horizontal right-pointing vector arrow (shaft + chevron head).
+pub fn paint_arrow_right(
+    painter: &egui::Painter,
+    center: Pos2,
+    half_len: f32,
+    col: Color32,
+) {
+    let s = Stroke::new(1.4_f32, col);
+    let left = Pos2::new(center.x - half_len, center.y);
+    let right = Pos2::new(center.x + half_len, center.y);
+    let head = half_len * 0.65;
+    painter.line_segment([left, right], s);
+    painter.add(egui::Shape::line(
+        vec![
+            Pos2::new(right.x - head, center.y - head),
+            right,
+            Pos2::new(right.x - head, center.y + head),
+        ],
+        s,
+    ));
 }
 
 /// Renders a crisp monochrome vector icon button with tooltip (Lucide-style strokes).
@@ -45,11 +107,13 @@ pub fn icon_button_sized(
     icon_col: Color32,
     tooltip: &str,
 ) -> Response {
+    let enabled = ui.is_enabled();
     let (rect, resp) = ui.allocate_exact_size(size, Sense::click());
+    let hovered = enabled && resp.hovered();
     if ui.is_rect_visible(rect) {
         let bg = if active {
             fill_active
-        } else if resp.hovered() {
+        } else if hovered {
             Color32::from_rgba_unmultiplied(
                 fill_normal.r().saturating_add(22),
                 fill_normal.g().saturating_add(22),
@@ -59,7 +123,7 @@ pub fn icon_button_sized(
         } else {
             fill_normal
         };
-        let border = if active || resp.hovered() {
+        let border = if active || hovered {
             Stroke::new(1.1_f32, stroke_col)
         } else {
             Stroke::new(1.0_f32, Color32::from_rgba_unmultiplied(148, 163, 184, 38))
@@ -68,10 +132,10 @@ pub fn icon_button_sized(
         let fg = if active { Color32::WHITE } else { icon_col };
         paint_icon(ui.painter(), rect.shrink2(Vec2::new((size.x - 14.0) * 0.5, (size.y - 14.0) * 0.5)), icon, fg);
     }
-    if resp.hovered() {
+    if hovered {
         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
     }
-    resp.on_hover_text(tooltip)
+    resp.on_hover_text(tooltip).on_disabled_hover_text(tooltip)
 }
 
 pub fn paint_icon(painter: &egui::Painter, r: Rect, icon: Icon, col: Color32) {
@@ -110,20 +174,22 @@ pub fn paint_icon(painter: &egui::Painter, r: Rect, icon: Icon, col: Color32) {
             painter.rect_stroke(Rect::from_min_max(p(0.28, 0.56), p(0.74, 0.88)), 1.0, thin, egui::StrokeKind::Inside);
         }
         Icon::Undo => {
-            painter.line_segment([p(0.22, 0.40), p(0.66, 0.40)], s);
-            painter.line_segment([p(0.22, 0.40), p(0.40, 0.22)], s);
-            painter.line_segment([p(0.22, 0.40), p(0.40, 0.58)], s);
             painter.add(egui::Shape::line(
-                vec![p(0.66, 0.40), p(0.82, 0.48), p(0.84, 0.64), p(0.72, 0.78), p(0.42, 0.78)],
+                vec![p(0.40, 0.20), p(0.20, 0.38), p(0.40, 0.56)],
+                s,
+            ));
+            painter.add(egui::Shape::line(
+                vec![p(0.22, 0.38), p(0.64, 0.38), p(0.80, 0.46), p(0.84, 0.62), p(0.74, 0.78), p(0.44, 0.78)],
                 s,
             ));
         }
         Icon::Redo => {
-            painter.line_segment([p(0.78, 0.40), p(0.34, 0.40)], s);
-            painter.line_segment([p(0.78, 0.40), p(0.60, 0.22)], s);
-            painter.line_segment([p(0.78, 0.40), p(0.60, 0.58)], s);
             painter.add(egui::Shape::line(
-                vec![p(0.34, 0.40), p(0.18, 0.48), p(0.16, 0.64), p(0.28, 0.78), p(0.58, 0.78)],
+                vec![p(0.60, 0.20), p(0.80, 0.38), p(0.60, 0.56)],
+                s,
+            ));
+            painter.add(egui::Shape::line(
+                vec![p(0.78, 0.38), p(0.36, 0.38), p(0.20, 0.46), p(0.16, 0.62), p(0.26, 0.78), p(0.56, 0.78)],
                 s,
             ));
         }
@@ -193,10 +259,8 @@ pub fn paint_icon(painter: &egui::Painter, r: Rect, icon: Icon, col: Color32) {
             ));
         }
         Icon::Isolator => {
-            painter.line_segment([p(0.10, 0.50), p(0.38, 0.50)], s);
-            painter.line_segment([p(0.62, 0.50), p(0.90, 0.50)], s);
-            painter.line_segment([p(0.42, 0.20), p(0.42, 0.80)], s);
-            painter.line_segment([p(0.58, 0.20), p(0.58, 0.80)], s);
+            painter.circle_stroke(p(0.5, 0.5), r.width() * 0.36, s);
+            painter.line_segment([p(0.24, 0.76), p(0.76, 0.24)], s);
         }
         Icon::Box3d => {
             painter.add(egui::Shape::closed_line(
@@ -299,6 +363,62 @@ pub fn paint_icon(painter: &egui::Painter, r: Rect, icon: Icon, col: Color32) {
         Icon::WinClose => {
             painter.line_segment([p(0.20, 0.20), p(0.80, 0.80)], s);
             painter.line_segment([p(0.80, 0.20), p(0.20, 0.80)], s);
+        }
+        Icon::Train => {
+            painter.rect_stroke(
+                Rect::from_min_max(p(0.18, 0.12), p(0.82, 0.76)),
+                3.0,
+                s,
+                egui::StrokeKind::Inside,
+            );
+            painter.rect_stroke(
+                Rect::from_min_max(p(0.28, 0.22), p(0.72, 0.46)),
+                1.5,
+                thin,
+                egui::StrokeKind::Inside,
+            );
+            painter.circle_filled(p(0.32, 0.62), r.width() * 0.06, col);
+            painter.circle_filled(p(0.68, 0.62), r.width() * 0.06, col);
+            painter.line_segment([p(0.34, 0.76), p(0.24, 0.90)], s);
+            painter.line_segment([p(0.66, 0.76), p(0.76, 0.90)], s);
+        }
+        Icon::Clock => {
+            painter.circle_stroke(p(0.50, 0.50), r.width() * 0.38, s);
+            painter.line_segment([p(0.50, 0.26), p(0.50, 0.50)], s);
+            painter.line_segment([p(0.50, 0.50), p(0.68, 0.58)], s);
+        }
+        Icon::Sparkle => {
+            painter.add(egui::Shape::closed_line(
+                vec![
+                    p(0.50, 0.10),
+                    p(0.60, 0.40),
+                    p(0.90, 0.50),
+                    p(0.60, 0.60),
+                    p(0.50, 0.90),
+                    p(0.40, 0.60),
+                    p(0.10, 0.50),
+                    p(0.40, 0.40),
+                ],
+                s,
+            ));
+        }
+        Icon::Mountain => {
+            painter.rect_stroke(
+                Rect::from_min_max(p(0.14, 0.16), p(0.86, 0.84)),
+                2.5,
+                thin,
+                egui::StrokeKind::Inside,
+            );
+            painter.add(egui::Shape::line(
+                vec![
+                    p(0.18, 0.74),
+                    p(0.40, 0.36),
+                    p(0.54, 0.58),
+                    p(0.66, 0.44),
+                    p(0.82, 0.74),
+                ],
+                s,
+            ));
         }
     }
 }

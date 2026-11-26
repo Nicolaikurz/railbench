@@ -13,6 +13,7 @@ pub(super) fn draw_track_piece(
     special_top_mesh: Option<&CachedModelTopMesh2D>,
     is_selected: bool,
     is_active_layer: bool,
+    is_editable: bool,
     color_mode: ColorMode,
     layer_color_hex: Option<&str>,
     show_labels: bool,
@@ -21,6 +22,8 @@ pub(super) fn draw_track_piece(
     turnout_state: usize,
     turntable_angle_deg: f64,
     transfer_offset_mm: Option<f64>,
+    uncoupler_state: Option<(bool, bool)>,
+    accessory_buttons: &mut Vec<TrackAccessoryButton>,
 ) {
     let kind = entry.map(|e| e.kind.as_str()).unwrap_or("straight");
     let is_special = matches!(kind, "turntable" | "transfer-table");
@@ -112,10 +115,12 @@ pub(super) fn draw_track_piece(
             color_mode,
             is_selected,
             is_active_layer,
+            is_editable,
             show_labels,
             power_sim_enabled,
             piece_power,
             turntable_angle_deg,
+            accessory_buttons,
         );
         return;
     }
@@ -137,10 +142,12 @@ pub(super) fn draw_track_piece(
             color_mode,
             is_selected,
             is_active_layer,
+            is_editable,
             show_labels,
             power_sim_enabled,
             piece_power,
             transfer_offset_mm,
+            accessory_buttons,
         );
         return;
     }
@@ -284,6 +291,47 @@ pub(super) fn draw_track_piece(
             }
             painter.add(egui::Shape::line(left_rail, Stroke::new(rail_w, rail_col)));
             painter.add(egui::Shape::line(right_rail, Stroke::new(rail_w, rail_col)));
+        }
+
+        // Pass 3.1: Maerklin 24997 / Catalog Uncoupler Ramp (Entkupplerbohle) between rails
+        if entry.is_some_and(crate::catalog::is_uncoupler_entry) {
+            if let Some(pts) = branches.first().filter(|b| b.len() >= 2) {
+                let mid_i = pts.len() / 2;
+                let a = pts[mid_i.saturating_sub(1)];
+                let b = pts[(mid_i + 1).min(pts.len() - 1)];
+                let dx = b.x - a.x;
+                let dy = b.y - a.y;
+                let len = dx.hypot(dy).max(1e-6);
+                let ux = dx / len;
+                let uy = dy / len;
+                let nx = -uy;
+                let ny = ux;
+                let cx = pts[mid_i].x;
+                let cy = pts[mid_i].y;
+                let hl = 19.0 * (gauge / 16.5);
+                let hw = 4.6 * (gauge / 16.5);
+                let to_scr = |along: f64, lat: f64| -> Pos2 {
+                    camera.world_to_screen(rect, cx + ux * along + nx * lat, cy + uy * along + ny * lat)
+                };
+                let (raised, armed) = uncoupler_state.unwrap_or((false, false));
+                let ramp_fill = if raised {
+                    Color32::from_rgb(245, 158, 11)
+                } else if armed {
+                    Color32::from_rgb(139, 92, 246)
+                } else {
+                    Color32::from_rgb(71, 85, 105)
+                };
+                let ramp_stroke = if raised || armed {
+                    Color32::from_rgb(254, 240, 138)
+                } else {
+                    Color32::from_rgb(203, 213, 225)
+                };
+                painter.add(egui::Shape::convex_polygon(
+                    vec![to_scr(-hl, -hw), to_scr(hl, -hw), to_scr(hl, hw), to_scr(-hl, hw)],
+                    ramp_fill,
+                    Stroke::new((1.2 * camera.zoom).clamp(0.9, 2.0), ramp_stroke),
+                ));
+            }
         }
 
         // Pass 3.2: 2D Prellbock (Buffer Stop: steel A-frame struts, Pufferbohle, twin Pufferteller & red/white Sh2 sign)
@@ -613,15 +661,19 @@ pub(super) fn draw_track_piece(
         rect,
         camera,
         piece,
+        entry,
         mid_w,
         ballast_w,
         gauge,
         is_road,
         is_selected,
         is_active_layer,
+        is_editable,
         show_labels,
         power_sim_enabled,
         piece_power,
+        uncoupler_state,
+        accessory_buttons,
     );
 
     // Turnout lantern (DB Wn 1 / Wn 2 Weichenlaterne) & digital decoder overlays

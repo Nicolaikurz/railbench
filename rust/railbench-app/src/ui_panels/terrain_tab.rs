@@ -30,12 +30,35 @@ pub(super) fn draw_terrain_tab(ui: &mut egui::Ui, app: &mut RailbenchApp) {
 
     egui::ScrollArea::vertical().show(ui, |ui| {
         // 1. Unified Continuous Heightfield Brush Card (works in both 3D & 2D!)
-        ui.label(
-            RichText::new(if is_de { "GELAENDE-EDITOR (3D & 2D)" } else { "TERRAIN SCULPTOR (3D & 2D)" })
-                .strong()
-                .size(11.0)
-                .color(p.text_muted),
-        );
+        ui.horizontal_wrapped(|ui| {
+            ui.label(
+                RichText::new(if is_de { "GELAENDE-EDITOR (3D & 2D)" } else { "TERRAIN SCULPTOR (3D & 2D)" })
+                    .strong()
+                    .size(11.0)
+                    .color(p.text_muted),
+            );
+            Frame::new()
+                .fill(Color32::from_rgba_unmultiplied(16, 185, 129, 28))
+                .stroke(Stroke::new(1.0_f32, Color32::from_rgba_unmultiplied(16, 185, 129, 100)))
+                .corner_radius(CornerRadius::same(4))
+                .inner_margin(Margin::symmetric(6, 1))
+                .show(ui, |ui| {
+                    ui.label(
+                        RichText::new(if is_de {
+                            "Nur Gelände auswählbar"
+                        } else {
+                            "Selection locked: Terrain only"
+                        })
+                        .size(10.0)
+                        .strong()
+                        .color(if app.dark_mode {
+                            Color32::from_rgb(52, 211, 153)
+                        } else {
+                            Color32::from_rgb(4, 120, 87)
+                        }),
+                    );
+                });
+        });
         ui.add_space(4.0);
 
         Frame::new()

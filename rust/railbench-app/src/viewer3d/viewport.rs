@@ -1,6 +1,55 @@
 use super::*;
 
 #[allow(clippy::too_many_arguments)]
+pub(super) fn build_uniforms_3d(
+    view_proj: [[f32; 4]; 4],
+    cached_bundle: &Option<Scene3DBundle>,
+    sky: &SkyUniformState,
+    eye: [f32; 3],
+    cam_right: [f32; 3],
+    cam_up: [f32; 3],
+    cam_fwd: [f32; 3],
+    aspect: f32,
+    tan_half_y: f32,
+    env_mode: Viewer3DEnv,
+    low_gpu_mode: bool,
+) -> Uniforms3D {
+    let (shadow_center, shadow_half_extent) = cached_bundle
+        .as_ref()
+        .map(|b| (b.shadow_center, b.shadow_half_extent))
+        .unwrap_or(([0.0, 40.0, 0.0], 1600.0));
+    let sun_view_proj = compute_sun_view_proj(
+        [sky.sun_dir[0], sky.sun_dir[1], sky.sun_dir[2]],
+        shadow_center,
+        shadow_half_extent,
+    );
+    let night = sky.hemi_ground_pad[3];
+    let shadow_strength = if low_gpu_mode {
+        0.0
+    } else {
+        let base = if env_mode == Viewer3DEnv::Minimal { 0.45 } else { 0.62 };
+        base * (1.0 - 0.55 * night)
+    };
+    let normal_bias = (shadow_half_extent / SHADOW_MAP_SIZE as f32 * 3.5).clamp(2.5, 12.0);
+    let is_minimal_f = if env_mode == Viewer3DEnv::Minimal { 1.0 } else { 0.0 };
+    Uniforms3D {
+        view_proj,
+        sun_view_proj,
+        sun_dir: sky.sun_dir,
+        cam_pos: [eye[0], eye[1], eye[2], 1.0],
+        fog_color: sky.fog_color,
+        sun_color_int: sky.sun_color_int,
+        hemi_sky_int: sky.hemi_sky_int,
+        hemi_ground_pad: sky.hemi_ground_pad,
+        cam_right: [cam_right[0], cam_right[1], cam_right[2], aspect],
+        cam_up: [cam_up[0], cam_up[1], cam_up[2], tan_half_y],
+        cam_fwd: [cam_fwd[0], cam_fwd[1], cam_fwd[2], is_minimal_f],
+        sky_zenith: sky.sky_zenith,
+        shadow_params: [shadow_strength, 1.0 / SHADOW_MAP_SIZE as f32, normal_bias, 0.0005],
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
 pub fn draw_viewport_3d(
     ui: &mut egui::Ui,
     camera: &mut Camera3D,
@@ -14,6 +63,7 @@ pub fn draw_viewport_3d(
     show_wood_plates: &mut bool,
     first_short_circuit: Option<Vec2>,
     dark_mode: bool,
+    low_gpu_mode: bool,
     lang: Lang,
     dt_secs: f32,
 ) -> Edit3DOutput {
@@ -26,7 +76,7 @@ pub fn draw_viewport_3d(
     let (rect, response) = ui.allocate_exact_size(avail, Sense::click_and_drag());
 
     let sculpt_mode = edit.terrain_brush.active && edit.terrain_brush.is_heightfield_mode();
-    let (consumed_primary_drag, consumed_scroll, mut edit_out) = if sculpt_mode {
+    let (consumed_primary_drag, consumed_scroll, edit_out) = if sculpt_mode {
         handle_3d_terrain_sculpt_interaction(
             ui,
             rect,
@@ -47,10 +97,11 @@ pub fn draw_viewport_3d(
             edit.selected,
             edit.dragging_catalog,
             edit.dragging_model,
-            *edit.snapping_enabled,
+            edit.snapping_enabled,
             edit.layer_protection,
             edit.rotation_step,
             *env_mode,
+            edit.terrain_only_selection,
         );
         (cd, false, eo)
     };
@@ -87,28 +138,27 @@ pub fn draw_viewport_3d(
     }
 
     let ppp = ui.ctx().pixels_per_point();
-    let px_w = ((rect.width() * ppp).round() as u32).max(16);
-    let px_h = ((rect.height() * ppp).round() as u32).max(16);
+    let res_scale = if low_gpu_mode { 0.75_f32 } else { 1.0_f32 };
+    let px_w = ((rect.width() * ppp * res_scale).round() as u32).max(16);
+    let px_h = ((rect.height() * ppp * res_scale).round() as u32).max(16);
     let aspect = (rect.width() / rect.height().max(1.0)).max(0.1);
     let eye = camera.eye();
     let sky = eval_sky_state(*time_of_day, *env_mode, dark_mode);
     let (cam_right, cam_up, cam_fwd) = camera_basis(eye, camera.target);
     let tan_half_y = (45.0_f32.to_radians() * 0.5).tan();
-    let is_minimal_f = if *env_mode == Viewer3DEnv::Minimal { 1.0 } else { 0.0 };
-
-    let uniforms = Uniforms3D {
-        view_proj: camera.view_proj(aspect),
-        sun_dir: sky.sun_dir,
-        cam_pos: [eye[0], eye[1], eye[2], 1.0],
-        fog_color: sky.fog_color,
-        sun_color_int: sky.sun_color_int,
-        hemi_sky_int: sky.hemi_sky_int,
-        hemi_ground_pad: sky.hemi_ground_pad,
-        cam_right: [cam_right[0], cam_right[1], cam_right[2], aspect],
-        cam_up: [cam_up[0], cam_up[1], cam_up[2], tan_half_y],
-        cam_fwd: [cam_fwd[0], cam_fwd[1], cam_fwd[2], is_minimal_f],
-        sky_zenith: sky.sky_zenith,
-    };
+    let uniforms = build_uniforms_3d(
+        camera.view_proj(aspect),
+        cached_bundle,
+        &sky,
+        eye,
+        cam_right,
+        cam_up,
+        cam_fwd,
+        aspect,
+        tan_half_y,
+        *env_mode,
+        low_gpu_mode,
+    );
 
     let cb = egui_wgpu::Callback::new_paint_callback(
         rect,
@@ -121,146 +171,259 @@ pub fn draw_viewport_3d(
             viewport_px: [px_w, px_h],
             clear_color: sky.clear_color,
             is_cab_view: false,
+            shadows_enabled: !low_gpu_mode,
+            day_night_active: *day_night_active,
         },
     );
     ui.painter().add(cb);
 
     let is_de = lang == Lang::De;
-    let hud_bg = if dark_mode {
-        Color32::from_rgba_unmultiplied(15, 23, 42, 215)
-    } else {
-        Color32::from_rgba_unmultiplied(248, 250, 252, 235)
-    };
-    let hud_border = if dark_mode {
-        Color32::from_rgba_unmultiplied(148, 163, 184, 70)
-    } else {
-        Color32::from_rgba_unmultiplied(148, 163, 184, 150)
-    };
-    let hud_accent = if dark_mode {
-        Color32::from_rgb(56, 189, 248)
-    } else {
-        Color32::from_rgb(2, 132, 199)
-    };
-    let hud_muted = if dark_mode {
-        Color32::from_rgb(148, 163, 184)
-    } else {
-        Color32::from_rgb(71, 85, 105)
-    };
+    let p = crate::theme::palette(dark_mode);
 
-    // Top-left 3D Controls Bar (Strictly 2 Environment Options: Hall & Landscape | Minimal CAD, plus Wood Plates, Edit 3D, Day/Night)
-    egui::Area::new(egui::Id::new("hud_3d_top_bar"))
+    // Top-left 3D Controls Bar (Hall & Landscape | Minimal CAD, Wood Plates, Edit 3D, Day/Night)
+    let top_bar_resp = egui::Area::new(egui::Id::new("hud_3d_top_bar"))
         .fixed_pos(rect.min + egui::vec2(14.0, 12.0))
         .show(ui.ctx(), |ui| {
-            Frame::new()
-                .fill(hud_bg)
-                .corner_radius(CornerRadius::same(10))
-                .inner_margin(Margin::symmetric(10, 6))
-                .stroke(Stroke::new(1.0_f32, hud_border))
-                .show(ui, |ui| {
-                    ui.horizontal(|ui| {
-                        ui.label(RichText::new("3D").strong().size(11.5).color(hud_accent));
-                        let hall_lbl = if is_de { "Halle & Landschaft" } else { "Hall & Landscape" };
-                        if ui
-                            .selectable_label(*env_mode == Viewer3DEnv::HallLandscape, hall_lbl)
-                            .on_hover_text(if is_de {
-                                "Historische Ausstellungshalle mit umliegender Gebirgslandschaft"
-                            } else {
-                                "Exhibition Hall with horizon-spanning Alpine landscape"
-                            })
-                            .clicked()
-                        {
-                            *env_mode = Viewer3DEnv::HallLandscape;
-                        }
-                        if ui
-                            .selectable_label(*env_mode == Viewer3DEnv::Minimal, "Minimal CAD")
-                            .on_hover_text(if is_de {
-                                "Minimaler CAD-Modus mit direktem Gleisbau"
-                            } else {
-                                "Minimal CAD view with direct track building"
-                            })
-                            .clicked()
-                        {
-                            *env_mode = Viewer3DEnv::Minimal;
-                            edit.state.enabled = true;
-                        }
+            hud_3d_panel_frame(dark_mode, None).show(ui, |ui| {
+                ui.spacing_mut().interact_size.y = HUD_3D_BTN_H;
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 6.0;
 
-                        ui.separator();
-                        let wood_lbl = if is_de { "Holzplatten" } else { "Wood Plates" };
-                        if ui.selectable_label(*show_wood_plates, wood_lbl).clicked() {
-                            *show_wood_plates = !*show_wood_plates;
-                        }
+                    // 3D Icon + Title badge
+                    Frame::new()
+                        .fill(Color32::from_rgba_unmultiplied(
+                            p.primary.r(),
+                            p.primary.g(),
+                            p.primary.b(),
+                            if dark_mode { 36 } else { 26 },
+                        ))
+                        .corner_radius(CornerRadius::same(6))
+                        .inner_margin(Margin::symmetric(7, 3))
+                        .show(ui, |ui| {
+                            ui.horizontal(|ui| {
+                                ui.spacing_mut().item_spacing.x = 4.0;
+                                let (icon_r, _) =
+                                    ui.allocate_exact_size(egui::vec2(13.0, 13.0), Sense::hover());
+                                crate::icons::paint_icon(
+                                    ui.painter(),
+                                    icon_r,
+                                    crate::icons::Icon::Box3d,
+                                    p.primary,
+                                );
+                                ui.label(RichText::new("3D").strong().size(11.5).color(p.primary));
+                            });
+                        });
 
-                        let edit_lbl = if is_de { "3D Bearbeiten" } else { "Edit 3D" };
-                        if ui
-                            .selectable_label(edit.state.enabled || *env_mode == Viewer3DEnv::Minimal, edit_lbl)
-                            .on_hover_text(if is_de {
-                                "Direkte 3D-Bearbeitung & Gleisbau ein/ausschalten"
-                            } else {
-                                "Toggle direct 3D track adding and editing"
-                            })
-                            .clicked()
-                        {
-                            edit.state.enabled = !edit.state.enabled;
-                        }
-
-                        if *env_mode != Viewer3DEnv::Minimal {
-                            ui.separator();
-                            let h = (*time_of_day).floor() as u32 % 24;
-                            let m = (((*time_of_day) - (*time_of_day).floor()) * 60.0).floor() as u32 % 60;
-                            let play_sym = if *day_night_active { "||" } else { ">" };
-                            if ui.selectable_label(*day_night_active, format!("{play_sym} {h:02}:{m:02}")).clicked() {
-                                *day_night_active = !*day_night_active;
-                            }
-                            ui.add_sized(
-                                [88.0, 16.0],
-                                egui::Slider::new(time_of_day, 0.0..=24.0).show_value(false),
-                            );
-                            if ui.small_button(format!("{}x", *day_night_speed as u32)).clicked() {
-                                *day_night_speed = if (*day_night_speed - 1.0).abs() < 0.1 {
-                                    10.0
-                                } else if (*day_night_speed - 10.0).abs() < 0.1 {
-                                    60.0
-                                } else if (*day_night_speed - 60.0).abs() < 0.1 {
-                                    240.0
+                    // Segmented Environment Switcher (Hall & Landscape | Minimal CAD)
+                    Frame::new()
+                        .fill(p.bg_input)
+                        .corner_radius(CornerRadius::same(7))
+                        .inner_margin(Margin::same(2))
+                        .stroke(Stroke::new(1.0_f32, p.border_main))
+                        .show(ui, |ui| {
+                            ui.spacing_mut().item_spacing.x = 2.0;
+                            ui.horizontal(|ui| {
+                                let hall_lbl =
+                                    if is_de { "Halle & Landschaft" } else { "Hall & Landscape" };
+                                let hall_active = *env_mode == Viewer3DEnv::HallLandscape;
+                                let hall_w = crate::ui_panels::stable_text_width(
+                                    ui,
+                                    "Halle & Landschaft",
+                                    "Hall & Landscape",
+                                    Some(11.5),
+                                    true,
+                                ) + 16.0;
+                                let mut hall_rt = RichText::new(hall_lbl).size(11.5).color(if hall_active {
+                                    Color32::WHITE
                                 } else {
-                                    1.0
-                                };
-                            }
-                        }
+                                    p.text_sub
+                                });
+                                if hall_active {
+                                    hall_rt = hall_rt.strong();
+                                }
+                                if ui
+                                    .add(
+                                        egui::Button::new(hall_rt)
+                                            .fill(if hall_active {
+                                                p.primary_hover
+                                            } else {
+                                                Color32::TRANSPARENT
+                                            })
+                                            .stroke(Stroke::NONE)
+                                            .min_size(egui::vec2(hall_w, 22.0))
+                                            .corner_radius(CornerRadius::same(5)),
+                                    )
+                                    .on_hover_text(if is_de {
+                                        "Historische Ausstellungshalle mit umliegender Gebirgslandschaft"
+                                    } else {
+                                        "Exhibition Hall with horizon-spanning Alpine landscape"
+                                    })
+                                    .clicked()
+                                {
+                                    *env_mode = Viewer3DEnv::HallLandscape;
+                                }
 
-                        if let Some(sc) = first_short_circuit {
-                            ui.separator();
-                            if ui
-                                .button(RichText::new("SHORT!").strong().color(Color32::from_rgb(248, 113, 113)))
-                                .on_hover_text("Focus 3D camera on short circuit point")
-                                .clicked()
-                            {
-                                camera.focus_point(sc.x, sc.y);
-                            }
-                        }
+                                let min_active = *env_mode == Viewer3DEnv::Minimal;
+                                let min_w = crate::ui_panels::stable_text_width(
+                                    ui,
+                                    "Minimal CAD",
+                                    "Minimal CAD",
+                                    Some(11.5),
+                                    true,
+                                ) + 16.0;
+                                let mut min_rt = RichText::new("Minimal CAD").size(11.5).color(if min_active {
+                                    Color32::WHITE
+                                } else {
+                                    p.text_sub
+                                });
+                                if min_active {
+                                    min_rt = min_rt.strong();
+                                }
+                                if ui
+                                    .add(
+                                        egui::Button::new(min_rt)
+                                            .fill(if min_active {
+                                                p.primary_hover
+                                            } else {
+                                                Color32::TRANSPARENT
+                                            })
+                                            .stroke(Stroke::NONE)
+                                            .min_size(egui::vec2(min_w, 22.0))
+                                            .corner_radius(CornerRadius::same(5)),
+                                    )
+                                    .on_hover_text(if is_de {
+                                        "Minimaler CAD-Modus mit direktem Gleisbau"
+                                    } else {
+                                        "Minimal CAD view with direct track building"
+                                    })
+                                    .clicked()
+                                {
+                                    *env_mode = Viewer3DEnv::Minimal;
+                                    edit.state.enabled = true;
+                                }
+                            });
+                        });
 
-                        let hint_txt = if sculpt_mode {
-                            if is_de {
-                                "Ziehen: Formen • Shift: Glaetten • Alt: Invert • Shift/Ctrl+Rad: R/Staerke • RMB: Orbit"
+                    ui.separator();
+                    let wood_lbl = if is_de { "Holzplatten" } else { "Wood Plates" };
+                    if hud_3d_stable_toggle(
+                        ui,
+                        dark_mode,
+                        *show_wood_plates,
+                        wood_lbl,
+                        "Holzplatten",
+                        "Wood Plates",
+                    )
+                    .clicked()
+                    {
+                        *show_wood_plates = !*show_wood_plates;
+                    }
+
+                    let edit_lbl = if is_de { "3D Bearbeiten" } else { "Edit 3D" };
+                    if hud_3d_stable_toggle(
+                        ui,
+                        dark_mode,
+                        edit.state.enabled || *env_mode == Viewer3DEnv::Minimal,
+                        edit_lbl,
+                        "3D Bearbeiten",
+                        "Edit 3D",
+                    )
+                    .on_hover_text(if is_de {
+                        "Direkte 3D-Bearbeitung & Gleisbau ein/ausschalten"
+                    } else {
+                        "Toggle direct 3D track adding and editing"
+                    })
+                    .clicked()
+                    {
+                        edit.state.enabled = !edit.state.enabled;
+                    }
+
+                    if *env_mode != Viewer3DEnv::Minimal {
+                        ui.separator();
+                        let h = (*time_of_day).floor() as u32 % 24;
+                        let m = (((*time_of_day) - (*time_of_day).floor()) * 60.0).floor() as u32 % 60;
+                        let play_sym = if *day_night_active { "||" } else { ">" };
+                        if hud_3d_pill_button(
+                            ui,
+                            dark_mode,
+                            &format!("{play_sym} {h:02}:{m:02}"),
+                            *day_night_active,
+                            true,
+                            56.0,
+                        )
+                        .clicked()
+                        {
+                            *day_night_active = !*day_night_active;
+                        }
+                        ui.add_sized(
+                            [86.0, 18.0],
+                            egui::Slider::new(time_of_day, 0.0..=24.0).show_value(false),
+                        );
+                        if hud_3d_pill_button(
+                            ui,
+                            dark_mode,
+                            &format!("{}x", *day_night_speed as u32),
+                            false,
+                            true,
+                            36.0,
+                        )
+                        .clicked()
+                        {
+                            *day_night_speed = if (*day_night_speed - 1.0).abs() < 0.1 {
+                                10.0
+                            } else if (*day_night_speed - 10.0).abs() < 0.1 {
+                                60.0
+                            } else if (*day_night_speed - 60.0).abs() < 0.1 {
+                                240.0
                             } else {
-                                "Drag: Sculpt • Shift: Smooth • Alt: Invert • Shift/Ctrl+Wheel: R/Strength • RMB: Orbit"
-                            }
-                        } else if edit.state.enabled || *env_mode == Viewer3DEnv::Minimal {
-                            if is_de {
-                                "Ziehen/Klick '+' : Gleis bauen • Klick: Auswaehlen • Alt+Ziehen: Hoehe • Leer: Orbit"
-                            } else {
-                                "Drag/Click '+': Add Track • Click: Select • Alt+Drag: Height • Empty: Orbit"
-                            }
+                                1.0
+                            };
+                        }
+                    }
+
+                    if let Some(sc) = first_short_circuit {
+                        ui.separator();
+                        if ui
+                            .add(
+                                egui::Button::new(
+                                    RichText::new("SHORT!").strong().size(11.0).color(Color32::WHITE),
+                                )
+                                .fill(Color32::from_rgb(220, 38, 38))
+                                .stroke(Stroke::new(1.0_f32, Color32::from_rgb(248, 113, 113)))
+                                .min_size(egui::vec2(58.0, HUD_3D_BTN_H))
+                                .corner_radius(CornerRadius::same(6)),
+                            )
+                            .on_hover_text("Focus 3D camera on short circuit point")
+                            .clicked()
+                        {
+                            camera.focus_point(sc.x, sc.y);
+                        }
+                    }
+
+                    ui.separator();
+                    let hint_txt = if sculpt_mode {
+                        if is_de {
+                            "Ziehen: Formen • Shift: Glaetten • Alt: Invert • Shift/Ctrl+Rad: R/Staerke • RMB: Orbit"
                         } else {
-                            "LMB: Orbit  •  RMB: Pan  •  Wheel: Zoom"
-                        };
-                        ui.label(RichText::new(hint_txt).size(10.5).color(hud_muted));
-                    });
+                            "Drag: Sculpt • Shift: Smooth • Alt: Invert • Shift/Ctrl+Wheel: R/Strength • RMB: Orbit"
+                        }
+                    } else if edit.state.enabled || *env_mode == Viewer3DEnv::Minimal {
+                        if is_de {
+                            "Ziehen/Klick '+' : Gleis bauen • Klick: Auswaehlen • Alt+Ziehen: Hoehe • Leer: Orbit"
+                        } else {
+                            "Drag/Click '+': Add Track • Click: Select • Alt+Drag: Height • Empty: Orbit"
+                        }
+                    } else {
+                        "LMB: Orbit  •  RMB: Pan  •  Wheel: Zoom"
+                    };
+                    ui.label(RichText::new(hint_txt).size(10.5).color(p.text_muted));
                 });
+            });
         });
 
-    // Interactive CAD ViewCube Widget below top-left HUD bar
-    draw_viewcube_widget(ui, rect, camera, edit.layout, is_de, dark_mode);
+    // Interactive CAD ViewCube Widget anchored cleanly below the top HUD bar
+    let viewcube_top_y = (top_bar_resp.response.rect.bottom() + 8.0).max(rect.min.y + 56.0);
+    super::viewcube::draw_viewcube_widget(ui, rect, viewcube_top_y, camera, edit.layout, is_de, dark_mode);
 
     if sculpt_mode {
         draw_3d_terrain_brush_overlay(
@@ -273,8 +436,8 @@ pub fn draw_viewport_3d(
             lang,
         );
     } else {
-        // 3D Edit Mode selection wireframes, XYZ triad & bottom Edit HUD bar
-        let exit_edit = draw_3d_edit_overlays(
+        // 3D Edit Mode selection wireframes, drop ghosts & rotation handle (bottom bar is unified via draw_floating_selection_bar)
+        draw_3d_edit_overlays(
             ui,
             rect,
             camera,
@@ -284,391 +447,87 @@ pub fn draw_viewport_3d(
             edit.selected,
             edit.dragging_catalog,
             edit.dragging_model,
-            edit.last_placed_catalog_id,
             *env_mode,
-            edit.snapping_enabled,
-            edit.rotation_step,
-            dark_mode,
-            lang,
-            &mut edit_out,
         );
-        if exit_edit {
-            edit.state.enabled = false;
-        }
     }
 
     edit_out
 }
 
-pub(super) fn draw_viewcube_widget(
-    ui: &mut egui::Ui,
-    viewport_rect: Rect,
-    camera: &mut Camera3D,
-    layout: &Layout,
-    is_de: bool,
-    dark_mode: bool,
-) {
-    let vc_bg = if dark_mode {
-        Color32::from_rgba_unmultiplied(15, 23, 42, 212)
+pub(super) const HUD_3D_BTN_H: f32 = 24.0;
+
+pub(super) fn hud_3d_panel_frame(dark_mode: bool, accent_border: Option<Color32>) -> Frame {
+    let fill = if dark_mode {
+        Color32::from_rgba_unmultiplied(15, 23, 42, 232)
     } else {
-        Color32::from_rgba_unmultiplied(248, 250, 252, 235)
+        Color32::from_rgba_unmultiplied(245, 240, 230, 242)
     };
-    let vc_border = if dark_mode {
-        Color32::from_rgba_unmultiplied(148, 163, 184, 65)
-    } else {
-        Color32::from_rgba_unmultiplied(148, 163, 184, 150)
-    };
-    let corner_idle = if dark_mode {
-        Color32::from_rgb(30, 41, 59)
-    } else {
-        Color32::from_rgb(226, 232, 240)
-    };
-    let corner_fg = if dark_mode {
-        Color32::WHITE
-    } else {
-        Color32::from_rgb(15, 23, 42)
-    };
-    let face_idle = if dark_mode {
-        Color32::from_rgba_unmultiplied(30, 41, 59, 240)
-    } else {
-        Color32::from_rgba_unmultiplied(241, 245, 249, 245)
-    };
-
-    egui::Area::new(egui::Id::new("hud_3d_viewcube"))
-        .fixed_pos(viewport_rect.min + egui::vec2(14.0, 50.0))
-        .show(ui.ctx(), |ui| {
-            Frame::new()
-                .fill(vc_bg)
-                .corner_radius(CornerRadius::same(10))
-                .inner_margin(Margin::same(8))
-                .stroke(Stroke::new(1.0_f32, vc_border))
-                .show(ui, |ui| {
-                    ui.vertical(|ui| {
-                        let stage_size = egui::vec2(96.0, 90.0);
-                        let (stage_rect, stage_resp) =
-                            ui.allocate_exact_size(stage_size, Sense::click_and_drag());
-                        if stage_resp.dragged_by(egui::PointerButton::Primary) {
-                            let d = stage_resp.drag_delta();
-                            camera.yaw -= d.x * 0.015;
-                            camera.pitch = (camera.pitch + d.y * 0.015).clamp(-1.48, 1.48);
-                        }
-
-                        let painter = ui.painter_at(stage_rect);
-                        let center = stage_rect.center();
-
-                        // 4 Isometric corner buttons around the cube
-                        let mut clicked_corner: Option<CameraViewPreset> = None;
-                        let corners = [
-                            (stage_rect.min + egui::vec2(10.0, 10.0), "NW", CameraViewPreset::IsoNw),
-                            (Pos2::new(stage_rect.max.x - 10.0, stage_rect.min.y + 10.0), "NE", CameraViewPreset::IsoNe),
-                            (Pos2::new(stage_rect.min.x + 10.0, stage_rect.max.y - 10.0), "SW", CameraViewPreset::IsoSw),
-                            (stage_rect.max - egui::vec2(10.0, 10.0), "SE", CameraViewPreset::IsoSe),
-                        ];
-                        for (cpos, clbl, preset) in corners {
-                            let crect = Rect::from_center_size(cpos, egui::vec2(19.0, 15.0));
-                            let hov = ui.input(|i| i.pointer.hover_pos().map_or(false, |hp| crect.contains(hp)));
-                            painter.rect_filled(
-                                crect,
-                                3.0,
-                                if hov { Color32::from_rgb(2, 132, 199) } else { corner_idle },
-                            );
-                            painter.text(
-                                crect.center(),
-                                egui::Align2::CENTER_CENTER,
-                                clbl,
-                                FontId::proportional(8.5),
-                                if hov { Color32::WHITE } else { corner_fg },
-                            );
-                            if hov && stage_resp.clicked() {
-                                clicked_corner = Some(preset);
-                            }
-                        }
-
-                        // Project unit cube rotated to match camera yaw & pitch
-                        let cy = (-camera.yaw).cos();
-                        let sy = (-camera.yaw).sin();
-                        let cp = camera.pitch.cos();
-                        let sp = camera.pitch.sin();
-                        let project = |p: [f32; 3]| -> (Pos2, f32) {
-                            let x1 = p[0] * cy - p[2] * sy;
-                            let z1 = p[0] * sy + p[2] * cy;
-                            let y2 = p[1] * cp - z1 * sp;
-                            let z2 = p[1] * sp + z1 * cp;
-                            let scale = 25.0 * (4.2 / (4.2 - z2 * 0.45));
-                            (Pos2::new(center.x + x1 * scale, center.y - y2 * scale), z2)
-                        };
-                        let xform_norm = |n: [f32; 3]| -> [f32; 3] {
-                            let x1 = n[0] * cy - n[2] * sy;
-                            let z1 = n[0] * sy + n[2] * cy;
-                            let y2 = n[1] * cp - z1 * sp;
-                            let z2 = n[1] * sp + z1 * cp;
-                            [x1, y2, z2]
-                        };
-
-                        let cube_verts: [[f32; 3]; 8] = [
-                            [-1.0, -1.0, -1.0],
-                            [ 1.0, -1.0, -1.0],
-                            [ 1.0,  1.0, -1.0],
-                            [-1.0,  1.0, -1.0],
-                            [-1.0, -1.0,  1.0],
-                            [ 1.0, -1.0,  1.0],
-                            [ 1.0,  1.0,  1.0],
-                            [-1.0,  1.0,  1.0],
-                        ];
-                        let faces: [([usize; 4], [f32; 3], &str, CameraViewPreset, Color32); 6] = [
-                            ([4, 5, 6, 7], [ 0.0,  0.0,  1.0], if is_de { "VOR" } else { "FRONT" }, CameraViewPreset::Front, Color32::from_rgb(59, 130, 246)),
-                            ([1, 0, 3, 2], [ 0.0,  0.0, -1.0], if is_de { "HIN" } else { "BACK" },  CameraViewPreset::Back,  Color32::from_rgb(59, 130, 246)),
-                            ([5, 1, 2, 6], [ 1.0,  0.0,  0.0], if is_de { "REC" } else { "RIGHT" }, CameraViewPreset::Right, Color32::from_rgb(239, 68, 68)),
-                            ([0, 4, 7, 3], [-1.0,  0.0,  0.0], if is_de { "LIN" } else { "LEFT" },  CameraViewPreset::Left,  Color32::from_rgb(239, 68, 68)),
-                            ([3, 2, 6, 7], [ 0.0,  1.0,  0.0], if is_de { "OBN" } else { "TOP" },   CameraViewPreset::Top,   Color32::from_rgb(34, 197, 94)),
-                            ([0, 1, 5, 4], [ 0.0, -1.0,  0.0], if is_de { "UNT" } else { "BOT" },   CameraViewPreset::Bottom,Color32::from_rgb(34, 197, 94)),
-                        ];
-
-                        let mut vis: Vec<(f32, Vec<Pos2>, &str, CameraViewPreset, Color32)> = faces
-                            .iter()
-                            .filter_map(|(idx, n, lbl, preset, col)| {
-                                let vn = xform_norm(*n);
-                                if vn[2] <= 0.05 {
-                                    return None;
-                                }
-                                let mut spts = Vec::with_capacity(4);
-                                let mut z_sum = 0.0_f32;
-                                for &vi in idx {
-                                    let (sp_v, zv) = project(cube_verts[vi]);
-                                    spts.push(sp_v);
-                                    z_sum += zv;
-                                }
-                                Some((z_sum * 0.25, spts, *lbl, *preset, *col))
-                            })
-                            .collect();
-                        vis.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
-
-                        let hover_pos = ui.input(|i| i.pointer.hover_pos());
-                        let mut clicked_face: Option<CameraViewPreset> = None;
-                        for (_, spts, lbl, preset, accent) in &vis {
-                            let frect = Rect::from_points(spts);
-                            let hov = clicked_corner.is_none()
-                                && hover_pos.map_or(false, |hp| frect.contains(hp));
-                            let fill = if hov {
-                                Color32::from_rgb(2, 132, 199)
-                            } else {
-                                face_idle
-                            };
-                            painter.add(egui::Shape::convex_polygon(
-                                spts.clone(),
-                                fill,
-                                Stroke::new(1.3_f32, *accent),
-                            ));
-                            let c_face = Pos2::new(
-                                spts.iter().map(|p| p.x).sum::<f32>() * 0.25,
-                                spts.iter().map(|p| p.y).sum::<f32>() * 0.25,
-                            );
-                            painter.text(
-                                c_face,
-                                egui::Align2::CENTER_CENTER,
-                                *lbl,
-                                FontId::proportional(9.5),
-                                if hov { Color32::WHITE } else { corner_fg },
-                            );
-                            if hov && stage_resp.clicked() {
-                                clicked_face = Some(*preset);
-                            }
-                        }
-                        if let Some(p) = clicked_corner.or(clicked_face) {
-                            camera.apply_preset(p, layout);
-                        }
-
-                        ui.add_space(3.0);
-                        ui.horizontal(|ui| {
-                            ui.spacing_mut().item_spacing.x = 3.0;
-                            if ui.small_button("↶45°").on_hover_text(if is_de { "45° nach links" } else { "Rotate 45° left" }).clicked() {
-                                camera.yaw -= std::f32::consts::FRAC_PI_4;
-                            }
-                            if ui.small_button("⌂ ISO").on_hover_text(if is_de { "Standard 3D-Ansicht" } else { "Home 3D Isometric View" }).clicked() {
-                                camera.apply_preset(CameraViewPreset::Home, layout);
-                            }
-                            if ui.small_button("↷45°").on_hover_text(if is_de { "45° nach rechts" } else { "Rotate 45° right" }).clicked() {
-                                camera.yaw += std::f32::consts::FRAC_PI_4;
-                            }
-                        });
-                        ui.horizontal(|ui| {
-                            ui.spacing_mut().item_spacing.x = 3.0;
-                            if ui.small_button(if is_de { "Oben" } else { "Top" }).clicked() {
-                                camera.apply_preset(CameraViewPreset::Top, layout);
-                            }
-                            if ui.small_button(if is_de { "Vor" } else { "Front" }).clicked() {
-                                camera.apply_preset(CameraViewPreset::Front, layout);
-                            }
-                            if ui.small_button(if is_de { "Rechts" } else { "Right" }).clicked() {
-                                camera.apply_preset(CameraViewPreset::Right, layout);
-                            }
-                        });
-                        ui.horizontal(|ui| {
-                            ui.spacing_mut().item_spacing.x = 3.0;
-                            if ui.small_button(if is_de { "Links" } else { "Left" }).clicked() {
-                                camera.apply_preset(CameraViewPreset::Left, layout);
-                            }
-                            if ui.small_button(if is_de { "Hinten" } else { "Back" }).clicked() {
-                                camera.apply_preset(CameraViewPreset::Back, layout);
-                            }
-                            if ui.small_button(if is_de { "Unten" } else { "Bot" }).clicked() {
-                                camera.apply_preset(CameraViewPreset::Bottom, layout);
-                            }
-                        });
-                    });
-                });
-        });
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CabCameraMode {
-    Cab,
-    Roof,
-    Chase,
-}
-
-/// Renders a first-person locomotive Cab View (or Roof / Chase camera) into the secondary OS window.
-/// Uses its own offscreen GPU target (`is_cab_view: true`) so both main 3D view and 2nd-monitor Cab View
-/// can render simultaneously at independent resolutions while sharing all scene geometry on the GPU.
-#[allow(clippy::too_many_arguments)]
-pub fn draw_cab_viewport_3d(
-    ui: &mut egui::Ui,
-    cached_bundle: &Option<Scene3DBundle>,
-    vehicles_mesh: Option<Arc<SceneMesh3D>>,
-    eye: [f32; 3],
-    target: [f32; 3],
-    fov_deg: f32,
-    env_mode: Viewer3DEnv,
-    time_of_day: f32,
-    dark_mode: bool,
-    show_windshield_frame: bool,
-    look_yaw_offset: &mut f32,
-    look_pitch_offset: &mut f32,
-    hud_info: Option<(&str, f64, f64, bool, bool)>,
-    is_de: bool,
-) {
-    let avail = ui.available_size();
-    let (rect, response) = ui.allocate_exact_size(avail, Sense::click_and_drag());
-
-    // Drag inside cab viewport to look around; double-click to recenter forward
-    if response.dragged_by(egui::PointerButton::Primary) {
-        let d = response.drag_delta();
-        *look_yaw_offset = (*look_yaw_offset + d.x * 0.005).clamp(-1.8, 1.8);
-        *look_pitch_offset = (*look_pitch_offset - d.y * 0.004).clamp(-0.75, 0.75);
-    }
-    if response.double_clicked() {
-        *look_yaw_offset = 0.0;
-        *look_pitch_offset = 0.0;
-    }
-
-    let ppp = ui.ctx().pixels_per_point();
-    let px_w = ((rect.width() * ppp).round() as u32).max(16);
-    let px_h = ((rect.height() * ppp).round() as u32).max(16);
-    let aspect = (rect.width() / rect.height().max(1.0)).max(0.1);
-    let sky = eval_sky_state(time_of_day, env_mode, dark_mode);
-    let (cam_right, cam_up, cam_fwd) = camera_basis(eye, target);
-    let tan_half_y = (fov_deg.to_radians() * 0.5).tan();
-    let is_minimal_f = if env_mode == Viewer3DEnv::Minimal { 1.0 } else { 0.0 };
-
-    let view = mat4_look_at(eye, target, [0.0, 1.0, 0.0]);
-    let proj = mat4_perspective(fov_deg.to_radians(), aspect, 2.5, 400000.0);
-    let uniforms = Uniforms3D {
-        view_proj: mat4_mul(proj, view),
-        sun_dir: sky.sun_dir,
-        cam_pos: [eye[0], eye[1], eye[2], 1.0],
-        fog_color: sky.fog_color,
-        sun_color_int: sky.sun_color_int,
-        hemi_sky_int: sky.hemi_sky_int,
-        hemi_ground_pad: sky.hemi_ground_pad,
-        cam_right: [cam_right[0], cam_right[1], cam_right[2], aspect],
-        cam_up: [cam_up[0], cam_up[1], cam_up[2], tan_half_y],
-        cam_fwd: [cam_fwd[0], cam_fwd[1], cam_fwd[2], is_minimal_f],
-        sky_zenith: sky.sky_zenith,
-    };
-
-    let cb = egui_wgpu::Callback::new_paint_callback(
-        rect,
-        Viewport3DCallback {
-            uniforms,
-            bundle: cached_bundle.clone(),
-            vehicles_mesh,
-            time_of_day,
-            env_mode,
-            viewport_px: [px_w, px_h],
-            clear_color: sky.clear_color,
-            is_cab_view: true,
-        },
-    );
-    ui.painter().add(cb);
-
-    let painter = ui.painter_at(rect);
-
-    // Realistic translucent cab windshield frame & dashboard silhouette when in Cab mode
-    if show_windshield_frame {
-        let frame_col = Color32::from_rgba_unmultiplied(12, 16, 24, 195);
-        let rim_col = Color32::from_rgba_unmultiplied(71, 85, 105, 160);
-        let top_h = (rect.height() * 0.065).clamp(18.0, 44.0);
-        let bot_h = (rect.height() * 0.135).clamp(44.0, 88.0);
-        let side_w = (rect.width() * 0.025).clamp(10.0, 24.0);
-        // Top sun-visor, bottom dashboard sill, left/right cab pillars
-        painter.rect_filled(Rect::from_min_max(rect.min, Pos2::new(rect.max.x, rect.min.y + top_h)), 0.0, frame_col);
-        painter.rect_filled(Rect::from_min_max(Pos2::new(rect.min.x, rect.max.y - bot_h), rect.max), 0.0, frame_col);
-        painter.rect_filled(Rect::from_min_max(rect.min, Pos2::new(rect.min.x + side_w, rect.max.y)), 0.0, frame_col);
-        painter.rect_filled(Rect::from_min_max(Pos2::new(rect.max.x - side_w, rect.min.y), rect.max), 0.0, frame_col);
-        // Subtle center windshield mullion
-        let cx = rect.center().x;
-        painter.rect_filled(
-            Rect::from_min_max(Pos2::new(cx - 2.5, rect.min.y + top_h), Pos2::new(cx + 2.5, rect.max.y - bot_h)),
-            0.0,
-            Color32::from_rgba_unmultiplied(15, 23, 42, 115),
-        );
-        // Inner metallic window gasket
-        let win_rect = Rect::from_min_max(
-            Pos2::new(rect.min.x + side_w, rect.min.y + top_h),
-            Pos2::new(rect.max.x - side_w, rect.max.y - bot_h),
-        );
-        painter.rect_stroke(win_rect, 6.0, Stroke::new(2.0_f32, rim_col), egui::StrokeKind::Inside);
-    }
-
-    // Bottom-center digital cab instrument HUD (Speed, Direction, Grade, Headlights)
-    if let Some((name, kmh, grade_pct, rev, lights)) = hud_info {
-        let hud_w = 380.0_f32.min(rect.width() - 24.0);
-        let hud_h = 44.0_f32;
-        let hud_rect = Rect::from_center_size(
-            Pos2::new(rect.center().x, rect.max.y - hud_h * 0.5 - 10.0),
-            egui::vec2(hud_w, hud_h),
-        );
-        painter.rect_filled(hud_rect, 8.0, Color32::from_rgba_unmultiplied(15, 23, 42, 232));
-        painter.rect_stroke(
-            hud_rect,
-            8.0,
-            Stroke::new(1.2_f32, Color32::from_rgb(56, 189, 248)),
-            egui::StrokeKind::Inside,
-        );
-        let dir_txt = if rev {
-            if is_de { "◂ RUECK" } else { "◂ REV" }
-        } else if is_de {
-            "▸ VOR"
+    let border = accent_border.unwrap_or_else(|| {
+        if dark_mode {
+            Color32::from_rgba_unmultiplied(148, 163, 184, 72)
         } else {
-            "▸ FWD"
-        };
-        let light_txt = if lights { "💡" } else { "○" };
-        let line1 = format!("{name}   |   {kmh:.0} km/h   |   {dir_txt}   |   {grade_pct:+.1}%   {light_txt}");
-        painter.text(
-            hud_rect.center(),
-            egui::Align2::CENTER_CENTER,
-            line1,
-            FontId::monospace(12.5),
-            Color32::from_rgb(248, 250, 252),
-        );
-    }
+            Color32::from_rgba_unmultiplied(180, 170, 154, 195)
+        }
+    });
+    Frame::new()
+        .fill(fill)
+        .corner_radius(CornerRadius::same(10))
+        .inner_margin(Margin::symmetric(10, 6))
+        .stroke(Stroke::new(1.0_f32, border))
+        .shadow(egui::Shadow {
+            offset: [0, 5],
+            blur: 16,
+            spread: 0,
+            color: Color32::from_black_alpha(if dark_mode { 110 } else { 42 }),
+        })
 }
 
-// ============================================================================
-//  Batched 3D Scene Mesh Builder (Baseboard + Detailed Tracks + Models + Terrain)
-// ============================================================================
+pub(super) fn hud_3d_pill_button(
+    ui: &mut egui::Ui,
+    dark_mode: bool,
+    label: &str,
+    active: bool,
+    enabled: bool,
+    min_w: f32,
+) -> egui::Response {
+    let p = crate::theme::palette(dark_mode);
+    let (fill, border_col, txt_col) = if !enabled {
+        (
+            p.bg_sidebar,
+            Color32::from_rgba_unmultiplied(p.border_main.r(), p.border_main.g(), p.border_main.b(), 140),
+            p.text_muted,
+        )
+    } else if active {
+        (p.primary_hover, p.primary, Color32::WHITE)
+    } else {
+        (p.bg_card, p.border_main, p.text_main)
+    };
+    let mut rt = RichText::new(label).size(11.5).color(txt_col);
+    if active {
+        rt = rt.strong();
+    }
+    ui.add_enabled(
+        enabled,
+        egui::Button::new(rt)
+            .fill(fill)
+            .stroke(Stroke::new(1.0_f32, border_col))
+            .min_size(egui::vec2(min_w, HUD_3D_BTN_H))
+            .corner_radius(CornerRadius::same(6)),
+    )
+}
 
-// (Corridor chains built cleanly via terrain_tools::build_connected_corridor_chains)
+pub(super) fn hud_3d_stable_toggle(
+    ui: &mut egui::Ui,
+    dark_mode: bool,
+    active: bool,
+    active_lbl: &str,
+    de_lbl: &str,
+    en_lbl: &str,
+) -> egui::Response {
+    let w = crate::ui_panels::stable_text_width(ui, de_lbl, en_lbl, Some(11.5), true) + 18.0;
+    hud_3d_pill_button(ui, dark_mode, active_lbl, active, true, w)
+}
+
 
 pub(super) fn board_style_rgb(style: &str) -> ([f32; 3], [f32; 3]) {
     match style {

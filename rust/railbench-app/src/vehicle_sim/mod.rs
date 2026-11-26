@@ -3,15 +3,18 @@ mod physics;
 mod tests;
 mod track_graph;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use railbench_core::types::{Catalog, Layout};
 
-use crate::catalog::{find_entry, is_road_id};
+use crate::catalog::{find_entry, is_road_id, is_uncoupler_entry};
 use crate::model_tools::scale_factor_from_h0;
 use crate::viewer3d::Vertex3D;
 
-use track_graph::{polyline_length, recompute_vehicle_poses, sample_active_piece_branches};
+use track_graph::{
+    polyline_length, recompute_vehicle_poses, sample_active_piece_branches, track_scale_and_gauge,
+    walk_track_graph_location,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VehicleDomain {
@@ -277,6 +280,8 @@ pub struct VehicleInstance {
     pub mallet_articulation_rad: f32,
     pub livery_rgb: [f32; 3],
     pub coupled_cars: Vec<VehicleKind>,
+    /// Remaining cooldown seconds after uncoupling so a moving train clears the uncoupler safely.
+    pub uncouple_cooldown_s: f64,
     pub world_x: f64,
     pub world_y: f64,
     pub world_z: f64,
@@ -316,6 +321,10 @@ pub struct VehicleSimState {
     pub transfer_offsets_mm: HashMap<String, f64>,
     pub transfer_targets_mm: HashMap<String, f64>,
     pub bridge_mesh_version: u64,
+    /// Momentary active pulse timers (seconds remaining) for uncoupler tracks (e.g. Maerklin 24997).
+    pub uncoupler_timers: HashMap<String, f64>,
+    /// Uncoupler tracks latched in continuous Auto-Uncouple mode.
+    pub armed_uncouplers: HashSet<String>,
     next_seq: u64,
 }
 
@@ -385,6 +394,7 @@ impl VehicleSimState {
             mallet_articulation_rad: 0.0,
             livery_rgb: def.default_rgb,
             coupled_cars: Vec::new(),
+            uncouple_cooldown_s: 0.0,
             world_x: 0.0,
             world_y: 0.0,
             world_z: 0.0,
@@ -461,6 +471,385 @@ impl VehicleSimState {
                     &self.turntable_angles_deg,
                     &self.transfer_offsets_mm,
                 );
+            }
+        }
+    }
+
+    pub fn is_uncoupler_raised(&self, piece_id: &str) -> bool {
+        self.armed_uncouplers.contains(piece_id)
+            || self.uncoupler_timers.get(piece_id).copied().unwrap_or(0.0) > 0.0
+    }
+
+    pub fn has_active_uncoupler_timers(&self) -> bool {
+        self.uncoupler_timers.values().any(|&t| t > 0.0)
+    }
+
+    pub fn active_uncoupler_ids(&self) -> HashSet<String> {
+        let mut ids = self.armed_uncouplers.clone();
+        for (pid, &t) in &self.uncoupler_timers {
+            if t > 0.0 {
+                ids.insert(pid.clone());
+            }
+        }
+        ids
+    }
+
+    /// Disconnects all wagons starting at `split_idx` (`0..coupled_cars.len()`) into an
+    /// independent parked cut on the track behind the locomotive.
+    pub fn uncouple_at(
+        &mut self,
+        vehicle_id: &str,
+        split_idx: usize,
+        layout: &Layout,
+        catalogs: &[Catalog],
+    ) -> Option<String> {
+        let idx = self
+            .vehicles
+            .iter()
+            .position(|v| v.id == vehicle_id && v.kind.is_locomotive() && split_idx < v.coupled_cars.len())?;
+
+        let (lead_kind, tail_cars, det_pid, det_br, det_dist, det_fwd, det_hist) = {
+            let v = &self.vehicles[idx];
+            let (sf, _) = track_scale_and_gauge(layout, catalogs, &v.piece_id, v.domain);
+            let l = v.kind.def().length_h0_mm * sf;
+            let coupler_gap = (3.5 + 1.4 * v.coupler_strain as f64).clamp(1.8, 6.5) * sf;
+            let mut trail_offset = l * 0.5 + coupler_gap + 6.5 * sf;
+            for &wk in &v.coupled_cars[..split_idx] {
+                trail_offset += wk.def().length_h0_mm * sf + coupler_gap;
+            }
+            let first_detached = v.coupled_cars[split_idx];
+            let center_trail = trail_offset + (first_detached.def().length_h0_mm * sf) * 0.5;
+            let orient_sign = if v.forward { 1.0 } else { -1.0 };
+            let (det_pid, det_br, det_dist, dir_pos) = walk_track_graph_location(
+                layout,
+                catalogs,
+                &self.turnout_states,
+                &self.turntable_angles_deg,
+                &self.transfer_offsets_mm,
+                &v.path_history,
+                &v.piece_id,
+                v.branch_idx,
+                v.dist_mm,
+                -orient_sign * center_trail,
+                v.domain,
+            );
+            (
+                first_detached,
+                v.coupled_cars[split_idx + 1..].to_vec(),
+                det_pid,
+                det_br,
+                det_dist,
+                !dir_pos,
+                v.path_history.clone(),
+            )
+        };
+
+        {
+            let v = &mut self.vehicles[idx];
+            v.coupled_cars.truncate(split_idx);
+            v.uncouple_cooldown_s = 1.6;
+            recompute_vehicle_poses(
+                v,
+                layout,
+                catalogs,
+                &self.turnout_states,
+                &self.turntable_angles_deg,
+                &self.transfer_offsets_mm,
+            );
+        }
+
+        self.next_seq += 1;
+        let det_id = format!("veh-{}", self.next_seq);
+        let ldef = lead_kind.def();
+        let det_name = if tail_cars.is_empty() {
+            format!("{} #{}", ldef.name_en, self.next_seq)
+        } else {
+            format!("{} #{} (+{})", ldef.name_en, self.next_seq, tail_cars.len())
+        };
+        let mut parked = VehicleInstance {
+            id: det_id.clone(),
+            name: det_name,
+            kind: lead_kind,
+            domain: VehicleDomain::Rail,
+            piece_id: det_pid,
+            branch_idx: det_br,
+            dist_mm: det_dist,
+            forward: det_fwd,
+            throttle: 0.0,
+            reverse: false,
+            velocity_mm_s: 0.0,
+            current_speed_mm_s: 0.0,
+            grade_pct: 0.0,
+            pitch_rad: 0.0,
+            coupler_strain: 0.0,
+            blocked_ahead: false,
+            headlights: false,
+            wheel_angle: 0.0,
+            pantograph_up: false,
+            steam_on: false,
+            steam_time: 0.0,
+            mallet_articulation_rad: 0.0,
+            livery_rgb: ldef.default_rgb,
+            coupled_cars: tail_cars,
+            uncouple_cooldown_s: 1.6,
+            world_x: 0.0,
+            world_y: 0.0,
+            world_z: 0.0,
+            heading_deg: 0.0,
+            path_history: det_hist,
+            cached_poses: Vec::new(),
+        };
+        recompute_vehicle_poses(
+            &mut parked,
+            layout,
+            catalogs,
+            &self.turnout_states,
+            &self.turntable_angles_deg,
+            &self.transfer_offsets_mm,
+        );
+        self.vehicles.push(parked);
+        Some(det_id)
+    }
+
+    pub fn uncouple_last_wagon(
+        &mut self,
+        vehicle_id: &str,
+        layout: &Layout,
+        catalogs: &[Catalog],
+    ) -> Option<String> {
+        let len = self
+            .vehicles
+            .iter()
+            .find(|v| v.id == vehicle_id && v.kind.is_locomotive())
+            .map(|v| v.coupled_cars.len())?;
+        if len == 0 {
+            return None;
+        }
+        self.uncouple_at(vehicle_id, len - 1, layout, catalogs)
+    }
+
+    pub fn uncouple_all_wagons(
+        &mut self,
+        vehicle_id: &str,
+        layout: &Layout,
+        catalogs: &[Catalog],
+    ) -> Option<String> {
+        let has_cars = self
+            .vehicles
+            .iter()
+            .find(|v| v.id == vehicle_id && v.kind.is_locomotive())
+            .is_some_and(|v| !v.coupled_cars.is_empty());
+        if !has_cars {
+            return None;
+        }
+        self.uncouple_at(vehicle_id, 0, layout, catalogs)
+    }
+
+    pub fn find_nearby_coupleable_cut(&self, vehicle_id: &str, layout: &Layout) -> Option<usize> {
+        let v = self
+            .vehicles
+            .iter()
+            .find(|v| v.id == vehicle_id && v.kind.is_locomotive() && v.coupled_cars.len() < 8)?;
+        let last_pose = v.cached_poses.last()?;
+        let sf = scale_factor_from_h0(&layout.scale).max(0.1);
+        let lr = last_pose.heading_deg.to_radians();
+        let rear_x = last_pose.x - lr.cos() * (last_pose.length_mm * 0.5);
+        let rear_y = last_pose.y - lr.sin() * (last_pose.length_mm * 0.5);
+        let rear_z = last_pose.z;
+        let max_dist = 48.0 * sf;
+        let max_dz = 24.0 * sf;
+
+        let mut best: Option<(f64, usize)> = None;
+        for (oi, other) in self.vehicles.iter().enumerate() {
+            if other.id == vehicle_id || other.kind.is_locomotive() || other.domain != VehicleDomain::Rail {
+                continue;
+            }
+            for pose in [other.cached_poses.first(), other.cached_poses.last()]
+                .into_iter()
+                .flatten()
+            {
+                if (pose.z - rear_z).abs() > max_dz {
+                    continue;
+                }
+                let r = pose.heading_deg.to_radians();
+                for end_sign in [1.0_f64, -1.0] {
+                    let ex = pose.x + end_sign * r.cos() * (pose.length_mm * 0.5);
+                    let ey = pose.y + end_sign * r.sin() * (pose.length_mm * 0.5);
+                    let d = (ex - rear_x).hypot(ey - rear_y);
+                    if d <= max_dist && best.is_none_or(|(bd, _)| d < bd) {
+                        best = Some((d, oi));
+                    }
+                }
+            }
+        }
+        best.map(|(_, oi)| oi)
+    }
+
+    /// Couples the nearest standing wagon cut behind `vehicle_id` onto the locomotive consist.
+    pub fn couple_nearby_wagons(
+        &mut self,
+        vehicle_id: &str,
+        layout: &Layout,
+        catalogs: &[Catalog],
+    ) -> usize {
+        let Some(other_idx) = self.find_nearby_coupleable_cut(vehicle_id, layout) else {
+            return 0;
+        };
+        let other_id = self.vehicles[other_idx].id.clone();
+        let loco_idx = match self.vehicles.iter().position(|v| v.id == vehicle_id) {
+            Some(i) => i,
+            None => return 0,
+        };
+        let space = 8usize.saturating_sub(self.vehicles[loco_idx].coupled_cars.len());
+        if space == 0 {
+            return 0;
+        }
+        let mut cut = self.vehicles.remove(other_idx);
+        let mut all_new = Vec::with_capacity(1 + cut.coupled_cars.len());
+        all_new.push(cut.kind);
+        all_new.extend(cut.coupled_cars.drain(..));
+
+        let take = all_new.len().min(space);
+        let loco = self.vehicles.iter_mut().find(|v| v.id == vehicle_id);
+        if let Some(v) = loco {
+            v.coupled_cars.extend(all_new.into_iter().take(take));
+            recompute_vehicle_poses(
+                v,
+                layout,
+                catalogs,
+                &self.turnout_states,
+                &self.turntable_angles_deg,
+                &self.transfer_offsets_mm,
+            );
+        }
+        if self.selected_vehicle_id.as_deref() == Some(other_id.as_str()) {
+            self.selected_vehicle_id = Some(vehicle_id.to_string());
+        }
+        take
+    }
+
+    /// Finds an active coupler (`(vehicle_id, split_idx)`) positioned above uncoupler track `piece_id`.
+    pub fn find_coupler_over_piece(
+        &self,
+        piece_id: &str,
+        layout: &Layout,
+        catalogs: &[Catalog],
+    ) -> Option<(String, usize)> {
+        let piece = layout.pieces.iter().find(|p| p.id == piece_id)?;
+        let entry = find_entry(catalogs, &piece.catalog_id).filter(|e| is_uncoupler_entry(e))?;
+        let seg_len = entry.length.unwrap_or(94.2).max(20.0);
+        let sf = scale_factor_from_h0(&layout.scale).max(0.1);
+        let lh = piece
+            .layer_id
+            .as_deref()
+            .and_then(|lid| {
+                layout
+                    .layers
+                    .as_ref()
+                    .and_then(|ls| ls.iter().find(|l| l.id == lid))
+                    .and_then(|l| l.height_mm)
+            })
+            .unwrap_or(0.0);
+        let piece_z = lh + piece.elevation.map_or(0.0, |e| (e.start + e.end) * 0.5);
+        let rot = (-piece.transform.rotation).to_radians();
+        let (sr, cr) = rot.sin_cos();
+
+        let mut best: Option<(f64, String, usize)> = None;
+        for v in &self.vehicles {
+            if !v.kind.is_locomotive() || v.coupled_cars.is_empty() || v.cached_poses.len() < 2 {
+                continue;
+            }
+            for k in 0..v.coupled_cars.len() {
+                let p0 = &v.cached_poses[k];
+                let p1 = &v.cached_poses[k + 1];
+                let r0 = p0.heading_deg.to_radians();
+                let r1 = p1.heading_deg.to_radians();
+                let cx = ((p0.x - r0.cos() * p0.length_mm * 0.5)
+                    + (p1.x + r1.cos() * p1.length_mm * 0.5))
+                    * 0.5;
+                let cy = ((p0.y - r0.sin() * p0.length_mm * 0.5)
+                    + (p1.y + r1.sin() * p1.length_mm * 0.5))
+                    * 0.5;
+                let cz = (p0.z + p1.z) * 0.5;
+                if (cz - piece_z).abs() > 24.0 * sf {
+                    continue;
+                }
+                let dx = cx - piece.transform.x;
+                let dy = cy - piece.transform.y;
+                let lx = dx * cr - dy * sr;
+                let ly = dx * sr + dy * cr;
+                if lx >= -14.0 * sf && lx <= seg_len + 14.0 * sf && ly.abs() <= 22.0 * sf {
+                    let mid_err = (lx - seg_len * 0.5).abs();
+                    if best.as_ref().is_none_or(|(be, _, _)| mid_err < *be) {
+                        best = Some((mid_err, v.id.clone(), k));
+                    }
+                }
+            }
+        }
+        best.map(|(_, vid, k)| (vid, k))
+    }
+
+    /// Pulses electric uncoupler track `piece_id` (`2.0 s` ramp lift) and immediately
+    /// disconnects any coupler positioned above it.
+    pub fn trigger_uncoupler(
+        &mut self,
+        piece_id: &str,
+        layout: &Layout,
+        catalogs: &[Catalog],
+    ) -> Option<String> {
+        self.uncoupler_timers.insert(piece_id.to_string(), 2.0);
+        self.bridge_mesh_version = self.bridge_mesh_version.wrapping_add(1);
+        if let Some((vid, split_idx)) = self.find_coupler_over_piece(piece_id, layout, catalogs) {
+            return self.uncouple_at(&vid, split_idx, layout, catalogs);
+        }
+        None
+    }
+
+    pub fn toggle_uncoupler_armed(&mut self, piece_id: &str) -> bool {
+        let now_armed = if self.armed_uncouplers.remove(piece_id) {
+            false
+        } else {
+            self.armed_uncouplers.insert(piece_id.to_string());
+            true
+        };
+        self.bridge_mesh_version = self.bridge_mesh_version.wrapping_add(1);
+        now_armed
+    }
+
+    /// Updates uncoupler pulse timers, vehicle cooldowns, and auto-uncoupling triggers.
+    pub fn step_uncouplers(&mut self, dt_secs: f64, layout: &Layout, catalogs: &[Catalog]) {
+        let dt = dt_secs.clamp(0.0, 0.1);
+        for v in &mut self.vehicles {
+            if v.uncouple_cooldown_s > 0.0 {
+                v.uncouple_cooldown_s = (v.uncouple_cooldown_s - dt).max(0.0);
+            }
+        }
+
+        let mut expired = Vec::new();
+        for (pid, rem) in &mut self.uncoupler_timers {
+            *rem -= dt;
+            if *rem <= 0.0 {
+                expired.push(pid.clone());
+            }
+        }
+        if !expired.is_empty() {
+            for pid in expired {
+                self.uncoupler_timers.remove(&pid);
+            }
+            self.bridge_mesh_version = self.bridge_mesh_version.wrapping_add(1);
+        }
+
+        let active_ids = self.active_uncoupler_ids();
+        for pid in active_ids {
+            if let Some((vid, split_idx)) = self.find_coupler_over_piece(&pid, layout, catalogs) {
+                let ready = self
+                    .vehicles
+                    .iter()
+                    .find(|v| v.id == vid)
+                    .is_some_and(|v| v.uncouple_cooldown_s <= 0.0);
+                if ready {
+                    self.uncouple_at(&vid, split_idx, layout, catalogs);
+                }
             }
         }
     }

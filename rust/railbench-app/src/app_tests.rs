@@ -215,15 +215,21 @@ fn place_feeder_and_isolating_track_buttons_add_and_snap() {
     // Electron-parity per-entry catalog card toggles for feeder & isolating tracks
     let feeder_entry = crate::catalog::find_entry(&app.catalogs, "24088").unwrap().clone();
     assert!(crate::catalog::is_feeder_entry(&feeder_entry));
+    app.place_catalog_entry(&feeder_entry);
+    assert_eq!(app.layout.pieces.last().unwrap().power_feed, Some(false));
     app.catalog_entry_power_enabled.insert(feeder_entry.id.clone());
     app.place_catalog_entry(&feeder_entry);
     assert_eq!(app.layout.pieces.last().unwrap().power_feed, Some(true));
 
     let iso_entry = crate::catalog::find_entry(&app.catalogs, "24994").unwrap().clone();
     assert!(crate::catalog::is_isolating_entry(&iso_entry));
+    app.place_catalog_entry(&iso_entry);
+    assert_eq!(app.layout.pieces.last().unwrap().is_isolator, Some(false));
+    assert_eq!(app.layout.pieces.last().unwrap().isolated_connector_index, None);
     app.catalog_entry_isolating_enabled.insert(iso_entry.id.clone());
     app.place_catalog_entry(&iso_entry);
     assert_eq!(app.layout.pieces.last().unwrap().is_isolator, Some(true));
+    assert_eq!(app.layout.pieces.last().unwrap().isolated_connector_index, Some(0));
 }
 
 #[test]
@@ -272,4 +278,319 @@ fn flip_group_split_replace_and_safe_layer_delete() {
     assert_eq!(app.count_items_on_layer(&second_lid), 1);
     assert!(app.safe_delete_layer(&second_lid));
     assert_eq!(app.count_items_on_layer(&second_lid), 0);
+}
+
+#[test]
+fn cli_args_parse_file_path_and_electron_aliases() {
+    let args: Vec<String> = [
+        "railbench",
+        "/tmp/my-layout.railbench",
+        "--collab-server",
+        "--server-port",
+        "9090",
+        "--server-password",
+        "secret",
+        "--collab-room",
+        "club",
+    ]
+    .into_iter()
+    .map(String::from)
+    .collect();
+    let parsed = crate::settings::parse_cli_args(&args);
+    assert_eq!(parsed.file_path.as_deref(), Some("/tmp/my-layout.railbench"));
+    assert!(parsed.server);
+    assert_eq!(parsed.port, Some(9090));
+    assert_eq!(parsed.password.as_deref(), Some("secret"));
+    assert_eq!(parsed.room.as_deref(), Some("club"));
+    assert!(parsed.connect.is_none());
+
+    let args2: Vec<String> = ["railbench", "--auto-connect", "ws://127.0.0.1:4567"]
+        .into_iter()
+        .map(String::from)
+        .collect();
+    let parsed2 = crate::settings::parse_cli_args(&args2);
+    assert_eq!(parsed2.connect.as_deref(), Some("ws://127.0.0.1:4567"));
+    assert!(parsed2.file_path.is_none());
+}
+
+#[test]
+fn settings_roundtrip_theme_mode_recent_files_window_pos_and_gpu_flags() {
+    let mut cfg = crate::settings::AppSettings::default();
+    cfg.theme_mode = crate::settings::ThemeMode::System;
+    cfg.use_discrete_gpu = true;
+    cfg.low_gpu_mode = true;
+    cfg.bars_locked = true;
+    cfg.window_x = Some(140.0);
+    cfg.window_y = Some(85.0);
+    cfg.left_sidebar_width = Some(320.0);
+    cfg.right_sidebar_width = Some(280.0);
+    for i in 0..10 {
+        cfg.push_recent_file(&format!("/tmp/plan-{i}.railbench"));
+    }
+    // Re-push an older entry and ensure deduplication moves it to front while capping at 8
+    cfg.push_recent_file("/tmp/plan-5.railbench");
+    assert_eq!(cfg.recent_files.len(), 8);
+    assert_eq!(cfg.recent_files[0], "/tmp/plan-5.railbench");
+    assert_eq!(cfg.last_opened_path.as_deref(), Some("/tmp/plan-5.railbench"));
+
+    let json = cfg.to_json_string();
+    let reloaded = crate::settings::AppSettings::from_json_str(&json);
+    assert_eq!(reloaded.theme_mode, crate::settings::ThemeMode::System);
+    assert!(reloaded.use_discrete_gpu);
+    assert!(reloaded.low_gpu_mode);
+    assert!(reloaded.bars_locked);
+    assert_eq!(reloaded.window_x, Some(140.0));
+    assert_eq!(reloaded.window_y, Some(85.0));
+    assert_eq!(reloaded.left_sidebar_width, Some(320.0));
+    assert_eq!(reloaded.right_sidebar_width, Some(280.0));
+    assert_eq!(reloaded.recent_files, cfg.recent_files);
+}
+
+#[test]
+fn track_system_picker_formatting_and_manufacturer_order_match_electron() {
+    let catalogs = crate::catalog::builtin_catalogs();
+    let track_indices: Vec<usize> = catalogs
+        .iter()
+        .enumerate()
+        .filter(|(_, c)| c.is_road != Some(true))
+        .map(|(i, _)| i)
+        .collect();
+    let mfrs = crate::ui_panels::collect_track_manufacturers_in_order(&catalogs, &track_indices);
+    assert!(!mfrs.is_empty());
+    assert_eq!(mfrs[0], "Märklin");
+    let unique: std::collections::HashSet<&String> = mfrs.iter().collect();
+    assert_eq!(unique.len(), mfrs.len());
+
+    let maerklin_c = catalogs
+        .iter()
+        .find(|c| c.id == "maerklin-c-h0")
+        .expect("maerklin-c-h0 catalog");
+    assert_eq!(
+        crate::ui_panels::format_catalog_trigger_title(maerklin_c, false, false, true),
+        "Märklin — C-Gleis"
+    );
+    assert_eq!(
+        crate::ui_panels::format_catalog_trigger_subtitle(maerklin_c, false, false, 0, true),
+        "16.5 mm, mit Bettung, 3-Leiter"
+    );
+    assert_eq!(
+        crate::ui_panels::format_catalog_trigger_subtitle(maerklin_c, false, false, 0, false),
+        "16.5 mm, roadbed, 3-rail"
+    );
+
+    let tillig_elite = catalogs
+        .iter()
+        .find(|c| c.id == "tillig-elite-h0")
+        .expect("tillig-elite-h0 catalog");
+    assert_eq!(
+        crate::ui_panels::format_catalog_trigger_subtitle(tillig_elite, false, false, 0, true),
+        "16.5 mm, ohne Bettung, 2-Leiter"
+    );
+    assert_eq!(
+        crate::ui_panels::format_catalog_trigger_subtitle(tillig_elite, false, false, 0, false),
+        "16.5 mm, without roadbed, 2-rail"
+    );
+
+    assert_eq!(
+        crate::ui_panels::format_catalog_trigger_title(maerklin_c, false, true, true),
+        "★ Meine Favoriten"
+    );
+    assert_eq!(
+        crate::ui_panels::format_catalog_trigger_subtitle(maerklin_c, false, true, 4, false),
+        "4 saved favorites"
+    );
+
+    let road_h0 = catalogs
+        .iter()
+        .find(|c| c.id == "generic-streets-h0")
+        .expect("generic-streets-h0 catalog");
+    assert_eq!(
+        crate::ui_panels::format_catalog_trigger_title(road_h0, true, false, true),
+        road_h0.name
+    );
+    assert_eq!(
+        crate::ui_panels::format_catalog_trigger_subtitle(road_h0, true, false, 0, true),
+        "Fahrbahnbreite 60 mm, 2-spurig"
+    );
+    assert_eq!(
+        crate::ui_panels::format_catalog_trigger_subtitle(road_h0, true, false, 0, false),
+        "Road width 60 mm, 2-lane"
+    );
+}
+
+#[test]
+fn part_list_tab_labels_are_localized() {
+    assert_eq!(crate::i18n::EN.tab_bom, "Part List");
+    assert_eq!(crate::i18n::DE.tab_bom, "Teileliste");
+}
+
+#[test]
+fn light_palette_uses_warm_crema_tones() {
+    let p = crate::theme::palette(false);
+    assert_ne!(p.bg_card, eframe::egui::Color32::WHITE);
+    assert!(p.bg_sidebar.r() > p.bg_sidebar.b());
+    assert!(p.bg_card.r() > p.bg_card.b());
+    assert!(p.bg_input.r() > p.bg_input.b());
+    assert!(p.canvas_bg.r() > p.canvas_bg.b());
+}
+
+#[test]
+fn stable_text_width_is_language_invariant() {
+    let ctx = eframe::egui::Context::default();
+    let _ = ctx.run(Default::default(), |ctx| {
+        eframe::egui::CentralPanel::default().show(ctx, |ui| {
+            for (de, en, sz, strong) in [
+                (crate::i18n::DE.menu_edit, crate::i18n::EN.menu_edit, None, false),
+                (crate::i18n::DE.tab_bom, crate::i18n::EN.tab_bom, Some(11.5), true),
+                ("CAD-Tools", "CAD", None, false),
+            ] {
+                let w_de_en = crate::ui_panels::stable_text_width(ui, de, en, sz, strong);
+                let w_en_de = crate::ui_panels::stable_text_width(ui, en, de, sz, strong);
+                let w_de = crate::ui_panels::stable_text_width(ui, de, de, sz, strong);
+                let w_en = crate::ui_panels::stable_text_width(ui, en, en, sz, strong);
+                assert_eq!(w_de_en, w_en_de);
+                assert!(w_de_en >= w_de && w_de_en >= w_en);
+            }
+        });
+    });
+}
+
+#[test]
+fn favorite_accent_has_strong_contrast_in_light_mode() {
+    let dark_col = eframe::egui::Color32::from_rgb(250, 204, 21);
+    assert_eq!(crate::ui_panels::favorite_accent(true, dark_col), dark_col);
+    let light = crate::ui_panels::favorite_accent(false, dark_col);
+    let bg = crate::theme::palette(false).bg_card;
+    let lum = |c: eframe::egui::Color32| {
+        let f = |v: u8| {
+            let v = v as f64 / 255.0;
+            if v <= 0.03928 { v / 12.92 } else { ((v + 0.055) / 1.055).powf(2.4) }
+        };
+        0.2126 * f(c.r()) + 0.7152 * f(c.g()) + 0.0722 * f(c.b())
+    };
+    let ratio = (lum(bg) + 0.05) / (lum(light) + 0.05);
+    assert!(ratio >= 4.5, "favorite contrast ratio {ratio:.2} must be >= 4.5 on light cards");
+}
+
+#[test]
+fn undo_redo_toolbar_tooltips_and_toolbar_fade_color() {
+    assert_eq!(
+        crate::ui_panels::format_undo_redo_tooltip(crate::i18n::Lang::De, false, 0),
+        "Rückgängig (Strg+Z) — nichts rückgängig zu machen"
+    );
+    assert_eq!(
+        crate::ui_panels::format_undo_redo_tooltip(crate::i18n::Lang::De, true, 0),
+        "Wiederholen (Strg+Y) — nichts zu wiederholen"
+    );
+    assert_eq!(
+        crate::ui_panels::format_undo_redo_tooltip(crate::i18n::Lang::En, false, 0),
+        "Undo (Ctrl+Z) — nothing to undo"
+    );
+    assert_eq!(
+        crate::ui_panels::format_undo_redo_tooltip(crate::i18n::Lang::En, true, 0),
+        "Redo (Ctrl+Y) — nothing to redo"
+    );
+    assert_eq!(
+        crate::ui_panels::format_undo_redo_tooltip(crate::i18n::Lang::De, false, 1),
+        "Rückgängig (Strg+Z) · 1 Schritt"
+    );
+    assert_eq!(
+        crate::ui_panels::format_undo_redo_tooltip(crate::i18n::Lang::De, false, 3),
+        "Rückgängig (Strg+Z) · 3 Schritte"
+    );
+    assert_eq!(
+        crate::ui_panels::format_undo_redo_tooltip(crate::i18n::Lang::En, true, 1),
+        "Redo (Ctrl+Y) · 1 step"
+    );
+    assert_eq!(
+        crate::ui_panels::format_undo_redo_tooltip(crate::i18n::Lang::En, true, 2),
+        "Redo (Ctrl+Y) · 2 steps"
+    );
+
+    let ctx = eframe::egui::Context::default();
+    for dark in [false, true] {
+        let p = crate::theme::palette(dark);
+        let _ = ctx.run(Default::default(), |ctx| {
+            eframe::egui::CentralPanel::default().show(ctx, |ui| {
+                crate::theme::style_toolbar_ui(ui, p);
+                assert_eq!(ui.visuals().fade_out_to_color(), p.bg_toolbar);
+            });
+        });
+    }
+}
+
+#[test]
+fn select_all_in_terrain_tab_selects_only_terrain_models() {
+    let mut app = RailbenchApp::default();
+    app.layout = make_empty_layout();
+    let e24188 = crate::catalog::find_entry(&app.catalogs, "24188").expect("24188");
+    app.layout.pieces.push(crate::catalog::create_piece(
+        "track-1".into(),
+        e24188,
+        railbench_core::types::Transform {
+            x: 0.0,
+            y: 0.0,
+            rotation: 0.0,
+        },
+        None,
+    ));
+    app.layout.models = Some(vec![
+        railbench_core::types::Model3D {
+            id: "bld-1".into(),
+            name: "House".into(),
+            category: "Buildings".into(),
+            transform: railbench_core::types::Transform {
+                x: 200.0,
+                y: 0.0,
+                rotation: 0.0,
+            },
+            elevation: None,
+            scale: None,
+            layer_id: None,
+            width: 80.0,
+            depth: 60.0,
+            height: 50.0,
+            model_type: "builtin".into(),
+            builtin_id: Some("town-house".into()),
+            mountain_style: None,
+            mountain_path: None,
+            ground_terrain_type: None,
+            file_data: None,
+            file_name: None,
+        },
+        railbench_core::types::Model3D {
+            id: "ter-1".into(),
+            name: "Hill".into(),
+            category: "Terrain".into(),
+            transform: railbench_core::types::Transform {
+                x: 500.0,
+                y: 0.0,
+                rotation: 0.0,
+            },
+            elevation: None,
+            scale: None,
+            layer_id: None,
+            width: 180.0,
+            depth: 180.0,
+            height: 90.0,
+            model_type: "builtin".into(),
+            builtin_id: Some("mountain".into()),
+            mountain_style: Some("meadow".into()),
+            mountain_path: None,
+            ground_terrain_type: None,
+            file_data: None,
+            file_name: None,
+        },
+    ]);
+
+    app.sidebar_tab = SidebarTab::Terrain;
+    app.select_all();
+    assert_eq!(app.selected.len(), 1);
+    assert!(app.selected.contains("ter-1"));
+    assert!(!app.selected.contains("track-1"));
+    assert!(!app.selected.contains("bld-1"));
+
+    app.sidebar_tab = SidebarTab::Tracks;
+    app.select_all();
+    assert_eq!(app.selected.len(), 3);
 }

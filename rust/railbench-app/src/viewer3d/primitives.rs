@@ -465,6 +465,27 @@ pub(crate) fn push_quad_mat(
 }
 
 #[allow(clippy::too_many_arguments)]
+pub(super) fn push_glass_quad(
+    verts: &mut Vec<Vertex3D>,
+    glass_idxs: &mut Vec<u32>,
+    p0: [f32; 3],
+    p1: [f32; 3],
+    p2: [f32; 3],
+    p3: [f32; 3],
+    normal: [f32; 3],
+    color: [f32; 3],
+    alpha: f32,
+    mat: [f32; 3],
+) {
+    let base = verts.len() as u32;
+    verts.push(Vertex3D::new_alpha(p0, normal, color, alpha, mat));
+    verts.push(Vertex3D::new_alpha(p1, normal, color, alpha, mat));
+    verts.push(Vertex3D::new_alpha(p2, normal, color, alpha, mat));
+    verts.push(Vertex3D::new_alpha(p3, normal, color, alpha, mat));
+    glass_idxs.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
+}
+
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn push_tri(
     verts: &mut Vec<Vertex3D>,
     idxs: &mut Vec<u32>,
@@ -484,6 +505,103 @@ pub(crate) fn push_tri(
 // ============================================================================
 //  Minimal 4x4 Column-Major Matrix Math
 // ============================================================================
+
+pub(super) fn mat4_ortho(left: f32, right: f32, bottom: f32, top: f32, near: f32, far: f32) -> [[f32; 4]; 4] {
+    let rl = (right - left).max(1e-4);
+    let tb = (top - bottom).max(1e-4);
+    let fn_ = (far - near).max(1e-4);
+    [
+        [2.0 / rl, 0.0, 0.0, 0.0],
+        [0.0, 2.0 / tb, 0.0, 0.0],
+        [0.0, 0.0, -1.0 / fn_, 0.0],
+        [-(right + left) / rl, -(top + bottom) / tb, -near / fn_, 1.0],
+    ]
+}
+
+pub(super) fn compute_shadow_bounds(layout: &Layout, boards: &[BaseboardConfig]) -> ([f32; 3], f32) {
+    let mut min_x = f32::INFINITY;
+    let mut max_x = f32::NEG_INFINITY;
+    let mut min_z = f32::INFINITY;
+    let mut max_z = f32::NEG_INFINITY;
+    let mut max_y = 60.0_f32;
+
+    for b in boards {
+        if !b.enabled {
+            continue;
+        }
+        for pt in board_tools::get_baseboard_polygon(b) {
+            min_x = min_x.min(pt.x as f32);
+            max_x = max_x.max(pt.x as f32);
+            min_z = min_z.min(pt.y as f32);
+            max_z = max_z.max(pt.y as f32);
+        }
+    }
+    for p in &layout.pieces {
+        let e_max = p
+            .elevation
+            .map(|e| e.start.max(e.end) as f32)
+            .unwrap_or(0.0);
+        max_y = max_y.max(e_max + 80.0);
+        for c in &p.connectors {
+            min_x = min_x.min(c.x as f32);
+            max_x = max_x.max(c.x as f32);
+            min_z = min_z.min(c.y as f32);
+            max_z = max_z.max(c.y as f32);
+        }
+    }
+    if let Some(models) = &layout.models {
+        for m in models {
+            if matches!(m.builtin_id.as_deref(), Some("mountain") | Some("ground-terrain")) {
+                max_y = max_y.max(m.height as f32 * m.scale.unwrap_or(1.0) as f32);
+                continue;
+            }
+            let sc = m.scale.unwrap_or(1.0) as f32;
+            let hw = (m.width.max(m.depth) as f32 * sc) * 0.5;
+            let mx = m.transform.x as f32;
+            let mz = m.transform.y as f32;
+            min_x = min_x.min(mx - hw);
+            max_x = max_x.max(mx + hw);
+            min_z = min_z.min(mz - hw);
+            max_z = max_z.max(mz + hw);
+            max_y = max_y.max(m.elevation.unwrap_or(0.0) as f32 + m.height as f32 * sc);
+        }
+    }
+
+    if !min_x.is_finite() {
+        return ([0.0, 40.0, 0.0], 1600.0);
+    }
+    let center = [
+        (min_x + max_x) * 0.5,
+        (max_y * 0.35).clamp(20.0, 220.0),
+        (min_z + max_z) * 0.5,
+    ];
+    let half_extent = ((max_x - min_x).max(max_z - min_z) * 0.5 + 320.0).clamp(650.0, 6500.0);
+    (center, half_extent)
+}
+
+pub(super) fn compute_sun_view_proj(
+    sun_dir: [f32; 3],
+    center: [f32; 3],
+    half_extent: f32,
+) -> [[f32; 4]; 4] {
+    let dir = normalize3(sun_dir);
+    let up = if dir[1].abs() > 0.98 {
+        [0.0, 0.0, 1.0]
+    } else {
+        [0.0, 1.0, 0.0]
+    };
+    let dist = (half_extent * 2.5).max(3000.0);
+    let light_eye = [
+        center[0] + dir[0] * dist,
+        center[1] + dir[1] * dist,
+        center[2] + dir[2] * dist,
+    ];
+    let near = 100.0;
+    let far = dist * 2.0 + half_extent * 1.5;
+    let view = mat4_look_at(light_eye, center, up);
+    let proj = mat4_ortho(-half_extent, half_extent, -half_extent, half_extent, near, far);
+    mat4_mul(proj, view)
+}
 
 pub(super) fn mat4_perspective(fov_y: f32, aspect: f32, near: f32, far: f32) -> [[f32; 4]; 4] {
     let f = 1.0 / (fov_y * 0.5).tan();
