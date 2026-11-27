@@ -23,14 +23,14 @@ pub(super) fn draw_board_tab(ui: &mut egui::Ui, app: &mut RailbenchApp) {
                 .fill(Color32::from_rgba_unmultiplied(14, 116, 144, 55))
                 .corner_radius(CornerRadius::same(8))
                 .inner_margin(Margin::same(10))
-                .stroke(Stroke::new(1.4_f32, Color32::from_rgb(56, 189, 248)))
+                .stroke(Stroke::new(1.4_f32, p.primary))
                 .show(ui, |ui| {
                     ui.set_width(ui.available_width());
                     ui.label(
                         RichText::new(if is_de { "CAD PLATTEN-SKIZZIERER AKTIV" } else { "CAD BOARD SKETCHER ACTIVE" })
                             .strong()
                             .size(11.5)
-                            .color(Color32::from_rgb(56, 189, 248)),
+                            .color(p.primary),
                     );
                     ui.add_space(4.0);
                     ui.horizontal(|ui| {

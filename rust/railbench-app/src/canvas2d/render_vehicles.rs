@@ -21,7 +21,7 @@ fn draw_vehicle_top_detail(
     let to_scr = |lx: f64, ly: f64| -> Pos2 {
         camera.world_to_screen(rect, p.x + lx * cs - ly * sn, p.y + lx * sn + ly * cs)
     };
-    let dark_outline = Stroke::new(1.25, Color32::from_rgb(15, 23, 42));
+    let dark_outline = Stroke::new(1.25_f32, Color32::from_rgb(15, 23, 42));
     let r = (p.livery_rgb[0].clamp(0.0, 1.0) * 255.0) as u8;
     let g = (p.livery_rgb[1].clamp(0.0, 1.0) * 255.0) as u8;
     let b = (p.livery_rgb[2].clamp(0.0, 1.0) * 255.0) as u8;
@@ -38,7 +38,7 @@ fn draw_vehicle_top_detail(
             painter.add(egui::Shape::convex_polygon(
                 poly4(&to_scr, -hl, hl * 0.98, -hw * 0.94, hw * 0.94),
                 Color32::from_rgb(24, 28, 34),
-                Stroke::new(1.3, Color32::from_rgb(185, 28, 28)),
+                Stroke::new(1.3_f32, Color32::from_rgb(185, 28, 28)),
             ));
             // Rear coal bunker
             painter.add(egui::Shape::convex_polygon(
@@ -56,7 +56,7 @@ fn draw_vehicle_top_detail(
             painter.add(egui::Shape::convex_polygon(
                 poly4(&to_scr, -hl * 0.42, hl * 0.96, -hw * 0.56, hw * 0.56),
                 Color32::from_rgb(42, 48, 58),
-                Stroke::new(1.0, Color32::from_rgb(212, 160, 23)),
+                Stroke::new(1.0_f32, Color32::from_rgb(212, 160, 23)),
             ));
             let rim = (camera.zoom * 3.0).clamp(1.6, 5.5);
             painter.circle_filled(to_scr(hl * 0.80, 0.0), rim, Color32::from_rgb(15, 23, 42));
@@ -67,7 +67,7 @@ fn draw_vehicle_top_detail(
             painter.add(egui::Shape::convex_polygon(
                 poly4(&to_scr, -hl * 0.98, hl * 0.98, -hw, hw),
                 fill,
-                Stroke::new(1.5, Color32::from_rgb(241, 231, 208)),
+                Stroke::new(1.5_f32, Color32::from_rgb(241, 231, 208)),
             ));
             painter.add(egui::Shape::convex_polygon(
                 poly4(&to_scr, -hl * 0.78, hl * 0.78, -hw * 0.72, hw * 0.72),
@@ -95,7 +95,7 @@ fn draw_vehicle_top_detail(
             painter.add(egui::Shape::convex_polygon(
                 poly4(&to_scr, -hl * 0.90, hl * 0.90, -hw * 0.58, hw * 0.58),
                 fill,
-                Stroke::new(1.1, Color32::from_rgb(245, 235, 214)),
+                Stroke::new(1.1_f32, Color32::from_rgb(245, 235, 214)),
             ));
             painter.add(egui::Shape::convex_polygon(
                 poly4(&to_scr, -hl * 0.24, hl * 0.14, -hw * 0.82, hw * 0.82),

@@ -1,4 +1,4 @@
-use super::loco_builder::{LocoAnimState, LocoBuilder, Mat, TrainPose};
+use super::loco_builder::{LocoAnimState, LocoBuilder, Mat, PrimBuilder, TrainPose};
 use crate::viewer3d::Vertex3D;
 
 /// Builds a detailed DB V 60 (BR 260 / 360) C / 0-6-0 jackshaft rod-drive diesel shunter

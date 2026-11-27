@@ -296,7 +296,7 @@ pub fn draw_floating_selection_bar(ctx: &egui::Context, app: &mut RailbenchApp) 
                         };
                         ui.label(RichText::new(badge_txt).strong().size(12.0).color(p.primary));
                         if sample.group_id.is_some() {
-                            ui.label(RichText::new("[G]").strong().size(10.5).color(Color32::from_rgb(56, 189, 248)))
+                            ui.label(RichText::new("[G]").strong().size(10.5).color(p.primary))
                                 .on_hover_text(if is_de { "Gruppiert (G zum Aufheben)" } else { "Grouped (G to ungroup)" });
                         }
                         ui.separator();
@@ -382,7 +382,7 @@ pub fn draw_floating_selection_bar(ctx: &egui::Context, app: &mut RailbenchApp) 
                                     RichText::new(format!("{:.1}%", ri.gradient_pct))
                                         .size(11.0)
                                         .color(if ri.gradient_pct.abs() > 3.5 {
-                                            Color32::from_rgb(239, 68, 68)
+                                            p.text_danger
                                         } else {
                                             p.text_muted
                                         }),
@@ -518,7 +518,7 @@ pub fn draw_floating_selection_bar(ctx: &egui::Context, app: &mut RailbenchApp) 
                             let txt_col = if all_on {
                                 Color32::WHITE
                             } else if mixed {
-                                Color32::from_rgb(251, 191, 36)
+                                p.text_warning
                             } else {
                                 p.text_sub
                             };

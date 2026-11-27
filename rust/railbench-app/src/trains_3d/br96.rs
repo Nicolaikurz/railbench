@@ -1,4 +1,4 @@
-use super::loco_builder::{LocoAnimState, LocoBuilder, Mat, TrainPose};
+use super::loco_builder::{LocoAnimState, LocoBuilder, Mat, PrimBuilder, TrainPose};
 use crate::viewer3d::Vertex3D;
 
 /// Builds a detailed DRG BR 96 (Bavarian Gt 2x4/4) 0-8-8-0T articulated Mallet steam locomotive

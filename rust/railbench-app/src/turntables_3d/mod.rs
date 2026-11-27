@@ -1,7 +1,7 @@
 use railbench_core::geometry::rotate;
 use railbench_core::types::{CatalogEntry, Layout, TrackPiece, Vec2};
 
-use crate::models3d_mesh::{Mat, ModelBuilder};
+use crate::models3d_mesh::{Mat, ModelBuilder, PrimBuilder};
 use crate::viewer3d::Vertex3D;
 
 struct SharedPalette {

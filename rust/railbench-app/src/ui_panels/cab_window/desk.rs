@@ -152,9 +152,9 @@ pub(super) fn draw_cab_control_desk(
                         // 3-Tile Telemetry Strip (Speed / Grade / Mass)
                         ui.columns(3, |cols| {
                             let grade_col = if v.grade_pct.abs() > 3.5 {
-                                Color32::from_rgb(239, 68, 68)
+                                p.text_danger
                             } else if v.grade_pct.abs() > 1.5 {
-                                Color32::from_rgb(245, 158, 11)
+                                p.text_warning
                             } else {
                                 p.text_main
                             };

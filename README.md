@@ -1,132 +1,64 @@
-# RAILbench – Model Railway Track Planner (v0.6.1)
+# RAILbench – Native Rust Model Railway Track Planner (v26.11.1)
 
-An intuitive, fast, and precise model railway CAD track planning, 3D visualization, terrain sculpting, and electrical simulation application built with **TypeScript + PixiJS v8 + Three.js + Vite + Electron**.
-<img width="2346" height="1428" alt="Screenshot From 2026-11-14 21-49-15" src="https://github.com/user-attachments/assets/33434aab-9b8e-4923-9fc9-fb291fcc4329" />
-
----
-
-> [!IMPORTANT]
-> **Release 0.6.1 Multi-Platform Binaries**:
-> Release **0.6.1** provides standalone executables for **Windows (`x64`, `arm64`)**, **macOS (`arm64` Apple Silicon M1–M4, `x64` Intel)**, and **Linux (`x86_64`, `arm64` AppImage & Flatpak)**.
+An intuitive, fast, and precise native desktop model railway CAD track planning, 3D visualization, terrain sculpting, train cab simulation, and electrical simulation application built in **Rust (`egui` / `eframe` + `wgpu`)**.
 
 ---
 
 ## Why RAILbench?
 
-I originally started developing **RAILbench** for myself out of pure necessity. As a dedicated Linux user, I spent a lot of time looking for a modern, fluid, and native track planning tool for Linux, but simply couldn't find one that met my expectations. I tried running several established Windows track planners through Wine and Bottles, but the experience was never satisfying—suffering from visual glitches, font rendering bugs, and clunky input performance.
-
-Another major frustration for me was the direction many modern tools are taking: requiring an active internet connection just to load basic track libraries, or being forced entirely into web browsers. When traveling, working on a train, or designing in a hobby basement or workshop without dependable Wi-Fi, software should just work seamlessly. RAILbench is built with a strict **100% offline-first** philosophy—every track geometry, manufacturer catalog, 3D asset, and electrical simulation is completely self-contained on your machine.
-
-What began as a personal hobby project quickly turned into something much bigger, and I didn't want it to remain an isolated "island solution" just for myself. I wanted to share it with the wider model railway community so that other enthusiasts—whether running **Linux, macOS, or Windows**—have access to a free, fast, and modern track planner.
-
-Because what works well for my personal layout planning might not always fit everyone else's workflow, **I am genuinely happy about any feedback, critique, and suggestions!** Whether you discover an edge case, have an idea for an enhancement, or notice a missing track system from your favorite manufacturer, please don't hesitate to open an issue or start a discussion. Your feedback helps make RAILbench better for everyone.
+**RAILbench** is built with a strict **100% offline-first** philosophy—every track geometry, manufacturer catalog, 3D asset, PDF blueprint generator, electrical simulation, and multi-user WebSocket server is compiled directly into a fast native executable with zero browser or Electron runtime overhead.
 
 ---
 
-## Running Pre-Built Binaries (Windows, macOS & Linux)
+## Quickstart (Run & Test from Source)
 
-### 🪟 Windows (`x64` & `arm64`) – Portable Directory & ZIP
-1. **Download**:
-   * **Portable ZIP Archive**: `railbench-0.6.1-portable-x64.zip` (Intel/AMD) or `railbench-0.6.1-portable-arm64.zip` (ARM / Snapdragon).
-   * Or use the unpacked folder: `win-unpacked` (`x64`) or `win-arm64-unpacked` (`arm64`).
-2. **Run**:
-   * Extract the ZIP and double-click **`railbench.exe`**.
-   * **No installation** and **no administrator privileges** required. Instant startup without extracting to temporary directories.
-3. **Windows Defender SmartScreen Note**:
-   * Because the open-source binary is not signed with a commercial EV certificate, Windows SmartScreen may show an *"Windows protected your PC"* prompt on first launch. Click **More info** (*Weitere Informationen*) $\rightarrow$ **Run anyway** (*Trotzdem ausführen*).
+### Prerequisites
+* **Rust toolchain** (stable Cargo + `rustc`, e.g. via [rustup](https://rustup.rs/))
+* On Linux desktop: standard Wayland/X11, Vulkan/OpenGL ICD, and GTK3 runtime/dev libraries (`gtk3`, `libxkbcommon`, `vulkan-icd-loader`, `wayland`)
 
-### 🍎 macOS (Apple Silicon `arm64` & Intel `x64`)
-* **Via Homebrew Cask (Recommended, easiest installation)**:
-  ```bash
-  brew tap Nicolaikurz/railbench
-  brew install --cask railbench
-  ```
-* **Manual DMG / ZIP Installation**:
-  1. Download `railbench-0.6.1-mac-arm64.dmg` (Apple Silicon M1–M4) or `railbench-0.6.1-mac-x64.dmg` (Intel), open the disk image, and drag **`railbench.app`** into your `/Applications` folder (or extract the `.zip` archive).
-  2. **Bypass macOS Gatekeeper on First Launch (Unsigned Open-Source Build)**:
-     * Because the binary is built without a paid Apple Developer ID certificate, macOS Gatekeeper may block the first launch with *"railbench.app cannot be opened because the developer cannot be verified"*.
-     * **Option A — Terminal (Recommended, fastest)**:
-       ```bash
-       xattr -cr /Applications/railbench.app
-       open /Applications/railbench.app
-       ```
-     * **Option B — Finder UI**:
-       **Right-click** (or <kbd>Control</kbd>-click) `railbench.app` in Finder $\rightarrow$ click **Open** $\rightarrow$ confirm **Open** in the security dialog (or allow it under *System Settings → Privacy & Security → Open Anyway*).
+```bash
+# Run the native application
+cargo run --manifest-path rust/Cargo.toml -p railbench-app
 
-### 🐧 Linux (`x86_64` & `arm64` AppImage / Flatpak)
-* **Flatpak**:
-  ```bash
-  flatpak install --user release/Railbench.flatpak
-  flatpak run io.github.Nicolaikurz.railbench
-  ```
-* **AppImage**:
-  ```bash
-  chmod +x railbench-0.6.1-x64.AppImage
-  ./railbench-0.6.1-x64.AppImage
-  ```
-  *(If `libfuse.so.2` is not installed on Ubuntu 24.04+, either run `sudo apt install libfuse2` or run `./railbench-0.6.1-x64.AppImage --appimage-extract-and-run`.)*
+# Run the full Rust unit & UI test suite
+cargo test --manifest-path rust/Cargo.toml
+```
+
+### Multi-User Server Collaboration & Auto-Start
+
+RAILbench includes an **in-app embedded WebSocket server** (`File` -> `Live Collaboration...` or CLI flags):
+
+```bash
+# Launch RAILbench with an auto-started collaboration server:
+railbench-app --server --port 3000 --password mysecret --room layout1 --connect
+```
 
 ---
 
-## Key Features & Capabilities (v0.6.1)
+## Building Release Binaries & Packages
 
-### 1. Precision Track CAD & Multi-Scale Catalogs
-* **21 Ready-to-Use Track Systems across H0, TT, N, Z, 0, 1 & G**:
-  * **H0 (1:87)**: Märklin C-Gleis, Märklin K-Gleis, Märklin M-Gleis, Trix C-Gleis, Piko A-Gleis, Roco Line, Tillig Elite, Peco Streamline Code 100, Kato Unitrack H0, Bachmann E-Z Track H0.
-  * **TT (1:120)**: Tillig TT Modellgleis, Tillig TT Bettungsgleis, Kuehn TT Gleis.
-  * **N (1:160)**: Fleischmann Piccolo, Kato Unitrack N, Minitrix, Peco Streamline N Code 55, Bachmann E-Z Track N.
-  * **Z (1:220)**: Märklin mini-club, Rokuhan.
-  * **Large Scales (0, 1, G)**: Lenz 0, Märklin Spur 1, LGB Spur G.
-* **Turntables & Transfer Tables**: Full support for **Märklin C-Gleis Drehscheibe 74862 / Trix 66862** (DB 23 m standard turntable with 30 exits at 12° increments) and **Transfer Tables (*Schiebebühnen*)** with 2D/3D pit rendering and catenary spider wiring.
-* **Customizable Flex-Track**: Dynamic length, radius, and arc angle adjustment directly from the selection bar.
-* **Integrated Street & Road Systems**: Dedicated street catalogs for H0, TT, N, and Z scale in their own sidebar tab (**Straßen / Roads**) with straights, curves, intersections, turning loops, road markings, and asphalt rendering.
-* **1:1 Direct 2D Drag-and-Drop Canvas Preview**: Dragging tracks, roads, or 3D buildings from the catalog renders an exact 1:1 millimetric preview directly under the cursor.
-* **Point-to-Point Distance Measuring Tool**: Measure straight-line distance, horizontal/vertical deltas ($\Delta X, \Delta Y$), real-world scaled distance, and angle between any two points with magnetic snap guidance.
+| Target / Package | Command | Output |
+|---|---|---|
+| **Native binary (current OS/arch)** | `./scripts/build-rust-native.sh` | `release/railbench-<ver>-native-<os>-<arch>` |
+| **Linux AppImage (`x64` / `arm64`)** | `./scripts/build-linux-appimage.sh x64` | `release/railbench-<ver>-x64.AppImage` |
+| **Linux Flatpak (`x64` / `arm64`)** | `./scripts/build-flatpak.sh x64` | `release/railbench-<ver>-x86_64.flatpak` |
+| **Linux Snap (`x64` / `arm64`)** | `./scripts/build-snap.sh x64` | `release/railbench_<ver>_amd64.snap` |
+| **Windows Portable ZIP (`x64` / `arm64`)** | `scripts/build-windows-portable.bat` or `./scripts/build-windows-portable.sh x64` | `release/railbench-<ver>-win-x64.zip` |
+| **macOS `.dmg` & `.zip` (`arm64` / `x64` / `universal`)** | `./scripts/build-macos.sh` | `release/railbench-<ver>-mac-*.dmg` / `.zip` |
 
-### 2. Interactive 2D CAD Sketcher for Tables & Layer Plates
-* **Freeform CAD Sketcher (`Tisch & Platten`)**: Draw and edit both **Baseboard Tables** and **Layer Plates (*Ebenenplatten*)** directly on the 2D canvas like in a CAD sketcher:
-  * **Polygon Pen (`Polygon-Stift`)**: Click point-by-point on the canvas to sketch custom room-fitting tables or multi-deck plates (`Enter`, double-click, or click the start point to close).
-  * **Rectangle Tool (`Rechteck`)**: Click two corners on the canvas to define exact rectangular boards or plates.
-  * **Vertex & Edge Editor (`Ecken & Kanten`)**: Drag existing vertices (`●`) to reshape, drag edge midpoints (`+`) to insert new vertices, or right-click / <kbd>Alt</kbd>-click a vertex to remove it.
-* **Standard Parametric Table Shapes**: Rectangular, L-Shape, U-Shape, and T-Shape presets with configurable dimensions, corner radii, surface styles (Birch, Dark Walnut, Plywood, Slate, Grass, White), and automatic **"Fit Table to Tracks"**.
+See [Build & Binary Execution Guide](docs/BUILD_GUIDE.md) for prerequisites and cross-compilation details.
 
-### 3. Streamlined Terrain & Ground Editor with Tunnels
-* **Unified Terrain Brush (`Gelände / Terrain`)**: Clean 3-mode brush toolbar with contextual controls:
-  * **Mountain (`▲ Berg / Mountain`)**: Click for a single peak or drag to paint custom mountain ridges with adjustable radius, height, and biome (*Alpine*, *Rocky*, *Forest*, *Meadow*).
-  * **Ground (`◠ Grund / Ground`)**: Paint adaptive **Water**, **Sand**, **Dirt**, or **Rolling Hills** directly on the 2D canvas. Ground terrain automatically stays **flat under buildings, tracks, streets, and turntable pits** while rising gently around them.
-  * **Erase (`✕ Löschen / Erase`)**: Drag to erase mountain nodes, whole peaks, or ground terrain strokes.
-* **Automatic Table & Plate Clipping**: Both mountains and ground terrain automatically clip strictly to the active baseboard or layer plate polygon in 2D and 3D—never overhanging off the table edge.
-* **Automatic & Manual Mountain Tunnels**:
-  * Automatic tunnel detection cuts realistic 3D tunnel tubes with stone portals starting flush at exact track elevation.
-  * Individual tracks and roads can also toggle tunnel rendering manually via the `🚇` button in the floating selection bar.
+---
 
-### 4. Full-Perspective 3D Viewer & Interactive CAD ViewCube
-* **Full 360° × 180° Camera Freedom (<kbd>3</kbd> or <kbd>V</kbd>)**: Orbit freely around the layout from **every perspective**—including straight down from above (`Top`) and straight up from **underneath the table (`Bottom`)** to inspect table framing, legs, risers, and staging yards (the hall/landscape floor automatically hides when viewing from below).
-* **Interactive CAD ViewCube (*Ansichtswürfel*)**:
-  * Positioned directly beneath the 3D environment toggle button in the top-left overlay.
-  * Live-synchronized 3D cube with **6 clickable faces** (`Front`/`Vorne`, `Back`/`Hinten`, `Left`/`Links`, `Right`/`Rechts`, `Top`/`Oben`, `Bottom`/`Unten`), **4 isometric corner hotspots** (`↖`, `↗`, `↙`, `↘`), direct pointer drag-to-orbit on the cube, and quick-action buttons (`⟲ 45°`, `⌂ ISO`, `⟳ 45°`, `⊤ Top`, `▭ Front`, `⊥ Bottom`).
-  * Automatically switches labels and tooltips between **English** and **German** based on the active application language.
-* **3D Environments & 24h Day/Night Sun Cycle**:
-  * Toggle between the detailed **Locomotive Hall (`Halle`)** with surrounding forest and **CAD / Minimal** mode.
-  * Dynamic 24-hour Day/Night cycle with moving sun and moon, atmospheric sky gradients, and automatic night illumination for signals, buildings, and platform lamps.
-* **25 Built-in Procedural 3D Scenery & Depot Models (`.glb` / `.gltf` Import Supported)**:
-  * **Steam & Diesel Locomotive Depot**: **Coaling Station (*Bekohlungsanlage für Dampfloks*)** with elevated bunker, slewing crane, grab bucket, and coal piles; **Diesel Fueling Station (*Dieseltankstelle für Dieselloks*)** with storage tank, bund wall, canopy, and fuel dispensers; **3-Stall Roundhouse (*Ringlokschuppen*)**; **Single-Stall Engine Shed (*Lokschuppen*)**; **Water Tower (*Wasserturm*)**.
-  * **Stations, Buildings & Infrastructure**: Localized English & German names for Passenger Station (*Bahnhof Neustadt*), Passenger Platform (*Bahnsteig*), Signal Box (*Stellwerk W1*), Half-Timbered House (*Fachwerkhaus*), Skyscraper (*Hochhaus*), Industrial Hall (*Industriehalle*), Steel Truss & Stone Arch Bridges, Flush Tunnel Portals, Signals, Realistic DB Sh 2 Steel-Rail Buffer Stops (*Prellbock*), Illuminated DB Wn 1/Wn 2 Turnout Lanterns (*Weichenlaterne*), Collision-Free Catenary Masts, Trees, and Platform Lamps.
-  * Built-in procedural models are automatically sub-mesh merged and instanced for smooth 3D performance, 100% open-source TypeScript/Three.js geometry (`src/render/models-3d/`). Users can also import custom `.glb` / `.gltf` models.
+## Key Capabilities
 
-### 5. Multi-Deck Layers & Height Management
-* **Floating Layers Menu (<kbd>Shift+B</kbd>)**: Manage multiple elevation decks sorted by height with visibility toggles (`👁️`), lock protection (`🔒`), inline renaming (`✏️`), and elevation badges.
-* **Continuous Ramp & Incline Calculator (<kbd>M</kbd> / <kbd>Shift+M</kbd>)**: Calculate smooth multi-track ramps with proportional length (*Dreisatz*), optional vertical easing (*Ausrundung*), live slope percentage warnings, 2D slope chevrons, and 3D bridge pillars.
-* **Floating Selection Action Bar**: Quick access to elevation (`⤉`), angle (`↻`), flex-track geometry, power feeder (`⚡`), isolator (`⊘`), catenary (`⌁`), turnout decoder (`📟`), lantern (`💡`), track signal (`🚦`), bridge (`🌉`), and tunnel (`🚇`).
-
-### 6. Traction Voltage Simulation & Short-Circuit Detection (<kbd>P</kbd>)
-* **Electrical Heatmap (<kbd>P</kbd>)**: Multi-source Dijkstra resistance simulation across rails and connectors (`>92%` Green, `80–92%` Amber, `<80%` Red, isolated dashed Red).
-* **Short-Circuit Detection (`⚠️⚡`)**: Automatically detects electrical short circuits (e.g. unisolated reversing loops / *Kehrschleifen*) and highlights the exact fault points in both 2D and 3D with clickable jump-to-fault beacons.
-* **Configurable Voltage & Multi-Train Current Load**: Presets for 16V AC, 14V DC/DCC, 12V DC, 18V DC, scale-specific locomotive current draw (50–1000 mA), and simultaneous multi-train load multipliers.
-
-### 7. Layer-Separated Layout Printing (<kbd>Ctrl+P</kbd>) & BOM Export (<kbd>Ctrl+E</kbd>)
-* **1:1 Layer-Separated Printing**: Prints each layer on its own sheet with an identical coordinate bounding box and scale, optional ghosted reference outlines of adjacent decks, and per-layer part inventories.
-* **Live Bill of Materials & CSV Export (<kbd>Ctrl+E</kbd>)**: Real-time part counts, trackage length in meters, and one-click CSV export.
+* **Multi-Scale Track & Street Catalogs**: Built-in track systems across **H0, TT, N, Z, 0, 1, and G** (Märklin C/K/M/1/Z, Trix, Piko, Roco, Tillig, Kuehn, Peco, Kato, Bachmann, Fleischmann, Rokuhan, Lenz, LGB) plus H0–G road catalogs and custom XML/CSV catalog import.
+* **2D CAD Canvas & Table/Layer Sketcher**: Magnetic snap connections, flex-track bending & grade calculation, marquee & tab-scoped selection, polygon/rectangle table sketcher, and millimeter rulers.
+* **Hardware-Accelerated 3D Viewer (`wgpu`)**: 360° × 180° orbit camera with interactive CAD ViewCube, procedural buildings & depot sheds (with transparent shed roof inspection), catenary wiring, bridges, tunnels, 24h day/night lighting, and `.glb`/`.gltf` custom model import.
+* **Terrain Sculpting & Auto-Tunnels**: Interactive heightfield raise/lower/smooth/flatten/grade brushes, biome painting, mountain ridges, and automatic track tunnel cutouts.
+* **Drive, 3D Cab View & Signal Box (Stellwerk)**: Real-time train physics, couplers, turnouts, uncouplers, turntables, transfer tables, and a detachable secondary Cab + Signal Box window.
+* **Electrical Traction & Short-Circuit Simulation**: Multi-source Dijkstra voltage drop heatmap, feeder/isolator placement, catenary wiring simulation, and short-circuit fault beacons.
+* **1:1 Blueprint PDF Printing & Part List (BOM)**: Layer-separated printable PDF blueprints, used-items Part List with article numbers, and CSV export.
 
 ---
 
@@ -134,94 +66,23 @@ Because what works well for my personal layout planning might not always fit eve
 
 | Shortcut | Action | Category |
 |---|---|---|
-| <kbd>Ctrl</kbd> + <kbd>N</kbd> | New empty layout | File |
-| <kbd>Ctrl</kbd> + <kbd>O</kbd> | Open layout plan (`.railbench` / `.gleisplan` / `.xml`) | File |
-| <kbd>Ctrl</kbd> + <kbd>S</kbd> | Save layout plan | File |
-| <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd> | Save layout plan as... | File |
-| <kbd>Ctrl</kbd> + <kbd>W</kbd> | Close Plan / Dialog / Window | File / Navigation |
-| <kbd>Ctrl</kbd> + <kbd>P</kbd> | Print Plan (Layer-Separated Pages) | Print / Export |
-| <kbd>Ctrl</kbd> + <kbd>E</kbd> | Export Bill of Materials (CSV) | Print / Export |
-| <kbd>Ctrl</kbd> + <kbd>Z</kbd> / <kbd>Y</kbd> | Undo / Redo | Edit |
-| <kbd>Ctrl</kbd> + <kbd>C</kbd> / <kbd>V</kbd> / <kbd>D</kbd> | Copy / Paste / Duplicate selected items | Edit |
-| <kbd>Ctrl</kbd> + <kbd>A</kbd> | Select all tracks and models | Selection |
-| <kbd>R</kbd> / <kbd>Shift</kbd> + <kbd>R</kbd> | Rotate selected item $+7.5^\circ$ / $-7.5^\circ$ | Editing |
-| <kbd>Shift</kbd> + **Mouse Wheel** | Rotate item under cursor continuously | Editing |
-| <kbd>Alt</kbd> + <kbd>L</kbd> | Toggle Selection Lock / Layer Protection Bypass | Workspace / Layers |
-| <kbd>M</kbd> / <kbd>Shift</kbd> + <kbd>M</kbd> | Open Height & Ramp Dialog / Auto-Calculate Ramp | Layers / Ramps |
-| <kbd>Del</kbd> / <kbd>Backspace</kbd> | Delete selected tracks or models | Editing |
-| <kbd>F</kbd> / <kbd>Shift</kbd> + <kbd>F</kbd> | Toggle Rail Power Feeder (`⚡`) / Catenary Feeder (`⌁+`) | Electrical |
-| <kbd>I</kbd> / <kbd>Shift</kbd> + <kbd>I</kbd> | Toggle Rail Isolator (`⊘`) / Catenary Insulator (`⌁⊘`) | Electrical |
-| <kbd>O</kbd> | Toggle Catenary (Overhead wire & masts `⌁`) | Electrical / 3D |
-| <kbd>Shift</kbd> + <kbd>D</kbd> / <kbd>L</kbd> | Toggle Turnout Decoder (`📟`) / Turnout Lantern (`💡`) | Turnouts |
-| <kbd>P</kbd> | Toggle Traction Voltage Simulation Heatmap | Electrical |
-| <kbd>3</kbd> or <kbd>V</kbd> | Toggle 3D Perspective View (with CAD ViewCube) | View / 3D |
-| <kbd>Esc</kbd> | Exit 3D View / Cancel Sketcher / Close Dialogs | Navigation |
-| <kbd>S</kbd> | Toggle Magnetic Track Snapping | View / Snapping |
-| <kbd>C</kbd> | Cycle Color-Coding (Track Types / Layers / Off) | View |
-| <kbd>N</kbd> | Toggle Track Part Numbers | View |
-| <kbd>B</kbd> / <kbd>Shift</kbd> + <kbd>B</kbd> | Toggle Left Catalog Sidebar / Right Layers Menu | Workspace |
-| <kbd>Shift</kbd> + <kbd>L</kbd> | Toggle Millimeter Edge Rulers | View |
-| <kbd>Ctrl</kbd> + <kbd>0</kbd> | Reset View / Center Layout | View |
-| <kbd>F1</kbd> or <kbd>?</kbd> | Open In-App Help & Feature Guide | Help |
-
----
-
-## Development Quickstart
-
-```bash
-# Install dependencies
-npm install
-
-# Start development web server
-npm run dev
-
-# Run unit tests (Vitest)
-npm test
-
-# Type-check and build web application
-npm run build
-
-# Start desktop app in development
-npm run electron:dev
-
-# Start standalone multi-user collaboration server
-npm run server
-```
-
-### Multi-User Server Collaboration & Auto-Start
-
-RAILbench includes both an **in-app embedded WebSocket server** (`File` → `Server Collaboration...`) and a **standalone Node.js server** (`server.mjs`).
-
-```bash
-# Launch Desktop App with auto-started server, custom port, password, and auto-connected client:
-railbench --server --port 3000 --password mysecret --room layout1 --connect
-
-# Or run standalone headless server (Node.js):
-node server.mjs --port 8080 --password mysecret --room layout1
-```
-
----
-
-## Building Executables from Source
-
-* **Windows Portable (`.exe` / unpacked dir)**:
-  ```bash
-  npm run dist:win:portable:x64
-  npm run dist:win:portable:arm64
-  npm run dist:win:portable:all
-  ```
-* **macOS (`.zip` & `.dmg` for Apple Silicon `arm64` & Intel `x64`)**:
-  ```bash
-  npm run dist:mac:zip:arm64
-  npm run dist:mac:zip:x64
-  npm run dist:mac:zip:all
-  ```
-* **Linux AppImage & Flatpak**:
-  ```bash
-  npm run dist:linux:appimage:x64
-  npm run dist:linux:appimage:arm64
-  npm run dist:linux:appimage:all
-  ```
+| <kbd>Ctrl</kbd>+<kbd>N</kbd> / <kbd>O</kbd> / <kbd>S</kbd> / <kbd>Shift</kbd>+<kbd>S</kbd> | New / Open / Save / Save As | File |
+| <kbd>Ctrl</kbd>+<kbd>P</kbd> | Blueprint Export & Print (PDF / SVG) | File |
+| <kbd>Ctrl</kbd>+<kbd>E</kbd> | Export Part List (CSV) | File |
+| <kbd>Ctrl</kbd>+<kbd>Z</kbd> / <kbd>Y</kbd> | Undo / Redo | Edit |
+| <kbd>Ctrl</kbd>+<kbd>C</kbd> / <kbd>V</kbd> / <kbd>D</kbd> / <kbd>A</kbd> | Copy / Paste / Duplicate / Select All | Edit |
+| <kbd>R</kbd> / <kbd>Shift</kbd>+<kbd>R</kbd> / <kbd>Alt</kbd>+<kbd>F</kbd> | Rotate CW / CCW / Flip Selected | Edit |
+| <kbd>G</kbd> / <kbd>Delete</kbd> | Group-Ungroup / Delete Selected | Edit |
+| <kbd>Alt</kbd>+<kbd>L</kbd> | Toggle Layer Selection & Movement Lock | Edit |
+| <kbd>M</kbd> / <kbd>Shift</kbd>+<kbd>M</kbd> | Distance Measure / Height & Ramp Dialog / Auto-Ramp | Tools |
+| <kbd>F</kbd> / <kbd>Shift</kbd>+<kbd>F</kbd> | Rail Power Feeder / Catenary Feeder | Electrical |
+| <kbd>I</kbd> / <kbd>Shift</kbd>+<kbd>I</kbd> | Rail Isolator / Catenary Isolator | Electrical |
+| <kbd>O</kbd> / <kbd>P</kbd> | Toggle Catenary / Voltage Heatmap | Electrical |
+| <kbd>W</kbd> / <kbd>Shift</kbd>+<kbd>W</kbd> / <kbd>Shift</kbd>+<kbd>S</kbd> | Turnout Lantern / Decoder / Signal | Turnouts |
+| <kbd>3</kbd> / <kbd>V</kbd> / <kbd>Esc</kbd> | Toggle 3D View / Deselect & Exit | View |
+| <kbd>Shift</kbd>+<kbd>B</kbd> / <kbd>Shift</kbd>+<kbd>L</kbd> | Toggle Layers Sidebar / Rulers | View |
+| <kbd>C</kbd> / <kbd>N</kbd> / <kbd>S</kbd> | Cycle Color Mode / Track Labels / Snapping | View / Tools |
+| <kbd>Ctrl</kbd>+<kbd>0</kbd> / <kbd>F3</kbd> / <kbd>F1</kbd> | Fit View / Hardware Monitor / Help Guide | View / Help |
 
 ## Documentation
 

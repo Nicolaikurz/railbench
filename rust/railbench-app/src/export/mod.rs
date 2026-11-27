@@ -77,8 +77,6 @@ pub struct PieceCategorySummary {
 
 #[derive(Debug, Clone)]
 pub struct PieceListSummary {
-    pub total_pieces: usize,
-    pub total_length_meters: f64,
     pub total_objects: usize,
     pub tracks: PieceCategorySummary,
     pub roads: PieceCategorySummary,
@@ -286,12 +284,8 @@ pub fn get_piece_list_summary(
     }
     let buildings: Vec<ModelSummaryItem> = model_groups.into_values().collect();
     let total_pieces = tracks.total_pieces + roads.total_pieces;
-    let total_length_meters =
-        ((tracks.total_length_meters + roads.total_length_meters) * 100.0).round() / 100.0;
 
     PieceListSummary {
-        total_pieces,
-        total_length_meters,
         total_objects: total_pieces + total_buildings,
         tracks,
         roads,

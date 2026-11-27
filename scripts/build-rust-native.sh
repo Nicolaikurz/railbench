@@ -6,40 +6,53 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 cd "$PROJECT_ROOT"
 source "$SCRIPT_DIR/release-cleanup.sh"
 
-if command -v node &> /dev/null; then
-    PKG_PATCH="$(node -p "String(require('$PROJECT_ROOT/package.json').version || '26.11.1').split('.')[2] || '1'" 2>/dev/null || echo "1")"
-else
-    PKG_PATCH="$(grep -m1 '"version"' "$PROJECT_ROOT/package.json" | sed -E 's/.*"version"[[:space:]]*:[[:space:]]*"[^."]*\.[^."]*\.([^."]*).*/\1/' || echo "1")"
-    [ -n "$PKG_PATCH" ] || PKG_PATCH="1"
-fi
-DEFAULT_CALVER="$(date -u +%y.%m).${PKG_PATCH}"
-VERSION="${RAILBENCH_VERSION:-$DEFAULT_CALVER}"
-VERSION="${VERSION#v}"
-VERSION="${VERSION#V}"
-export RAILBENCH_VERSION="$VERSION"
+VERSION="$(resolve_railbench_version "$PROJECT_ROOT")"
+TARGET_TRIPLE="${1:-}"
 OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
 ARCH="$(uname -m)"
 EXE_EXT=""
-case "$OS" in
-    mingw*|msys*|cygwin*|windows*)
-        OS="windows"
-        EXE_EXT=".exe"
-        ;;
-esac
+CARGO_ARGS=(build --release --manifest-path "$PROJECT_ROOT/rust/Cargo.toml" -p railbench-app)
+
+if [ -n "$TARGET_TRIPLE" ]; then
+    CARGO_ARGS+=(--target "$TARGET_TRIPLE")
+    BIN_SRC="$PROJECT_ROOT/rust/target/$TARGET_TRIPLE/release/railbench-app"
+    case "$TARGET_TRIPLE" in
+        *windows*)
+            OS="windows"
+            EXE_EXT=".exe"
+            BIN_SRC="${BIN_SRC}.exe"
+            ;;
+        *apple-darwin*) OS="darwin" ;;
+        *linux*) OS="linux" ;;
+    esac
+    case "$TARGET_TRIPLE" in
+        x86_64*) ARCH="x86_64" ;;
+        aarch64*|arm64*) ARCH="aarch64" ;;
+    esac
+else
+    case "$OS" in
+        mingw*|msys*|cygwin*|windows*)
+            OS="windows"
+            EXE_EXT=".exe"
+            ;;
+    esac
+    BIN_SRC="$PROJECT_ROOT/rust/target/release/railbench-app${EXE_EXT}"
+fi
+
 OUT_BIN="$PROJECT_ROOT/release/railbench-${VERSION}-native-${OS}-${ARCH}${EXE_EXT}"
 
 echo "=== Building Native Rust RAILbench v${VERSION} (${OS}/${ARCH}) ==="
 
-archive_old_binaries "$PROJECT_ROOT/release" "*-native-*"
+archive_old_binaries "$PROJECT_ROOT/release" "*-native-${OS}-${ARCH}*"
 
-cargo build --release --manifest-path "$PROJECT_ROOT/rust/Cargo.toml" -p railbench-app
+cargo "${CARGO_ARGS[@]}"
 
 mkdir -p "$PROJECT_ROOT/release"
-cp "$PROJECT_ROOT/rust/target/release/railbench-app${EXE_EXT}" "$OUT_BIN"
+cp "$BIN_SRC" "$OUT_BIN"
 if [ -z "$EXE_EXT" ]; then
     chmod +x "$OUT_BIN"
 fi
-if command -v strip &> /dev/null; then
+if [ -z "$TARGET_TRIPLE" ] && command -v strip &> /dev/null; then
     case "$OS" in
         darwin*) strip -x "$OUT_BIN" || true ;;
         *) strip "$OUT_BIN" || true ;;

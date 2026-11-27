@@ -2,8 +2,6 @@ app-id: io.github.Nicolaikurz.railbench
 runtime: org.freedesktop.Platform
 runtime-version: '24.08'
 sdk: org.freedesktop.Sdk
-base: org.electronjs.Electron2.BaseApp
-base-version: '24.08'
 command: railbench
 separate-locales: false
 
@@ -21,25 +19,19 @@ modules:
   - name: railbench
     buildsystem: simple
     build-commands:
-      - mkdir -p /app/main
-      - cp -r * /app/main/
-      - chmod +x /app/main/railbench || true
-      - mkdir -p /app/bin
-      - install -Dm755 railbench.sh /app/bin/railbench
+      - install -Dm755 railbench /app/bin/railbench
       - install -Dm644 io.github.Nicolaikurz.railbench.desktop /app/share/applications/io.github.Nicolaikurz.railbench.desktop
       - install -Dm644 io.github.Nicolaikurz.railbench.metainfo.xml /app/share/metainfo/io.github.Nicolaikurz.railbench.metainfo.xml
       - install -Dm644 icon.png /app/share/icons/hicolor/512x512/apps/io.github.Nicolaikurz.railbench.png
     sources:
-      - type: dir
-        path: ../../release/linux-unpacked
+      - type: file
+        path: ../../release/flatpak-stage-x86_64/railbench
         only-arches:
           - x86_64
-      - type: dir
-        path: ../../release/linux-arm64-unpacked
+      - type: file
+        path: ../../release/flatpak-stage-aarch64/railbench
         only-arches:
           - aarch64
-      - type: file
-        path: railbench.sh
       - type: file
         path: io.github.Nicolaikurz.railbench.desktop
       - type: file

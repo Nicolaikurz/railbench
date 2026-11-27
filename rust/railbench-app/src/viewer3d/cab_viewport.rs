@@ -189,7 +189,7 @@ pub fn draw_cab_viewport_3d(
             painter.circle_filled(lamp_pos, 6.5, Color32::from_rgba_unmultiplied(250, 204, 21, 70));
             painter.circle_filled(lamp_pos, 3.8, Color32::from_rgb(250, 204, 21));
         } else {
-            painter.circle_stroke(lamp_pos, 3.8, Stroke::new(1.4, Color32::from_rgb(148, 163, 184)));
+            painter.circle_stroke(lamp_pos, 3.8, Stroke::new(1.4_f32, Color32::from_rgb(148, 163, 184)));
         }
     }
 
@@ -250,18 +250,18 @@ fn draw_cockpit_interior(
     painter.rect_filled(top_rect, 0.0, frame_col);
     painter.line_segment(
         [Pos2::new(rect.min.x, top_rect.max.y), Pos2::new(rect.max.x, top_rect.max.y)],
-        Stroke::new(2.0, frame_rim),
+        Stroke::new(2.0_f32, frame_rim),
     );
     painter.line_segment(
         [Pos2::new(rect.min.x + side_top, top_rect.max.y - 4.0), Pos2::new(rect.max.x - side_top, top_rect.max.y - 4.0)],
-        Stroke::new(1.2, Color32::from_rgba_unmultiplied(accent.r(), accent.g(), accent.b(), 160)),
+        Stroke::new(1.2_f32, Color32::from_rgba_unmultiplied(accent.r(), accent.g(), accent.b(), 160)),
     );
 
     // Cab builder nameplate centered in top sun-visor
     let badge_w = (info.name.len() as f32 * 6.8 + 26.0).clamp(130.0, 280.0);
     let badge_rect = Rect::from_center_size(top_rect.center(), egui::vec2(badge_w, (top_h - 6.0).clamp(16.0, 24.0)));
     painter.rect_filled(badge_rect, 4.0, Color32::from_rgb(15, 20, 29));
-    painter.rect_stroke(badge_rect, 4.0, Stroke::new(1.0, frame_rim), egui::StrokeKind::Inside);
+    painter.rect_stroke(badge_rect, 4.0, Stroke::new(1.0_f32, frame_rim), egui::StrokeKind::Inside);
     painter.text(
         badge_rect.center(),
         egui::Align2::CENTER_CENTER,
@@ -280,7 +280,7 @@ fn draw_cockpit_interior(
     painter.add(egui::Shape::convex_polygon(left_pillar, frame_col, Stroke::NONE));
     painter.line_segment(
         [Pos2::new(rect.min.x + side_top, rect.min.y + top_h), Pos2::new(rect.min.x + side_bot, desk_top_y)],
-        Stroke::new(2.0, frame_rim),
+        Stroke::new(2.0_f32, frame_rim),
     );
 
     let right_pillar = vec![
@@ -292,7 +292,7 @@ fn draw_cockpit_interior(
     painter.add(egui::Shape::convex_polygon(right_pillar, frame_col, Stroke::NONE));
     painter.line_segment(
         [Pos2::new(rect.max.x - side_top, rect.min.y + top_h), Pos2::new(rect.max.x - side_bot, desk_top_y)],
-        Stroke::new(2.0, frame_rim),
+        Stroke::new(2.0_f32, frame_rim),
     );
 
     if is_steam {
@@ -300,8 +300,8 @@ fn draw_cockpit_interior(
         let spec_r = (rect.height() * 0.055).clamp(16.0, 26.0);
         for sx in [rect.min.x + side_bot + spec_r + 16.0, rect.max.x - side_bot - spec_r - 16.0] {
             let cy = rect.min.y + top_h + spec_r + 10.0;
-            painter.circle_stroke(Pos2::new(sx, cy), spec_r, Stroke::new(3.0, Color32::from_rgba_unmultiplied(180, 134, 36, 155)));
-            painter.circle_stroke(Pos2::new(sx, cy), spec_r - 2.5, Stroke::new(1.0, Color32::from_rgba_unmultiplied(24, 24, 28, 175)));
+            painter.circle_stroke(Pos2::new(sx, cy), spec_r, Stroke::new(3.0_f32, Color32::from_rgba_unmultiplied(180, 134, 36, 155)));
+            painter.circle_stroke(Pos2::new(sx, cy), spec_r - 2.5, Stroke::new(1.0_f32, Color32::from_rgba_unmultiplied(24, 24, 28, 175)));
         }
     } else {
         // Subtle twin-windshield center mullion & parked wipers
@@ -313,17 +313,17 @@ fn draw_cockpit_interior(
         painter.rect_filled(mullion, 0.0, Color32::from_rgba_unmultiplied(14, 19, 28, 155));
         painter.line_segment(
             [Pos2::new(cx - 2.5, rect.min.y + top_h), Pos2::new(cx - 2.5, desk_top_y)],
-            Stroke::new(1.0, Color32::from_rgba_unmultiplied(100, 116, 139, 90)),
+            Stroke::new(1.0_f32, Color32::from_rgba_unmultiplied(100, 116, 139, 90)),
         );
         // Parked wiper blade silhouettes near lower glass corners
         let wiper_col = Color32::from_rgba_unmultiplied(15, 23, 42, 185);
         painter.line_segment(
             [Pos2::new(rect.min.x + side_bot + 16.0, desk_top_y - 2.0), Pos2::new(rect.min.x + side_bot + 72.0, desk_top_y - 18.0)],
-            Stroke::new(2.2, wiper_col),
+            Stroke::new(2.2_f32, wiper_col),
         );
         painter.line_segment(
             [Pos2::new(cx + 22.0, desk_top_y - 2.0), Pos2::new(cx + 80.0, desk_top_y - 18.0)],
-            Stroke::new(2.2, wiper_col),
+            Stroke::new(2.2_f32, wiper_col),
         );
     }
 
@@ -338,21 +338,21 @@ fn draw_cockpit_interior(
     painter.add(egui::Shape::convex_polygon(
         hood_poly,
         Color32::from_rgb(30, 38, 52),
-        Stroke::new(1.2, frame_rim),
+        Stroke::new(1.2_f32, frame_rim),
     ));
     painter.line_segment(
         [
             Pos2::new(rect.min.x + side_bot * 0.45, desk_top_y - glaresheet_h + 1.5),
             Pos2::new(rect.max.x - side_bot * 0.45, desk_top_y - glaresheet_h + 1.5),
         ],
-        Stroke::new(2.0, accent),
+        Stroke::new(2.0_f32, accent),
     );
 
     let desk_rect = Rect::from_min_max(Pos2::new(rect.min.x, desk_top_y), rect.max);
     painter.rect_filled(desk_rect, 0.0, desk_fill);
     painter.line_segment(
         [desk_rect.left_top(), desk_rect.right_top()],
-        Stroke::new(1.5, desk_hi),
+        Stroke::new(1.5_f32, desk_hi),
     );
 
     // Inner instrument console bay
@@ -362,7 +362,7 @@ fn draw_cockpit_interior(
         egui::vec2(console_w, desk_rect.height() - 10.0),
     );
     painter.rect_filled(console_rect, 8.0, Color32::from_rgb(13, 18, 28));
-    painter.rect_stroke(console_rect, 8.0, Stroke::new(1.0, desk_hi), egui::StrokeKind::Inside);
+    painter.rect_stroke(console_rect, 8.0, Stroke::new(1.0_f32, desk_hi), egui::StrokeKind::Inside);
 
     // 1) Left Bay: Interactive Throttle Quadrant
     let thr_w = (console_rect.width() * 0.19).clamp(58.0, 92.0);
@@ -371,7 +371,7 @@ fn draw_cockpit_interior(
         egui::vec2(thr_w, console_rect.height() - 8.0),
     );
     painter.rect_filled(thr_rect, 6.0, Color32::from_rgb(20, 27, 40));
-    painter.rect_stroke(thr_rect, 6.0, Stroke::new(1.0, Color32::from_rgb(45, 58, 78)), egui::StrokeKind::Inside);
+    painter.rect_stroke(thr_rect, 6.0, Stroke::new(1.0_f32, Color32::from_rgb(45, 58, 78)), egui::StrokeKind::Inside);
     painter.text(
         Pos2::new(thr_rect.center().x, thr_rect.min.y + 9.0),
         egui::Align2::CENTER_CENTER,
@@ -404,17 +404,17 @@ fn draw_cockpit_interior(
         let ny = slot_rect.max.y - slot_rect.height() * (n as f32 * 0.25);
         painter.line_segment(
             [Pos2::new(slot_rect.center().x - 8.0, ny), Pos2::new(slot_rect.center().x - 4.0, ny)],
-            Stroke::new(1.0, Color32::from_rgb(100, 116, 139)),
+            Stroke::new(1.0_f32, Color32::from_rgb(100, 116, 139)),
         );
         painter.line_segment(
             [Pos2::new(slot_rect.center().x + 4.0, ny), Pos2::new(slot_rect.center().x + 8.0, ny)],
-            Stroke::new(1.0, Color32::from_rgb(100, 116, 139)),
+            Stroke::new(1.0_f32, Color32::from_rgb(100, 116, 139)),
         );
     }
     let knob_y = slot_rect.max.y - fill_h;
     let knob_rect = Rect::from_center_size(Pos2::new(slot_rect.center().x, knob_y), egui::vec2(28.0, 9.0));
     painter.rect_filled(knob_rect, 3.0, Color32::from_rgb(203, 213, 225));
-    painter.rect_stroke(knob_rect, 3.0, Stroke::new(1.0, Color32::from_rgb(15, 23, 42)), egui::StrokeKind::Inside);
+    painter.rect_stroke(knob_rect, 3.0, Stroke::new(1.0_f32, Color32::from_rgb(15, 23, 42)), egui::StrokeKind::Inside);
     painter.text(
         Pos2::new(thr_rect.center().x, thr_rect.max.y - 8.0),
         egui::Align2::CENTER_CENTER,
@@ -508,7 +508,7 @@ fn draw_cockpit_interior(
         Pos2::new(console_rect.max.x - 8.0, console_rect.max.y - 5.0),
     );
     painter.rect_filled(right_rect, 6.0, Color32::from_rgb(20, 27, 40));
-    painter.rect_stroke(right_rect, 6.0, Stroke::new(1.0, Color32::from_rgb(45, 58, 78)), egui::StrokeKind::Inside);
+    painter.rect_stroke(right_rect, 6.0, Stroke::new(1.0_f32, Color32::from_rgb(45, 58, 78)), egui::StrokeKind::Inside);
 
     // Top row: Reverser + optional Uncouple Last + E-Stop
     let has_wagons = info.coupled_count > 0;
@@ -584,7 +584,7 @@ fn draw_cockpit_interior(
             painter.circle_filled(lamp_center, 4.3, col);
         } else {
             painter.circle_filled(lamp_center, 4.3, Color32::from_rgb(30, 41, 59));
-            painter.circle_stroke(lamp_center, 4.3, Stroke::new(1.0, Color32::from_rgb(71, 85, 105)));
+            painter.circle_stroke(lamp_center, 4.3, Stroke::new(1.0_f32, Color32::from_rgb(71, 85, 105)));
         }
         painter.text(
             Pos2::new(lx, lamp_y + 7.5),
@@ -618,8 +618,8 @@ fn draw_cockpit_gauge(
     show_redzone: bool,
 ) {
     painter.circle_filled(center, radius, Color32::from_rgb(9, 13, 21));
-    painter.circle_stroke(center, radius, Stroke::new(2.0, bezel_col));
-    painter.circle_stroke(center, radius - 2.5, Stroke::new(1.0, Color32::from_rgb(30, 41, 59)));
+    painter.circle_stroke(center, radius, Stroke::new(2.0_f32, bezel_col));
+    painter.circle_stroke(center, radius - 2.5, Stroke::new(1.0_f32, Color32::from_rgb(30, 41, 59)));
 
     let tick_count = 10;
     for i in 0..=tick_count {
@@ -638,13 +638,13 @@ fn draw_cockpit_gauge(
                 Pos2::new(center.x + c * r_in, center.y + s * r_in),
                 Pos2::new(center.x + c * r_out, center.y + s * r_out),
             ],
-            Stroke::new(if i % 2 == 0 { 1.4 } else { 0.9 }, col),
+            Stroke::new(if i % 2 == 0 { 1.4 } else { 0.9_f32 }, col),
         );
     }
 
     let ang = speedometer_needle_angle(value, max_val);
     let tip = Pos2::new(center.x + ang.cos() * (radius - 6.0), center.y + ang.sin() * (radius - 6.0));
-    painter.line_segment([center, tip], Stroke::new(2.0, needle_col));
+    painter.line_segment([center, tip], Stroke::new(2.0_f32, needle_col));
     painter.circle_filled(center, 3.0, Color32::from_rgb(226, 232, 240));
 
     painter.text(

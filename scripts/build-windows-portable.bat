@@ -3,13 +3,15 @@ setlocal enabledelayedexpansion
 cd /d "%~dp0\.."
 
 set "ARCH=%~1"
-if "%ARCH%"=="" set "ARCH=all"
+if "%ARCH%"=="" set "ARCH=x64"
 
-for /f "delims=" %%i in ('node -p "require('./package.json').build?.productName || require('./package.json').name || 'railbench'"') do set "PRODUCT_NAME=%%i"
-for /f "delims=" %%i in ('node -p "require('./package.json').version || '0.6.1'"') do set "APP_VERSION=%%i"
+set "PKG_PATCH=1"
+for /f "tokens=3 delims=." %%p in ('powershell -NoProfile -Command "(Select-String -Path 'rust\Cargo.toml' -Pattern '^\s*version\s*=\s*\"([^\"]+)\"').Matches.Groups[1].Value"') do set "PKG_PATCH=%%p"
+for /f %%v in ('powershell -NoProfile -Command "[DateTime]::UtcNow.ToString('yy.MM') + '.' + '%PKG_PATCH%'"') do set "APP_VERSION=%%v"
+if not "%RAILBENCH_VERSION%"=="" set "APP_VERSION=%RAILBENCH_VERSION%"
 
-echo === Building Windows Portable (ZIP) ===
-echo Application: %PRODUCT_NAME% v%APP_VERSION%
+echo === Building Native Rust Windows Portable (ZIP) ===
+echo Application        : railbench v%APP_VERSION%
 echo Target Architecture: %ARCH%
 
 if not exist "release\old" mkdir "release\old"
@@ -20,20 +22,14 @@ for %%f in (release\*-win-*.zip release\*-portable-*.exe) do (
     )
 )
 
-call npm run build:all
-if %errorlevel% neq 0 (
-    echo [ERROR] Build failed!
-    exit /b %errorlevel%
-)
-
 if /i "%ARCH%"=="x64" (
-    call :package_target x64
+    call :package_target x64 x86_64-pc-windows-msvc
 ) else if /i "%ARCH%"=="arm64" (
-    call :package_target arm64
+    call :package_target arm64 aarch64-pc-windows-msvc
 ) else if /i "%ARCH%"=="all" (
-    call :package_target x64
+    call :package_target x64 x86_64-pc-windows-msvc
     if !errorlevel! neq 0 exit /b !errorlevel!
-    call :package_target arm64
+    call :package_target arm64 aarch64-pc-windows-msvc
 ) else (
     echo [ERROR] Unknown architecture: %ARCH% ^(choose x64, arm64, or all^)
     exit /b 1
@@ -41,54 +37,48 @@ if /i "%ARCH%"=="x64" (
 
 if %errorlevel% neq 0 exit /b %errorlevel%
 
-echo * Cleaning intermediate build artifacts...
-if exist "release\win-unpacked" rmdir /s /q "release\win-unpacked"
-if exist "release\win-arm64-unpacked" rmdir /s /q "release\win-arm64-unpacked"
-if exist "release\builder-debug.yml" del /f /q "release\builder-debug.yml"
-if exist "release\builder-effective-config.yaml" del /f /q "release\builder-effective-config.yaml"
-for %%f in (release\latest*.yml release\*.blockmap) do if exist "%%f" del /f /q "%%f"
-
 echo.
 echo ===========================================
 echo Windows Portable build complete!
-echo ZIP Archives:
-echo   x64:   release\%PRODUCT_NAME%-%APP_VERSION%-win-x64.zip
-echo   arm64: release\%PRODUCT_NAME%-%APP_VERSION%-win-arm64.zip
+echo ZIP Archives in: release\
 echo ===========================================
 pause
 exit /b 0
 
 :package_target
 set "TARGET_ARCH=%~1"
-set "UNPACKED_DIR=release\win-unpacked"
-if /i "%TARGET_ARCH%"=="arm64" set "UNPACKED_DIR=release\win-arm64-unpacked"
-set "FOLDER_NAME=%PRODUCT_NAME%-%APP_VERSION%-win-%TARGET_ARCH%"
-set "STAGED_DIR=release\%FOLDER_NAME%"
+set "RUST_TARGET=%~2"
+set "FOLDER_NAME=railbench-%APP_VERSION%-win-%TARGET_ARCH%"
+set "STAGE_ROOT=release\win-stage-%TARGET_ARCH%"
+set "STAGE_DIR=%STAGE_ROOT%\%FOLDER_NAME%"
 set "ZIP_OUTPUT=release\%FOLDER_NAME%.zip"
+set "EXE_SRC=rust\target\%RUST_TARGET%\release\railbench-app.exe"
 
 echo.
-echo * Packaging Windows Portable directory for %TARGET_ARCH%...
-call npx electron-builder --win dir --%TARGET_ARCH%
+echo * Compiling Rust release binary (%RUST_TARGET%)...
+call cargo build --release --manifest-path rust\Cargo.toml -p railbench-app --target %RUST_TARGET%
 if %errorlevel% neq 0 (
-    echo [ERROR] electron-builder failed for %TARGET_ARCH%!
+    echo [ERROR] cargo build failed for %RUST_TARGET%!
     exit /b %errorlevel%
 )
 
-if exist "%UNPACKED_DIR%" (
-    echo * Staging folder with architecture badge: %STAGED_DIR%
-    if exist "%STAGED_DIR%" rmdir /s /q "%STAGED_DIR%"
-    if exist "%ZIP_OUTPUT%" del /f /q "%ZIP_OUTPUT%"
-    move /y "%UNPACKED_DIR%" "%STAGED_DIR%" >nul
-
-    echo * Creating portable ZIP archive: %ZIP_OUTPUT%
-    powershell -NoProfile -Command "Compress-Archive -Path '%STAGED_DIR%' -DestinationPath '%ZIP_OUTPUT%' -Force"
-    if !errorlevel! neq 0 (
-        echo [ERROR] Failed to create %ZIP_OUTPUT%!
-        exit /b !errorlevel!
-    )
-    echo [OK] Created %ZIP_OUTPUT%
-    rmdir /s /q "%STAGED_DIR%"
-) else (
-    echo [WARN] Directory %UNPACKED_DIR% was not generated.
+if not exist "%EXE_SRC%" (
+    echo [ERROR] Expected binary not found: %EXE_SRC%
+    exit /b 1
 )
+
+if exist "%STAGE_ROOT%" rmdir /s /q "%STAGE_ROOT%"
+if exist "%ZIP_OUTPUT%" del /f /q "%ZIP_OUTPUT%"
+mkdir "%STAGE_DIR%"
+copy /y "%EXE_SRC%" "%STAGE_DIR%\railbench.exe" >nul
+if exist "LICENSE" copy /y "LICENSE" "%STAGE_DIR%\LICENSE" >nul
+
+echo * Creating portable ZIP archive: %ZIP_OUTPUT%
+powershell -NoProfile -Command "Compress-Archive -Path '%STAGE_DIR%' -DestinationPath '%ZIP_OUTPUT%' -Force"
+if !errorlevel! neq 0 (
+    echo [ERROR] Failed to create %ZIP_OUTPUT%!
+    exit /b !errorlevel!
+)
+echo [OK] Created %ZIP_OUTPUT%
+rmdir /s /q "%STAGE_ROOT%"
 exit /b 0

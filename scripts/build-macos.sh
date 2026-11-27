@@ -6,18 +6,8 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 cd "$PROJECT_ROOT"
 source "$SCRIPT_DIR/release-cleanup.sh"
 
-# Argument handling:
-# ./scripts/build-macos.sh [arch] [format]
-# e.g.:
-#   ./scripts/build-macos.sh              -> all architectures, dmg + zip format (default)
-#   ./scripts/build-macos.sh arm64        -> arm64 (Apple Silicon), dmg + zip format
-#   ./scripts/build-macos.sh x64          -> x64 (Intel), dmg + zip format
-#   ./scripts/build-macos.sh dmg          -> all architectures, dmg format only
-#   ./scripts/build-macos.sh zip          -> all architectures, zip format only
-#   ./scripts/build-macos.sh both         -> all architectures, dmg + zip format
-#   ./scripts/build-macos.sh arm64 dmg    -> arm64, dmg format
-#   ./scripts/build-macos.sh arm64 zip    -> arm64, zip format
-#   ./scripts/build-macos.sh all both     -> all architectures, dmg + zip
+# Usage:
+#   ./scripts/build-macos.sh [x64|arm64|universal|all] [dmg|zip|both]
 ARG1="${1:-all}"
 ARG2="${2:-both}"
 
@@ -29,9 +19,8 @@ else
     FORMAT="$ARG2"
 fi
 
-# Dynamically fetch Product Name and Version from package.json
-PRODUCT_NAME=$(node -p "require('./package.json').build?.productName || require('./package.json').name || 'railbench'" 2>/dev/null || echo "railbench")
-APP_VERSION=$(node -p "require('./package.json').version || '0.6.1'" 2>/dev/null || echo "0.6.1")
+PRODUCT_NAME="RAILbench"
+APP_VERSION="$(resolve_railbench_version "$PROJECT_ROOT")"
 
 IS_MACOS=false
 if [[ "$OSTYPE" == "darwin"* ]]; then
@@ -40,27 +29,12 @@ fi
 
 WANT_DMG=true
 WANT_ZIP=true
-
 case "$FORMAT" in
-    dmg)
-        WANT_DMG=true
-        WANT_ZIP=false
-        ;;
-    zip)
-        WANT_DMG=false
-        WANT_ZIP=true
-        ;;
-    both|all|"")
-        WANT_DMG=true
-        WANT_ZIP=true
-        ;;
-    *)
-        WANT_DMG=true
-        WANT_ZIP=true
-        ;;
+    dmg) WANT_DMG=true; WANT_ZIP=false ;;
+    zip) WANT_DMG=false; WANT_ZIP=true ;;
+    *) WANT_DMG=true; WANT_ZIP=true ;;
 esac
 
-# Locate rcodesign binary
 find_rcodesign() {
     if command -v rcodesign &> /dev/null; then
         echo "rcodesign"
@@ -75,242 +49,179 @@ find_rcodesign() {
     fi
 }
 
-RCODESIGN_BIN=$(find_rcodesign)
+RCODESIGN_BIN="$(find_rcodesign)"
 
 echo "=========================================================="
-echo " Building macOS Packages ($PRODUCT_NAME v$APP_VERSION)"
+echo " Building Native Rust macOS Packages ($PRODUCT_NAME v$APP_VERSION)"
 echo "=========================================================="
 echo "Target Architecture : $ARCH"
-echo "Build DMG           : $WANT_DMG (Primary / Default)"
+echo "Build DMG           : $WANT_DMG"
 echo "Build ZIP           : $WANT_ZIP"
 echo "Host OS             : $([ "$IS_MACOS" = true ] && echo 'macOS (native)' || echo 'Linux/Unix (cross-compilation)')"
-if [ -n "$RCODESIGN_BIN" ]; then
-    echo "Code Signing        : rcodesign enabled ($("$RCODESIGN_BIN" --version 2>&1))"
-elif [ "$IS_MACOS" = true ]; then
-    echo "Code Signing        : Apple codesign tool (native)"
-else
-    echo "Code Signing        : None (rcodesign not found)"
-fi
 echo "----------------------------------------------------------"
 
 case "$ARCH" in
-    x64|arm64|all|universal)
-        ;;
+    x64|arm64|all|universal) ;;
     *)
         echo "Unknown architecture: $ARCH (choose x64, arm64, universal, or all)"
         exit 1
         ;;
 esac
 
-# 1. Build TypeScript and Vite client & electron backend
-npm run build:all
-
-# Helper to recursively sign an .app bundle
-sign_app_bundle() {
-    local APP_BUNDLE="$1"
-
-    if [ ! -d "$APP_BUNDLE" ]; then
-        echo "⚠️  App bundle '$APP_BUNDLE' not found to sign."
+compile_darwin_binary() {
+    local RUST_TARGET="$1"
+    if [ "$IS_MACOS" = true ]; then
+        cargo build --release --manifest-path "$PROJECT_ROOT/rust/Cargo.toml" -p railbench-app --target "$RUST_TARGET"
+    elif command -v cargo-zigbuild &> /dev/null; then
+        cargo zigbuild --release --manifest-path "$PROJECT_ROOT/rust/Cargo.toml" -p railbench-app --target "$RUST_TARGET"
+    else
+        echo "⚠️  Building macOS binaries from Linux requires 'cargo-zigbuild' + 'zig' (or run natively on macOS)."
+        echo ""
+        echo "Install:"
+        echo "  cargo install cargo-zigbuild"
+        echo "  rustup target add $RUST_TARGET"
         return 1
     fi
+}
 
+sign_app_bundle() {
+    local APP_BUNDLE="$1"
     if [ -n "$RCODESIGN_BIN" ]; then
         echo "• Code signing with rcodesign: $APP_BUNDLE"
-        if [ -n "$APPLE_CERT_P12" ] && [ -f "$APPLE_CERT_P12" ]; then
-            echo "  Using Developer ID Certificate: $APPLE_CERT_P12"
-            if [ -n "$APPLE_CERT_PASSWORD" ]; then
+        if [ -n "${APPLE_CERT_P12:-}" ] && [ -f "$APPLE_CERT_P12" ]; then
+            if [ -n "${APPLE_CERT_PASSWORD:-}" ]; then
                 "$RCODESIGN_BIN" sign --p12-file "$APPLE_CERT_P12" --p12-password "$APPLE_CERT_PASSWORD" "$APP_BUNDLE"
             else
                 "$RCODESIGN_BIN" sign --p12-file "$APPLE_CERT_P12" "$APP_BUNDLE"
             fi
         else
-            echo "  Applying Ad-Hoc signature (AMFI / Apple Silicon M1+ compliant)..."
             "$RCODESIGN_BIN" sign "$APP_BUNDLE"
         fi
-        echo "✓ Signature applied to $APP_BUNDLE"
     elif [ "$IS_MACOS" = true ]; then
         echo "• Code signing with native macOS codesign: $APP_BUNDLE"
         codesign --force --deep -s - "$APP_BUNDLE"
-        echo "✓ Native ad-hoc signature applied"
     else
-        echo "⚠️  rcodesign not found! The bundle will remain unsigned."
-        echo "   Apple Silicon (M1/M2/M3/M4) may terminate unsigned Mach-O binaries."
-        echo "   To fix: install rcodesign (e.g. into ~/.local/bin/rcodesign or via 'cargo install apple-codesign')."
+        echo "⚠️  rcodesign not found; bundle remains unsigned (ad-hoc sign on macOS with 'codesign --force --deep -s -')."
     fi
 }
 
-# Helper to create DMG on Linux/Unix using genisoimage or mkisofs
-create_dmg_unix() {
-    local TARGET_ARCH="$1"
-    local APP_DIR="$2"
-    local OUTPUT_DMG="release/${PRODUCT_NAME}-${APP_VERSION}-mac-${TARGET_ARCH}.dmg"
+create_app_bundle() {
+    local TARGET_ARCH="$1" # x64 | arm64 | universal
+    local STAGE_DIR="$PROJECT_ROOT/release/mac-stage-${TARGET_ARCH}"
+    local APP_BUNDLE="$STAGE_DIR/${PRODUCT_NAME}.app"
+    local BIN_DEST="$APP_BUNDLE/Contents/MacOS/railbench"
 
-    if [ ! -d "$APP_DIR" ]; then
-        echo "⚠️  App directory '$APP_DIR' not found, skipping DMG for $TARGET_ARCH."
-        return
-    fi
-
-    # Find the .app bundle inside APP_DIR
-    local APP_BUNDLE=""
-    for item in "$APP_DIR"/*.app; do
-        if [ -d "$item" ]; then
-            APP_BUNDLE="$item"
-            break
-        fi
-    done
-
-    if [ -z "$APP_BUNDLE" ]; then
-        echo "⚠️  No .app bundle found in '$APP_DIR', skipping DMG."
-        return
-    fi
-
-    local ISO_MAKER=""
-    if command -v genisoimage &> /dev/null; then
-        ISO_MAKER="genisoimage"
-    elif command -v mkisofs &> /dev/null; then
-        ISO_MAKER="mkisofs"
-    fi
-
-    if [ -z "$ISO_MAKER" ]; then
-        echo "⚠️  'genisoimage' or 'mkisofs' not found. Cannot create .dmg on Linux."
-        echo "   Please install genisoimage (e.g. 'sudo apt install genisoimage' or 'pacman -S cdrtools')."
-        return
-    fi
-
-    echo "• Creating macOS DMG for $TARGET_ARCH with $ISO_MAKER..."
-    local STAGE_DIR
-    STAGE_DIR=$(mktemp -d "/tmp/dmg-stage-${TARGET_ARCH}-XXXXXX")
-
-    cp -a "$APP_BUNDLE" "$STAGE_DIR/"
-    ln -s /Applications "$STAGE_DIR/Applications"
-
-    mkdir -p release
-    rm -f "$OUTPUT_DMG"
-
-    "$ISO_MAKER" -V "$PRODUCT_NAME" -D -R -apple -no-pad -quiet -o "$OUTPUT_DMG" "$STAGE_DIR"
     rm -rf "$STAGE_DIR"
+    mkdir -p "$APP_BUNDLE/Contents/MacOS" "$APP_BUNDLE/Contents/Resources"
 
-    if [ -f "$OUTPUT_DMG" ]; then
-        local SIZE
-        SIZE=$(du -h "$OUTPUT_DMG" | awk '{print $1}')
-        echo "✓ Created DMG: $OUTPUT_DMG ($SIZE)"
+    if [ "$TARGET_ARCH" = "x64" ]; then
+        compile_darwin_binary "x86_64-apple-darwin"
+        cp "$PROJECT_ROOT/rust/target/x86_64-apple-darwin/release/railbench-app" "$BIN_DEST"
+    elif [ "$TARGET_ARCH" = "arm64" ]; then
+        compile_darwin_binary "aarch64-apple-darwin"
+        cp "$PROJECT_ROOT/rust/target/aarch64-apple-darwin/release/railbench-app" "$BIN_DEST"
     else
-        echo "⚠️  Failed to generate $OUTPUT_DMG"
+        compile_darwin_binary "x86_64-apple-darwin"
+        compile_darwin_binary "aarch64-apple-darwin"
+        lipo -create \
+            "$PROJECT_ROOT/rust/target/x86_64-apple-darwin/release/railbench-app" \
+            "$PROJECT_ROOT/rust/target/aarch64-apple-darwin/release/railbench-app" \
+            -output "$BIN_DEST"
     fi
-}
+    chmod +x "$BIN_DEST"
 
-# Helper to create ZIP on Linux/Unix preserving symlinks
-create_zip_unix() {
-    local TARGET_ARCH="$1"
-    local APP_DIR="$2"
-    local OUTPUT_ZIP="release/${PRODUCT_NAME}-${APP_VERSION}-mac-${TARGET_ARCH}.zip"
+    cat > "$APP_BUNDLE/Contents/Info.plist" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+    <key>CFBundleExecutable</key>
+    <string>railbench</string>
+    <key>CFBundleIdentifier</key>
+    <string>io.github.Nicolaikurz.railbench</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>RAILbench</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>${APP_VERSION}</string>
+    <key>CFBundleVersion</key>
+    <string>${APP_VERSION}</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>11.0</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+</dict>
+</plist>
+EOF
 
-    if [ ! -d "$APP_DIR" ]; then
-        return
+    if [ -f "$PROJECT_ROOT/build/icon.png" ]; then
+        cp "$PROJECT_ROOT/build/icon.png" "$APP_BUNDLE/Contents/Resources/icon.png"
     fi
 
-    local APP_BUNDLE=""
-    for item in "$APP_DIR"/*.app; do
-        if [ -d "$item" ]; then
-            APP_BUNDLE="$item"
-            break
-        fi
-    done
-
-    if [ -z "$APP_BUNDLE" ]; then
-        return
-    fi
-
-    echo "• Creating macOS ZIP for $TARGET_ARCH (preserving symlinks)..."
-    rm -f "$OUTPUT_ZIP"
-    local BASE_NAME
-    BASE_NAME=$(basename "$APP_BUNDLE")
-    (cd "$APP_DIR" && zip -qry "../../$OUTPUT_ZIP" "$BASE_NAME")
-
-    if [ -f "$OUTPUT_ZIP" ]; then
-        local SIZE
-        SIZE=$(du -h "$OUTPUT_ZIP" | awk '{print $1}')
-        echo "✓ Created ZIP: $OUTPUT_ZIP ($SIZE)"
-    fi
-}
-
-# Cross-compilation target processor
-process_unix_target() {
-    local TARGET_ARCH="$1"
-    local APP_DIR="$2"
-
-    echo "• Packaging macOS bundle for $TARGET_ARCH (dir)..."
-    npx electron-builder --mac dir --$TARGET_ARCH
-
-    # Locate and sign the .app bundle
-    local APP_BUNDLE=""
-    for item in "$APP_DIR"/*.app; do
-        if [ -d "$item" ]; then
-            APP_BUNDLE="$item"
-            break
-        fi
-    done
-
-    if [ -n "$APP_BUNDLE" ]; then
-        sign_app_bundle "$APP_BUNDLE"
-    fi
+    sign_app_bundle "$APP_BUNDLE"
 
     if [ "$WANT_DMG" = true ]; then
-        create_dmg_unix "$TARGET_ARCH" "$APP_DIR"
+        local OUTPUT_DMG="$PROJECT_ROOT/release/railbench-${APP_VERSION}-mac-${TARGET_ARCH}.dmg"
+        rm -f "$OUTPUT_DMG"
+        mkdir -p "$PROJECT_ROOT/release"
+        if [ "$IS_MACOS" = true ]; then
+            local DMG_SRC="$STAGE_DIR/dmg-src"
+            mkdir -p "$DMG_SRC"
+            cp -R "$APP_BUNDLE" "$DMG_SRC/"
+            ln -s /Applications "$DMG_SRC/Applications"
+            hdiutil create -volname "$PRODUCT_NAME" -srcfolder "$DMG_SRC" -ov -format UDZO "$OUTPUT_DMG"
+            echo "✓ Created DMG: $OUTPUT_DMG"
+        else
+            local ISO_MAKER=""
+            command -v genisoimage &> /dev/null && ISO_MAKER="genisoimage"
+            [ -z "$ISO_MAKER" ] && command -v mkisofs &> /dev/null && ISO_MAKER="mkisofs"
+            if [ -n "$ISO_MAKER" ]; then
+                local DMG_SRC="$STAGE_DIR/dmg-src"
+                mkdir -p "$DMG_SRC"
+                cp -a "$APP_BUNDLE" "$DMG_SRC/"
+                ln -s /Applications "$DMG_SRC/Applications"
+                "$ISO_MAKER" -V "$PRODUCT_NAME" -D -R -apple -no-pad -quiet -o "$OUTPUT_DMG" "$DMG_SRC"
+                echo "✓ Created DMG: $OUTPUT_DMG"
+            else
+                echo "⚠️  genisoimage/mkisofs not found; skipping DMG on Linux."
+            fi
+        fi
     fi
 
     if [ "$WANT_ZIP" = true ]; then
-        create_zip_unix "$TARGET_ARCH" "$APP_DIR"
+        local OUTPUT_ZIP="$PROJECT_ROOT/release/railbench-${APP_VERSION}-mac-${TARGET_ARCH}.zip"
+        rm -f "$OUTPUT_ZIP"
+        mkdir -p "$PROJECT_ROOT/release"
+        if command -v zip &> /dev/null; then
+            (cd "$STAGE_DIR" && zip -qry "$OUTPUT_ZIP" "${PRODUCT_NAME}.app")
+        elif command -v python3 &> /dev/null; then
+            python3 -c "import shutil; shutil.make_archive('${PROJECT_ROOT}/release/railbench-${APP_VERSION}-mac-${TARGET_ARCH}', 'zip', '${STAGE_DIR}', '${PRODUCT_NAME}.app')"
+        else
+            echo "⚠️  No zip tool found; skipping ZIP."
+        fi
+        [ -f "$OUTPUT_ZIP" ] && echo "✓ Created ZIP: $OUTPUT_ZIP"
     fi
+
+    rm -rf "$STAGE_DIR"
 }
 
-# 2. Archive old macOS binaries & package with electron-builder
 [ "$WANT_DMG" = true ] && archive_old_binaries "$PROJECT_ROOT/release" "*-mac-*.dmg"
 [ "$WANT_ZIP" = true ] && archive_old_binaries "$PROJECT_ROOT/release" "*-mac-*.zip"
-if [ "$IS_MACOS" = true ]; then
-    # Native macOS build with electron-builder
-    TARGETS=""
-    [ "$WANT_DMG" = true ] && TARGETS="$TARGETS dmg"
-    [ "$WANT_ZIP" = true ] && TARGETS="$TARGETS zip"
-    TARGETS=$(echo "$TARGETS" | xargs)
 
-    case "$ARCH" in
-        x64)
-            echo "• Packaging for macOS Intel (x64)..."
-            npx electron-builder --mac $TARGETS --x64
-            ;;
-        arm64)
-            echo "• Packaging for macOS Apple Silicon (arm64)..."
-            npx electron-builder --mac $TARGETS --arm64
-            ;;
-        all)
-            echo "• Packaging for macOS Intel (x64) and Apple Silicon (arm64)..."
-            npx electron-builder --mac $TARGETS --x64
-            npx electron-builder --mac $TARGETS --arm64
-            ;;
-        universal)
-            echo "• Packaging Universal macOS Binary..."
-            npx electron-builder --mac $TARGETS --universal
-            ;;
-    esac
-else
-    # Linux cross-compilation with rcodesign & genisoimage
-    case "$ARCH" in
-        x64)
-            process_unix_target "x64" "release/mac"
-            ;;
-        arm64)
-            process_unix_target "arm64" "release/mac-arm64"
-            ;;
-        all)
-            process_unix_target "x64" "release/mac"
-            process_unix_target "arm64" "release/mac-arm64"
-            ;;
-        universal)
-            process_unix_target "universal" "release/mac-universal"
-            ;;
-    esac
-fi
+case "$ARCH" in
+    x64) create_app_bundle "x64" ;;
+    arm64) create_app_bundle "arm64" ;;
+    universal) create_app_bundle "universal" ;;
+    all)
+        create_app_bundle "x64"
+        create_app_bundle "arm64"
+        ;;
+esac
 
 cleanup_build_artifacts "$PROJECT_ROOT"
 
@@ -318,6 +229,4 @@ echo ""
 echo "=========================================================="
 echo " macOS package build finished!"
 echo " Output files in: release/"
-ls -lh release/*.dmg 2>/dev/null || true
-[ "$WANT_ZIP" = true ] && ls -lh release/*-mac-*.zip 2>/dev/null || true
 echo "=========================================================="

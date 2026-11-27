@@ -209,7 +209,6 @@ impl RailbenchApp {
         };
         app.perf_monitor.visible = s.perf_monitor_visible;
         app.app_settings = s;
-        app.inventory = crate::inventory_store::TrackInventoryStore::load_from_disk();
 
         match app.app_settings.startup_action {
             StartupAction::Ask => {

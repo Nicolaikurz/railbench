@@ -84,7 +84,8 @@ pub(super) fn draw_slope_tab(
                 let draw_endpoint_row = |ui: &mut egui::Ui,
                                          badge: &str,
                                          row_lbl: &str,
-                                         badge_col: Color32,
+                                         badge_fill: Color32,
+                                         accent_text: Color32,
                                          pick_txt: &str,
                                          picking: bool,
                                          height_val: &mut f64,
@@ -94,7 +95,7 @@ pub(super) fn draw_slope_tab(
                         ui.spacing_mut().item_spacing.x = 6.0;
                         let (dot_r, _) =
                             ui.allocate_exact_size(Vec2::new(16.0, 16.0), Sense::hover());
-                        ui.painter().circle_filled(dot_r.center(), 7.5, badge_col);
+                        ui.painter().circle_filled(dot_r.center(), 7.5, badge_fill);
                         ui.painter().text(
                             dot_r.center(),
                             egui::Align2::CENTER_CENTER,
@@ -111,14 +112,14 @@ pub(super) fn draw_slope_tab(
                         let (pick_rect, pick_resp) =
                             ui.allocate_exact_size(Vec2::new(pick_w, 24.0), Sense::click());
                         let pick_bg = if picking {
-                            Color32::from_rgba_unmultiplied(badge_col.r(), badge_col.g(), badge_col.b(), 42)
+                            Color32::from_rgba_unmultiplied(accent_text.r(), accent_text.g(), accent_text.b(), 42)
                         } else if pick_resp.hovered() {
                             Color32::from_rgba_unmultiplied(p.primary.r(), p.primary.g(), p.primary.b(), 26)
                         } else {
                             p.bg_card
                         };
                         let pick_border = if picking {
-                            Stroke::new(1.3_f32, badge_col)
+                            Stroke::new(1.3_f32, accent_text)
                         } else if pick_resp.hovered() {
                             Stroke::new(1.0_f32, p.primary)
                         } else {
@@ -135,9 +136,9 @@ pub(super) fn draw_slope_tab(
                             ui.painter(),
                             Pos2::new(pick_rect.min.x + 11.0, pick_rect.center().y),
                             5.0,
-                            if picking { badge_col } else { p.text_muted },
+                            if picking { accent_text } else { p.text_muted },
                         );
-                        let txt_col = if picking { badge_col } else { p.text_main };
+                        let txt_col = if picking { accent_text } else { p.text_main };
                         ui.painter().text(
                             Pos2::new(pick_rect.min.x + 21.0, pick_rect.center().y),
                             egui::Align2::LEFT_CENTER,
@@ -171,7 +172,8 @@ pub(super) fn draw_slope_tab(
                     ui,
                     "A",
                     "Start",
-                    Color32::from_rgb(16, 185, 129),
+                    Color32::from_rgb(4, 120, 87),
+                    p.text_success,
                     &label_a,
                     app.ramp_sel.pick_mode == Some(true),
                     &mut app.ramp_start_h,
@@ -248,12 +250,12 @@ pub(super) fn draw_slope_tab(
                     let (conn_txt, conn_col) = if is_cont {
                         (
                             if is_de { "Durchgehend" } else { "Continuous" },
-                            Color32::from_rgb(16, 185, 129),
+                            p.text_success,
                         )
                     } else {
                         (
                             if is_de { "Unterbrochen" } else { "Split" },
-                            Color32::from_rgb(245, 158, 11),
+                            p.text_warning,
                         )
                     };
                     ui.painter().text(
@@ -271,7 +273,8 @@ pub(super) fn draw_slope_tab(
                     ui,
                     "B",
                     if is_de { "Ende" } else { "End" },
-                    Color32::from_rgb(245, 158, 11),
+                    Color32::from_rgb(161, 72, 6),
+                    p.text_warning,
                     &label_b,
                     app.ramp_sel.pick_mode == Some(false),
                     &mut app.ramp_end_h,

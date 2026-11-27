@@ -12,7 +12,6 @@ mod collab;
 mod export;
 mod i18n;
 mod icons;
-mod inventory_store;
 mod model_tools;
 mod models3d_mesh;
 mod perf_monitor;
@@ -286,7 +285,6 @@ pub struct RailbenchApp {
     pub scene_3d_cache: viewer3d::Scene3DCache,
     pub edit_3d: viewer3d::Edit3DState,
     pub cad_tools: cad_tools::CadToolsState,
-    pub inventory: inventory_store::TrackInventoryStore,
     pub perf_monitor: perf_monitor::PerfMonitor,
     pub app_settings: AppSettings,
     pub persist_settings: bool,
@@ -461,7 +459,6 @@ impl Default for RailbenchApp {
             scene_3d_cache: viewer3d::Scene3DCache::default(),
             edit_3d: viewer3d::Edit3DState::default(),
             cad_tools: cad_tools::CadToolsState::default(),
-            inventory: inventory_store::TrackInventoryStore::default(),
             perf_monitor: perf_monitor::PerfMonitor::default(),
             app_settings: AppSettings::default(),
             persist_settings: false,

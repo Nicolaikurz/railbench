@@ -323,7 +323,7 @@ pub(super) fn draw_empty_cab_state(
     while gx <= rect.max.x {
         painter.line_segment(
             [egui::Pos2::new(gx, rect.min.y), egui::Pos2::new(gx, rect.max.y)],
-            Stroke::new(1.0, grid_col),
+            Stroke::new(1.0_f32, grid_col),
         );
         gx += step;
     }
@@ -331,7 +331,7 @@ pub(super) fn draw_empty_cab_state(
     while gy <= rect.max.y {
         painter.line_segment(
             [egui::Pos2::new(rect.min.x, gy), egui::Pos2::new(rect.max.x, gy)],
-            Stroke::new(1.0, grid_col),
+            Stroke::new(1.0_f32, grid_col),
         );
         gy += step;
     }

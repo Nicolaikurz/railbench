@@ -47,39 +47,39 @@ fn is_builtin_slice(catalogs: &[Catalog], idx: &BuiltinCatalogIndex) -> bool {
 }
 
 const TRACK_CATALOG_JSONS: &[(&str, &str)] = &[
-    ("maerklin-c-h0", include_str!("../../../../src/catalog/systems/maerklin-c-h0.json")),
-    ("maerklin-k-h0", include_str!("../../../../src/catalog/systems/maerklin-k-h0.json")),
-    ("maerklin-m-h0", include_str!("../../../../src/catalog/systems/maerklin-m-h0.json")),
-    ("trix-c-h0", include_str!("../../../../src/catalog/systems/trix-c-h0.json")),
-    ("roco-line-h0", include_str!("../../../../src/catalog/systems/roco-line-h0.json")),
-    ("piko-a-h0", include_str!("../../../../src/catalog/systems/piko-a-h0.json")),
-    ("tillig-elite-h0", include_str!("../../../../src/catalog/systems/tillig-elite-h0.json")),
-    ("peco-streamline-h0-code100", include_str!("../../../../src/catalog/systems/peco-streamline-h0-code100.json")),
-    ("kato-unitrack-ho", include_str!("../../../../src/catalog/systems/kato-unitrack-ho.json")),
-    ("bachmann-ez-track-h0", include_str!("../../../../src/catalog/systems/bachmann-ez-track-h0.json")),
-    ("fleischmann-piccolo-n", include_str!("../../../../src/catalog/systems/fleischmann-piccolo-n.json")),
-    ("minitrix-n", include_str!("../../../../src/catalog/systems/minitrix-n.json")),
-    ("kato-unitrack-n", include_str!("../../../../src/catalog/systems/kato-unitrack-n.json")),
-    ("peco-streamline-n-code55", include_str!("../../../../src/catalog/systems/peco-streamline-n-code55.json")),
-    ("bachmann-ez-track-n", include_str!("../../../../src/catalog/systems/bachmann-ez-track-n.json")),
-    ("tillig-tt", include_str!("../../../../src/catalog/systems/tillig-tt.json")),
-    ("tillig-bettungsgleis-tt", include_str!("../../../../src/catalog/systems/tillig-bettungsgleis-tt.json")),
-    ("kuehn-gleis-tt", include_str!("../../../../src/catalog/systems/kuehn-gleis-tt.json")),
-    ("maerklin-z", include_str!("../../../../src/catalog/systems/maerklin-z.json")),
-    ("rokuhan-z", include_str!("../../../../src/catalog/systems/rokuhan-z.json")),
-    ("lenz-0", include_str!("../../../../src/catalog/systems/lenz-0.json")),
-    ("maerklin-1", include_str!("../../../../src/catalog/systems/maerklin-1.json")),
-    ("lgb-g", include_str!("../../../../src/catalog/systems/lgb-g.json")),
+    ("maerklin-c-h0", include_str!("../../assets/catalogs/maerklin-c-h0.json")),
+    ("maerklin-k-h0", include_str!("../../assets/catalogs/maerklin-k-h0.json")),
+    ("maerklin-m-h0", include_str!("../../assets/catalogs/maerklin-m-h0.json")),
+    ("trix-c-h0", include_str!("../../assets/catalogs/trix-c-h0.json")),
+    ("roco-line-h0", include_str!("../../assets/catalogs/roco-line-h0.json")),
+    ("piko-a-h0", include_str!("../../assets/catalogs/piko-a-h0.json")),
+    ("tillig-elite-h0", include_str!("../../assets/catalogs/tillig-elite-h0.json")),
+    ("peco-streamline-h0-code100", include_str!("../../assets/catalogs/peco-streamline-h0-code100.json")),
+    ("kato-unitrack-ho", include_str!("../../assets/catalogs/kato-unitrack-ho.json")),
+    ("bachmann-ez-track-h0", include_str!("../../assets/catalogs/bachmann-ez-track-h0.json")),
+    ("fleischmann-piccolo-n", include_str!("../../assets/catalogs/fleischmann-piccolo-n.json")),
+    ("minitrix-n", include_str!("../../assets/catalogs/minitrix-n.json")),
+    ("kato-unitrack-n", include_str!("../../assets/catalogs/kato-unitrack-n.json")),
+    ("peco-streamline-n-code55", include_str!("../../assets/catalogs/peco-streamline-n-code55.json")),
+    ("bachmann-ez-track-n", include_str!("../../assets/catalogs/bachmann-ez-track-n.json")),
+    ("tillig-tt", include_str!("../../assets/catalogs/tillig-tt.json")),
+    ("tillig-bettungsgleis-tt", include_str!("../../assets/catalogs/tillig-bettungsgleis-tt.json")),
+    ("kuehn-gleis-tt", include_str!("../../assets/catalogs/kuehn-gleis-tt.json")),
+    ("maerklin-z", include_str!("../../assets/catalogs/maerklin-z.json")),
+    ("rokuhan-z", include_str!("../../assets/catalogs/rokuhan-z.json")),
+    ("lenz-0", include_str!("../../assets/catalogs/lenz-0.json")),
+    ("maerklin-1", include_str!("../../assets/catalogs/maerklin-1.json")),
+    ("lgb-g", include_str!("../../assets/catalogs/lgb-g.json")),
 ];
 
 const ROAD_CATALOG_JSONS: &[(&str, &str)] = &[
-    ("generic-streets-h0", include_str!("../../../../src/catalog/systems/generic-streets-h0.json")),
-    ("generic-streets-n", include_str!("../../../../src/catalog/systems/generic-streets-n.json")),
-    ("generic-streets-tt", include_str!("../../../../src/catalog/systems/generic-streets-tt.json")),
-    ("generic-streets-z", include_str!("../../../../src/catalog/systems/generic-streets-z.json")),
-    ("generic-streets-0", include_str!("../../../../src/catalog/systems/generic-streets-0.json")),
-    ("generic-streets-1", include_str!("../../../../src/catalog/systems/generic-streets-1.json")),
-    ("generic-streets-g", include_str!("../../../../src/catalog/systems/generic-streets-g.json")),
+    ("generic-streets-h0", include_str!("../../assets/catalogs/generic-streets-h0.json")),
+    ("generic-streets-n", include_str!("../../assets/catalogs/generic-streets-n.json")),
+    ("generic-streets-tt", include_str!("../../assets/catalogs/generic-streets-tt.json")),
+    ("generic-streets-z", include_str!("../../assets/catalogs/generic-streets-z.json")),
+    ("generic-streets-0", include_str!("../../assets/catalogs/generic-streets-0.json")),
+    ("generic-streets-1", include_str!("../../assets/catalogs/generic-streets-1.json")),
+    ("generic-streets-g", include_str!("../../assets/catalogs/generic-streets-g.json")),
 ];
 
 pub fn builtin_catalogs() -> Vec<Catalog> {
@@ -121,6 +121,19 @@ pub fn builtin_catalogs() -> Vec<Catalog> {
     out
 }
 
+#[inline]
+fn contains_ascii_ignore_case(haystack: &str, needle: &str) -> bool {
+    let hb = haystack.as_bytes();
+    let nb = needle.as_bytes();
+    if nb.is_empty() {
+        return true;
+    }
+    if nb.len() > hb.len() {
+        return false;
+    }
+    hb.windows(nb.len()).any(|w| w.eq_ignore_ascii_case(nb))
+}
+
 pub fn is_buffer_stop_entry(entry: &CatalogEntry) -> bool {
     if entry.is_road == Some(true) {
         return false;
@@ -132,8 +145,9 @@ pub fn is_buffer_stop_entry(entry: &CatalogEntry) -> bool {
         return true;
     }
     let contains_kw = |s: &str| -> bool {
-        let lower = s.to_ascii_lowercase();
-        lower.contains("prellbock") || lower.contains("buffer stop") || lower.contains("buffer-stop")
+        contains_ascii_ignore_case(s, "prellbock")
+            || contains_ascii_ignore_case(s, "buffer stop")
+            || contains_ascii_ignore_case(s, "buffer-stop")
     };
     contains_kw(&entry.name)
         || entry.name_en.as_deref().map_or(false, contains_kw)
@@ -142,12 +156,34 @@ pub fn is_buffer_stop_entry(entry: &CatalogEntry) -> bool {
 
 pub fn is_illuminated_buffer_entry(entry: &CatalogEntry) -> bool {
     let contains_lit = |s: &str| -> bool {
-        let lower = s.to_ascii_lowercase();
-        lower.contains("beleuchtet") || lower.contains("illuminat")
+        contains_ascii_ignore_case(s, "beleuchtet") || contains_ascii_ignore_case(s, "illuminat")
     };
     contains_lit(&entry.name)
         || entry.name_en.as_deref().map_or(false, contains_lit)
         || contains_lit(&entry.description)
+}
+
+fn curved_turnout_connectors(entry: &CatalogEntry, dir: f64) -> Vec<Connector> {
+    let r1 = entry.radius.unwrap_or(360.0);
+    let a1 = entry.angle.unwrap_or(30.0);
+    let lead = entry.branch_length.unwrap_or_else(|| {
+        entry.branch_radius.filter(|&br| br > r1).map_or(0.0, |br| br - r1)
+    });
+    let r2 = if entry.branch_length.is_some() {
+        entry.branch_radius.unwrap_or(r1)
+    } else if entry.branch_radius.is_some_and(|br| br > r1) {
+        r1
+    } else {
+        entry.branch_radius.unwrap_or(r1)
+    };
+    let a2 = entry.branch_angle.unwrap_or(30.0);
+    let rad1 = deg2rad(a1);
+    let rad2 = deg2rad(a2);
+    vec![
+        Connector { x: 0.0, y: 0.0, angle: 180.0, connected_to: None },
+        Connector { x: r1 * rad1.sin(), y: dir * r1 * (1.0 - rad1.cos()), angle: norm_angle_deg(dir * a1), connected_to: None },
+        Connector { x: lead + r2 * rad2.sin(), y: dir * r2 * (1.0 - rad2.cos()), angle: norm_angle_deg(dir * a2), connected_to: None },
+    ]
 }
 
 pub fn local_connectors(entry: &CatalogEntry) -> Vec<Connector> {
@@ -208,50 +244,12 @@ pub fn local_connectors(entry: &CatalogEntry) -> Vec<Connector> {
         }
         "curved-turnout-left" | "curved-turnout-right" => {
             let dir = if entry.kind == "curved-turnout-left" { -1.0 } else { 1.0 };
-            let r1 = entry.radius.unwrap_or(360.0);
-            let a1 = entry.angle.unwrap_or(30.0);
-            let lead = entry.branch_length.unwrap_or_else(|| {
-                entry.branch_radius.filter(|&br| br > r1).map_or(0.0, |br| br - r1)
-            });
-            let r2 = if entry.branch_length.is_some() {
-                entry.branch_radius.unwrap_or(r1)
-            } else if entry.branch_radius.is_some_and(|br| br > r1) {
-                r1
-            } else {
-                entry.branch_radius.unwrap_or(r1)
-            };
-            let a2 = entry.branch_angle.unwrap_or(30.0);
-            let rad1 = deg2rad(a1);
-            let rad2 = deg2rad(a2);
-            vec![
-                Connector { x: 0.0, y: 0.0, angle: 180.0, connected_to: None },
-                Connector { x: r1 * rad1.sin(), y: dir * r1 * (1.0 - rad1.cos()), angle: norm_angle_deg(dir * a1), connected_to: None },
-                Connector { x: lead + r2 * rad2.sin(), y: dir * r2 * (1.0 - rad2.cos()), angle: norm_angle_deg(dir * a2), connected_to: None },
-            ]
+            curved_turnout_connectors(entry, dir)
         }
         "turnout-left" | "turnout-right" => {
             let dir = if entry.kind == "turnout-left" { -1.0 } else { 1.0 };
             if entry.radius.is_some() && entry.length.is_none() {
-                let r1 = entry.radius.unwrap_or(360.0);
-                let a1 = entry.angle.unwrap_or(30.0);
-                let lead = entry.branch_length.unwrap_or_else(|| {
-                    entry.branch_radius.filter(|&br| br > r1).map_or(0.0, |br| br - r1)
-                });
-                let r2 = if entry.branch_length.is_some() {
-                    entry.branch_radius.unwrap_or(r1)
-                } else if entry.branch_radius.is_some_and(|br| br > r1) {
-                    r1
-                } else {
-                    entry.branch_radius.unwrap_or(r1)
-                };
-                let a2 = entry.branch_angle.unwrap_or(30.0);
-                let rad1 = deg2rad(a1);
-                let rad2 = deg2rad(a2);
-                vec![
-                    Connector { x: 0.0, y: 0.0, angle: 180.0, connected_to: None },
-                    Connector { x: r1 * rad1.sin(), y: dir * r1 * (1.0 - rad1.cos()), angle: norm_angle_deg(dir * a1), connected_to: None },
-                    Connector { x: lead + r2 * rad2.sin(), y: dir * r2 * (1.0 - rad2.cos()), angle: norm_angle_deg(dir * a2), connected_to: None },
-                ]
+                curved_turnout_connectors(entry, dir)
             } else {
                 let len = entry.length.unwrap_or(188.3);
                 let br = entry.branch_radius.unwrap_or(437.5);

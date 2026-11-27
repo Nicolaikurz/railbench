@@ -5,6 +5,7 @@ use crate::icons::{icon_button_sized, paint_chevron, paint_icon, ChevronDir, Ico
 pub struct RailbenchPalette {
     pub bg_toolbar: Color32,
     pub toolbar_text: Color32,
+    pub toolbar_accent: Color32,
     pub toolbar_btn: Color32,
     pub toolbar_btn_hover: Color32,
     pub bg_sidebar: Color32,
@@ -14,6 +15,10 @@ pub struct RailbenchPalette {
     pub text_main: Color32,
     pub text_sub: Color32,
     pub text_muted: Color32,
+    pub text_success: Color32,
+    pub text_warning: Color32,
+    pub text_danger: Color32,
+    pub text_indigo: Color32,
     pub border_main: Color32,
     pub primary: Color32,
     pub primary_hover: Color32,
@@ -25,6 +30,7 @@ pub fn palette(dark: bool) -> RailbenchPalette {
         RailbenchPalette {
             bg_toolbar: Color32::from_rgb(4, 7, 17),       // #040711
             toolbar_text: Color32::from_rgb(248, 250, 252), // #f8fafc
+            toolbar_accent: Color32::from_rgb(56, 189, 248), // #38bdf8
             toolbar_btn: Color32::from_rgb(21, 31, 50),     // #151f32
             toolbar_btn_hover: Color32::from_rgb(38, 53, 74), // #26354a
             bg_sidebar: Color32::from_rgb(15, 23, 42),      // #0f172a
@@ -34,15 +40,20 @@ pub fn palette(dark: bool) -> RailbenchPalette {
             text_main: Color32::from_rgb(248, 250, 252),    // #f8fafc
             text_sub: Color32::from_rgb(203, 213, 225),     // #cbd5e1
             text_muted: Color32::from_rgb(148, 163, 184),   // #94a3b8
+            text_success: Color32::from_rgb(52, 211, 153),  // #34d399
+            text_warning: Color32::from_rgb(251, 191, 36),  // #fbbf24
+            text_danger: Color32::from_rgb(248, 113, 113),  // #f87171
+            text_indigo: Color32::from_rgb(129, 140, 248),  // #818cf8
             border_main: Color32::from_rgb(36, 52, 77),     // #24344d
             primary: Color32::from_rgb(56, 189, 248),       // #38bdf8
-            primary_hover: Color32::from_rgb(2, 132, 199),  // #0284c7
+            primary_hover: Color32::from_rgb(3, 105, 161),  // #0369a1 (>= 5.93:1 w/ white)
             canvas_bg: Color32::from_rgb(17, 23, 38),       // #111726
         }
     } else {
         RailbenchPalette {
             bg_toolbar: Color32::from_rgb(30, 41, 59),      // #1e293b (dark header like TS UI!)
             toolbar_text: Color32::from_rgb(248, 250, 252), // #f8fafc
+            toolbar_accent: Color32::from_rgb(56, 189, 248), // #38bdf8 (high contrast on dark toolbar)
             toolbar_btn: Color32::from_rgb(51, 65, 85),     // #334155
             toolbar_btn_hover: Color32::from_rgb(71, 85, 105), // #475569
             bg_sidebar: Color32::from_rgb(245, 240, 230),   // #f5f0e6 (warm crema)
@@ -51,10 +62,14 @@ pub fn palette(dark: bool) -> RailbenchPalette {
             bg_input: Color32::from_rgb(252, 249, 242),     // #fcf9f2
             text_main: Color32::from_rgb(32, 28, 24),       // #201c18
             text_sub: Color32::from_rgb(76, 68, 58),        // #4c443a
-            text_muted: Color32::from_rgb(122, 112, 98),    // #7a7062
+            text_muted: Color32::from_rgb(102, 93, 80),     // #665d50 (>= 5.70:1 on crema)
+            text_success: Color32::from_rgb(4, 120, 87),    // #047857 (>= 4.83:1 on crema)
+            text_warning: Color32::from_rgb(161, 72, 6),    // #a14806 (>= 5.10:1 on crema)
+            text_danger: Color32::from_rgb(185, 28, 28),    // #b91c1c (>= 5.70:1 on crema)
+            text_indigo: Color32::from_rgb(67, 56, 202),    // #4338ca (>= 6.96:1 on crema)
             border_main: Color32::from_rgb(218, 209, 194),  // #dad1c2
-            primary: Color32::from_rgb(2, 132, 199),        // #0284c7
-            primary_hover: Color32::from_rgb(3, 105, 161),  // #0369a1
+            primary: Color32::from_rgb(3, 105, 161),        // #0369a1 (>= 5.22:1 on crema)
+            primary_hover: Color32::from_rgb(7, 89, 133),   // #075985 (>= 7.56:1 w/ white)
             canvas_bg: Color32::from_rgb(236, 229, 214),    // #ece5d6 (warm crema canvas)
         }
     }
@@ -264,7 +279,7 @@ pub fn draw_window_header_bar(
             ui.horizontal(|ui| {
                 let (bar_rect, _) =
                     ui.allocate_exact_size(Vec2::new(3.0, 14.0), egui::Sense::hover());
-                ui.painter().rect_filled(bar_rect, 1.5, p.primary);
+                ui.painter().rect_filled(bar_rect, 1.5, p.toolbar_accent);
                 ui.label(RichText::new(title).strong().size(12.5).color(Color32::WHITE));
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -354,4 +369,81 @@ pub fn show_railbench_dialog_body<R>(
         });
     ui.spacing_mut().item_spacing.y = prev_y;
     inner.inner
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn srgb_to_linear(channel: u8) -> f64 {
+        let c = channel as f64 / 255.0;
+        if c <= 0.04045 {
+            c / 12.92
+        } else {
+            ((c + 0.055) / 1.055).powf(2.4)
+        }
+    }
+
+    fn relative_luminance(col: Color32) -> f64 {
+        0.2126 * srgb_to_linear(col.r())
+            + 0.7152 * srgb_to_linear(col.g())
+            + 0.0722 * srgb_to_linear(col.b())
+    }
+
+    fn wcag_contrast(fg: Color32, bg: Color32) -> f64 {
+        let l1 = relative_luminance(fg);
+        let l2 = relative_luminance(bg);
+        let (hi, lo) = if l1 >= l2 { (l1, l2) } else { (l2, l1) };
+        (hi + 0.05) / (lo + 0.05)
+    }
+
+    #[test]
+    fn palette_meets_wcag_aa_contrast_in_light_and_dark_modes() {
+        for dark in [false, true] {
+            let p = palette(dark);
+            let mode = if dark { "dark" } else { "light" };
+            let surfaces = [
+                ("bg_card", p.bg_card),
+                ("bg_sidebar", p.bg_sidebar),
+                ("bg_input", p.bg_input),
+            ];
+            let text_colors = [
+                ("text_main", p.text_main),
+                ("text_sub", p.text_sub),
+                ("text_muted", p.text_muted),
+                ("primary", p.primary),
+                ("text_success", p.text_success),
+                ("text_warning", p.text_warning),
+                ("text_danger", p.text_danger),
+                ("text_indigo", p.text_indigo),
+            ];
+
+            for (fg_name, fg) in text_colors {
+                for (bg_name, bg) in surfaces {
+                    let ratio = wcag_contrast(fg, bg);
+                    assert!(
+                        ratio >= 4.5,
+                        "[{mode}] {fg_name} on {bg_name} has contrast {ratio:.2}:1 (< 4.5:1)"
+                    );
+                }
+            }
+
+            for (fg_name, fg) in [
+                ("toolbar_text", p.toolbar_text),
+                ("toolbar_accent", p.toolbar_accent),
+            ] {
+                let ratio = wcag_contrast(fg, p.bg_toolbar);
+                assert!(
+                    ratio >= 4.5,
+                    "[{mode}] {fg_name} on bg_toolbar has contrast {ratio:.2}:1 (< 4.5:1)"
+                );
+            }
+
+            let btn_ratio = wcag_contrast(Color32::WHITE, p.primary_hover);
+            assert!(
+                btn_ratio >= 4.5,
+                "[{mode}] WHITE on primary_hover has contrast {btn_ratio:.2}:1 (< 4.5:1)"
+            );
+        }
+    }
 }

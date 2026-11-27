@@ -1,4 +1,4 @@
-use super::loco_builder::{LocoAnimState, LocoBuilder, Mat, TrainPose};
+use super::loco_builder::{LocoAnimState, LocoBuilder, Mat, PrimBuilder, TrainPose};
 use crate::viewer3d::Vertex3D;
 
 /// Builds a detailed DR BR 243 / DB BR 143 electric locomotive in H0 scale

@@ -65,13 +65,14 @@ impl Mat {
         Self { col, ..self }
     }
 
-    fn pack(self) -> [f32; 3] {
+    #[inline]
+    pub(crate) fn pack(self) -> [f32; 3] {
         [self.rough, self.metal, self.emissive]
     }
 }
 
 /// Convert `0xRRGGBB` to a linear-weighted color curve suitable for `Rgba8UnormSrgb` output.
-const fn hex(rgb: u32) -> [f32; 3] {
+pub(crate) const fn hex(rgb: u32) -> [f32; 3] {
     let r = ((rgb >> 16) & 0xFF) as f32 / 255.0;
     let g = ((rgb >> 8) & 0xFF) as f32 / 255.0;
     let b = (rgb & 0xFF) as f32 / 255.0;
@@ -84,17 +85,17 @@ const fn hex(rgb: u32) -> [f32; 3] {
 }
 
 #[inline]
-fn dot3(a: [f32; 3], b: [f32; 3]) -> f32 {
+pub(crate) fn dot3(a: [f32; 3], b: [f32; 3]) -> f32 {
     a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
 }
 
 #[inline]
-fn sub3(a: [f32; 3], b: [f32; 3]) -> [f32; 3] {
+pub(crate) fn sub3(a: [f32; 3], b: [f32; 3]) -> [f32; 3] {
     [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
 }
 
 #[inline]
-fn cross3(a: [f32; 3], b: [f32; 3]) -> [f32; 3] {
+pub(crate) fn cross3(a: [f32; 3], b: [f32; 3]) -> [f32; 3] {
     [
         a[1] * b[2] - a[2] * b[1],
         a[2] * b[0] - a[0] * b[2],
@@ -113,7 +114,7 @@ fn hash_u32(mut x: u32) -> f32 {
 }
 
 #[inline]
-fn rot_euler_xyz(p: [f32; 3], rx: f32, ry: f32, rz: f32) -> [f32; 3] {
+pub(crate) fn rot_euler_xyz(p: [f32; 3], rx: f32, ry: f32, rz: f32) -> [f32; 3] {
     let [mut x, mut y, mut z] = p;
     if rx.abs() > 1e-6 {
         let (s, c) = rx.sin_cos();
@@ -139,13 +140,259 @@ fn rot_euler_xyz(p: [f32; 3], rx: f32, ry: f32, rz: f32) -> [f32; 3] {
     [x, y, z]
 }
 
+/// Shared 3D primitive geometry emission over any builder providing local->world vertex transform & mesh buffers.
+pub(crate) trait PrimBuilder {
+    fn xform_pos(&self, p: [f32; 3]) -> [f32; 3];
+    fn xform_norm(&self, n: [f32; 3]) -> [f32; 3];
+    fn mesh_buffers(&mut self) -> (&mut Vec<Vertex3D>, &mut Vec<u32>);
+
+    #[inline]
+    fn push_raw_tri(&mut self, p0: [f32; 3], p1: [f32; 3], p2: [f32; 3], n: [f32; 3], m: Mat) {
+        let wn = self.xform_norm(n);
+        let wp0 = self.xform_pos(p0);
+        let wp1 = self.xform_pos(p1);
+        let wp2 = self.xform_pos(p2);
+        let mp = m.pack();
+        let (verts, idxs) = self.mesh_buffers();
+        let base = verts.len() as u32;
+        verts.push(Vertex3D::new(wp0, wn, m.col, mp));
+        verts.push(Vertex3D::new(wp1, wn, m.col, mp));
+        verts.push(Vertex3D::new(wp2, wn, m.col, mp));
+        idxs.extend_from_slice(&[base, base + 1, base + 2]);
+    }
+
+    #[inline]
+    fn push_raw_quad(&mut self, p0: [f32; 3], p1: [f32; 3], p2: [f32; 3], p3: [f32; 3], n: [f32; 3], m: Mat) {
+        let wn = self.xform_norm(n);
+        let wp0 = self.xform_pos(p0);
+        let wp1 = self.xform_pos(p1);
+        let wp2 = self.xform_pos(p2);
+        let wp3 = self.xform_pos(p3);
+        let mp = m.pack();
+        let (verts, idxs) = self.mesh_buffers();
+        let base = verts.len() as u32;
+        verts.push(Vertex3D::new(wp0, wn, m.col, mp));
+        verts.push(Vertex3D::new(wp1, wn, m.col, mp));
+        verts.push(Vertex3D::new(wp2, wn, m.col, mp));
+        verts.push(Vertex3D::new(wp3, wn, m.col, mp));
+        idxs.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
+    }
+
+    #[inline]
+    #[allow(clippy::too_many_arguments)]
+    fn push_smooth_quad(
+        &mut self,
+        p0: [f32; 3],
+        p1: [f32; 3],
+        p2: [f32; 3],
+        p3: [f32; 3],
+        n0: [f32; 3],
+        n1: [f32; 3],
+        n2: [f32; 3],
+        n3: [f32; 3],
+        m: Mat,
+    ) {
+        let wp0 = self.xform_pos(p0);
+        let wp1 = self.xform_pos(p1);
+        let wp2 = self.xform_pos(p2);
+        let wp3 = self.xform_pos(p3);
+        let wn0 = self.xform_norm(n0);
+        let wn1 = self.xform_norm(n1);
+        let wn2 = self.xform_norm(n2);
+        let wn3 = self.xform_norm(n3);
+        let mp = m.pack();
+        let (verts, idxs) = self.mesh_buffers();
+        let base = verts.len() as u32;
+        verts.push(Vertex3D::new(wp0, wn0, m.col, mp));
+        verts.push(Vertex3D::new(wp1, wn1, m.col, mp));
+        verts.push(Vertex3D::new(wp2, wn2, m.col, mp));
+        verts.push(Vertex3D::new(wp3, wn3, m.col, mp));
+        idxs.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
+    }
+
+    #[inline]
+    #[allow(clippy::too_many_arguments)]
+    fn push_smooth_tri(
+        &mut self,
+        p0: [f32; 3],
+        p1: [f32; 3],
+        p2: [f32; 3],
+        n0: [f32; 3],
+        n1: [f32; 3],
+        n2: [f32; 3],
+        m: Mat,
+    ) {
+        let wp0 = self.xform_pos(p0);
+        let wp1 = self.xform_pos(p1);
+        let wp2 = self.xform_pos(p2);
+        let wn0 = self.xform_norm(n0);
+        let wn1 = self.xform_norm(n1);
+        let wn2 = self.xform_norm(n2);
+        let mp = m.pack();
+        let (verts, idxs) = self.mesh_buffers();
+        let base = verts.len() as u32;
+        verts.push(Vertex3D::new(wp0, wn0, m.col, mp));
+        verts.push(Vertex3D::new(wp1, wn1, m.col, mp));
+        verts.push(Vertex3D::new(wp2, wn2, m.col, mp));
+        idxs.extend_from_slice(&[base, base + 1, base + 2]);
+    }
+
+    fn rbox(&mut self, center: [f32; 3], size: [f32; 3], m: Mat) {
+        self.obox(center, size, [0.0, 0.0, 0.0], m);
+    }
+
+    fn obox(&mut self, center: [f32; 3], size: [f32; 3], euler: [f32; 3], m: Mat) {
+        let hx = size[0] * 0.5;
+        let hy = size[1] * 0.5;
+        let hz = size[2] * 0.5;
+        let [rx, ry, rz] = euler;
+        let pt = |x: f32, y: f32, z: f32| -> [f32; 3] {
+            let r = rot_euler_xyz([x, y, z], rx, ry, rz);
+            [center[0] + r[0], center[1] + r[1], center[2] + r[2]]
+        };
+        let nm = |nx: f32, ny: f32, nz: f32| -> [f32; 3] {
+            normalize3(rot_euler_xyz([nx, ny, nz], rx, ry, rz))
+        };
+
+        self.push_raw_quad(pt(-hx, hy, -hz), pt(hx, hy, -hz), pt(hx, hy, hz), pt(-hx, hy, hz), nm(0.0, 1.0, 0.0), m);
+        self.push_raw_quad(pt(-hx, -hy, hz), pt(hx, -hy, hz), pt(hx, -hy, -hz), pt(-hx, -hy, -hz), nm(0.0, -1.0, 0.0), m);
+        self.push_raw_quad(pt(-hx, -hy, hz), pt(hx, -hy, hz), pt(hx, hy, hz), pt(-hx, hy, hz), nm(0.0, 0.0, 1.0), m);
+        self.push_raw_quad(pt(hx, -hy, -hz), pt(-hx, -hy, -hz), pt(-hx, hy, -hz), pt(hx, hy, -hz), nm(0.0, 0.0, -1.0), m);
+        self.push_raw_quad(pt(hx, -hy, hz), pt(hx, -hy, -hz), pt(hx, hy, -hz), pt(hx, hy, hz), nm(1.0, 0.0, 0.0), m);
+        self.push_raw_quad(pt(-hx, -hy, -hz), pt(-hx, -hy, hz), pt(-hx, hy, hz), pt(-hx, hy, -hz), nm(-1.0, 0.0, 0.0), m);
+    }
+
+    fn strut_between(&mut self, p0: [f32; 3], p1: [f32; 3], width: f32, depth: f32, m: Mat) {
+        let d = sub3(p1, p0);
+        let len = dot3(d, d).sqrt().max(1e-4);
+        let axis = [d[0] / len, d[1] / len, d[2] / len];
+        let up_ref = if axis[1].abs() > 0.92 { [1.0, 0.0, 0.0] } else { [0.0, 1.0, 0.0] };
+        let u = normalize3(cross3(axis, up_ref));
+        let v = normalize3(cross3(u, axis));
+        let hw = width * 0.5;
+        let hd = depth * 0.5;
+
+        let mk = |base: [f32; 3], su: f32, sv: f32| -> [f32; 3] {
+            [
+                base[0] + u[0] * su * hw + v[0] * sv * hd,
+                base[1] + u[1] * su * hw + v[1] * sv * hd,
+                base[2] + u[2] * su * hw + v[2] * sv * hd,
+            ]
+        };
+        let a00 = mk(p0, -1.0, -1.0);
+        let a10 = mk(p0, 1.0, -1.0);
+        let a11 = mk(p0, 1.0, 1.0);
+        let a01 = mk(p0, -1.0, 1.0);
+        let b00 = mk(p1, -1.0, -1.0);
+        let b10 = mk(p1, 1.0, -1.0);
+        let b11 = mk(p1, 1.0, 1.0);
+        let b01 = mk(p1, -1.0, 1.0);
+
+        self.push_raw_quad(a10, a11, b11, b10, u, m);
+        self.push_raw_quad(a01, a00, b00, b01, [-u[0], -u[1], -u[2]], m);
+        self.push_raw_quad(a11, a01, b01, b11, v, m);
+        self.push_raw_quad(a00, a10, b10, b00, [-v[0], -v[1], -v[2]], m);
+        self.push_raw_quad(b00, b10, b11, b01, axis, m);
+        self.push_raw_quad(a01, a11, a10, a00, [-axis[0], -axis[1], -axis[2]], m);
+    }
+
+    fn cyl_between(&mut self, p0: [f32; 3], p1: [f32; 3], r0: f32, r1: f32, segs: usize, m: Mat) {
+        let segs = segs.max(8);
+        let d = sub3(p1, p0);
+        let len = dot3(d, d).sqrt().max(1e-4);
+        let axis = [d[0] / len, d[1] / len, d[2] / len];
+        let up_ref = if axis[1].abs() > 0.92 { [0.0, 0.0, 1.0] } else { [0.0, 1.0, 0.0] };
+        let u = normalize3(cross3(axis, up_ref));
+        let v = normalize3(cross3(axis, u));
+        let dr = r0 - r1;
+
+        for i in 0..segs {
+            let a0 = (i as f32 / segs as f32) * std::f32::consts::TAU;
+            let a1 = ((i + 1) as f32 / segs as f32) * std::f32::consts::TAU;
+            let (s0, c0) = a0.sin_cos();
+            let (s1, c1) = a1.sin_cos();
+
+            let dir0 = [u[0] * c0 + v[0] * s0, u[1] * c0 + v[1] * s0, u[2] * c0 + v[2] * s0];
+            let dir1 = [u[0] * c1 + v[0] * s1, u[1] * c1 + v[1] * s1, u[2] * c1 + v[2] * s1];
+            let n0 = normalize3([
+                dir0[0] * len + axis[0] * dr,
+                dir0[1] * len + axis[1] * dr,
+                dir0[2] * len + axis[2] * dr,
+            ]);
+            let n1 = normalize3([
+                dir1[0] * len + axis[0] * dr,
+                dir1[1] * len + axis[1] * dr,
+                dir1[2] * len + axis[2] * dr,
+            ]);
+
+            let q0 = [p0[0] + dir0[0] * r0, p0[1] + dir0[1] * r0, p0[2] + dir0[2] * r0];
+            let q1 = [p0[0] + dir1[0] * r0, p0[1] + dir1[1] * r0, p0[2] + dir1[2] * r0];
+            let q2 = [p1[0] + dir1[0] * r1, p1[1] + dir1[1] * r1, p1[2] + dir1[2] * r1];
+            let q3 = [p1[0] + dir0[0] * r1, p1[1] + dir0[1] * r1, p1[2] + dir0[2] * r1];
+
+            if r0 > 1e-3 && r1 > 1e-3 {
+                self.push_smooth_quad(q0, q1, q2, q3, n0, n1, n1, n0, m);
+            } else if r0 > 1e-3 {
+                let nm = normalize3([n0[0] + n1[0], n0[1] + n1[1], n0[2] + n1[2]]);
+                self.push_smooth_tri(q0, q1, p1, n0, n1, nm, m);
+            }
+
+            if r0 > 1e-3 {
+                self.push_raw_tri(p0, q1, q0, [-axis[0], -axis[1], -axis[2]], m);
+            }
+            if r1 > 1e-3 {
+                self.push_raw_tri(p1, q3, q2, axis, m);
+            }
+        }
+    }
+
+    fn cyl_y(&mut self, center: [f32; 3], r_top: f32, r_bot: f32, height: f32, segs: usize, m: Mat) {
+        self.cyl_between(
+            [center[0], center[1] - height * 0.5, center[2]],
+            [center[0], center[1] + height * 0.5, center[2]],
+            r_bot,
+            r_top,
+            segs,
+            m,
+        );
+    }
+
+    fn cyl_x(&mut self, center: [f32; 3], r_neg: f32, r_pos: f32, length: f32, segs: usize, m: Mat) {
+        self.cyl_between(
+            [center[0] - length * 0.5, center[1], center[2]],
+            [center[0] + length * 0.5, center[1], center[2]],
+            r_neg,
+            r_pos,
+            segs,
+            m,
+        );
+    }
+
+    fn cyl_z(&mut self, center: [f32; 3], r_neg: f32, r_pos: f32, length: f32, segs: usize, m: Mat) {
+        self.cyl_between(
+            [center[0], center[1], center[2] - length * 0.5],
+            [center[0], center[1], center[2] + length * 0.5],
+            r_neg,
+            r_pos,
+            segs,
+            m,
+        );
+    }
+
+    fn curved_pipe(&mut self, pts: &[[f32; 3]], radius: f32, segs: usize, m: Mat) {
+        for w in pts.windows(2) {
+            self.cyl_between(w[0], w[1], radius, radius, segs, m);
+        }
+    }
+}
+
 pub(crate) struct ModelBuilder<'a> {
     verts: &'a mut Vec<Vertex3D>,
     idxs: &'a mut Vec<u32>,
     glass_idxs: Option<&'a mut Vec<u32>>,
     origin: [f32; 3],
-    rot_rad: f32,
-    pitch_rad: f32,
+    rot_sc: (f32, f32),
+    pitch_sc: Option<(f32, f32)>,
     scale: [f32; 3],
     inv_scale: [f32; 3],
 }
@@ -179,32 +426,37 @@ impl<'a> ModelBuilder<'a> {
             idxs,
             glass_idxs,
             origin,
-            rot_rad,
-            pitch_rad: 0.0,
+            rot_sc: rot_rad.sin_cos(),
+            pitch_sc: None,
             scale: [sx, sy, sz],
             inv_scale: [1.0 / sx, 1.0 / sy, 1.0 / sz],
         }
     }
 
     pub(crate) fn with_pitch(mut self, pitch_rad: f32) -> Self {
-        self.pitch_rad = pitch_rad;
+        self.pitch_sc = (pitch_rad.abs() > 1e-5).then(|| pitch_rad.sin_cos());
         self
     }
+}
 
+impl PrimBuilder for ModelBuilder<'_> {
     #[inline]
     fn xform_pos(&self, p: [f32; 3]) -> [f32; 3] {
         let mut sx = p[0] * self.scale[0];
         let mut sy = p[1] * self.scale[1];
         let sz = p[2] * self.scale[2];
-        if self.pitch_rad.abs() > 1e-5 {
-            let (sp, cp) = self.pitch_rad.sin_cos();
+        if let Some((sp, cp)) = self.pitch_sc {
             let nx = sx * cp - sy * sp;
             let ny = sx * sp + sy * cp;
             sx = nx;
             sy = ny;
         }
-        let (rx, rz) = rot_xz(sx, sz, self.rot_rad);
-        [self.origin[0] + rx, self.origin[1] + sy, self.origin[2] + rz]
+        let (s, c) = self.rot_sc;
+        [
+            self.origin[0] + (sx * c - sz * s),
+            self.origin[1] + sy,
+            self.origin[2] + (sx * s + sz * c),
+        ]
     }
 
     #[inline]
@@ -212,39 +464,23 @@ impl<'a> ModelBuilder<'a> {
         let mut nx = n[0] * self.inv_scale[0];
         let mut ny = n[1] * self.inv_scale[1];
         let nz = n[2] * self.inv_scale[2];
-        if self.pitch_rad.abs() > 1e-5 {
-            let (sp, cp) = self.pitch_rad.sin_cos();
+        if let Some((sp, cp)) = self.pitch_sc {
             let rnx = nx * cp - ny * sp;
             let rny = nx * sp + ny * cp;
             nx = rnx;
             ny = rny;
         }
-        let (rx, rz) = rot_xz(nx, nz, self.rot_rad);
-        normalize3([rx, ny, rz])
+        let (s, c) = self.rot_sc;
+        normalize3([nx * c - nz * s, ny, nx * s + nz * c])
     }
 
     #[inline]
-    pub(crate) fn push_raw_tri(&mut self, p0: [f32; 3], p1: [f32; 3], p2: [f32; 3], n: [f32; 3], m: Mat) {
-        let wn = self.xform_norm(n);
-        let mp = m.pack();
-        let base = self.verts.len() as u32;
-        self.verts.push(Vertex3D::new(self.xform_pos(p0), wn, m.col, mp));
-        self.verts.push(Vertex3D::new(self.xform_pos(p1), wn, m.col, mp));
-        self.verts.push(Vertex3D::new(self.xform_pos(p2), wn, m.col, mp));
-        self.idxs.extend_from_slice(&[base, base + 1, base + 2]);
+    fn mesh_buffers(&mut self) -> (&mut Vec<Vertex3D>, &mut Vec<u32>) {
+        (self.verts, self.idxs)
     }
+}
 
-    #[inline]
-    pub(crate) fn push_raw_quad(&mut self, p0: [f32; 3], p1: [f32; 3], p2: [f32; 3], p3: [f32; 3], n: [f32; 3], m: Mat) {
-        let wn = self.xform_norm(n);
-        let mp = m.pack();
-        let base = self.verts.len() as u32;
-        self.verts.push(Vertex3D::new(self.xform_pos(p0), wn, m.col, mp));
-        self.verts.push(Vertex3D::new(self.xform_pos(p1), wn, m.col, mp));
-        self.verts.push(Vertex3D::new(self.xform_pos(p2), wn, m.col, mp));
-        self.verts.push(Vertex3D::new(self.xform_pos(p3), wn, m.col, mp));
-        self.idxs.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
-    }
+impl<'a> ModelBuilder<'a> {
 
     pub(crate) fn quad_oriented(&mut self, p0: [f32; 3], p1: [f32; 3], p2: [f32; 3], p3: [f32; 3], outward: [f32; 3], m: Mat) {
         let mut n = cross3(sub3(p1, p0), sub3(p2, p0));
@@ -342,177 +578,6 @@ impl<'a> ModelBuilder<'a> {
             n = [-n[0], -n[1], -n[2]];
         }
         self.push_raw_tri(p0, p1, p2, normalize3(n), m);
-    }
-
-    pub(crate) fn rbox(&mut self, center: [f32; 3], size: [f32; 3], m: Mat) {
-        self.obox(center, size, [0.0, 0.0, 0.0], m);
-    }
-
-    pub(crate) fn obox(&mut self, center: [f32; 3], size: [f32; 3], euler: [f32; 3], m: Mat) {
-        let hx = size[0] * 0.5;
-        let hy = size[1] * 0.5;
-        let hz = size[2] * 0.5;
-        let [rx, ry, rz] = euler;
-        let pt = |x: f32, y: f32, z: f32| -> [f32; 3] {
-            let r = rot_euler_xyz([x, y, z], rx, ry, rz);
-            [center[0] + r[0], center[1] + r[1], center[2] + r[2]]
-        };
-        let nm = |nx: f32, ny: f32, nz: f32| -> [f32; 3] {
-            normalize3(rot_euler_xyz([nx, ny, nz], rx, ry, rz))
-        };
-
-        // Top (+Y) & Bottom (-Y)
-        self.push_raw_quad(pt(-hx, hy, -hz), pt(hx, hy, -hz), pt(hx, hy, hz), pt(-hx, hy, hz), nm(0.0, 1.0, 0.0), m);
-        self.push_raw_quad(pt(-hx, -hy, hz), pt(hx, -hy, hz), pt(hx, -hy, -hz), pt(-hx, -hy, -hz), nm(0.0, -1.0, 0.0), m);
-        // Front (+Z) & Back (-Z)
-        self.push_raw_quad(pt(-hx, -hy, hz), pt(hx, -hy, hz), pt(hx, hy, hz), pt(-hx, hy, hz), nm(0.0, 0.0, 1.0), m);
-        self.push_raw_quad(pt(hx, -hy, -hz), pt(-hx, -hy, -hz), pt(-hx, hy, -hz), pt(hx, hy, -hz), nm(0.0, 0.0, -1.0), m);
-        // Right (+X) & Left (-X)
-        self.push_raw_quad(pt(hx, -hy, hz), pt(hx, -hy, -hz), pt(hx, hy, -hz), pt(hx, hy, hz), nm(1.0, 0.0, 0.0), m);
-        self.push_raw_quad(pt(-hx, -hy, -hz), pt(-hx, -hy, hz), pt(-hx, hy, hz), pt(-hx, hy, -hz), nm(-1.0, 0.0, 0.0), m);
-    }
-
-    pub(crate) fn strut_between(&mut self, p0: [f32; 3], p1: [f32; 3], width: f32, depth: f32, m: Mat) {
-        let d = sub3(p1, p0);
-        let len = dot3(d, d).sqrt().max(1e-4);
-        let axis = [d[0] / len, d[1] / len, d[2] / len];
-        let up_ref = if axis[1].abs() > 0.92 { [1.0, 0.0, 0.0] } else { [0.0, 1.0, 0.0] };
-        let u = normalize3(cross3(axis, up_ref));
-        let v = normalize3(cross3(u, axis));
-        let hw = width * 0.5;
-        let hd = depth * 0.5;
-
-        let mk = |base: [f32; 3], su: f32, sv: f32| -> [f32; 3] {
-            [
-                base[0] + u[0] * su * hw + v[0] * sv * hd,
-                base[1] + u[1] * su * hw + v[1] * sv * hd,
-                base[2] + u[2] * su * hw + v[2] * sv * hd,
-            ]
-        };
-        let a00 = mk(p0, -1.0, -1.0);
-        let a10 = mk(p0, 1.0, -1.0);
-        let a11 = mk(p0, 1.0, 1.0);
-        let a01 = mk(p0, -1.0, 1.0);
-        let b00 = mk(p1, -1.0, -1.0);
-        let b10 = mk(p1, 1.0, -1.0);
-        let b11 = mk(p1, 1.0, 1.0);
-        let b01 = mk(p1, -1.0, 1.0);
-
-        self.push_raw_quad(a10, a11, b11, b10, u, m);
-        self.push_raw_quad(a01, a00, b00, b01, [-u[0], -u[1], -u[2]], m);
-        self.push_raw_quad(a11, a01, b01, b11, v, m);
-        self.push_raw_quad(a00, a10, b10, b00, [-v[0], -v[1], -v[2]], m);
-        self.push_raw_quad(b00, b10, b11, b01, axis, m);
-        self.push_raw_quad(a01, a11, a10, a00, [-axis[0], -axis[1], -axis[2]], m);
-    }
-
-    #[inline]
-    pub(crate) fn push_smooth_quad(
-        &mut self,
-        p0: [f32; 3],
-        p1: [f32; 3],
-        p2: [f32; 3],
-        p3: [f32; 3],
-        n0: [f32; 3],
-        n1: [f32; 3],
-        n2: [f32; 3],
-        n3: [f32; 3],
-        m: Mat,
-    ) {
-        let mp = m.pack();
-        let base = self.verts.len() as u32;
-        self.verts.push(Vertex3D::new(self.xform_pos(p0), self.xform_norm(n0), m.col, mp));
-        self.verts.push(Vertex3D::new(self.xform_pos(p1), self.xform_norm(n1), m.col, mp));
-        self.verts.push(Vertex3D::new(self.xform_pos(p2), self.xform_norm(n2), m.col, mp));
-        self.verts.push(Vertex3D::new(self.xform_pos(p3), self.xform_norm(n3), m.col, mp));
-        self.idxs.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
-    }
-
-    #[inline]
-    pub(crate) fn push_smooth_tri(
-        &mut self,
-        p0: [f32; 3],
-        p1: [f32; 3],
-        p2: [f32; 3],
-        n0: [f32; 3],
-        n1: [f32; 3],
-        n2: [f32; 3],
-        m: Mat,
-    ) {
-        let mp = m.pack();
-        let base = self.verts.len() as u32;
-        self.verts.push(Vertex3D::new(self.xform_pos(p0), self.xform_norm(n0), m.col, mp));
-        self.verts.push(Vertex3D::new(self.xform_pos(p1), self.xform_norm(n1), m.col, mp));
-        self.verts.push(Vertex3D::new(self.xform_pos(p2), self.xform_norm(n2), m.col, mp));
-        self.idxs.extend_from_slice(&[base, base + 1, base + 2]);
-    }
-
-    pub(crate) fn cyl_between(&mut self, p0: [f32; 3], p1: [f32; 3], r0: f32, r1: f32, segs: usize, m: Mat) {
-        let segs = segs.max(8);
-        let d = sub3(p1, p0);
-        let len = dot3(d, d).sqrt().max(1e-4);
-        let axis = [d[0] / len, d[1] / len, d[2] / len];
-        let up_ref = if axis[1].abs() > 0.92 { [0.0, 0.0, 1.0] } else { [0.0, 1.0, 0.0] };
-        let u = normalize3(cross3(axis, up_ref));
-        let v = normalize3(cross3(axis, u));
-        let dr = r0 - r1;
-
-        for i in 0..segs {
-            let a0 = (i as f32 / segs as f32) * std::f32::consts::TAU;
-            let a1 = ((i + 1) as f32 / segs as f32) * std::f32::consts::TAU;
-            let (s0, c0) = a0.sin_cos();
-            let (s1, c1) = a1.sin_cos();
-
-            let dir0 = [u[0] * c0 + v[0] * s0, u[1] * c0 + v[1] * s0, u[2] * c0 + v[2] * s0];
-            let dir1 = [u[0] * c1 + v[0] * s1, u[1] * c1 + v[1] * s1, u[2] * c1 + v[2] * s1];
-            let n0 = normalize3([
-                dir0[0] * len + axis[0] * dr,
-                dir0[1] * len + axis[1] * dr,
-                dir0[2] * len + axis[2] * dr,
-            ]);
-            let n1 = normalize3([
-                dir1[0] * len + axis[0] * dr,
-                dir1[1] * len + axis[1] * dr,
-                dir1[2] * len + axis[2] * dr,
-            ]);
-
-            let q0 = [p0[0] + dir0[0] * r0, p0[1] + dir0[1] * r0, p0[2] + dir0[2] * r0];
-            let q1 = [p0[0] + dir1[0] * r0, p0[1] + dir1[1] * r0, p0[2] + dir1[2] * r0];
-            let q2 = [p1[0] + dir1[0] * r1, p1[1] + dir1[1] * r1, p1[2] + dir1[2] * r1];
-            let q3 = [p1[0] + dir0[0] * r1, p1[1] + dir0[1] * r1, p1[2] + dir0[2] * r1];
-
-            if r0 > 1e-3 && r1 > 1e-3 {
-                self.push_smooth_quad(q0, q1, q2, q3, n0, n1, n1, n0, m);
-            } else if r0 > 1e-3 {
-                let nm = normalize3([n0[0] + n1[0], n0[1] + n1[1], n0[2] + n1[2]]);
-                self.push_smooth_tri(q0, q1, p1, n0, n1, nm, m);
-            }
-
-            if r0 > 1e-3 {
-                self.push_raw_tri(p0, q1, q0, [-axis[0], -axis[1], -axis[2]], m);
-            }
-            if r1 > 1e-3 {
-                self.push_raw_tri(p1, q3, q2, axis, m);
-            }
-        }
-    }
-
-    pub(crate) fn cyl_y(&mut self, center: [f32; 3], r_top: f32, r_bot: f32, height: f32, segs: usize, m: Mat) {
-        let p0 = [center[0], center[1] - height * 0.5, center[2]];
-        let p1 = [center[0], center[1] + height * 0.5, center[2]];
-        self.cyl_between(p0, p1, r_bot, r_top, segs, m);
-    }
-
-    pub(crate) fn cyl_x(&mut self, center: [f32; 3], r_neg: f32, r_pos: f32, length: f32, segs: usize, m: Mat) {
-        let p0 = [center[0] - length * 0.5, center[1], center[2]];
-        let p1 = [center[0] + length * 0.5, center[1], center[2]];
-        self.cyl_between(p0, p1, r_neg, r_pos, segs, m);
-    }
-
-    pub(crate) fn cyl_z(&mut self, center: [f32; 3], r_neg: f32, r_pos: f32, length: f32, segs: usize, m: Mat) {
-        let p0 = [center[0], center[1], center[2] - length * 0.5];
-        let p1 = [center[0], center[1], center[2] + length * 0.5];
-        self.cyl_between(p0, p1, r_neg, r_pos, segs, m);
     }
 
     /// Closed annular ring centered at `[center[0], center[1], center[2]]` around the Y axis,
@@ -668,22 +733,29 @@ impl<'a> ModelBuilder<'a> {
     fn hemi_cap_x(&mut self, center: [f32; 3], radius: f32, depth_x: f32, dir_x: f32, stacks: usize, slices: usize, m: Mat) {
         let stacks = stacks.max(6);
         let slices = slices.max(18);
+        let nx_scale = radius / depth_x.max(1.0);
         for st in 0..stacks {
             let t0 = (st as f32 / stacks as f32) * std::f32::consts::FRAC_PI_2;
             let t1 = ((st + 1) as f32 / stacks as f32) * std::f32::consts::FRAC_PI_2;
-            let (r0, x0) = (t0.cos() * radius, t0.sin() * depth_x * dir_x);
-            let (r1, x1) = (t1.cos() * radius, t1.sin() * depth_x * dir_x);
+            let (st0, ct0) = t0.sin_cos();
+            let (st1, ct1) = t1.sin_cos();
+            let (r0, x0) = (ct0 * radius, st0 * depth_x * dir_x);
+            let (r1, x1) = (ct1 * radius, st1 * depth_x * dir_x);
+            let nx0 = dir_x * st0 * nx_scale;
+            let nx1 = dir_x * st1 * nx_scale;
             for sl in 0..slices {
                 let a0 = (sl as f32 / slices as f32) * std::f32::consts::TAU;
                 let a1 = ((sl + 1) as f32 / slices as f32) * std::f32::consts::TAU;
-                let p0 = [center[0] + x0, center[1] + a0.cos() * r0, center[2] + a0.sin() * r0];
-                let p1 = [center[0] + x0, center[1] + a1.cos() * r0, center[2] + a1.sin() * r0];
-                let p2 = [center[0] + x1, center[1] + a1.cos() * r1, center[2] + a1.sin() * r1];
-                let p3 = [center[0] + x1, center[1] + a0.cos() * r1, center[2] + a0.sin() * r1];
-                let n00 = normalize3([dir_x * t0.sin() * radius / depth_x.max(1.0), t0.cos() * a0.cos(), t0.cos() * a0.sin()]);
-                let n10 = normalize3([dir_x * t0.sin() * radius / depth_x.max(1.0), t0.cos() * a1.cos(), t0.cos() * a1.sin()]);
-                let n11 = normalize3([dir_x * t1.sin() * radius / depth_x.max(1.0), t1.cos() * a1.cos(), t1.cos() * a1.sin()]);
-                let n01 = normalize3([dir_x * t1.sin() * radius / depth_x.max(1.0), t1.cos() * a0.cos(), t1.cos() * a0.sin()]);
+                let (sa0, ca0) = a0.sin_cos();
+                let (sa1, ca1) = a1.sin_cos();
+                let p0 = [center[0] + x0, center[1] + ca0 * r0, center[2] + sa0 * r0];
+                let p1 = [center[0] + x0, center[1] + ca1 * r0, center[2] + sa1 * r0];
+                let p2 = [center[0] + x1, center[1] + ca1 * r1, center[2] + sa1 * r1];
+                let p3 = [center[0] + x1, center[1] + ca0 * r1, center[2] + sa0 * r1];
+                let n00 = normalize3([nx0, ct0 * ca0, ct0 * sa0]);
+                let n10 = normalize3([nx0, ct0 * ca1, ct0 * sa1]);
+                let n11 = normalize3([nx1, ct1 * ca1, ct1 * sa1]);
+                let n01 = normalize3([nx1, ct1 * ca0, ct1 * sa0]);
                 if st + 1 < stacks {
                     if dir_x > 0.0 {
                         self.push_smooth_quad(p0, p3, p2, p1, n00, n01, n11, n10, m);
@@ -786,15 +858,6 @@ impl<'a> ModelBuilder<'a> {
             let p1 = [base_center[0] + a1.cos() * r1, base_center[1] + droop1, base_center[2] + a1.sin() * r1];
             self.tri_oriented(p0, p1, apex, [0.5 * (a0.cos() + a1.cos()), radius / height.max(1.0), 0.5 * (a0.sin() + a1.sin())], m);
             self.tri_oriented(base_center, p1, p0, [0.0, -1.0, 0.0], dark);
-        }
-    }
-
-    fn curved_pipe(&mut self, pts: &[[f32; 3]], radius: f32, segs: usize, m: Mat) {
-        if pts.len() < 2 {
-            return;
-        }
-        for w in pts.windows(2) {
-            self.cyl_between(w[0], w[1], radius, radius, segs, m);
         }
     }
 

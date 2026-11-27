@@ -2,7 +2,6 @@
 resolver = "2"
 members = [
     "railbench-core",
-    "railbench-wasm",
     "railbench-app",
 ]
 
@@ -18,7 +17,6 @@ bytemuck = { version = "1", features = ["derive"] }
 eframe = { version = "0.31", default-features = false, features = ["wgpu", "default_fonts", "wayland", "x11"] }
 rfd = "0.15"
 tungstenite = "0.26"
-wasm-bindgen = "0.2"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 
 [profile.dev.package."*"]

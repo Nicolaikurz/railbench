@@ -314,13 +314,13 @@ pub(super) fn draw_piece_label_and_badges(
                 let sym_col = Color32::from_rgb(226, 232, 240);
                 let inner_r = badge_r_px * 0.48;
                 let slash_d = inner_r * std::f32::consts::FRAC_1_SQRT_2;
-                painter.circle_stroke(badge_c, inner_r, Stroke::new(1.4, sym_col));
+                painter.circle_stroke(badge_c, inner_r, Stroke::new(1.4_f32, sym_col));
                 painter.line_segment(
                     [
                         Pos2::new(badge_c.x - slash_d, badge_c.y + slash_d),
                         Pos2::new(badge_c.x + slash_d, badge_c.y - slash_d),
                     ],
-                    Stroke::new(1.4, sym_col),
+                    Stroke::new(1.4_f32, sym_col),
                 );
             }
             if is_editable {
@@ -562,7 +562,7 @@ pub(super) fn draw_turntable_2d(
         painter.add(egui::Shape::convex_polygon(
             deck_poly,
             Color32::from_rgb(54, 74, 70),
-            Stroke::new(1.2, Color32::from_rgb(31, 41, 55)),
+            Stroke::new(1.2_f32, Color32::from_rgb(31, 41, 55)),
         ));
         let cab_cx = -half_b + 36.0 * scale_f;
         let cab_hw = 17.0 * scale_f;
@@ -575,7 +575,7 @@ pub(super) fn draw_turntable_2d(
         painter.add(egui::Shape::convex_polygon(
             cab_poly,
             Color32::from_rgb(63, 76, 89),
-            Stroke::new(1.0, Color32::from_rgb(30, 41, 59)),
+            Stroke::new(1.0_f32, Color32::from_rgb(30, 41, 59)),
         ));
     }
     for side in [-1.0_f64, 1.0] {
@@ -786,7 +786,7 @@ pub(super) fn draw_transfer_table_2d(
         painter.add(egui::Shape::convex_polygon(
             quad_pts(pit_left + 1.0, pit_right - 1.0, bridge_z - gw, bridge_z + gw),
             Color32::from_rgb(54, 74, 70),
-            Stroke::new(1.2, Color32::from_rgb(31, 41, 55)),
+            Stroke::new(1.2_f32, Color32::from_rgb(31, 41, 55)),
         ));
     }
     for side in [-1.0_f64, 1.0] {

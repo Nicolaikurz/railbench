@@ -322,11 +322,11 @@ impl PerfMonitor {
                 crate::theme::show_railbench_dialog_body(ui, dark_mode, title, Some(&mut open), 10, |ui| {
                 // 1. FPS + Sparkline
                 let fps_col = if self.fps >= 55.0 {
-                    Color32::from_rgb(16, 185, 129)
+                    pal.text_success
                 } else if self.fps >= 30.0 {
-                    Color32::from_rgb(245, 158, 11)
+                    pal.text_warning
                 } else {
-                    Color32::from_rgb(239, 68, 68)
+                    pal.text_danger
                 };
                 ui.horizontal(|ui| {
                     ui.label(RichText::new("FPS:").size(11.5).color(pal.text_muted));

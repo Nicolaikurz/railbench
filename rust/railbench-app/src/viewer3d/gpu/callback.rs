@@ -1,4 +1,3 @@
-use super::super::*;
 use super::*;
 
 pub(in crate::viewer3d) const VEHICLE_SHADOW_MIN_INTERVAL_MS: u64 = 120;

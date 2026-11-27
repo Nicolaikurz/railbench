@@ -1,4 +1,3 @@
-use super::super::*;
 use super::*;
 
 pub(super) struct Gpu3DState {

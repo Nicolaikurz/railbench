@@ -1,144 +1,91 @@
-# RAILbench – Systemarchitektur & Technische Dokumentation (v0.6.1)
+# RAILbench – Systemarchitektur & Technische Dokumentation
 
-Diese Dokumentation beschreibt die interne Architektur, Komponentenaufteilung, Datenflüsse und Design-Prinzipien der Modellbahn-Planungssoftware **RAILbench** (**v0.6.1**).
+Diese Dokumentation beschreibt die interne Architektur, Crate-Aufteilung, Datenfluesse und Rendering-Engines der nativen Rust-Desktopanwendung **RAILbench** (`rust/`).
 
 ---
 
 ## 1. Architektur-Prinzipien & Entwurfsrichtlinien
 
-1. **Strikte Trennung von Domain-Logik und Präsentation**:
-   - Das Modul `src/core/` bildet den Kern der Anwendung und enthält ausschließlich reine Mathematik, Datenstrukturen, Snapping-Algorithmen und physikalische Simulationen.
-   - **Grundregel**: `src/core/` besitzt keinerlei Abhängigkeiten zu UI-Frameworks, dem DOM oder Grafikbibliotheken (`PixiJS`, `Three.js`). Dadurch ist die gesamte Domänenlogik vollständig headless und mittels Unit-Tests (`vitest`) automatisiert prüfbar.
-2. **Modulare Dateigrößen ($\le 1000$ Zeilen pro Datei)**:
-   - Jede TypeScript-Quelldatei unter `src/` ist strikt modular aufgebaut und überschreitet maximal 1000 Zeilen Code. Komplexe Subsysteme wie der 2D-Renderer, der 3D-Viewer, die 3D-Modelle und die Sidebar-Tabs sind in klar abgegrenzte Fachmodule unterteilt.
-3. **Command-Pattern für Undo/Redo**:
-   - Sämtliche zustandsverändernden Benutzeroperationen (Gleise hinzufügen, verschieben, löschen, rotieren, Ebenen- oder Höhenwechsel, Gelände-Bearbeitung) werden über `History` und `Command`-Objekte verwaltet.
-4. **Dual-Engine Rendering**:
-   - **2D-Präzisions-CAD**: Basiert auf **PixiJS v8** mit WebGL/WebGPU für performante Vektor- und Spritedarstellung im Maßstab 1:1 mit Pan & Zoom.
-   - **3D-Perspektive mit 360°/180°-Kamerafreiheit & CAD ViewCube**: Basiert auf **Three.js** mit unbeschränkten `OrbitControls` (inkl. Ansicht direkt von unten unter die Tischplatte), interaktivem **CAD ViewCube (*Ansichtswürfel*)**, dynamischem 24h-Tag/Nacht-Zyklus, prozeduralen 3D-Modellen (`src/render/models-3d/`) sowie `.glb` / `.gltf`-Import.
+1. **Strikte Trennung von Domänenlogik und UI/GPU**:
+   - Die Bibliothek-Crate [`railbench-core`](../rust/railbench-core/src/lib.rs) bildet den reinen Domänenkern und enthält ausschließlich Geometrie-Mathematik, Datenstrukturen, Snapping-Algorithmen, Rampenberechnung, Terrain-Meshing und die elektrische Netzsimulation.
+   - **Grundregel**: `railbench-core` besitzt keinerlei Abhängigkeiten zu `egui`, `eframe`, `wgpu` oder Dateidialogen und lässt sich vollständig headless testen (`cargo test -p railbench-core`).
+2. **Modulare Fachmodule in `railbench-app`**:
+   - Die Desktop-Anwendung [`railbench-app`](../rust/railbench-app/src/main.rs) strukturiert UI-Panels, 2D-CAD-Canvas, 3D-`wgpu`-Engine, Fahrzeugsimulation, Exporte und WebSocket-Kollaboration in klar getrennte Untermodule.
+3. **Snapshot-basiertes Undo/Redo (`VecDeque<LayoutSnapshot>`)**:
+   - Zustandverändernde Operationen (Gleise, Straßen, Gebäude, Rampen, Gelände, Platten, Verkabelung) sichern kompakte Layout-Snapshots für zuverlässiges Rückgängigmachen (`Ctrl+Z`) und Wiederholen (`Ctrl+Y`).
+4. **Dual-Engine Rendering (`egui` 2D + `wgpu` 3D)**:
+   - **2D-Präzisions-CAD (`canvas2d/`)**: Vektor- und Gleisrendering über `egui::Painter` im exakten Millimeter-Maßstab mit Pan, stufenlosem Zoom, Linealen, Tab-gefilterter Auswahl (`SelectionScope`), CAD-Sketcher, Terrain-Pinsel und Live-Spannungs-Heatmap.
+   - **Hardware-beschleunigter 3D-Viewer (`viewer3d/`)**: Native `wgpu`-Render-Pipeline (4x MSAA, Tiefenpuffer, dynamischer 24h-Tag/Nacht-Sonnenlauf & Schatten, Hallen- & CAD/Minimal-Umgebung, **CAD ViewCube**, direktes **3D-Bearbeiten**, abnehmbares **Cab View & Stellwerk**-Fenster sowie **transparente Dächer** bei Lokschuppen und Ringlokschuppen).
 
 ---
 
-## 2. Modul-Übersicht & Datenfluss
+## 2. Workspace-Übersicht & Datenfluss
 
 ```mermaid
 flowchart TD
-    subgraph UI ["Präsentationsschicht (src/ui/)"]
-        Toolbar["Toolbar & System-Menüs"]
-        Sidebar["Sidebar Tabs (catalog, roads, models, terrain, board, bom, layers)"]
-        SketcherCard["2D CAD Board & Plate Sketcher UI"]
-        RightSidebar["Floating Layer Manager"]
-        SelectionBar["Floating Canvas Selection Bar"]
-        Dialogs["Dialoge (Höhe, Rampe, Drucken, Strom, Hilfe)"]
+    subgraph App ["Desktop-Anwendung (rust/railbench-app)"]
+        Main["main.rs / AppState & Update Loop"]
+        UI["ui_panels/ (Toolbar, Sidebar-Tabs, Layers, Selection Bar, Help, Height & Ramp, Cab & Stellwerk)"]
+        Theme["theme.rs (WCAG AA Light/Dark Palette & Fonts)"]
+        Canvas2D["canvas2d/ (2D CAD Renderer, Snapping Preview, Sketcher, Marquee)"]
+        Viewer3D["viewer3d/ (wgpu 3D Scene, Shadows, ViewCube, Edit 3D, Cab Viewport)"]
+        Models3D["model_tools/ & models3d_mesh/ (16 Prozedurale 3D-Modelle & .glb/.gltf)"]
+        VehSim["vehicle_sim/ (BR 243, BR 96 Mallet, V 60, Weichen & Drehscheiben)"]
+        Export["export/ (Vektor-PDF, 1:1 mm SVG, XML, BOM CSV)"]
+        Collab["collab/ (Eingebetteter tungstenite WebSocket-Server & Client)"]
+        Assets["assets/ (Eingebettete Kataloge & Hilfe-Grafiken)"]
     end
 
-    subgraph Editor ["Editor & Interaktionsschicht (src/editor/ & src/main.ts)"]
-        MainApp["Main App Controller"]
-        CanvasCtrl["CanvasController"]
-        TrackOps["TrackOperations"]
-        BoardSketcher["BoardSketcherController (Polygon/Rect/Edit)"]
-        TerrainCtrl["TerrainEditorController (Brushes & Tunnels)"]
-        MeasureCtrl["MeasureController"]
-        CmdHistory["CommandHistory (Undo/Redo)"]
+    subgraph Core ["Reiner Domänenkern (rust/railbench-core)"]
+        Types["types.rs (Layout, TrackPiece, Layer, BaseboardConfig, Model3D)"]
+        Geom["geometry.rs & snapping.rs (Transformationen & Magnet-Snapping)"]
+        Sim["simulation.rs (Dijkstra Spannungsabfall & 2-Leiter-Kurzschluss)"]
+        Ramp["ramp.rs (Dreisatz, S-Kurve, Auto-Rampen & Wendeln)"]
+        Terrain["terrain.rs & io.rs (.railbench JSON/XML Serialisierung)"]
     end
 
-    subgraph Core ["Domänen- & Berechnungslogik (src/core/)"]
-        DataModel["Layout, TrackPiece, Layer, BaseboardConfig, Model3D"]
-        Geometry["Geometrie & Koordinatentransformation"]
-        Snapping["Multi-Point Snapping Engine"]
-        Simulation["Spannungsabfall- & Kurzschluss-Simulation"]
-        Models3D["25 Prozedurale 3D-Modelle & GLTF-Metadaten"]
-    end
-
-    subgraph Render ["Grafik & Visualisierung (src/render/)"]
-        Renderer2D["2D PixiJS Renderer & Overlays"]
-        TrackSprite["2D Gleis-, Weichen- & Straßen-Geometrie"]
-        ModelSprite["2D Architektur- & Depot-Grundrisse"]
-        Viewer3D["3D Three.js Viewer + CAD ViewCube"]
-        Models3DMeshes["Modulare 3D-Meshes (src/render/models-3d/)"]
-    end
-
-    subgraph IO ["Ein-/Ausgabe & Kollaboration (src/io/ & src/collab/)"]
-        Serializer["JSON/XML Serialisierung (.railbench)"]
-        PrintEngine["Layer-Separated Print Engine"]
-        CSVExport["Stücklisten-Export (CSV)"]
-        Collab["WebSocket Live-Kollaboration (server.mjs)"]
-    end
-
-    UI --> MainApp
-    MainApp --> CanvasCtrl
-    MainApp --> TrackOps
-    MainApp --> BoardSketcher
-    MainApp --> TerrainCtrl
-    MainApp --> CmdHistory
-    TrackOps --> Core
-    BoardSketcher --> Core
-    TerrainCtrl --> Core
-    Core --> Render
-    Core --> IO
-    MainApp --> Render
-    MainApp --> Collab
+    UI --> Main
+    Theme --> UI
+    Assets --> Main
+    Main --> Canvas2D
+    Main --> Viewer3D
+    Main --> VehSim
+    Main --> Export
+    Main --> Collab
+    Main --> Core
+    Canvas2D --> Core
+    Viewer3D --> Models3D
+    Viewer3D --> VehSim
+    Viewer3D --> Core
 ```
 
 ---
 
-## 3. Detaillierte Modulbeschreibungen
+## 3. Verzeichnisstruktur (`rust/`)
 
-### 3.1 `src/core/` – Reiner Domänenkern
+### 3.1 `rust/railbench-core/src/` – Headless Domänenkern
+* [lib.rs](../rust/railbench-core/src/lib.rs): Öffentliche Kern-API.
+* [types.rs](../rust/railbench-core/src/types.rs): `Layout`, `TrackPiece`, `Layer`, `LayerPlate`, `BaseboardConfig`, `Model3D`, `TerrainMountain`, `TerrainField`.
+* [geometry.rs](../rust/railbench-core/src/geometry.rs) & [snapping.rs](../rust/railbench-core/src/snapping.rs): Kreisbogen- und Weichen-Geometrie sowie Multi-Point-Snapping.
+* [simulation.rs](../rust/railbench-core/src/simulation.rs): Multi-Source Dijkstra-Berechnung des Spannungsabfalls (`simulate_power_drop`) sowie automatische Kurzschluss-Erkennung bei ungetrennten Kehrschleifen.
+* [ramp.rs](../rust/railbench-core/src/ramp.rs): Steigungs-, Ausrundungs- und automatische Wendel-/Rampengenerierung.
+* [terrain.rs](../rust/railbench-core/src/terrain.rs) & [io.rs](../rust/railbench-core/src/io.rs): Höhenfeld-Datenmodell und verlustfreies `.railbench` JSON/XML I/O.
 
-* [types.ts](file:///home/nicolai/Projects/railbench/src/core/types.ts):
-  * `Layout`: Gesamtstruktur mit `pieces`, `layers`, `models`, `baseboard`, `baseboards`, `activeLayerId`, `feedVoltage`, `locoCurrentMa`, `activeLocosCount`.
-  * `TrackPiece`: Gleis- oder Straßeninstanz (`transform`, `connectors`, `elevation`, `powerFeed`, `isIsolator`, `catenary`, `hasBridge`, `hasTunnel`, `hasSignal`, `turnoutDecoder`, `turnoutLantern`, `flexLength`, `flexRadius`, `flexAngle`).
-  * `Layer` & `LayerPlate`: Anlagenebene mit Basishöhe (`heightMm`), Sichtbarkeit, Sperrschutz und individuellen Ebenenplatten (`plates` inkl. `shape: "custom"` und `customPolygon`).
-  * `BaseboardConfig`: Tisch-Konfiguration (`rect`, `l-shape`, `u-shape`, `t-profile` sowie `custom` mit `customPolygon: Vec2[]`).
-* [geometry.ts](file:///home/nicolai/Projects/railbench/src/core/geometry.ts) & [snapping.ts](file:///home/nicolai/Projects/railbench/src/core/snapping.ts):
-  * Präzise 2D-Transformationen, Kreisbogen-Geometrie und magnetisches Einrasten für Gleise und Straßen.
-* [simulation.ts](file:///home/nicolai/Projects/railbench/src/core/simulation.ts):
-  * Multi-Source Dijkstra-Berechnung des Spannungsabfalls (`simulatePowerDrop`) sowie automatische **Kurzschluss-Erkennung (`detectShortCircuit`)** bei ungetrennten Kehrschleifen oder Polaritätskonflikten.
-* [models-3d.ts](file:///home/nicolai/Projects/railbench/src/core/models-3d.ts):
-  * Definition der **25 integrierten prozeduralen 3D-Modelle** (inkl. *Bekohlungsanlage für Dampfloks* `coaling-station`, *Dieseltankstelle für Dieselloks* `diesel-fuel-station`, *Ringlokschuppen*, *Schiebebühne*, *Drehscheibe*, *Bahnhof Neustadt*, *Berg / Felsmassiv* u.v.m.).
-
----
-
-### 3.2 `src/editor/` – Interaktive Werkzeuge & Controller
-
-* [canvas-controller.ts](file:///home/nicolai/Projects/railbench/src/editor/canvas-controller.ts) & [track-operations.ts](file:///home/nicolai/Projects/railbench/src/editor/track-operations.ts):
-  * Verarbeitet Maus-, Tastatur- und Drag-and-Drop-Interaktionen auf dem 2D-Canvas.
-* [board-sketcher-controller.ts](file:///home/nicolai/Projects/railbench/src/editor/board-sketcher-controller.ts):
-  * Interaktiver **2D-CAD-Sketcher** zum freien Zeichnen und Bearbeiten von **Tischen (`table`)** und **Ebenenplatten (`plate`)** direkt auf der Arbeitsfläche (`poly`-Polygonstift, `rect`-Rechteckwerkzeug und `edit`-Ecken-/Kanten-Editor).
-* [terrain-editor-controller.ts](file:///home/nicolai/Projects/railbench/src/editor/terrain-editor-controller.ts) & [terrain-tunnel-detector.ts](file:///home/nicolai/Projects/railbench/src/editor/terrain-tunnel-detector.ts):
-  * Pinsel-Werkzeuge (`raise`, `smooth`, `flatten`, `erase`) und Freihand-Konturen für 3D-Berge sowie automatische Erkennung und Erzeugung von **Berg-Tunneln** für Gleise und Straßen.
+### 3.2 `rust/railbench-app/src/` – Native UI, Rendering & Simulation
+* **App-Kern**: `main.rs`, `app_state.rs`, `app_update.rs`, `app_actions.rs`, `app_editing.rs`, `app_selection_ops.rs`, `app_shortcuts.rs`, `app_io.rs`, `perf_monitor.rs`, `theme.rs`, `i18n.rs`.
+* **Eingebettete Daten & Kataloge**: `catalog/` mit **23 Gleis-** und **7 Straßensystemen** aus [`rust/railbench-app/assets/catalogs/`](../rust/railbench-app/assets/catalogs/) sowie Hilfe-Grafiken aus [`rust/railbench-app/assets/help/`](../rust/railbench-app/assets/help/).
+* **2D-CAD & Werkzeuge**: `canvas2d/`, `board_tools/`, `cad_tools/`, `terrain_tools/`, `ramp_tools/`, `power_sim.rs`.
+* **3D-Engine (`wgpu`) & Gebäude**: `viewer3d/` (inkl. `gpu/`, `viewcube/`, `edit3d/`, `cab_viewport.rs`), `model_tools/`, `models3d_mesh/`, `bridges_3d/`, `tunnels_3d/`, `turntables_3d/`, `trains_3d/`.
+* **Oberfläche (`ui_panels/`)**: `top_bar_menu.rs`, `top_bar_quick.rs`, `left_tabs.rs`, `catalog_tab.rs`, `terrain_tab.rs`, `board_tab.rs`, `bom_tab.rs`, `right_sidebar.rs`, `selection_bar.rs`, `height_panel/`, `export_dialog.rs`, `help_dialog.rs`, `cab_window/`, `dialogs.rs`, `extra_dialogs.rs`, `settings_help_dialogs.rs`, `welcome_demo_dialogs.rs`.
+* **Export & Multi-User Sync**: `export/` (Multi-Page Vektor-PDF, 1:1 mm SVG, XML, Stücklisten-CSV) und `collab/` (eingebetteter WebSocket-Server & Client via `tungstenite`).
 
 ---
 
-### 3.3 `src/render/` – 2D-PixiJS & 3D-Three.js Visualisierung
+## 4. Tests & Qualitätssicherung
 
-#### A. 2D-Rendering (`PixiJS v8`)
-* [renderer.ts](file:///home/nicolai/Projects/railbench/src/render/renderer.ts), [renderer-baseboard.ts](file:///home/nicolai/Projects/railbench/src/render/renderer-baseboard.ts), [renderer-overlays.ts](file:///home/nicolai/Projects/railbench/src/render/renderer-overlays.ts):
-  * Rendert Tische, Ebenenplatten, CAD-Sketcher-Vorschauen, Gelände-Pinsel, Gleise, Straßen, Kurzschluss-Warnungen und Messwerkzeuge.
-* [track-sprite.ts](file:///home/nicolai/Projects/railbench/src/render/track-sprite.ts), [track-sprite-rail.ts](file:///home/nicolai/Projects/railbench/src/render/track-sprite-rail.ts), [track-sprite-addons.ts](file:///home/nicolai/Projects/railbench/src/render/track-sprite-addons.ts):
-  * Maßstäbliche Darstellung von Schotterbett, Schwellen, Schienenprofilen, Weichenzungen, Brücken, Tunneln, Oberleitungen und Spannungs-Heatmaps.
-* [model-sprite.ts](file:///home/nicolai/Projects/railbench/src/render/model-sprite.ts), [model-sprite-structures.ts](file:///home/nicolai/Projects/railbench/src/render/model-sprite-structures.ts), [model-sprite-depot.ts](file:///home/nicolai/Projects/railbench/src/render/model-sprite-depot.ts):
-  * Detaillierte 2D-Draufsichten aller 25 3D-Modelle inklusive Bekohlungsanlage, Dieseltankstelle, Ringlokschuppen und Bergen.
+```bash
+cd rust
+cargo test
+```
 
-#### B. 3D-Rendering (`Three.js`)
-* [viewer-3d.ts](file:///home/nicolai/Projects/railbench/src/render/viewer-3d.ts) & [viewer-3d-viewcube.ts](file:///home/nicolai/Projects/railbench/src/render/viewer-3d-viewcube.ts):
-  * Volle **360°-/180°-Kamerafreiheit** (inkl. Blick direkt von unten unter den Tisch mit automatischer Hallenboden-Ausblendung).
-  * Interaktiver **CAD ViewCube (*Ansichtswürfel*)** direkt unter dem Hintergrund-Umschalter mit 6 klickbaren Würfelseiten, 4 Isometrie-Ecken, Maus-Orbit-Drag, Schnellwahl-Leiste und automatischer Deutsch/Englisch-Sprachumschaltung.
-  * Dynamischer 24-Stunden-Tag/Nacht-Zyklus mit wandernder Sonne, Mond und Nachtbeleuchtung.
-* Spezialisierte 3D-Aufbaumodule:
-  * [viewer-3d-baseboard.ts](file:///home/nicolai/Projects/railbench/src/render/viewer-3d-baseboard.ts): 3D-Tische, Tischbeine und Ebenenplatten (inkl. Freiform-Polygonen).
-  * [viewer-3d-track.ts](file:///home/nicolai/Projects/railbench/src/render/viewer-3d-track.ts) & [viewer-3d-turnout.ts](file:///home/nicolai/Projects/railbench/src/render/viewer-3d-turnout.ts): 3D-Gleise, Weichen, Drehscheiben und Schiebebühnen.
-  * [viewer-3d-bridges.ts](file:///home/nicolai/Projects/railbench/src/render/viewer-3d-bridges.ts), [viewer-3d-catenary.ts](file:///home/nicolai/Projects/railbench/src/render/viewer-3d-catenary.ts), [viewer-3d-roads.ts](file:///home/nicolai/Projects/railbench/src/render/viewer-3d-roads.ts).
-  * [src/render/models-3d/](file:///home/nicolai/Projects/railbench/src/render/models-3d/index.ts): Modulare prozedurale 3D-Modelle (u. a. [coaling-station.ts](file:///home/nicolai/Projects/railbench/src/render/models-3d/coaling-station.ts), [diesel-fuel-station.ts](file:///home/nicolai/Projects/railbench/src/render/models-3d/diesel-fuel-station.ts), [mountain.ts](file:///home/nicolai/Projects/railbench/src/render/models-3d/mountain.ts), [mountain-tunnel.ts](file:///home/nicolai/Projects/railbench/src/render/models-3d/mountain-tunnel.ts)).
-
----
-
-### 3.4 `src/ui/sidebar/` – Modulare Sidebar-Menüs
-
-* [catalog-tab.ts](file:///home/nicolai/Projects/railbench/src/ui/sidebar/catalog-tab.ts): Gleiskatalog-Browser mit Suchfeld und Kategorien.
-* [roads-tab.ts](file:///home/nicolai/Projects/railbench/src/ui/sidebar/roads-tab.ts): Straßenkatalog nach Maßstab.
-* [models-tab.ts](file:///home/nicolai/Projects/railbench/src/ui/sidebar/models-tab.ts): 3D-Gebäude-, Depot- und Landschaftsbibliothek sowie `.glb`/`.gltf`-Import.
-* [terrain-tab.ts](file:///home/nicolai/Projects/railbench/src/ui/sidebar/terrain-tab.ts): Eigenständiges Gelände- & Berg-Menü mit monochromen Icons, Pinsel-Werkzeugen, Berg-Presets und Tunnel-Automatik.
-* [board-tab.ts](file:///home/nicolai/Projects/railbench/src/ui/sidebar/board-tab.ts) & [board-sketcher-card.ts](file:///home/nicolai/Projects/railbench/src/ui/sidebar/board-sketcher-card.ts): Tisch- & Ebenenplatten-Editor mit integriertem 2D-CAD-Sketcher.
-* [bom-tab.ts](file:///home/nicolai/Projects/railbench/src/ui/sidebar/bom-tab.ts): Live-Stückliste und CSV-Export.
+Die Testsuite prüft sowohl reine Berechnungslogik in `railbench-core` als auch Headless-`egui`-UI-Panels, Auswahl-/Drag-Isolation, Katalogdaten, WCAG-AA-Kontraste im Light/Dark-Design, PDF/CSV-Exporte sowie `wgpu`/3D-Szenengenerierung in `railbench-app`.

@@ -486,7 +486,7 @@ pub(super) fn draw_export_dialog(ctx: &egui::Context, app: &mut RailbenchApp) {
                                 .stroke(Stroke::new(1.0_f32, p.border_main))
                                 .show(ui, |ui| {
                                     ui.horizontal(|ui| {
-                                        ui.label(RichText::new(format!("#{page_idx}")).strong().color(p.primary_hover));
+                                        ui.label(RichText::new(format!("#{page_idx}")).strong().color(p.primary));
                                         ui.label(RichText::new(if is_de { "Gesamtuebersicht" } else { "Overall Layout Overview" }).strong().size(12.0));
                                     });
                                     draw_mini_plan_preview(ui, app, None, aspect);
@@ -522,7 +522,7 @@ pub(super) fn draw_export_dialog(ctx: &egui::Context, app: &mut RailbenchApp) {
                                 .stroke(Stroke::new(1.0_f32, p.border_main))
                                 .show(ui, |ui| {
                                     ui.horizontal(|ui| {
-                                        ui.label(RichText::new(format!("#{page_idx}")).strong().color(Color32::from_rgb(16, 185, 129)));
+                                        ui.label(RichText::new(format!("#{page_idx}")).strong().color(p.text_success));
                                         ui.label(RichText::new(if is_de { "Teileliste" } else { "Part List" }).strong().size(12.0));
                                     });
                                     Frame::new()

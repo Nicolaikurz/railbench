@@ -85,7 +85,7 @@ pub(super) fn handle_ramp_and_primary_click(
                     painter.add(egui::Shape::convex_polygon(
                         vec![tip, left, right],
                         arrow_col,
-                        Stroke::new(1.0, Color32::from_rgb(15, 23, 42)),
+                        Stroke::new(1.0_f32, Color32::from_rgb(15, 23, 42)),
                     ));
                 }
             }
@@ -228,7 +228,7 @@ pub(super) fn handle_ramp_and_primary_click(
                                     painter.add(egui::Shape::convex_polygon(
                                         vec![mid + u * 6.5, mid - u * 4.0 + perp * 4.5, mid - u * 4.0 - perp * 4.5],
                                         ghost_arrow,
-                                        Stroke::new(0.9, Color32::from_rgb(15, 23, 42)),
+                                        Stroke::new(0.9_f32, Color32::from_rgb(15, 23, 42)),
                                     ));
                                 }
                             }
@@ -245,7 +245,7 @@ pub(super) fn handle_ramp_and_primary_click(
                                 painter.add(egui::Shape::convex_polygon(
                                     vec![mid + u * 6.5, mid - u * 4.0 + perp * 4.5, mid - u * 4.0 - perp * 4.5],
                                     ghost_arrow,
-                                    Stroke::new(0.9, Color32::from_rgb(15, 23, 42)),
+                                    Stroke::new(0.9_f32, Color32::from_rgb(15, 23, 42)),
                                 ));
                             }
                         }

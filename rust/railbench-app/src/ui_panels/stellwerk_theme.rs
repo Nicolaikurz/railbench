@@ -306,7 +306,7 @@ pub(crate) fn adapt_layer_color(col: Color32, dark_mode: bool) -> Color32 {
 pub(super) fn draw_legend_strip(painter: &egui::Painter, leg_rect: Rect, is_de: bool, th: &StellwerkTheme) {
     painter.rect_filled(leg_rect, 4.0, th.legend_bg);
     if !th.dark_mode {
-        painter.rect_stroke(leg_rect, 4.0, Stroke::new(1.0, th.header_border), egui::StrokeKind::Inside);
+        painter.rect_stroke(leg_rect, 4.0, Stroke::new(1.0_f32, th.header_border), egui::StrokeKind::Inside);
     }
     let mut x = leg_rect.min.x + 10.0;
     let cy = leg_rect.center().y;
@@ -353,15 +353,15 @@ pub(super) fn draw_domino_grid(painter: &egui::Painter, rect: Rect, border_col: 
     let tile_sz = 28.0_f32;
     let mut gx = rect.min.x;
     while gx <= rect.max.x {
-        painter.line_segment([Pos2::new(gx, rect.min.y), Pos2::new(gx, rect.max.y)], Stroke::new(1.0, th.grid_line));
+        painter.line_segment([Pos2::new(gx, rect.min.y), Pos2::new(gx, rect.max.y)], Stroke::new(1.0_f32, th.grid_line));
         gx += tile_sz;
     }
     let mut gy = rect.min.y;
     while gy <= rect.max.y {
-        painter.line_segment([Pos2::new(rect.min.x, gy), Pos2::new(rect.max.x, gy)], Stroke::new(1.0, th.grid_line));
+        painter.line_segment([Pos2::new(rect.min.x, gy), Pos2::new(rect.max.x, gy)], Stroke::new(1.0_f32, th.grid_line));
         gy += tile_sz;
     }
-    painter.rect_stroke(rect, 0.0, Stroke::new(1.5, border_col), egui::StrokeKind::Inside);
+    painter.rect_stroke(rect, 0.0, Stroke::new(1.5_f32, border_col), egui::StrokeKind::Inside);
 }
 
 pub(super) fn draw_layer_nameplate(
@@ -388,7 +388,7 @@ pub(super) fn draw_layer_nameplate(
     let width = (label.len() as f32 * 6.3 + 32.0).min((rect.width() - 16.0).max(90.0));
     let pill_rect = Rect::from_min_size(Pos2::new(rect.min.x + 8.0, rect.min.y + 8.0), egui::vec2(width, 22.0));
     painter.rect_filled(pill_rect, 5.0, th.nameplate_bg);
-    painter.rect_stroke(pill_rect, 5.0, Stroke::new(1.2, accent), egui::StrokeKind::Inside);
+    painter.rect_stroke(pill_rect, 5.0, Stroke::new(1.2_f32, accent), egui::StrokeKind::Inside);
     painter.circle_filled(Pos2::new(pill_rect.min.x + 11.0, pill_rect.center().y), 3.6, accent);
     painter.text(
         Pos2::new(pill_rect.min.x + 19.0, pill_rect.center().y),

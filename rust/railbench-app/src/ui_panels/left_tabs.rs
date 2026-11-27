@@ -510,7 +510,7 @@ pub(super) fn draw_models_tab(ui: &mut egui::Ui, app: &mut RailbenchApp) {
                         ui.set_width(ui.available_width());
                         ui.horizontal(|ui| {
                             ui.label(RichText::new(&cm.name).strong().size(12.0).color(p.text_main));
-                            ui.label(RichText::new(format!(".{}", cm.model_type)).size(10.0).color(Color32::from_rgb(129, 140, 248)));
+                            ui.label(RichText::new(format!(".{}", cm.model_type)).size(10.0).color(p.text_indigo));
                             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                 if ui.small_button(if is_de { "Entf." } else { "Del" }).clicked() {
                                     del_clicked = true;
@@ -552,12 +552,12 @@ pub(super) fn draw_models_tab(ui: &mut egui::Ui, app: &mut RailbenchApp) {
 }
 
 
-/// Favorites accent color: bright amber/yellow on dark backgrounds, deep amber (#b45309)
-/// in light mode so the star and labels keep strong contrast on crema surfaces.
+/// Favorites accent color: bright amber/yellow on dark backgrounds, deep amber (#a14806)
+/// in light mode so the star and labels keep >= 4.5:1 contrast on crema surfaces.
 pub(crate) fn favorite_accent(dark_mode: bool, dark_col: Color32) -> Color32 {
     if dark_mode {
         dark_col
     } else {
-        Color32::from_rgb(180, 83, 9)
+        Color32::from_rgb(161, 72, 6)
     }
 }

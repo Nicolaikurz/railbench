@@ -2,8 +2,8 @@ app-id: io.github.Nicolaikurz.railbench
 runtime: org.freedesktop.Platform
 runtime-version: '24.08'
 sdk: org.freedesktop.Sdk
-base: org.electronjs.Electron2.BaseApp
-base-version: '24.08'
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
 command: railbench
 separate-locales: false
 
@@ -11,7 +11,7 @@ finish-args:
   # Wayland & X11 display server protocols
   - --socket=wayland
   - --socket=x11
-  # Hardware-accelerated OpenGL / WebGL rendering
+  # Hardware-accelerated Vulkan / OpenGL rendering
   - --device=dri
   # Inter-process communication
   - --share=ipc
@@ -23,34 +23,18 @@ finish-args:
   # Desktop notifications support
   - --talk-name=org.freedesktop.Notifications
 
+build-options:
+  append-path: /usr/lib/sdk/rust-stable/bin
+
 modules:
   - name: railbench
     buildsystem: simple
     build-commands:
-      - mkdir -p /app/main
-      - cp -r * /app/main/
-      - chmod +x /app/main/railbench || true
-      - mkdir -p /app/bin
-      - install -Dm755 railbench.sh /app/bin/railbench
-      - install -Dm644 io.github.Nicolaikurz.railbench.desktop /app/share/applications/io.github.Nicolaikurz.railbench.desktop
-      - install -Dm644 io.github.Nicolaikurz.railbench.metainfo.xml /app/share/metainfo/io.github.Nicolaikurz.railbench.metainfo.xml
-      - install -Dm644 icon.png /app/share/icons/hicolor/512x512/apps/io.github.Nicolaikurz.railbench.png
+      - cargo build --offline --release --manifest-path rust/Cargo.toml -p railbench-app
+      - install -Dm755 rust/target/release/railbench-app /app/bin/railbench
+      - install -Dm644 packaging/flatpak/io.github.Nicolaikurz.railbench.desktop /app/share/applications/io.github.Nicolaikurz.railbench.desktop
+      - install -Dm644 packaging/flatpak/io.github.Nicolaikurz.railbench.metainfo.xml /app/share/metainfo/io.github.Nicolaikurz.railbench.metainfo.xml
+      - install -Dm644 packaging/flatpak/icon.png /app/share/icons/hicolor/512x512/apps/io.github.Nicolaikurz.railbench.png
     sources:
-      - type: archive
-        url: https://github.com/Nicolaikurz/railbench/releases/download/v0.6.0/railbench-0.6.0-linux-x64.tar.gz
-        sha256: 8b0b03325abc5b5aca53d179bcf099eb30d9e2e3fe910e5a6b53825fea696b94
-        only-arches:
-          - x86_64
-      - type: archive
-        url: https://github.com/Nicolaikurz/railbench/releases/download/v0.6.0/railbench-0.6.0-linux-arm64.tar.gz
-        sha256: b3437feea1f427aff901a8244812c7b624b50c07dea06643e1686a412956ca73
-        only-arches:
-          - aarch64
-      - type: file
-        path: railbench.sh
-      - type: file
-        path: io.github.Nicolaikurz.railbench.desktop
-      - type: file
-        path: io.github.Nicolaikurz.railbench.metainfo.xml
-      - type: file
-        path: icon.png
+      - type: dir
+        path: ../..

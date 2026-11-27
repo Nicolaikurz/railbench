@@ -12,15 +12,18 @@ impl eframe::App for RailbenchApp {
             self.pending_confirm_action = Some(PendingConfirmAction::Quit);
         }
         let dirty_now = self.is_dirty();
-        let title_state = (self.layout.name.clone(), dirty_now);
-        if self.last_window_title_state.as_ref() != Some(&title_state) {
+        let title_unchanged = self
+            .last_window_title_state
+            .as_ref()
+            .is_some_and(|(name, d)| name == &self.layout.name && *d == dirty_now);
+        if !title_unchanged {
             let dot = if dirty_now { "• " } else { "" };
             ctx.send_viewport_cmd(egui::ViewportCommand::Title(format!(
                 "{dot}{} — {}",
                 self.layout.name,
                 version::full_app_title()
             )));
-            self.last_window_title_state = Some(title_state);
+            self.last_window_title_state = Some((self.layout.name.clone(), dirty_now));
         }
         self.tick_autosave();
         let should_sync_win = self
@@ -104,12 +107,14 @@ impl eframe::App for RailbenchApp {
                 self.status_message = Some(format!("Collab: updated by {by}"));
             }
         }
-        let chat_toasts: Vec<(String, String)> = self.collab.pending_chat_toasts.drain(..).collect();
-        if !self.show_collab_dialog {
-            if let Some((sender, text)) = chat_toasts.last() {
-                let snippet: String = text.chars().take(48).collect();
-                self.show_toast(format!("💬 {sender}: {snippet}"));
+        if !self.collab.pending_chat_toasts.is_empty() {
+            if !self.show_collab_dialog {
+                if let Some((sender, text)) = self.collab.pending_chat_toasts.last() {
+                    let snippet: String = text.chars().take(48).collect();
+                    self.show_toast(format!("💬 {sender}: {snippet}"));
+                }
             }
+            self.collab.pending_chat_toasts.clear();
         }
         if self.collab.is_active() {
             ctx.request_repaint_after(std::time::Duration::from_millis(80));
@@ -227,14 +232,42 @@ impl eframe::App for RailbenchApp {
                     let pieces = &self.layout.pieces;
                     let models = self.layout.models.as_deref().unwrap_or(&[]);
                     let catalogs = &self.catalogs;
-                    self.selected.retain(|id| {
-                        pieces
-                            .iter()
-                            .any(|p| &p.id == id && selection_scope.allows_piece(catalogs, p))
-                            || models
+                    if self.selected.len() > 8 {
+                        let check_pieces = matches!(
+                            selection_scope,
+                            SelectionScope::Tracks | SelectionScope::Roads
+                        );
+                        let check_models = matches!(
+                            selection_scope,
+                            SelectionScope::Buildings | SelectionScope::Terrain
+                        );
+                        let mut allowed: std::collections::HashSet<&str> =
+                            std::collections::HashSet::with_capacity(self.selected.len());
+                        if check_pieces {
+                            for p in pieces {
+                                if selection_scope.allows_piece(catalogs, p) {
+                                    allowed.insert(p.id.as_str());
+                                }
+                            }
+                        }
+                        if check_models {
+                            for m in models {
+                                if selection_scope.allows_model(m) {
+                                    allowed.insert(m.id.as_str());
+                                }
+                            }
+                        }
+                        self.selected.retain(|id| allowed.contains(id.as_str()));
+                    } else {
+                        self.selected.retain(|id| {
+                            pieces
                                 .iter()
-                                .any(|m| &m.id == id && selection_scope.allows_model(m))
-                    });
+                                .any(|p| &p.id == id && selection_scope.allows_piece(catalogs, p))
+                                || models
+                                    .iter()
+                                    .any(|m| &m.id == id && selection_scope.allows_model(m))
+                        });
+                    }
                 }
                 if self.is_3d_mode {
                     let now = std::time::Instant::now();
@@ -360,11 +393,11 @@ impl eframe::App for RailbenchApp {
                         self.gen_preview_pieces.clear();
                         None
                     };
-                    let collab_users_snapshot: Vec<crate::collab::CollabUser> =
+                    let collab_users_slice: &[crate::collab::CollabUser] =
                         if self.collab.connected {
-                            self.collab.users.clone()
+                            &self.collab.users
                         } else {
-                            Vec::new()
+                            &[]
                         };
                     let res = draw_canvas_2d(
                         ui,
@@ -382,7 +415,7 @@ impl eframe::App for RailbenchApp {
                         &mut self.measure_locked,
                         self.dragging_catalog_entry.as_ref(),
                         self.dragging_model_template.as_ref(),
-                        &collab_users_snapshot,
+                        collab_users_slice,
                         self.dark_mode,
                         self.color_mode,
                         self.show_labels,
@@ -424,9 +457,14 @@ impl eframe::App for RailbenchApp {
                                 self.last_collab_cursor_sent = Some((std::time::Instant::now(), hw));
                             }
                         }
-                        let mut sel_vec: Vec<String> = self.selected.iter().cloned().collect();
-                        sel_vec.sort();
-                        if sel_vec != self.last_collab_selection_sent {
+                        let sel_unchanged = self.selected.len() == self.last_collab_selection_sent.len()
+                            && self
+                                .last_collab_selection_sent
+                                .iter()
+                                .all(|id| self.selected.contains(id));
+                        if !sel_unchanged {
+                            let mut sel_vec: Vec<String> = self.selected.iter().cloned().collect();
+                            sel_vec.sort();
                             self.collab.send_selection(&sel_vec);
                             self.last_collab_selection_sent = sel_vec;
                         }

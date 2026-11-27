@@ -351,7 +351,7 @@ pub fn draw_right_sidebar(ctx: &egui::Context, app: &mut RailbenchApp, viewport_
                         } else {
                             format!("{orphaned_count} item(s) on deleted layer")
                         };
-                        ui.label(RichText::new(warn_txt).strong().size(11.0).color(Color32::from_rgb(248, 113, 113)));
+                        ui.label(RichText::new(warn_txt).strong().size(11.0).color(p.text_danger));
                         let btn_lbl = if app.lang == Lang::De {
                             "Aktiver Ebene zuweisen"
                         } else {

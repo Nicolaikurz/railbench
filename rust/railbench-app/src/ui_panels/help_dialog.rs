@@ -39,11 +39,11 @@ impl GuideImage {
 
     fn png_bytes(self) -> &'static [u8] {
         match self {
-            Self::Layout => include_bytes!("../../../../src/assets/help/guide-layout.png"),
-            Self::Toolbar => include_bytes!("../../../../src/assets/help/guide-toolbar.png"),
-            Self::Selection => include_bytes!("../../../../src/assets/help/guide-selection.png"),
-            Self::ContextMenu => include_bytes!("../../../../src/assets/help/guide-context-menu.png"),
-            Self::HeightRamp => include_bytes!("../../../../src/assets/help/height-ramp-panel.png"),
+            Self::Layout => include_bytes!("../../assets/help/guide-layout.png"),
+            Self::Toolbar => include_bytes!("../../assets/help/guide-toolbar.png"),
+            Self::Selection => include_bytes!("../../assets/help/guide-selection.png"),
+            Self::ContextMenu => include_bytes!("../../assets/help/guide-context-menu.png"),
+            Self::HeightRamp => include_bytes!("../../assets/help/height-ramp-panel.png"),
         }
     }
 
@@ -826,8 +826,8 @@ fn render_help_tab_content(
                         body: "Gleise mit der Maus ziehen zum Verschieben. Drehen um den gewaehlten Winkelschritt mit `R` (bzw. `Shift+R` gegen den Uhrzeigersinn). `Shift + Mausrad` dreht fein unter dem Cursor!",
                     },
                     HelpCard {
-                        title: "4. Mehrfachauswahl (Aufziehrahmen)",
-                        body: "Klicken Sie auf ein Gleis zum Auswaehlen, oder ziehen Sie mit der **linken Maustaste im freien Bereich** ein Rechteck (Marquee Box). `Strg` oder `Umschalt` erweitert die Auswahl.",
+                        title: "4. Mehrfachauswahl & Modus-Filter",
+                        body: "Linksklick oder Rechteck-Aufziehrahmen im freien Bereich markiert Elemente. Der aktive linke Reiter steuert die Bearbeitung (`Gleise`, `Strassen`, `3D`-Gebaeude, `Gelaende` oder `Platte`).",
                     },
                 ]
             } else {
@@ -845,8 +845,8 @@ fn render_help_tab_content(
                         body: "Drag tracks with the mouse to move them. Rotate by your active step using `R` (`Shift+R` counter-clockwise). Hold `Shift + Mouse Wheel` or edit exact angles in the bottom selection bar.",
                     },
                     HelpCard {
-                        title: "4. Multi-Selection (Marquee Box)",
-                        body: "Click directly on any track to select it, or drag with the **Left Mouse Button in an empty area** to draw a selection rectangle. Hold `Ctrl` or `Shift` to add/toggle tracks.",
+                        title: "4. Multi-Selection & Tab Scope",
+                        body: "Click items or drag with the **Left Mouse Button in an empty area** for marquee selection (`Ctrl`/`Shift` extends). Selection/dragging automatically follows the active sidebar tab (`Tracks`, `Streets`, `3D`, `Terrain`, `Table`).",
                     },
                 ]
             };
@@ -881,13 +881,13 @@ fn render_help_tab_content(
                         "1. Das Hauptfenster",
                         GuideImage::Layout,
                         "Bereiche des Hauptfensters",
-                        "- **Obere Werkzeugleiste**: Enthaelt Hauptmenues, Katalog-Reiter, Schnellaktionen und Modus-Schalter.\n- **Linke Katalog-Seitenleiste**: Gleiskatalog mit Suche & Filtern, Strassen, 3D-Modelle, Gelaende, Platte und Stueckliste.\n- **2D-Zeichenflaeche / 3D-Ansicht (`3`)**: Arbeitsflaeche mit Millimeter-Linealen. Rechts/Mittel-Ziehen zum Verschieben, Mausrad zum Zoomen, `Strg+0` zum Zentrieren.\n- **Rechtes Ebenen-Panel (`Shift+B`)**: Listet alle Hoehenebenen mit Sichtbarkeits-, Sperr- und Loesch-Schaltern sowie **+ Ebene** und **Hoehen / Rampe...**.\n- **Untere Auswahlleiste**: Erscheint automatisch, sobald ein oder mehrere Gleise bzw. Modelle markiert sind.",
+                        "- **Obere Werkzeugleiste**: Enthaelt Hauptmenues, Katalog-Reiter, Schnellaktionen und Modus-Schalter.\n- **Linke Katalog-Seitenleiste**: Gleiskatalog mit Suche & Filtern, Strassen, 3D-Modelle, Gelaende, Platte und Stueckliste (nur verbaute Artikel + Artikelnummern inkl. PDF/CSV).\n- **2D-Zeichenflaeche / 3D-Ansicht (`3`)**: Arbeitsflaeche mit Millimeter-Linealen. Rechts/Mittel-Ziehen zum Verschieben, Mausrad zum Zoomen, `Strg+0` zum Zentrieren.\n- **Rechtes Ebenen-Panel (`Shift+B`)**: Listet alle Hoehenebenen mit Sichtbarkeits-, Sperr- und Loesch-Schaltern sowie **+ Ebene** und **Hoehen / Rampe...**.\n- **Untere Auswahlleiste**: Erscheint automatisch, sobald ein oder mehrere Gleise bzw. Modelle markiert sind.",
                     ),
                     (
                         "2. Die Werkzeugleiste & alle Schaltflaechen",
                         GuideImage::Toolbar,
                         "Menues und Schnellschalter der Werkzeugleiste",
-                        "- **Obere Zeile (Menues)**: Anlage (Neu, Oeffnen, Demo, Speichern, Bauplan-Export & Drucken, XML/CSV, Sync), Bearbeiten, Ansicht, Einstellungen & Hilfe.\n- **Zweite Zeile (v.l.n.r.)**: Reiter (`Gleise`, `Strassen`, `3D`, `Gelaende`, `Platte`, `Liste`) · Neu/Oeffnen/Speichern · `Snap (S)` · `Ebenenschutz (Alt+L)` · `Messen (M)` · `CAD-Tools` · Drehen `R` / `Shift+R` + Winkelschritt · `Farben (C)` · `Nummern (N)` · `Spannung (P)` · `3D (3)` & `Zuege 3D` · `Sprache` · `Collab` · `Design` · `Ebenen (Shift+B)`.",
+                        "- **Obere Zeile (Menues)**: Anlage (Neu, Oeffnen, Zuletzt geoeffnet, Demo-Anlagen, Speichern, Bauplan-Export & Drucken, XML, Teileliste CSV, Gleiskatalog importieren, Collaborate, Startbildschirm), Bearbeiten, Ansicht, Einstellungen & Hilfe.\n- **Zweite Zeile (v.l.n.r.)**: Reiter (`Gleise`, `Strassen`, `3D`, `Gelaende`, `Platte`, `Liste`) · Neu/Oeffnen/Speichern · `Snap (S)` · `Ebenenschutz (Alt+L)` · `Messen (M)` · `CAD-Tools` · Drehen `R` / `Shift+R` + Winkelschritt · `Farben (C)` · `Nummern (N)` · `Spannung (P)` · `Fahren` (Cab & Stellwerk) & `3D (3)` · `DE/EN` · `Collab` · `Design` · `Ebenen (Shift+B)`.",
                     ),
                     (
                         "3. Die Auswahlleiste & Eigenschafts-Schalter",
@@ -914,13 +914,13 @@ fn render_help_tab_content(
                         "1. The Main Window",
                         GuideImage::Layout,
                         "Main window areas",
-                        "- **Top Toolbar**: Dropdown menus, catalog tab switchers, quick file/edit actions, and mode toggles.\n- **Left Catalog Sidebar**: Tracks (with search & filters), Roads, 3D Buildings, Terrain Editor, Table Benchwork, and Parts List (BOM).\n- **2D Canvas / 3D View (`3`)**: Workspace with edge millimeter rulers. Right/middle drag to pan, scroll wheel to zoom, `Ctrl+0` to fit.\n- **Right Layers Panel (`Shift+B`)**: Lists height decks with Eye (visibility), Lock (freeze), Delete, `+ Add Layer`, and `Heights / Ramp...`.\n- **Bottom Selection Bar**: Appears automatically whenever tracks or models are selected.",
+                        "- **Top Toolbar**: Dropdown menus, catalog tab switchers, quick file/edit actions, and mode toggles.\n- **Left Catalog Sidebar**: Tracks (with search & filters), Roads, 3D Buildings, Terrain Editor, Table Benchwork, and Part List (used items & article numbers only, with PDF/CSV export).\n- **2D Canvas / 3D View (`3`)**: Workspace with edge millimeter rulers. Right/middle drag to pan, scroll wheel to zoom, `Ctrl+0` to fit.\n- **Right Layers Panel (`Shift+B`)**: Lists height decks with Eye (visibility), Lock (freeze), Delete, `+ Add Layer`, and `Heights / Ramp...`.\n- **Bottom Selection Bar**: Appears automatically whenever tracks or models are selected.",
                     ),
                     (
                         "2. The Toolbar & Quick Buttons",
                         GuideImage::Toolbar,
                         "Toolbar menus and quick action buttons",
-                        "- **Top Row (Menus)**: Layout (New, Open, Demos, Save, Blueprint Export & Print, XML/CSV, Collab), Edit, View, Settings & Help.\n- **Second Row (Left to Right)**: Tabs (`Tracks`, `Roads`, `3D`, `Terrain`, `Board`, `BOM`) · New/Open/Save · `Snap (S)` · `Layer Lock (Alt+L)` · `Measure (M)` · `CAD Tools` · Rotate `R` / `Shift+R` + Step · `Colors (C)` · `Labels (N)` · `Voltage (P)` · `3D (3)` & `Trains 3D` · `Language` · `Collab` · `Theme` · `Layers (Shift+B)`.",
+                        "- **Top Row (Menus)**: Layout (New, Open, Open Recent, Demos, Save, Save As, Blueprint Export & Print, XML, Part List CSV, Import Track Catalog, Collaborate, Welcome), Edit, View, Settings & Help.\n- **Second Row (Left to Right)**: Tabs (`Tracks`, `Roads`, `3D`, `Terrain`, `Table`, `Part List`) · New/Open/Save · `Snap (S)` · `Layer Lock (Alt+L)` · `Measure (M)` · `CAD Tools` · Rotate `R` / `Shift+R` + Step · `Colors (C)` · `Labels (N)` · `Voltage (P)` · `Drive` (Cab & Signal Box) & `3D (3)` · `DE/EN` · `Collab` · `Theme` · `Layers (Shift+B)`.",
                     ),
                     (
                         "3. The Selection Bar & Property Toggles",
@@ -970,8 +970,8 @@ fn render_help_tab_content(
                         body: "Blendet ueberliegende Ebenen per **Auge-Symbol** aus oder friert sie per **Schloss-Symbol** ein. `Alt+L` schaltet den globalen Ebenenschutz um.",
                     },
                     HelpCard {
-                        title: "Ebenen bearbeiten & umbenennen",
-                        body: "Ueber das Ebenen-Menue lassen sich Name, Farbe, Standardhoehe (mm) sowie pro Ebene optionale Trassenbretter ('Holzplatten') konfigurieren.",
+                        title: "Ebenen & Holzplatten",
+                        body: "Ueber das Ebenen-Menue lassen sich Name, Farbe und Standardhoehe (mm) pro Ebene festlegen; ueber **Ansicht -> Holzplatten anzeigen** werden die Trassenbretter in 3D ein-/ausgeblendet.",
                     },
                     HelpCard {
                         title: "Gleise Ebene zuweisen (M)",
@@ -993,8 +993,8 @@ fn render_help_tab_content(
                         body: "Click the **Eye** icon to hide upper decks while working below, or lock a layer with the **Lock** icon. Press `Alt+L` to toggle layer selection lock.",
                     },
                     HelpCard {
-                        title: "Edit Name, Color & Sub-Plates",
-                        body: "Configure each deck's name, color swatch, base millimeter height, and optional contoured wood sub-plates.",
+                        title: "Edit Name, Color & Wood Plates",
+                        body: "Configure each deck's name, color swatch, and base millimeter height in the Layers sidebar; toggle 3D contoured wood sub-plates via **View -> Show Wood Plates**.",
                     },
                     HelpCard {
                         title: "Move Tracks to Layer (M)",
@@ -1076,9 +1076,9 @@ fn render_help_tab_content(
                 p,
                 dark,
                 if is_de {
-                    "**So exportieren Sie:** Druecken Sie `Strg+P`, waehlen Sie die gewuenschten Ebenen & Optionen im Dialog aus und exportieren Sie direkt als PDF oder SVG."
+                    "**So exportieren Sie:** Druecken Sie `Strg+P` (oder **Anlage -> Bauplan-Export & Drucken...**) fuer Vektor-PDF, Drucken oder 1:1 mm SVG; XML und Teileliste-CSV liegen direkt im **Anlage**-Menue."
                 } else {
-                    "**How to Export / Print:** Press `Ctrl+P`, select layers, ghosting, and paper options in the Blueprint dialog, and save directly to PDF or SVG."
+                    "**How to Export / Print:** Press `Ctrl+P` (or **Layout -> Blueprint Export & Print...**) for Vector PDF, Printing, or 1:1 mm SVG; XML and Part List CSV are directly under the **Layout** menu."
                 },
             );
         }
@@ -1211,15 +1211,15 @@ fn render_help_tab_content(
                     },
                     HelpCard {
                         title: "Direkt in 3D bearbeiten (`3D Bearbeiten`)",
-                        body: "Aktivieren Sie **3D Bearbeiten** in der 3D-Leiste (im `CAD / Minimal`- oder `Halle`-Modus): Gleise und Modelle direkt anklicken, per `XYZ`-Gizmo verschieben, mit `Alt+Ziehen` heben und per `R` / `Entf` / `Auto-Luecke` / `Parallelgleis` bearbeiten.",
+                        body: "Aktivieren Sie **3D Bearbeiten** in der 3D-Leiste (im `Halle`- und `CAD / Minimal`-Modus): Gleise und Modelle direkt anklicken, auf der Platte ziehen, mit `Alt+Ziehen` heben sowie per `R` / `Entf` bearbeiten (folgt dem aktiven Reiter-Filter).",
                     },
                     HelpCard {
-                        title: "3D Zug-Simulation (`Zuege`)",
-                        body: "Starten Sie den separaten Zug-Modus mit **BR 243 (E-Lok)**, **BR 96 Mallet (Dampflok)** und **V 60 (Diesellok)**. Steuern mit `W`/`S` oder `Auf`/`Ab`, Bremsen mit `Leertaste`, naechste Weiche schalten mit `T` (sichtbar an jeder Weichenlaterne!).",
+                        title: "Fahrbetrieb, Cab View & Stellwerk (`Fahren`)",
+                        body: "Das abdockbare **Fahren**-Fenster (ideal fuer einen 2. Monitor) bietet `Geteilt`, `Fuehrerstand` (BR 243, BR 96 Mallet, V 60) und `Stellwerk` mit Fahrregler, Bremse, Kuppeln, Weichen, Entkuppler, Drehscheibe & Schiebebuehne.",
                     },
                     HelpCard {
-                        title: "Integrierte 3D-Modelle & .glb / .gltf Import",
-                        body: "16 prozedurale 3D-Gebaeude & Betriebswerke (`Bekohlung`, `Dieseltankstelle`, `Ringlokschuppen`, `Drehscheibe`, `Schiebebuehne`, `Bahnhof`, `Stellwerk`, `Signale`, `Baeume`) plus Drag & Drop Import eigener `.glb` / `.gltf` Dateien.",
+                        title: "16 Prozedurale 3D-Modelle & Transparente Daecher",
+                        body: "`Bekohlung`, `Dieseltankstelle`, `Lokschuppen` & `Ringlokschuppen` (mit **transparenten Daechern** zur Gleiskontrolle innen), `Drehscheibe`, `Schiebebuehne`, `Bahnhof`, `Stellwerk`, `Signale`, `Baeume` sowie `.glb` / `.gltf`-Import.",
                     },
                     HelpCard {
                         title: "Umgebungsmodi & 24h Tag/Nacht-Zyklus",
@@ -1238,15 +1238,15 @@ fn render_help_tab_content(
                     },
                     HelpCard {
                         title: "Direct 3D Editing (`Edit 3D`)",
-                        body: "Toggle **Edit 3D** in the 3D top HUD bar (works in `CAD / Minimal` and `Hall`): pick tracks/models in 3D, drag on the table plane, `Alt+Drag` height, or run `R`, `Del`, Close Gap, and Parallel Tracks.",
+                        body: "Toggle **Edit 3D** in the 3D top bar (works in both `Hall` and `CAD / Minimal`): pick tracks/models in 3D, drag on the table plane, `Alt+Drag` height, or run `R`, `Del`, Close Gap, and Parallel Tracks (scoped by active sidebar tab).",
                     },
                     HelpCard {
-                        title: "3D Train Simulation (`Trains`)",
-                        body: "Drive detailed **BR 243**, **BR 96 Mallet**, and **V 60** locomotives across your layout (`W`/`S` or `Up`/`Down` throttle, `Space` brake, `T` switches nearest turnout and updates every 3D turnout lantern aspect!).",
+                        title: "Drive, 3D Cab View & Signal Box (`Drive`)",
+                        body: "Open the detachable **Drive** window (`Split`, `Cab View`, `Signal Box` modes) to drive **BR 243**, **BR 96 Mallet**, and **V 60** locomotives with throttle, brakes, coupling, turnouts, uncouplers, turntables & transfer tables.",
                     },
                     HelpCard {
-                        title: "Built-in Scenery & Custom .glb / .gltf",
-                        body: "Includes 16 procedural scale-aware models (Coaling Station, Diesel Fueling, Roundhouse with stall snap, Turntable, Transfer Table, Station, Signal Box, Trees) plus `.glb`/`.gltf` import.",
+                        title: "16 Built-in Models & Transparent Depot Roofs",
+                        body: "Includes 16 procedural scale-aware models (Coaling Station, Diesel Fueling, Engine Shed & Roundhouse with **transparent roofs** to inspect interior tracks, Turntable, Transfer Table, Station, Signal Box, Trees) plus `.glb`/`.gltf` import.",
                     },
                     HelpCard {
                         title: "Environments & 24h Day/Night Cycle",
@@ -1278,9 +1278,9 @@ fn render_help_tab_content(
                 p,
                 if is_de { "Multi-User Zusammenarbeit & Server-Autostart" } else { "Multi-User Collaboration & Server Auto-Start" },
                 if is_de {
-                    "Arbeiten Sie mit mehreren Personen gleichzeitig ueber LAN oder Internet per WebSocket an einem gemeinsamen Gleisplan - kompatibel mit `node server.mjs` und dem eingebetteten Rust-Server."
+                    "Arbeiten Sie mit mehreren Personen gleichzeitig ueber LAN oder Internet per WebSocket an einem gemeinsamen Gleisplan ueber den eingebetteten WebSocket-Server (`--server`)."
                 } else {
-                    "Collaborate simultaneously over LAN or Internet via WebSocket on the same layout - fully compatible between the embedded Rust host server and `node server.mjs`."
+                    "Collaborate simultaneously over LAN or Internet via WebSocket on the same layout using the built-in Rust WebSocket server (`--server`)."
                 },
             );
             let cards = if is_de {
@@ -1411,9 +1411,9 @@ fn render_help_tab_content(
                 p,
                 dark,
                 if is_de {
-                    "**Start-Beispiele:**\n- Native App als Host + Auto-Connect: `railbench-app --server --port 3000 --password geheim --connect`\n- Node.js Server: `node server.mjs --port 8080 --password geheim --room anlage1`"
+                    "**Start-Beispiele:**\n- Native App als Host + Auto-Connect: `railbench-app --server --port 3000 --password geheim --room anlage1 --connect`\n- Client direkt verbinden: `railbench-app --connect ws://192.168.1.10:3000 --room anlage1`"
                 } else {
-                    "**Quickstart Examples:**\n- Native App Hosting + Connect: `railbench-app --server --port 3000 --password secret --connect`\n- Standalone Node.js Server: `node server.mjs --port 8080 --password secret --room yard1`"
+                    "**Quickstart Examples:**\n- Native App Hosting + Connect: `railbench-app --server --port 3000 --password secret --room yard1 --connect`\n- Auto-Connect as Client: `railbench-app --connect ws://192.168.1.10:3000 --room yard1`"
                 },
             );
         }
@@ -1665,21 +1665,21 @@ fn render_help_tab_content(
 
             let systems: [&str; 6] = if is_de {
                 [
-                    "**H0 (1:87)**: Maerklin C-Gleis, Maerklin K-Gleis, Maerklin M-Gleis",
-                    "**H0 (1:87)**: Trix C-Gleis, Piko A-Gleis, Roco Line, Peco Streamline Code 100, Tillig Elite",
+                    "**H0 (1:87)**: Maerklin C-Gleis, Maerklin K-Gleis, Maerklin M-Gleis, Trix C-Gleis",
+                    "**H0 (1:87)**: Piko A-Gleis, Roco Line, Tillig Elite, Peco Streamline Code 100, Kato Unitrack H0, Bachmann E-Z Track H0",
                     "**TT (1:120)**: Tillig TT Modellgleis, Tillig TT Bettungsgleis, Kuehn TT Gleis",
-                    "**N (1:160)**: Fleischmann Piccolo, Kato Unitrack, Minitrix, Peco Streamline N Code 55",
-                    "**Z (1:220)**: Maerklin mini-club, Rokuhan",
-                    "**0 / 1 / G**: Lenz Spur 0, Maerklin Spur 1, LGB Spur G + Strassensysteme",
+                    "**N (1:160)**: Fleischmann Piccolo, Minitrix, Kato Unitrack N, Peco Streamline N Code 55, Bachmann E-Z Track N",
+                    "**Z (1:220)**: Maerklin mini-club, Rokuhan Z",
+                    "**0 / 1 / G**: Lenz Spur 0, Maerklin Spur 1, LGB Spur G + 7 Strassensysteme (H0-G)",
                 ]
             } else {
                 [
-                    "**H0 (1:87)**: Maerklin C-Track, Maerklin K-Track, Maerklin M-Track",
-                    "**H0 (1:87)**: Trix C-Track, Piko A-Track, Roco Line, Peco Streamline Code 100, Tillig Elite",
+                    "**H0 (1:87)**: Maerklin C-Track, Maerklin K-Track, Maerklin M-Track, Trix C-Track",
+                    "**H0 (1:87)**: Piko A-Track, Roco Line, Tillig Elite, Peco Streamline Code 100, Kato Unitrack HO, Bachmann E-Z Track H0",
                     "**TT (1:120)**: Tillig TT Model Track, Tillig TT Roadbed Track, Kuehn TT Track",
-                    "**N (1:160)**: Fleischmann Piccolo, Kato Unitrack, Minitrix, Peco Streamline N Code 55",
-                    "**Z (1:220)**: Maerklin mini-club, Rokuhan",
-                    "**0 / 1 / G**: Lenz Scale 0, Maerklin Scale 1, LGB Scale G + Street Systems",
+                    "**N (1:160)**: Fleischmann Piccolo, Minitrix, Kato Unitrack N, Peco Streamline N Code 55, Bachmann E-Z Track N",
+                    "**Z (1:220)**: Maerklin mini-club, Rokuhan Z",
+                    "**0 / 1 / G**: Lenz Scale 0, Maerklin Scale 1, LGB Scale G + 7 Street Systems (H0-G)",
                 ]
             };
             for sys in systems {
@@ -1696,9 +1696,9 @@ fn render_help_tab_content(
                 p,
                 dark,
                 if is_de {
-                    "**Plattform-Unterstuetzung:** Native Builds fuer **Linux (x86_64)**, **Windows (x86_64 MSVC / GNU)** und **macOS (Apple Silicon ARM64 & Intel x64)** sowie Web/Electron."
+                    "**Plattform-Unterstuetzung:** Native Rust Desktop-Builds (`egui` + `wgpu`) fuer **Linux (`x86_64` / `aarch64`: Native, AppImage, Flatpak, Snap)**, **Windows (`x86_64` / `arm64`: Portables ZIP)** und **macOS (`arm64` Apple Silicon & `x64` Intel: `.dmg` / `.zip`)**."
                 } else {
-                    "**Platform Support:** Native builds for **Linux (x86_64)**, **Windows (x86_64 MSVC / GNU)**, and **macOS (Apple Silicon ARM64 & Intel x64)**, alongside Web/Electron."
+                    "**Platform Support:** Native Rust desktop builds (`egui` + `wgpu`) for **Linux (`x86_64` / `aarch64`: Native, AppImage, Flatpak, Snap)**, **Windows (`x86_64` / `arm64`: Portable ZIP)**, and **macOS (`arm64` Apple Silicon & `x64` Intel: `.dmg` / `.zip`)**."
                 },
             );
 
@@ -1794,11 +1794,12 @@ mod tests {
         app.show_help_dialog = true;
         let ctx = egui::Context::default();
 
-        for (lang, (vw, vh)) in [
-            (crate::i18n::Lang::En, (1280.0_f32, 800.0_f32)),
-            (crate::i18n::Lang::De, (800.0_f32, 600.0_f32)),
+        for (lang, dark_mode, (vw, vh)) in [
+            (crate::i18n::Lang::En, false, (1280.0_f32, 800.0_f32)),
+            (crate::i18n::Lang::De, true, (800.0_f32, 600.0_f32)),
         ] {
             app.lang = lang;
+            app.dark_mode = dark_mode;
             let expected_modal_w = 900.0_f32.min((vw * 0.96).max(460.0));
             let expected_modal_h = 640.0_f32.min((vh * 0.90).max(380.0));
             let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(vw, vh));

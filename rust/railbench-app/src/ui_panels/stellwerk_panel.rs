@@ -46,7 +46,7 @@ pub(super) fn draw_stellwerk_canvas(ui: &mut egui::Ui, app: &mut RailbenchApp) {
     egui::Frame::new()
         .fill(th.header_bg)
         .inner_margin(egui::Margin::symmetric(8, 5))
-        .stroke(Stroke::new(1.0, th.header_border))
+        .stroke(Stroke::new(1.0_f32, th.header_border))
         .show(ui, |ui| {
             if th.dark_mode {
                 crate::theme::style_toolbar_ui(ui, crate::theme::palette(true));
@@ -65,7 +65,7 @@ pub(super) fn draw_stellwerk_canvas(ui: &mut egui::Ui, app: &mut RailbenchApp) {
                         .add(
                             egui::Button::new(RichText::new(split_lbl).strong().size(11.5).color(txt_col))
                                 .fill(fill)
-                                .stroke(Stroke::new(1.0, border))
+                                .stroke(Stroke::new(1.0_f32, border))
                                 .min_size(egui::vec2(0.0, 22.0))
                                 .corner_radius(egui::CornerRadius::same(5)),
                         )
@@ -93,7 +93,7 @@ pub(super) fn draw_stellwerk_canvas(ui: &mut egui::Ui, app: &mut RailbenchApp) {
                         .add(
                             egui::Button::new(RichText::new(text).strong().size(11.5).color(txt_col))
                                 .fill(fill)
-                                .stroke(Stroke::new(1.0, border))
+                                .stroke(Stroke::new(1.0_f32, border))
                                 .min_size(egui::vec2(0.0, 22.0))
                                 .corner_radius(egui::CornerRadius::same(5)),
                         )
@@ -115,7 +115,7 @@ pub(super) fn draw_stellwerk_canvas(ui: &mut egui::Ui, app: &mut RailbenchApp) {
                         .add(
                             egui::Button::new(RichText::new(all_lbl).size(11.5).color(txt_col))
                                 .fill(fill)
-                                .stroke(Stroke::new(1.0, border))
+                                .stroke(Stroke::new(1.0_f32, border))
                                 .min_size(egui::vec2(0.0, 22.0))
                                 .corner_radius(egui::CornerRadius::same(5)),
                         )
@@ -136,7 +136,7 @@ pub(super) fn draw_stellwerk_canvas(ui: &mut egui::Ui, app: &mut RailbenchApp) {
                                         .color(th.header_text),
                                 )
                                 .fill(th.btn_bg)
-                                .stroke(Stroke::new(1.0, th.btn_border))
+                                .stroke(Stroke::new(1.0_f32, th.btn_border))
                                 .min_size(egui::vec2(0.0, 22.0))
                                 .corner_radius(egui::CornerRadius::same(5)),
                             )
@@ -258,7 +258,7 @@ fn draw_stellwerk_tracks_and_specials(
             painter.circle_stroke(
                 cp,
                 r_scr,
-                Stroke::new(2.0, if is_occ { th.occupied } else { th.pit_border }),
+                Stroke::new(2.0_f32, if is_occ { th.occupied } else { th.pit_border }),
             );
             let ang = app.vehicle_sim.turntable_angles_deg.get(&piece.id).copied().unwrap_or(0.0);
             let rad = (piece.transform.rotation + ang).to_radians();
@@ -266,7 +266,7 @@ fn draw_stellwerk_tracks_and_specials(
             let b0 = to_scr(piece.transform.x - pit_r * ca, piece.transform.y - pit_r * sa);
             let b1 = to_scr(piece.transform.x + pit_r * ca, piece.transform.y + pit_r * sa);
             let b_col = if is_occ { th.occupied } else { th.route_active };
-            painter.line_segment([b0, b1], Stroke::new(5.0, b_col));
+            painter.line_segment([b0, b1], Stroke::new(5.0_f32, b_col));
             let deg_txt = format!("{:.0}°", ang);
             let badge_rect = Rect::from_center_size(cp, egui::vec2(28.0, 14.0));
             painter.rect_filled(badge_rect, 3.0, th.nameplate_bg);
@@ -291,14 +291,14 @@ fn draw_stellwerk_tracks_and_specials(
                     to_scr(piece.transform.x + rp.x, piece.transform.y + rp.y)
                 })
                 .collect();
-            painter.add(egui::Shape::convex_polygon(corners, th.pit_bg, Stroke::new(1.8, th.pit_border)));
+            painter.add(egui::Shape::convex_polygon(corners, th.pit_bg, Stroke::new(1.8_f32, th.pit_border)));
             let bz = app.vehicle_sim.transfer_offsets_mm.get(&piece.id).copied().unwrap_or(zs[zs.len() / 2] as f64);
             let r0 = rotate(Vec2 { x: 0.0, y: bz }, piece.transform.rotation);
             let r1 = rotate(Vec2 { x: l, y: bz }, piece.transform.rotation);
             let b0 = to_scr(piece.transform.x + r0.x, piece.transform.y + r0.y);
             let b1 = to_scr(piece.transform.x + r1.x, piece.transform.y + r1.y);
             let b_col = if is_occ { th.occupied } else { th.route_active };
-            painter.line_segment([b0, b1], Stroke::new(5.0, b_col));
+            painter.line_segment([b0, b1], Stroke::new(5.0_f32, b_col));
             let mid = Pos2::new((b0.x + b1.x) * 0.5, (b0.y + b1.y) * 0.5);
             if active_click.is_some_and(|p| p.distance(mid) <= 36.0) {
                 hits.step_tr = Some((piece.id.clone(), piece.catalog_id.clone(), 1));
@@ -347,7 +347,7 @@ fn draw_stellwerk_tracks_and_specials(
                     (th.track_idle, 4.0_f32)
                 };
                 if is_occ && is_active_branch {
-                    painter.add(egui::Shape::line(spts.clone(), Stroke::new(11.5, th.occupied_glow)));
+                    painter.add(egui::Shape::line(spts.clone(), Stroke::new(11.5_f32, th.occupied_glow)));
                 }
                 painter.add(egui::Shape::line(spts.clone(), Stroke::new(width + 2.6, th.track_casing)));
                 painter.add(egui::Shape::line(spts, Stroke::new(width, col)));
@@ -360,9 +360,9 @@ fn draw_stellwerk_tracks_and_specials(
                 let head_pos = Pos2::new(sp.x, sp.y - 11.0);
                 let head_rect = Rect::from_center_size(head_pos, egui::vec2(9.0, 12.0));
                 let sig_col = if is_occ { th.occupied } else { th.clear_dot };
-                painter.line_segment([Pos2::new(sp.x, sp.y - 3.0), head_pos], Stroke::new(1.5, th.signal_mast));
+                painter.line_segment([Pos2::new(sp.x, sp.y - 3.0), head_pos], Stroke::new(1.5_f32, th.signal_mast));
                 painter.rect_filled(head_rect, 3.0, th.signal_housing);
-                painter.rect_stroke(head_rect, 3.0, Stroke::new(1.0, th.signal_border), egui::StrokeKind::Inside);
+                painter.rect_stroke(head_rect, 3.0, Stroke::new(1.0_f32, th.signal_border), egui::StrokeKind::Inside);
                 painter.circle_filled(head_pos, 4.6, Color32::from_rgba_unmultiplied(sig_col.r(), sig_col.g(), sig_col.b(), 60));
                 painter.circle_filled(head_pos, 2.7, sig_col);
             }
@@ -400,7 +400,7 @@ fn draw_stellwerk_tracks_and_specials(
                 painter.rect_stroke(
                     badge,
                     3.0,
-                    Stroke::new(1.2, if raised { th.route_active } else { Color32::WHITE }),
+                    Stroke::new(1.2_f32, if raised { th.route_active } else { Color32::WHITE }),
                     egui::StrokeKind::Inside,
                 );
                 painter.text(
@@ -441,7 +441,7 @@ fn draw_stellwerk_turnout_buttons(
             th.turnout_ring
         };
         painter.circle_filled(*pos, r, fill);
-        painter.circle_stroke(*pos, r, Stroke::new(if hovered { 2.2 } else { 1.4 }, border));
+        painter.circle_stroke(*pos, r, Stroke::new(if hovered { 2.2 } else { 1.4_f32 }, border));
         let vec_s = Stroke::new(1.9_f32, Color32::WHITE);
         let d = r * 0.44;
         if *is_dkw {
@@ -502,7 +502,7 @@ fn draw_stellwerk_trains(
         let dir_y = rad.sin() as f32 * 10.0;
         painter.line_segment(
             [Pos2::new(sp.x - dir_x, sp.y - dir_y), Pos2::new(sp.x + dir_x, sp.y + dir_y)],
-            Stroke::new(6.0, if is_selected { th.train_selected } else { th.train_idle }),
+            Stroke::new(6.0_f32, if is_selected { th.train_selected } else { th.train_idle }),
         );
         let znm_txt = if !v.kind.is_locomotive() {
             format!("{} · {}", v.name, if app.lang == Lang::De { "ABGESTELLT" } else { "PARKED" })
@@ -525,7 +525,7 @@ fn draw_stellwerk_trains(
         } else {
             th.clear_dot
         };
-        painter.rect_stroke(box_rect, 3.0, Stroke::new(if is_selected { 1.6 } else { 1.0 }, stroke_col), egui::StrokeKind::Inside);
+        painter.rect_stroke(box_rect, 3.0, Stroke::new(if is_selected { 1.6 } else { 1.0_f32 }, stroke_col), egui::StrokeKind::Inside);
         painter.text(
             box_rect.center(),
             egui::Align2::CENTER_CENTER,

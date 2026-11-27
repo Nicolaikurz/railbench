@@ -51,11 +51,7 @@ pub(super) fn draw_terrain_tab(ui: &mut egui::Ui, app: &mut RailbenchApp) {
                         })
                         .size(10.0)
                         .strong()
-                        .color(if app.dark_mode {
-                            Color32::from_rgb(52, 211, 153)
-                        } else {
-                            Color32::from_rgb(4, 120, 87)
-                        }),
+                        .color(p.text_success),
                     );
                 });
         });
@@ -119,9 +115,9 @@ pub(super) fn draw_terrain_tab(ui: &mut egui::Ui, app: &mut RailbenchApp) {
                         .size(10.5)
                         .strong()
                         .color(if active_editable {
-                            Color32::from_rgb(56, 189, 248)
+                            p.primary
                         } else {
-                            Color32::from_rgb(245, 158, 11)
+                            p.text_warning
                         }),
                     );
                     if !active_editable {
@@ -132,7 +128,7 @@ pub(super) fn draw_terrain_tab(ui: &mut egui::Ui, app: &mut RailbenchApp) {
                                 "🔒 Active layer is locked/hidden"
                             })
                             .size(10.0)
-                            .color(Color32::from_rgb(245, 158, 11)),
+                            .color(p.text_warning),
                         );
                     }
                 });
@@ -297,7 +293,7 @@ pub(super) fn draw_terrain_tab(ui: &mut egui::Ui, app: &mut RailbenchApp) {
                             }
                         }
                     };
-                    ui.label(RichText::new(hint).size(10.5).color(Color32::from_rgb(74, 222, 128)));
+                    ui.label(RichText::new(hint).size(10.5).color(p.text_success));
                 }
 
                 ui.add_space(6.0);
@@ -714,7 +710,7 @@ pub(super) fn draw_terrain_tab(ui: &mut egui::Ui, app: &mut RailbenchApp) {
                         ui.add_space(3.0);
                         ui.horizontal(|ui| {
                             let status_col = if col_cnt > 0 {
-                                Color32::from_rgb(16, 185, 129)
+                                p.text_success
                             } else {
                                 p.text_muted
                             };

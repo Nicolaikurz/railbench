@@ -340,7 +340,7 @@ pub(super) fn push_heightfield_terrain_3d(
                     portals.push(HfPortal {
                         pos: [p0[0], p0[2].max(y0), p0[1]],
                         dir_xz: [(p0[0] - p1[0]) / len0, (p0[1] - p1[1]) / len0],
-                        prof: prof.clone(),
+                        prof,
                     });
                 }
                 let pe = run[run.len() - 1];
@@ -350,7 +350,7 @@ pub(super) fn push_heightfield_terrain_3d(
                     portals.push(HfPortal {
                         pos: [pe[0], pe[2].max(y0), pe[1]],
                         dir_xz: [(pe[0] - pp[0]) / len1, (pe[1] - pp[1]) / len1],
-                        prof: prof.clone(),
+                        prof,
                     });
                 }
                 let mut xyz = Vec::with_capacity(run.len() * 3);
@@ -359,7 +359,7 @@ pub(super) fn push_heightfield_terrain_3d(
                     xyz.push(q[2]);
                     xyz.push(q[1]);
                 }
-                tunnel_bores.push((xyz, prof.clone()));
+                tunnel_bores.push((xyz, prof));
             }
             run.clear();
         };

@@ -1,7 +1,29 @@
 #!/usr/bin/env bash
-# Shared helper for RAILbench release build scripts:
-#  1) archive_old_binaries <release_dir> <glob>...  -> moves existing matching binaries into release/old/
-#  2) cleanup_build_artifacts <project_root>        -> removes all intermediate build dirs & metadata from release/
+# Shared helpers for RAILbench native Rust release & packaging scripts:
+#  1) resolve_railbench_version <project_root>      -> prints & exports RAILBENCH_VERSION (CalVer YY.MM.P)
+#  2) archive_old_binaries <release_dir> <glob>...  -> moves existing matching binaries into release/old/
+#  3) cleanup_build_artifacts <project_root>        -> removes intermediate staging directories
+
+resolve_railbench_version() {
+    local PROJECT_ROOT="$1"
+    local CARGO_TOML="$PROJECT_ROOT/rust/Cargo.toml"
+    local PKG_PATCH="1"
+    if [ -f "$CARGO_TOML" ]; then
+        local RAW_VER
+        RAW_VER="$(grep -E '^[[:space:]]*version[[:space:]]*=' "$CARGO_TOML" | head -n1 | sed -E 's/.*"([^"]+)".*/\1/')"
+        if [[ "$RAW_VER" =~ ^[0-9]+\.[0-9]+\.([0-9]+)$ ]]; then
+            PKG_PATCH="${BASH_REMATCH[1]}"
+        fi
+    fi
+    local DEFAULT_CALVER
+    DEFAULT_CALVER="$(date -u +%y.%m).${PKG_PATCH}"
+    local VER="${RAILBENCH_VERSION:-$DEFAULT_CALVER}"
+    VER="${VER#v}"
+    VER="${VER#V}"
+    export RAILBENCH_VERSION="$VER"
+    export RAILBENCH_PATCH="$PKG_PATCH"
+    echo "$VER"
+}
 
 archive_old_binaries() {
     local RELEASE_DIR="$1"
@@ -44,22 +66,15 @@ cleanup_build_artifacts() {
     local PROJECT_ROOT="$1"
     local RELEASE_DIR="$PROJECT_ROOT/release"
 
-    echo "• Cleaning intermediate build artifacts..."
+    echo "• Cleaning intermediate staging artifacts..."
     rm -rf \
-        "$RELEASE_DIR/linux-unpacked" \
-        "$RELEASE_DIR/linux-arm64-unpacked" \
-        "$RELEASE_DIR/win-unpacked" \
-        "$RELEASE_DIR/win-arm64-unpacked" \
-        "$RELEASE_DIR/mac" \
-        "$RELEASE_DIR/mac-arm64" \
-        "$RELEASE_DIR/mac-universal" \
+        "$RELEASE_DIR"/AppDir* \
+        "$RELEASE_DIR"/flatpak-stage* \
+        "$RELEASE_DIR"/snap-stage* \
+        "$RELEASE_DIR"/mac-stage* \
+        "$RELEASE_DIR"/win-stage* \
         "$RELEASE_DIR/flatpak-repo" \
-        "$RELEASE_DIR"/__snap-* \
-        "$RELEASE_DIR/.icon-icns" \
-        "$RELEASE_DIR/builder-debug.yml" \
-        "$RELEASE_DIR/builder-effective-config.yaml" \
-        "$RELEASE_DIR"/latest*.yml \
-        "$RELEASE_DIR"/*.blockmap \
         "$PROJECT_ROOT/build-flatpak" \
-        "$PROJECT_ROOT"/build-flatpak-*
+        "$PROJECT_ROOT"/build-flatpak-* \
+        "$PROJECT_ROOT/snap"
 }

@@ -268,9 +268,9 @@ pub(super) fn draw_cab_titlebar(
             crate::theme::style_toolbar_ui(ui, p);
             ui.horizontal(|ui| {
                 let (tr_r, _) = ui.allocate_exact_size(egui::vec2(16.0, 16.0), Sense::hover());
-                paint_icon(ui.painter(), tr_r, Icon::Train, p.primary);
+                paint_icon(ui.painter(), tr_r, Icon::Train, p.toolbar_accent);
                 ui.add_space(2.0);
-                ui.label(RichText::new("RAIL").strong().size(14.5).color(p.primary));
+                ui.label(RichText::new("RAIL").strong().size(14.5).color(p.toolbar_accent));
                 ui.add_space(-6.0);
                 ui.label(RichText::new("bench").strong().size(14.5).color(Color32::WHITE));
                 ui.add_space(-2.0);

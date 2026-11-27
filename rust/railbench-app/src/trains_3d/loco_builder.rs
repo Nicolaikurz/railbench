@@ -1,123 +1,5 @@
-use crate::viewer3d::{normalize3, rot_xz, Vertex3D};
-
-/// Per-vertex PBR-like material descriptor matching `viewer3d::SCENE_SHADER_WGSL`.
-#[derive(Clone, Copy)]
-pub(crate) struct Mat {
-    pub(crate) col: [f32; 3],
-    pub(crate) rough: f32,
-    pub(crate) metal: f32,
-    pub(crate) emissive: f32,
-}
-
-impl Mat {
-    pub(crate) const fn matte(rgb: u32, rough: f32) -> Self {
-        Self {
-            col: hex(rgb),
-            rough,
-            metal: 0.03,
-            emissive: 0.0,
-        }
-    }
-
-    pub(crate) const fn metal(rgb: u32, rough: f32, metal: f32) -> Self {
-        Self {
-            col: hex(rgb),
-            rough,
-            metal,
-            emissive: 0.0,
-        }
-    }
-
-    pub(crate) const fn glass(rgb: u32) -> Self {
-        Self {
-            col: hex(rgb),
-            rough: 0.10,
-            metal: 0.25,
-            emissive: 0.0,
-        }
-    }
-
-    /// Daytime dark reflective glass that glows warmly when dusk/night falls.
-    pub(crate) const fn warm_window(rgb: u32, glow: f32) -> Self {
-        Self {
-            col: hex(rgb),
-            rough: 0.14,
-            metal: 0.18,
-            emissive: -glow,
-        }
-    }
-
-    pub(crate) const fn emissive(rgb: u32, strength: f32) -> Self {
-        Self {
-            col: hex(rgb),
-            rough: 0.20,
-            metal: 0.05,
-            emissive: strength,
-        }
-    }
-
-    #[inline]
-    fn pack(self) -> [f32; 3] {
-        [self.rough, self.metal, self.emissive]
-    }
-}
-
-pub(crate) const fn hex(rgb: u32) -> [f32; 3] {
-    let r = ((rgb >> 16) & 0xFF) as f32 / 255.0;
-    let g = ((rgb >> 8) & 0xFF) as f32 / 255.0;
-    let b = (rgb & 0xFF) as f32 / 255.0;
-    [
-        r * (0.68 + 0.32 * r),
-        g * (0.68 + 0.32 * g),
-        b * (0.68 + 0.32 * b),
-    ]
-}
-
-#[inline]
-fn dot3(a: [f32; 3], b: [f32; 3]) -> f32 {
-    a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
-}
-
-#[inline]
-fn sub3(a: [f32; 3], b: [f32; 3]) -> [f32; 3] {
-    [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
-}
-
-#[inline]
-fn cross3(a: [f32; 3], b: [f32; 3]) -> [f32; 3] {
-    [
-        a[1] * b[2] - a[2] * b[1],
-        a[2] * b[0] - a[0] * b[2],
-        a[0] * b[1] - a[1] * b[0],
-    ]
-}
-
-#[inline]
-fn rot_euler_xyz(p: [f32; 3], rx: f32, ry: f32, rz: f32) -> [f32; 3] {
-    let [mut x, mut y, mut z] = p;
-    if rx.abs() > 1e-6 {
-        let (s, c) = rx.sin_cos();
-        let ny = y * c - z * s;
-        let nz = y * s + z * c;
-        y = ny;
-        z = nz;
-    }
-    if ry.abs() > 1e-6 {
-        let (s, c) = ry.sin_cos();
-        let nx = x * c + z * s;
-        let nz = -x * s + z * c;
-        x = nx;
-        z = nz;
-    }
-    if rz.abs() > 1e-6 {
-        let (s, c) = rz.sin_cos();
-        let nx = x * c - y * s;
-        let ny = x * s + y * c;
-        x = nx;
-        y = ny;
-    }
-    [x, y, z]
-}
+pub(crate) use crate::models3d_mesh::{Mat, PrimBuilder};
+use crate::viewer3d::{normalize3, Vertex3D};
 
 #[derive(Debug, Clone, Copy)]
 pub struct TrainPose {
@@ -143,7 +25,9 @@ pub(crate) struct LocoBuilder<'a> {
     verts: &'a mut Vec<Vertex3D>,
     idxs: &'a mut Vec<u32>,
     pose: TrainPose,
-    sub_pivot: Option<(f32, f32)>,
+    yaw_sc: (f32, f32),
+    pitch_sc: Option<(f32, f32)>,
+    sub_pivot: Option<(f32, f32, f32)>, // (pivot_x, sin(sub_yaw), cos(sub_yaw))
 }
 
 impl<'a> LocoBuilder<'a> {
@@ -152,6 +36,8 @@ impl<'a> LocoBuilder<'a> {
             verts,
             idxs,
             pose,
+            yaw_sc: pose.yaw_rad.sin_cos(),
+            pitch_sc: (pose.pitch_rad.abs() > 1e-6).then(|| pose.pitch_rad.sin_cos()),
             sub_pivot: None,
         }
     }
@@ -162,26 +48,29 @@ impl<'a> LocoBuilder<'a> {
         sub_yaw_rad: f32,
         f: F,
     ) {
+        let (ss, sc) = sub_yaw_rad.sin_cos();
         let mut child = LocoBuilder {
             verts: self.verts,
             idxs: self.idxs,
             pose: self.pose,
-            sub_pivot: Some((pivot_x, sub_yaw_rad)),
+            yaw_sc: self.yaw_sc,
+            pitch_sc: self.pitch_sc,
+            sub_pivot: Some((pivot_x, ss, sc)),
         };
         f(&mut child);
     }
+}
 
+impl PrimBuilder for LocoBuilder<'_> {
     #[inline]
     fn xform_pos(&self, p: [f32; 3]) -> [f32; 3] {
         let [mut lx, mut ly, mut lz] = p;
-        if let Some((px, sub_yaw)) = self.sub_pivot {
-            let (rx, rz) = rot_xz(lx - px, lz, sub_yaw);
-            lx = px + rx;
-            lz = rz;
+        if let Some((px, ss, sc)) = self.sub_pivot {
+            let dx = lx - px;
+            lx = px + (dx * sc - lz * ss);
+            lz = dx * ss + lz * sc;
         }
-        // Apply longitudinal track grade pitch around lateral Z
-        if self.pose.pitch_rad.abs() > 1e-6 {
-            let (sp, cp) = self.pose.pitch_rad.sin_cos();
+        if let Some((sp, cp)) = self.pitch_sc {
             let nx = lx * cp - ly * sp;
             let ny = lx * sp + ly * cp;
             lx = nx;
@@ -190,239 +79,40 @@ impl<'a> LocoBuilder<'a> {
         let sx = lx * self.pose.scale;
         let sy = ly * self.pose.scale;
         let sz = lz * self.pose.scale;
-        let (rx, rz) = rot_xz(sx, sz, self.pose.yaw_rad);
+        let (ys, yc) = self.yaw_sc;
         [
-            self.pose.pos[0] + rx,
+            self.pose.pos[0] + (sx * yc - sz * ys),
             self.pose.pos[1] + sy,
-            self.pose.pos[2] + rz,
+            self.pose.pos[2] + (sx * ys + sz * yc),
         ]
     }
 
     #[inline]
     fn xform_norm(&self, n: [f32; 3]) -> [f32; 3] {
         let [mut nx, mut ny, mut nz] = n;
-        if let Some((_, sub_yaw)) = self.sub_pivot {
-            let (rx, rz) = rot_xz(nx, nz, sub_yaw);
-            nx = rx;
-            nz = rz;
+        if let Some((_, ss, sc)) = self.sub_pivot {
+            let rnx = nx * sc - nz * ss;
+            let rnz = nx * ss + nz * sc;
+            nx = rnx;
+            nz = rnz;
         }
-        if self.pose.pitch_rad.abs() > 1e-6 {
-            let (sp, cp) = self.pose.pitch_rad.sin_cos();
+        if let Some((sp, cp)) = self.pitch_sc {
             let px = nx * cp - ny * sp;
             let py = nx * sp + ny * cp;
             nx = px;
             ny = py;
         }
-        let (rx, rz) = rot_xz(nx, nz, self.pose.yaw_rad);
-        normalize3([rx, ny, rz])
+        let (ys, yc) = self.yaw_sc;
+        normalize3([nx * yc - nz * ys, ny, nx * ys + nz * yc])
     }
 
     #[inline]
-    pub(crate) fn push_raw_tri(&mut self, p0: [f32; 3], p1: [f32; 3], p2: [f32; 3], n: [f32; 3], m: Mat) {
-        let wn = self.xform_norm(n);
-        let mp = m.pack();
-        let base = self.verts.len() as u32;
-        self.verts.push(Vertex3D::new(self.xform_pos(p0), wn, m.col, mp));
-        self.verts.push(Vertex3D::new(self.xform_pos(p1), wn, m.col, mp));
-        self.verts.push(Vertex3D::new(self.xform_pos(p2), wn, m.col, mp));
-        self.idxs.extend_from_slice(&[base, base + 1, base + 2]);
+    fn mesh_buffers(&mut self) -> (&mut Vec<Vertex3D>, &mut Vec<u32>) {
+        (self.verts, self.idxs)
     }
+}
 
-    #[inline]
-    pub(crate) fn push_raw_quad(&mut self, p0: [f32; 3], p1: [f32; 3], p2: [f32; 3], p3: [f32; 3], n: [f32; 3], m: Mat) {
-        let wn = self.xform_norm(n);
-        let mp = m.pack();
-        let base = self.verts.len() as u32;
-        self.verts.push(Vertex3D::new(self.xform_pos(p0), wn, m.col, mp));
-        self.verts.push(Vertex3D::new(self.xform_pos(p1), wn, m.col, mp));
-        self.verts.push(Vertex3D::new(self.xform_pos(p2), wn, m.col, mp));
-        self.verts.push(Vertex3D::new(self.xform_pos(p3), wn, m.col, mp));
-        self.idxs.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
-    }
-
-    #[inline]
-    pub(crate) fn push_smooth_quad(
-        &mut self,
-        p0: [f32; 3],
-        p1: [f32; 3],
-        p2: [f32; 3],
-        p3: [f32; 3],
-        n0: [f32; 3],
-        n1: [f32; 3],
-        n2: [f32; 3],
-        n3: [f32; 3],
-        m: Mat,
-    ) {
-        let mp = m.pack();
-        let base = self.verts.len() as u32;
-        self.verts.push(Vertex3D::new(self.xform_pos(p0), self.xform_norm(n0), m.col, mp));
-        self.verts.push(Vertex3D::new(self.xform_pos(p1), self.xform_norm(n1), m.col, mp));
-        self.verts.push(Vertex3D::new(self.xform_pos(p2), self.xform_norm(n2), m.col, mp));
-        self.verts.push(Vertex3D::new(self.xform_pos(p3), self.xform_norm(n3), m.col, mp));
-        self.idxs.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
-    }
-
-    #[inline]
-    pub(crate) fn push_smooth_tri(
-        &mut self,
-        p0: [f32; 3],
-        p1: [f32; 3],
-        p2: [f32; 3],
-        n0: [f32; 3],
-        n1: [f32; 3],
-        n2: [f32; 3],
-        m: Mat,
-    ) {
-        let mp = m.pack();
-        let base = self.verts.len() as u32;
-        self.verts.push(Vertex3D::new(self.xform_pos(p0), self.xform_norm(n0), m.col, mp));
-        self.verts.push(Vertex3D::new(self.xform_pos(p1), self.xform_norm(n1), m.col, mp));
-        self.verts.push(Vertex3D::new(self.xform_pos(p2), self.xform_norm(n2), m.col, mp));
-        self.idxs.extend_from_slice(&[base, base + 1, base + 2]);
-    }
-
-    pub(crate) fn rbox(&mut self, center: [f32; 3], size: [f32; 3], m: Mat) {
-        self.obox(center, size, [0.0, 0.0, 0.0], m);
-    }
-
-    pub(crate) fn obox(&mut self, center: [f32; 3], size: [f32; 3], euler: [f32; 3], m: Mat) {
-        let hx = size[0] * 0.5;
-        let hy = size[1] * 0.5;
-        let hz = size[2] * 0.5;
-        let [rx, ry, rz] = euler;
-        let pt = |x: f32, y: f32, z: f32| -> [f32; 3] {
-            let r = rot_euler_xyz([x, y, z], rx, ry, rz);
-            [center[0] + r[0], center[1] + r[1], center[2] + r[2]]
-        };
-        let nm = |nx: f32, ny: f32, nz: f32| -> [f32; 3] {
-            normalize3(rot_euler_xyz([nx, ny, nz], rx, ry, rz))
-        };
-
-        self.push_raw_quad(pt(-hx, hy, -hz), pt(hx, hy, -hz), pt(hx, hy, hz), pt(-hx, hy, hz), nm(0.0, 1.0, 0.0), m);
-        self.push_raw_quad(pt(-hx, -hy, hz), pt(hx, -hy, hz), pt(hx, -hy, -hz), pt(-hx, -hy, -hz), nm(0.0, -1.0, 0.0), m);
-        self.push_raw_quad(pt(-hx, -hy, hz), pt(hx, -hy, hz), pt(hx, hy, hz), pt(-hx, hy, hz), nm(0.0, 0.0, 1.0), m);
-        self.push_raw_quad(pt(hx, -hy, -hz), pt(-hx, -hy, -hz), pt(-hx, hy, -hz), pt(hx, hy, -hz), nm(0.0, 0.0, -1.0), m);
-        self.push_raw_quad(pt(hx, -hy, hz), pt(hx, -hy, -hz), pt(hx, hy, -hz), pt(hx, hy, hz), nm(1.0, 0.0, 0.0), m);
-        self.push_raw_quad(pt(-hx, -hy, -hz), pt(-hx, -hy, hz), pt(-hx, hy, hz), pt(-hx, hy, -hz), nm(-1.0, 0.0, 0.0), m);
-    }
-
-    pub(crate) fn strut_between(&mut self, p0: [f32; 3], p1: [f32; 3], width: f32, depth: f32, m: Mat) {
-        let d = sub3(p1, p0);
-        let len = dot3(d, d).sqrt().max(1e-4);
-        let axis = [d[0] / len, d[1] / len, d[2] / len];
-        let up_ref = if axis[1].abs() > 0.92 { [1.0, 0.0, 0.0] } else { [0.0, 1.0, 0.0] };
-        let u = normalize3(cross3(axis, up_ref));
-        let v = normalize3(cross3(u, axis));
-        let hw = width * 0.5;
-        let hd = depth * 0.5;
-
-        let mk = |base: [f32; 3], su: f32, sv: f32| -> [f32; 3] {
-            [
-                base[0] + u[0] * su * hw + v[0] * sv * hd,
-                base[1] + u[1] * su * hw + v[1] * sv * hd,
-                base[2] + u[2] * su * hw + v[2] * sv * hd,
-            ]
-        };
-        let a00 = mk(p0, -1.0, -1.0);
-        let a10 = mk(p0, 1.0, -1.0);
-        let a11 = mk(p0, 1.0, 1.0);
-        let a01 = mk(p0, -1.0, 1.0);
-        let b00 = mk(p1, -1.0, -1.0);
-        let b10 = mk(p1, 1.0, -1.0);
-        let b11 = mk(p1, 1.0, 1.0);
-        let b01 = mk(p1, -1.0, 1.0);
-
-        self.push_raw_quad(a10, a11, b11, b10, u, m);
-        self.push_raw_quad(a01, a00, b00, b01, [-u[0], -u[1], -u[2]], m);
-        self.push_raw_quad(a11, a01, b01, b11, v, m);
-        self.push_raw_quad(a00, a10, b10, b00, [-v[0], -v[1], -v[2]], m);
-        self.push_raw_quad(b00, b10, b11, b01, axis, m);
-        self.push_raw_quad(a01, a11, a10, a00, [-axis[0], -axis[1], -axis[2]], m);
-    }
-
-    pub(crate) fn cyl_between(&mut self, p0: [f32; 3], p1: [f32; 3], r0: f32, r1: f32, segs: usize, m: Mat) {
-        let segs = segs.max(8);
-        let d = sub3(p1, p0);
-        let len = dot3(d, d).sqrt().max(1e-4);
-        let axis = [d[0] / len, d[1] / len, d[2] / len];
-        let up_ref = if axis[1].abs() > 0.92 { [0.0, 0.0, 1.0] } else { [0.0, 1.0, 0.0] };
-        let u = normalize3(cross3(axis, up_ref));
-        let v = normalize3(cross3(axis, u));
-        let dr = r0 - r1;
-
-        for i in 0..segs {
-            let a0 = (i as f32 / segs as f32) * std::f32::consts::TAU;
-            let a1 = ((i + 1) as f32 / segs as f32) * std::f32::consts::TAU;
-            let (s0, c0) = a0.sin_cos();
-            let (s1, c1) = a1.sin_cos();
-
-            let dir0 = [u[0] * c0 + v[0] * s0, u[1] * c0 + v[1] * s0, u[2] * c0 + v[2] * s0];
-            let dir1 = [u[0] * c1 + v[0] * s1, u[1] * c1 + v[1] * s1, u[2] * c1 + v[2] * s1];
-            let n0 = normalize3([
-                dir0[0] * len + axis[0] * dr,
-                dir0[1] * len + axis[1] * dr,
-                dir0[2] * len + axis[2] * dr,
-            ]);
-            let n1 = normalize3([
-                dir1[0] * len + axis[0] * dr,
-                dir1[1] * len + axis[1] * dr,
-                dir1[2] * len + axis[2] * dr,
-            ]);
-
-            let q0 = [p0[0] + dir0[0] * r0, p0[1] + dir0[1] * r0, p0[2] + dir0[2] * r0];
-            let q1 = [p0[0] + dir1[0] * r0, p0[1] + dir1[1] * r0, p0[2] + dir1[2] * r0];
-            let q2 = [p1[0] + dir1[0] * r1, p1[1] + dir1[1] * r1, p1[2] + dir1[2] * r1];
-            let q3 = [p1[0] + dir0[0] * r1, p1[1] + dir0[1] * r1, p1[2] + dir0[2] * r1];
-
-            if r0 > 1e-3 && r1 > 1e-3 {
-                self.push_smooth_quad(q0, q1, q2, q3, n0, n1, n1, n0, m);
-            } else if r0 > 1e-3 {
-                let nm = normalize3([n0[0] + n1[0], n0[1] + n1[1], n0[2] + n1[2]]);
-                self.push_smooth_tri(q0, q1, p1, n0, n1, nm, m);
-            }
-
-            if r0 > 1e-3 {
-                self.push_raw_tri(p0, q1, q0, [-axis[0], -axis[1], -axis[2]], m);
-            }
-            if r1 > 1e-3 {
-                self.push_raw_tri(p1, q3, q2, axis, m);
-            }
-        }
-    }
-
-    pub(crate) fn cyl_y(&mut self, center: [f32; 3], r_top: f32, r_bot: f32, height: f32, segs: usize, m: Mat) {
-        self.cyl_between(
-            [center[0], center[1] - height * 0.5, center[2]],
-            [center[0], center[1] + height * 0.5, center[2]],
-            r_bot,
-            r_top,
-            segs,
-            m,
-        );
-    }
-
-    pub(crate) fn cyl_x(&mut self, center: [f32; 3], r_neg: f32, r_pos: f32, length: f32, segs: usize, m: Mat) {
-        self.cyl_between(
-            [center[0] - length * 0.5, center[1], center[2]],
-            [center[0] + length * 0.5, center[1], center[2]],
-            r_neg,
-            r_pos,
-            segs,
-            m,
-        );
-    }
-
-    pub(crate) fn cyl_z(&mut self, center: [f32; 3], r_neg: f32, r_pos: f32, length: f32, segs: usize, m: Mat) {
-        self.cyl_between(
-            [center[0], center[1], center[2] - length * 0.5],
-            [center[0], center[1], center[2] + length * 0.5],
-            r_neg,
-            r_pos,
-            segs,
-            m,
-        );
-    }
-
+impl<'a> LocoBuilder<'a> {
     pub(crate) fn dome_y(&mut self, base_center: [f32; 3], radius: f32, cyl_h: f32, cap_h: f32, segs: usize, m: Mat) {
         self.cyl_y(
             [base_center[0], base_center[1] + cyl_h * 0.5, base_center[2]],
@@ -441,19 +131,23 @@ impl<'a> LocoBuilder<'a> {
         for st in 0..stacks {
             let t0 = (st as f32 / stacks as f32) * std::f32::consts::FRAC_PI_2;
             let t1 = ((st + 1) as f32 / stacks as f32) * std::f32::consts::FRAC_PI_2;
-            let (r0, y0) = (t0.cos() * radius, t0.sin() * height_y);
-            let (r1, y1) = (t1.cos() * radius, t1.sin() * height_y);
+            let (st0, ct0) = t0.sin_cos();
+            let (st1, ct1) = t1.sin_cos();
+            let (r0, y0) = (ct0 * radius, st0 * height_y);
+            let (r1, y1) = (ct1 * radius, st1 * height_y);
             for sl in 0..slices {
                 let a0 = (sl as f32 / slices as f32) * std::f32::consts::TAU;
                 let a1 = ((sl + 1) as f32 / slices as f32) * std::f32::consts::TAU;
-                let n0 = normalize3([a0.cos() * t0.cos(), t0.sin(), a0.sin() * t0.cos()]);
-                let n1 = normalize3([a1.cos() * t0.cos(), t0.sin(), a1.sin() * t0.cos()]);
-                let n2 = normalize3([a1.cos() * t1.cos(), t1.sin(), a1.sin() * t1.cos()]);
-                let n3 = normalize3([a0.cos() * t1.cos(), t1.sin(), a0.sin() * t1.cos()]);
-                let p0 = [center[0] + a0.cos() * r0, center[1] + y0, center[2] + a0.sin() * r0];
-                let p1 = [center[0] + a1.cos() * r0, center[1] + y0, center[2] + a1.sin() * r0];
-                let p2 = [center[0] + a1.cos() * r1, center[1] + y1, center[2] + a1.sin() * r1];
-                let p3 = [center[0] + a0.cos() * r1, center[1] + y1, center[2] + a0.sin() * r1];
+                let (sa0, ca0) = a0.sin_cos();
+                let (sa1, ca1) = a1.sin_cos();
+                let n0 = normalize3([ca0 * ct0, st0, sa0 * ct0]);
+                let n1 = normalize3([ca1 * ct0, st0, sa1 * ct0]);
+                let n2 = normalize3([ca1 * ct1, st1, sa1 * ct1]);
+                let n3 = normalize3([ca0 * ct1, st1, sa0 * ct1]);
+                let p0 = [center[0] + ca0 * r0, center[1] + y0, center[2] + sa0 * r0];
+                let p1 = [center[0] + ca1 * r0, center[1] + y0, center[2] + sa1 * r0];
+                let p2 = [center[0] + ca1 * r1, center[1] + y1, center[2] + sa1 * r1];
+                let p3 = [center[0] + ca0 * r1, center[1] + y1, center[2] + sa0 * r1];
                 if st + 1 < stacks {
                     self.push_smooth_quad(p0, p1, p2, p3, n0, n1, n2, n3, m);
                 } else {
@@ -469,19 +163,23 @@ impl<'a> LocoBuilder<'a> {
         for st in 0..stacks {
             let t0 = (st as f32 / stacks as f32) * std::f32::consts::FRAC_PI_2;
             let t1 = ((st + 1) as f32 / stacks as f32) * std::f32::consts::FRAC_PI_2;
-            let (r0, x0) = (t0.cos() * radius, t0.sin() * depth_x * dir_x);
-            let (r1, x1) = (t1.cos() * radius, t1.sin() * depth_x * dir_x);
+            let (st0, ct0) = t0.sin_cos();
+            let (st1, ct1) = t1.sin_cos();
+            let (r0, x0) = (ct0 * radius, st0 * depth_x * dir_x);
+            let (r1, x1) = (ct1 * radius, st1 * depth_x * dir_x);
             for sl in 0..slices {
                 let a0 = (sl as f32 / slices as f32) * std::f32::consts::TAU;
                 let a1 = ((sl + 1) as f32 / slices as f32) * std::f32::consts::TAU;
-                let n0 = normalize3([dir_x * t0.sin(), a0.cos() * t0.cos(), a0.sin() * t0.cos()]);
-                let n1 = normalize3([dir_x * t0.sin(), a1.cos() * t0.cos(), a1.sin() * t0.cos()]);
-                let n2 = normalize3([dir_x * t1.sin(), a1.cos() * t1.cos(), a1.sin() * t1.cos()]);
-                let n3 = normalize3([dir_x * t1.sin(), a0.cos() * t1.cos(), a0.sin() * t1.cos()]);
-                let p0 = [center[0] + x0, center[1] + a0.cos() * r0, center[2] + a0.sin() * r0];
-                let p1 = [center[0] + x0, center[1] + a1.cos() * r0, center[2] + a1.sin() * r0];
-                let p2 = [center[0] + x1, center[1] + a1.cos() * r1, center[2] + a1.sin() * r1];
-                let p3 = [center[0] + x1, center[1] + a0.cos() * r1, center[2] + a0.sin() * r1];
+                let (sa0, ca0) = a0.sin_cos();
+                let (sa1, ca1) = a1.sin_cos();
+                let n0 = normalize3([dir_x * st0, ca0 * ct0, sa0 * ct0]);
+                let n1 = normalize3([dir_x * st0, ca1 * ct0, sa1 * ct0]);
+                let n2 = normalize3([dir_x * st1, ca1 * ct1, sa1 * ct1]);
+                let n3 = normalize3([dir_x * st1, ca0 * ct1, sa0 * ct1]);
+                let p0 = [center[0] + x0, center[1] + ca0 * r0, center[2] + sa0 * r0];
+                let p1 = [center[0] + x0, center[1] + ca1 * r0, center[2] + sa1 * r0];
+                let p2 = [center[0] + x1, center[1] + ca1 * r1, center[2] + sa1 * r1];
+                let p3 = [center[0] + x1, center[1] + ca0 * r1, center[2] + sa0 * r1];
                 if st + 1 < stacks {
                     self.push_smooth_quad(p0, p1, p2, p3, n0, n1, n2, n3, m);
                 } else {
@@ -497,20 +195,24 @@ impl<'a> LocoBuilder<'a> {
         for st in 0..stacks {
             let p0_ang = (st as f32 / stacks as f32) * std::f32::consts::PI;
             let p1_ang = ((st + 1) as f32 / stacks as f32) * std::f32::consts::PI;
+            let (sp0, cp0) = p0_ang.sin_cos();
+            let (sp1, cp1) = p1_ang.sin_cos();
             for sl in 0..slices {
                 let t0 = (sl as f32 / slices as f32) * std::f32::consts::TAU;
                 let t1 = ((sl + 1) as f32 / slices as f32) * std::f32::consts::TAU;
-                let pt = |phi: f32, th: f32| -> ([f32; 3], [f32; 3]) {
-                    let dir = [phi.sin() * th.cos(), phi.cos(), phi.sin() * th.sin()];
+                let (st0, ct0) = t0.sin_cos();
+                let (st1, ct1) = t1.sin_cos();
+                let mk = |sp: f32, cp: f32, st: f32, ct: f32| -> ([f32; 3], [f32; 3]) {
+                    let dir = [sp * ct, cp, sp * st];
                     (
                         [center[0] + dir[0] * radius, center[1] + dir[1] * radius, center[2] + dir[2] * radius],
                         dir,
                     )
                 };
-                let (v0, n0) = pt(p0_ang, t0);
-                let (v1, n1) = pt(p0_ang, t1);
-                let (v2, n2) = pt(p1_ang, t1);
-                let (v3, n3) = pt(p1_ang, t0);
+                let (v0, n0) = mk(sp0, cp0, st0, ct0);
+                let (v1, n1) = mk(sp0, cp0, st1, ct1);
+                let (v2, n2) = mk(sp1, cp1, st1, ct1);
+                let (v3, n3) = mk(sp1, cp1, st0, ct0);
                 if st == 0 {
                     self.push_smooth_tri(v0, v2, v3, n0, n2, n3, m);
                 } else if st + 1 == stacks {
@@ -519,12 +221,6 @@ impl<'a> LocoBuilder<'a> {
                     self.push_smooth_quad(v0, v1, v2, v3, n0, n1, n2, n3, m);
                 }
             }
-        }
-    }
-
-    pub(crate) fn curved_pipe(&mut self, pts: &[[f32; 3]], radius: f32, segs: usize, m: Mat) {
-        for w in pts.windows(2) {
-            self.cyl_between(w[0], w[1], radius, radius, segs, m);
         }
     }
 
@@ -548,16 +244,12 @@ impl<'a> LocoBuilder<'a> {
         for side in [-1.0_f32, 1.0] {
             let wz = side * gauge_half;
             let flange_z = side * (gauge_half - 1.05);
-            // Outer steel running tire + inner flange sitting inside H0 railhead
             self.cyl_z([x, cy, wz], r, r, 1.75, 20, tire_m);
             self.cyl_z([x, cy, flange_z], r + 0.85, r + 0.85, 0.55, 20, tire_m);
-            // Painted inner wheel rim & central hub boss
             self.cyl_z([x, cy, wz], r - 0.55, r - 0.55, 1.85, 18, spoke_m);
-            // Dark recessed spoke cavity ring
             self.cyl_z([x, cy, wz], r * 0.72, r * 0.72, 1.65, 18, axle_m);
             self.cyl_z([x, cy, wz], 1.75, 1.75, 2.05, 12, spoke_m);
 
-            // Rotating spokes + counterweight crescent + crankpin boss
             for k in 0..num_spokes {
                 let a = wheel_angle + (k as f32 / num_spokes as f32) * std::f32::consts::TAU;
                 let (sa, ca) = a.sin_cos();
@@ -582,7 +274,6 @@ impl<'a> LocoBuilder<'a> {
                     );
                 }
             }
-            // Crankpin boss protruding outward
             let (sa, ca) = wheel_angle.sin_cos();
             let cr = r * 0.54;
             self.cyl_z(
@@ -616,7 +307,6 @@ impl<'a> LocoBuilder<'a> {
             self.cyl_z([x, cy, flange_z], r + 0.85, r + 0.85, 0.55, 20, tire_m);
             self.cyl_z([x, cy, wz], r - 0.65, r - 0.65, 1.85, 18, disc_m);
             self.cyl_z([x, cy, wz], 1.75, 1.75, 2.05, 12, tire_m);
-            // Rotating inspection/balance bosses on wheel face so wheel rotation is clearly visible
             for k in 0..3 {
                 let a = wheel_angle + (k as f32 / 3.0) * std::f32::consts::TAU;
                 let (sa, ca) = a.sin_cos();
@@ -646,7 +336,6 @@ impl<'a> LocoBuilder<'a> {
             self.rbox([beam_x + dir_x * 0.5, buffer_y, bz], [0.8, 3.6, 3.6], steel_m);
             self.cyl_x([beam_x + dir_x * 2.1, buffer_y, bz], 1.15, 0.95, 2.6, 12, steel_m);
             self.cyl_x([beam_x + dir_x * 3.8, buffer_y, bz], 2.05, 2.05, 0.75, 14, steel_m);
-            // Hanging rubber brake hoses inside the buffers
             let hz = side * 4.5;
             self.curved_pipe(
                 &[
@@ -659,7 +348,6 @@ impl<'a> LocoBuilder<'a> {
                 hose_m,
             );
         }
-        // Central draw hook + screw coupling link
         self.rbox([beam_x + dir_x * 1.4, buffer_y, 0.0], [2.4, 1.8, 1.4], steel_m);
         self.curved_pipe(
             &[
@@ -686,8 +374,7 @@ impl<'a> LocoBuilder<'a> {
             let py = chimney_top[1] + 2.0 + 26.0 * phase * (1.0 - 0.18 * phase);
             let pz = (phase * 6.0 + i as f32).sin() * (1.2 + 2.5 * phase);
             let r = (1.6 + 5.2 * phase) * (1.0 - 0.35 * phase);
-            let shade = (0xeb_f0_f5_u32).min(0xff_ff_ff);
-            let puff_m = Mat::matte(shade, 0.96);
+            let puff_m = Mat::matte(0xeb_f0_f5_u32, 0.96);
             self.sphere([px, py, pz], r, 6, 8, puff_m);
         }
     }

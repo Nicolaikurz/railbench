@@ -278,6 +278,7 @@ pub fn draw_dialogs(ctx: &egui::Context, app: &mut RailbenchApp) {
                 });
 
                 if let Some(sim) = sim_snapshot {
+                    let p = palette(app.dark_mode);
                     ui.separator();
                     ui.label(
                         RichText::new(format!(
@@ -297,7 +298,7 @@ pub fn draw_dialogs(ctx: &egui::Context, app: &mut RailbenchApp) {
                             })
                             .strong()
                             .size(11.5)
-                            .color(Color32::from_rgb(245, 158, 11)),
+                            .color(p.text_warning),
                         );
                     }
                     ui.label(format!(
@@ -305,10 +306,10 @@ pub fn draw_dialogs(ctx: &egui::Context, app: &mut RailbenchApp) {
                         sim.feeder_count, sim.isolator_count, sim.min_voltage, sim.max_drop_pct
                     ));
                     ui.horizontal(|ui| {
-                        ui.label(RichText::new(format!("OK {}", sim.optimal_count)).color(Color32::from_rgb(34, 197, 94)));
-                        ui.label(RichText::new(format!("Warn {}", sim.warning_count)).color(Color32::from_rgb(245, 158, 11)));
-                        ui.label(RichText::new(format!("Crit {}", sim.critical_count)).color(Color32::from_rgb(239, 68, 68)));
-                        ui.label(RichText::new(format!("Dead {}", sim.disconnected_count)).color(Color32::from_rgb(148, 163, 184)));
+                        ui.label(RichText::new(format!("OK {}", sim.optimal_count)).color(p.text_success));
+                        ui.label(RichText::new(format!("Warn {}", sim.warning_count)).color(p.text_warning));
+                        ui.label(RichText::new(format!("Crit {}", sim.critical_count)).color(p.text_danger));
+                        ui.label(RichText::new(format!("Dead {}", sim.disconnected_count)).color(p.text_muted));
                     });
                     if !sim.catenary_recommendation.is_empty() {
                         ui.small(&sim.catenary_recommendation);
@@ -317,7 +318,7 @@ pub fn draw_dialogs(ctx: &egui::Context, app: &mut RailbenchApp) {
                         ui.add_space(6.0);
                         egui::Frame::NONE
                             .fill(Color32::from_rgba_unmultiplied(153, 27, 27, 220))
-                            .stroke(egui::Stroke::new(1.5, Color32::from_rgb(252, 165, 165)))
+                            .stroke(egui::Stroke::new(1.5_f32, Color32::from_rgb(252, 165, 165)))
                             .corner_radius(6.0)
                             .inner_margin(egui::Margin::same(8))
                             .show(ui, |ui| {
@@ -416,6 +417,7 @@ pub fn draw_dialogs(ctx: &egui::Context, app: &mut RailbenchApp) {
     if app.show_collab_dialog {
         let mut open = app.show_collab_dialog;
         let is_de = app.lang == Lang::De;
+        let p = palette(app.dark_mode);
         let title = if is_de {
             "Live-Zusammenarbeit (WebSocket)"
         } else {
@@ -447,7 +449,7 @@ pub fn draw_dialogs(ctx: &egui::Context, app: &mut RailbenchApp) {
                     }
                 });
                 if let Some(err) = &app.collab.error_message {
-                    ui.colored_label(Color32::from_rgb(239, 68, 68), err);
+                    ui.colored_label(p.text_danger, err);
                 }
                 ui.separator();
 

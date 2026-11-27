@@ -2,7 +2,7 @@ use super::{
     half_gauge_local, push_buffers_and_coupler, push_curved_roof, push_detailed_bogie,
     push_flanged_wheelset,
 };
-use crate::models3d_mesh::{Mat, ModelBuilder};
+use crate::models3d_mesh::{Mat, ModelBuilder, PrimBuilder};
 use crate::viewer3d::Vertex3D;
 
 // ============================================================================

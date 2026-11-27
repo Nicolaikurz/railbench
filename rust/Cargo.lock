@@ -2328,14 +2328,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "railbench-wasm"
-version = "26.11.1"
-dependencies = [
- "railbench-core",
- "wasm-bindgen",
-]
-
-[[package]]
 name = "rand"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"

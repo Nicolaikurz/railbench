@@ -38,7 +38,7 @@ pub(super) fn draw_menu_bar(ctx: &egui::Context, app: &mut RailbenchApp) {
                 // RAILbench brand badge + CalVer tag (click opens Welcome dialog)
                 let brand_resp = ui
                     .horizontal(|ui| {
-                        ui.label(RichText::new("RAIL").strong().size(14.5).color(p.primary));
+                        ui.label(RichText::new("RAIL").strong().size(14.5).color(p.toolbar_accent));
                         ui.add_space(-6.0);
                         ui.label(RichText::new("bench").strong().size(14.5).color(Color32::WHITE));
                         ui.add_space(-2.0);
@@ -654,7 +654,7 @@ pub(super) fn draw_menu_bar(ctx: &egui::Context, app: &mut RailbenchApp) {
                                         RichText::new(format!("{cnt} {}", t.status_pieces))
                                             .size(11.5)
                                             .strong()
-                                            .color(p.primary),
+                                            .color(p.toolbar_accent),
                                     );
                                 },
                             );

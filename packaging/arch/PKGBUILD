@@ -1,11 +1,11 @@
 # Maintainer: Nicolai Kurz <https://github.com/Nicolaikurz/railbench>
 pkgname=railbench-native
-pkgver=0.6.1
+pkgver=26.11.1
 pkgrel=1
 pkgdesc="Native Rust/wgpu 2D & 3D Model Railway Track Planner with Power Simulation"
 arch=('x86_64')
 url="https://github.com/Nicolaikurz/railbench"
-license=('MIT')
+license=('GPL-3.0-or-later')
 depends=('gcc-libs' 'glibc' 'vulkan-icd-loader' 'wayland' 'libxkbcommon' 'gtk3')
 makedepends=('cargo' 'rust')
 provides=('railbench')
@@ -31,7 +31,7 @@ package() {
   install -Dm755 "${srcdir}/target/release/railbench-app" "${pkgdir}/usr/bin/railbench"
   install -Dm644 "packaging/flatpak/io.github.Nicolaikurz.railbench.desktop" \
     "${pkgdir}/usr/share/applications/io.github.Nicolaikurz.railbench.desktop"
-  install -Dm644 "public/icon.svg" \
-    "${pkgdir}/usr/share/icons/hicolor/scalable/apps/io.github.Nicolaikurz.railbench.svg"
+  install -Dm644 "build/icon.png" \
+    "${pkgdir}/usr/share/icons/hicolor/512x512/apps/io.github.Nicolaikurz.railbench.png"
   install -Dm644 "LICENSE" "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
 }
