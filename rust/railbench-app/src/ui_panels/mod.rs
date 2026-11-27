@@ -253,6 +253,9 @@ use welcome_demo_dialogs::*;
 mod settings_help_dialogs;
 #[allow(unused_imports)]
 use settings_help_dialogs::*;
+mod help_dialog;
+#[allow(unused_imports)]
+use help_dialog::*;
 mod extra_dialogs;
 #[allow(unused_imports)]
 use extra_dialogs::*;
@@ -260,6 +263,6 @@ mod export_dialog;
 #[allow(unused_imports)]
 use export_dialog::*;
 mod cab_window;
-pub use cab_window::draw_cab_view_window;
+pub use cab_window::{draw_cab_view_window, CabCameraSmoother};
 mod stellwerk_theme;
 mod stellwerk_panel;

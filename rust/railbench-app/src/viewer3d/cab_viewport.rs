@@ -48,12 +48,13 @@ pub fn speedometer_needle_angle(kmh: f64, max_kmh: f64) -> f32 {
 pub fn draw_cab_viewport_3d(
     ui: &mut egui::Ui,
     cached_bundle: &Option<Scene3DBundle>,
-    vehicles_mesh: Option<Arc<SceneMesh3D>>,
+    vehicles_mesh: Option<(u64, Arc<SceneMesh3D>)>,
     eye: [f32; 3],
     target: [f32; 3],
     fov_deg: f32,
     env_mode: Viewer3DEnv,
     time_of_day: f32,
+    day_night_active: bool,
     dark_mode: bool,
     low_gpu_mode: bool,
     show_windshield_frame: bool,
@@ -87,8 +88,9 @@ pub fn draw_cab_viewport_3d(
     }
 
     let ppp = ui.ctx().pixels_per_point();
-    let px_w = ((rect.width() * ppp).round() as u32).max(16);
-    let px_h = ((rect.height() * ppp).round() as u32).max(16);
+    let res_scale = if low_gpu_mode { 0.75_f32 } else { 1.0_f32 };
+    let px_w = ((rect.width() * ppp * res_scale).round() as u32).max(16);
+    let px_h = ((rect.height() * ppp * res_scale).round() as u32).max(16);
     let aspect = (rect.width() / rect.height().max(1.0)).max(0.1);
     let sky = eval_sky_state(time_of_day, env_mode, dark_mode);
     let (cam_right, cam_up, cam_fwd) = camera_basis(eye, target);
@@ -122,7 +124,7 @@ pub fn draw_cab_viewport_3d(
             clear_color: sky.clear_color,
             is_cab_view: true,
             shadows_enabled: !low_gpu_mode,
-            day_night_active: false,
+            day_night_active,
         },
     );
     ui.painter().add(cb);
@@ -163,7 +165,13 @@ pub fn draw_cab_viewport_3d(
             "> FWD"
         };
         let status_txt = if info.blocked_ahead {
-            format!("{}  |  HALT  |  {}  |  {:+.1}%", info.name, dir_txt, info.grade_pct)
+            format!(
+                "{}  |  {}  |  {}  |  {:+.1}%",
+                info.name,
+                if is_de { "HALT" } else { "BLOCKED" },
+                dir_txt,
+                info.grade_pct
+            )
         } else {
             format!("{}  |  {:.0} km/h  |  {}  |  {:+.1}%", info.name, info.kmh, dir_txt, info.grade_pct)
         };

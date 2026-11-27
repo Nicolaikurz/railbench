@@ -718,3 +718,118 @@ fn maerklin_24997_is_recognized_as_uncoupler_and_disconnects_train_wagons() {
     sim.step_uncouplers(0.05, &layout, &cats);
     assert_eq!(sim.vehicles.len(), before_cnt + 1);
 }
+
+#[test]
+fn vehicles_mesh_cache_reuses_arc_and_invalidates_on_visual_change() {
+    let cats = builtin_catalogs();
+    let e24188 = find_entry(&cats, "24188").unwrap();
+    let p1 = create_piece("t1".into(), e24188, Transform { x: 0.0, y: 0.0, rotation: 0.0 }, None);
+    let p2 = create_piece("t2".into(), e24188, Transform { x: 188.3, y: 0.0, rotation: 0.0 }, None);
+    let mut layout = make_test_layout(vec![p1, p2]);
+    update_layout_connections(&mut layout, 4.0, 35.0, 1.0);
+
+    let mut sim = VehicleSimState::default();
+    assert!(sim.get_or_build_vehicles_mesh_3d("H0").is_none());
+
+    sim.spawn_vehicle(&layout, &cats, VehicleKind::Br243, Some("t1")).unwrap();
+    let (v1, m1) = sim.get_or_build_vehicles_mesh_3d("H0").expect("mesh built");
+    let (v2, m2) = sim.get_or_build_vehicles_mesh_3d("H0").expect("mesh reused");
+    assert_eq!(v1, v2);
+    assert!(std::sync::Arc::ptr_eq(&m1, &m2), "unchanged state must reuse same Arc<SceneMesh3D>");
+
+    // Toggling headlights invalidates fingerprint and bumps version
+    sim.vehicles[0].headlights = !sim.vehicles[0].headlights;
+    let (v3, m3) = sim.get_or_build_vehicles_mesh_3d("H0").expect("rebuilt after headlight toggle");
+    assert_ne!(v3, v2);
+    assert!(!std::sync::Arc::ptr_eq(&m2, &m3));
+
+    // Stepping simulation invalidates and rebuilds mesh
+    sim.vehicles[0].throttle = 0.8;
+    sim.running = true;
+    sim.step(0.05, &layout, &cats);
+    let (v4, _m4) = sim.get_or_build_vehicles_mesh_3d("H0").expect("rebuilt after sim step");
+    assert_ne!(v4, v3);
+
+    sim.clear_all();
+    assert!(sim.get_or_build_vehicles_mesh_3d("H0").is_none());
+}
+
+#[test]
+fn cars_only_drive_on_roads_and_trains_only_drive_on_tracks() {
+    let cats = builtin_catalogs();
+    let e24188 = find_entry(&cats, "24188").unwrap();
+    let st200 = find_entry(&cats, "ST-S200").unwrap();
+
+    // Put rail piece (0..188.3) and road piece (188.3..388.3) right next to each other
+    let mut rail_p = create_piece("r1".into(), e24188, Transform { x: 0.0, y: 0.0, rotation: 0.0 }, None);
+    let mut road_p = create_piece("s1".into(), st200, Transform { x: 188.3, y: 0.0, rotation: 0.0 }, None);
+    // Deliberately inject invalid cross-type connector links to verify physics & snapping reject them
+    rail_p.connectors[1].connected_to = Some(railbench_core::types::ConnectorRef {
+        piece_id: "s1".into(),
+        connector_index: 0,
+    });
+    road_p.connectors[0].connected_to = Some(railbench_core::types::ConnectorRef {
+        piece_id: "r1".into(),
+        connector_index: 1,
+    });
+    let mut layout = make_test_layout(vec![rail_p, road_p]);
+
+    let mut sim = VehicleSimState::default();
+    // Even if preferred_piece_id points to the wrong piece type, vehicles must only spawn on their matching network
+    let train_id = sim
+        .spawn_vehicle(&layout, &cats, VehicleKind::Br243, Some("s1"))
+        .expect("train falls back to rail track");
+    let car_id = sim
+        .spawn_vehicle(&layout, &cats, VehicleKind::Sedan, Some("r1"))
+        .expect("car falls back to street piece");
+
+    sim.vehicles.iter_mut().for_each(|v| {
+        v.throttle = 1.0;
+        if v.id == car_id {
+            v.reverse = true; // Drive toward the r1/s1 seam at x=188.3
+        }
+    });
+    sim.running = true;
+
+    for _ in 0..80 {
+        sim.step(0.05, &layout, &cats);
+        let tr = sim.vehicles.iter().find(|v| v.id == train_id).unwrap();
+        let cr = sim.vehicles.iter().find(|v| v.id == car_id).unwrap();
+        assert_eq!(tr.piece_id, "r1", "train must stay on rail track r1, never cross onto road s1");
+        assert_eq!(cr.piece_id, "s1", "car must stay on street s1, never cross onto track r1");
+    }
+
+    // Also verify sanitize_for_layout removes vehicles whose piece disappeared or changed domain
+    layout.pieces[1].catalog_id = "24188".into();
+    sim.step(0.05, &layout, &cats);
+    assert!(sim.vehicles.iter().any(|v| v.id == train_id));
+    assert!(!sim.vehicles.iter().any(|v| v.id == car_id), "car must be removed if piece becomes a track");
+}
+
+#[test]
+fn imported_is_road_system_catalog_restricts_trains_and_allows_cars() {
+    let raw = r#"{
+        "id": "custom-city-streets",
+        "name": "Custom City Streets",
+        "scale": "H0",
+        "isRoadSystem": true,
+        "entries": [
+            { "id": "MY-AVE-200", "name": "Avenue 200", "kind": "straight", "length": 200 }
+        ]
+    }"#;
+    let cat = crate::catalog_store::parse_catalog_json(raw).expect("valid road catalog");
+    assert_eq!(cat.is_road, Some(true));
+    assert_eq!(cat.entries[0].is_road, Some(true));
+
+    let cats = vec![cat];
+    assert!(crate::catalog::is_road_id(&cats, "MY-AVE-200"));
+    let ave = find_entry(&cats, "MY-AVE-200").unwrap();
+    let street = create_piece("st1".into(), ave, Transform { x: 0.0, y: 0.0, rotation: 0.0 }, None);
+    let layout = make_test_layout(vec![street]);
+
+    let mut sim = VehicleSimState::default();
+    assert!(sim.spawn_vehicle(&layout, &cats, VehicleKind::Br243, None).is_err());
+    let cid = sim.spawn_vehicle(&layout, &cats, VehicleKind::Sedan, None).unwrap();
+    assert_eq!(sim.vehicles[0].id, cid);
+    assert_eq!(sim.vehicles[0].piece_id, "st1");
+}

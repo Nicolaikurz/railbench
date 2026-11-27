@@ -180,7 +180,9 @@ pub(super) fn draw_board_tab(ui: &mut egui::Ui, app: &mut RailbenchApp) {
                         ui.add_space(4.0);
                         ui.horizontal(|ui| {
                             ui.label("Name:");
-                            let name_buf = board.name.get_or_insert_with(|| "Tisch".into());
+                            let name_buf = board.name.get_or_insert_with(|| {
+                                if is_de { "Tisch" } else { "Table" }.into()
+                            });
                             changed |= ui.add(egui::TextEdit::singleline(name_buf).desired_width(ui.available_width())).changed();
                         });
                         changed |= ui.checkbox(&mut board.enabled, if is_de { "Platte sichtbar" } else { "Table visible" }).changed();
@@ -525,19 +527,24 @@ pub(super) fn draw_board_tab(ui: &mut egui::Ui, app: &mut RailbenchApp) {
                             });
 
                             ui.horizontal(|ui| {
-                                if ui.small_button("+ Plate").clicked() {
+                                if ui.small_button(if is_de { "+ Platte" } else { "+ Plate" }).clicked() {
                                     if let Some(ref tb) = ref_board {
                                         let cnt = layer.plates.as_ref().map(|v| v.len()).unwrap_or(0) + 1;
-                                        let np = board_tools::make_layer_plate(tb, layer, format!("Platte {cnt}"), &mut app.next_piece_seq);
+                                        let plate_name = if is_de {
+                                            format!("Platte {cnt}")
+                                        } else {
+                                            format!("Plate {cnt}")
+                                        };
+                                        let np = board_tools::make_layer_plate(tb, layer, plate_name, &mut app.next_piece_seq);
                                         layer.plates.get_or_insert_with(Vec::new).push(np);
                                         board_tools::sync_wood_mode(layer);
                                         changed = true;
                                     }
                                 }
-                                if ui.small_button("Sketch Plate").clicked() {
+                                if ui.small_button(if is_de { "Platte zeichnen" } else { "Sketch Plate" }).clicked() {
                                     plate_sketch_req = Some((lid.clone(), cur_id.clone(), None, SketchMode::Poly, true));
                                 }
-                                if ui.small_button("Rect Plate").clicked() {
+                                if ui.small_button(if is_de { "Rechteck-Platte" } else { "Rect Plate" }).clicked() {
                                     plate_sketch_req = Some((lid.clone(), cur_id.clone(), None, SketchMode::Rect, true));
                                 }
                             });
@@ -550,16 +557,16 @@ pub(super) fn draw_board_tab(ui: &mut egui::Ui, app: &mut RailbenchApp) {
                                     ui.horizontal(|ui| {
                                         let pname = plate.name.get_or_insert_with(|| pid.clone());
                                         changed |= ui.add(egui::TextEdit::singleline(pname).desired_width(110.0)).changed();
-                                        if ui.small_button("Fit Table").clicked() {
+                                        if ui.small_button(if is_de { "Wie Tisch" } else { "Fit Table" }).clicked() {
                                             if let Some(ref tb) = ref_board {
                                                 board_tools::copy_board_shape_to_plate(tb, plate);
                                                 changed = true;
                                             }
                                         }
-                                        if ui.small_button("Edit").clicked() {
+                                        if ui.small_button(if is_de { "Bearb." } else { "Edit" }).clicked() {
                                             plate_sketch_req = Some((lid.clone(), cur_id.clone(), Some(pid.clone()), SketchMode::Edit, false));
                                         }
-                                        if ui.small_button("Del").clicked() {
+                                        if ui.small_button(if is_de { "Entf." } else { "Del" }).clicked() {
                                             del_plate_idx = Some(pi);
                                         }
                                     });

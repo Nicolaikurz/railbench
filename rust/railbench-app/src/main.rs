@@ -124,6 +124,63 @@ pub enum SidebarTab {
     Bom,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SelectionScope {
+    Tracks,
+    Roads,
+    Buildings,
+    Terrain,
+    Boards,
+    All,
+}
+
+impl SelectionScope {
+    pub fn from_sidebar_tab(tab: SidebarTab) -> Self {
+        match tab {
+            SidebarTab::Tracks => Self::Tracks,
+            SidebarTab::Roads => Self::Roads,
+            SidebarTab::Models => Self::Buildings,
+            SidebarTab::Terrain => Self::Terrain,
+            SidebarTab::Board => Self::Boards,
+            SidebarTab::Bom => Self::All,
+        }
+    }
+
+    pub fn allows_piece(self, catalogs: &[Catalog], piece: &TrackPiece) -> bool {
+        match self {
+            Self::Tracks => !crate::catalog::is_road_id(catalogs, &piece.catalog_id),
+            Self::Roads => crate::catalog::is_road_id(catalogs, &piece.catalog_id),
+            Self::All => true,
+            Self::Buildings | Self::Terrain | Self::Boards => false,
+        }
+    }
+
+    pub fn allows_model(self, model: &Model3D) -> bool {
+        match self {
+            Self::Buildings => !crate::terrain_tools::is_terrain_model(model),
+            Self::Terrain => crate::terrain_tools::is_terrain_model(model),
+            Self::All => true,
+            Self::Tracks | Self::Roads | Self::Boards => false,
+        }
+    }
+
+    pub fn allows_any_piece(self) -> bool {
+        matches!(self, Self::Tracks | Self::Roads | Self::All)
+    }
+
+    pub fn allows_rail_accessories(self) -> bool {
+        matches!(self, Self::Tracks | Self::All)
+    }
+
+    pub fn allows_buildings(self) -> bool {
+        matches!(self, Self::Buildings | Self::All)
+    }
+
+    pub fn allows_terrain(self) -> bool {
+        matches!(self, Self::Terrain | Self::All)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum CatalogPickerStep {
     #[default]
@@ -248,6 +305,7 @@ pub struct RailbenchApp {
     pub cab_camera_mode: viewer3d::CabCameraMode,
     pub cab_look_yaw: f32,
     pub cab_look_pitch: f32,
+    pub cab_cam_smooth: ui_panels::CabCameraSmoother,
     pub vehicle_sim: vehicle_sim::VehicleSimState,
     pub last_vehicle_step: Option<std::time::Instant>,
     pub settings_tab: u8,
@@ -267,6 +325,8 @@ pub struct RailbenchApp {
     pub layer_dialog_color: String,
     pub layer_dialog_wood_mode: String,
     pub layer_dialog_wood_thickness: f64,
+    pub layer_dialog_focus_name: bool,
+    pub layer_dialog_custom_color_open: bool,
     pub confirm_delete_layer_id: Option<String>,
     pub sel_bar_drag_undo_pushed: bool,
     pub current_file_path: Option<String>,
@@ -420,6 +480,7 @@ impl Default for RailbenchApp {
             cab_camera_mode: viewer3d::CabCameraMode::Cab,
             cab_look_yaw: 0.0,
             cab_look_pitch: 0.0,
+            cab_cam_smooth: ui_panels::CabCameraSmoother::default(),
             vehicle_sim: vehicle_sim::VehicleSimState::default(),
             last_vehicle_step: None,
             settings_tab: 0,
@@ -439,6 +500,8 @@ impl Default for RailbenchApp {
             layer_dialog_color: "#38bdf8".into(),
             layer_dialog_wood_mode: "none".into(),
             layer_dialog_wood_thickness: 10.0,
+            layer_dialog_focus_name: false,
+            layer_dialog_custom_color_open: false,
             confirm_delete_layer_id: None,
             sel_bar_drag_undo_pushed: false,
             current_file_path: None,

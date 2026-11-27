@@ -90,6 +90,7 @@ fn piece_length_and_spec(
     piece: &TrackPiece,
     entry: Option<&CatalogEntry>,
     is_road: bool,
+    is_de: bool,
 ) -> (f64, String) {
     if let Some(cl) = piece.custom_length {
         if cl > 1.0 {
@@ -105,7 +106,12 @@ fn piece_length_and_spec(
     if let Some(e) = entry {
         if let Some(len) = e.length {
             let spec = if is_road {
-                format!("L = {:.0} mm (B = {:.0} mm)", len, e.road_width.unwrap_or(60.0))
+                format!(
+                    "L = {:.0} mm ({} = {:.0} mm)",
+                    len,
+                    if is_de { "B" } else { "W" },
+                    e.road_width.unwrap_or(60.0)
+                )
             } else {
                 format!("L = {:.0} mm", len)
             };
@@ -149,16 +155,25 @@ pub fn get_layer_piece_list_summary(
         let entry = find_entry(catalogs, cid);
         let is_road_item = is_road_id(catalogs, cid);
         let name = entry
-            .map(|e| if is_de { e.name.as_str() } else { e.name_en.as_deref().unwrap_or(&e.name) })
+            .map(|e| crate::catalog::localized_entry_name(e, is_de))
             .unwrap_or(cid)
             .to_string();
         let category = entry
-            .map(|e| e.category.clone())
-            .unwrap_or_else(|| if is_road_item { "Road" } else { "Track" }.into());
+            .map(|e| crate::catalog::translate_catalog_category(&e.category, is_de))
+            .unwrap_or_else(|| {
+                if is_road_item {
+                    if is_de { "Strasse" } else { "Road" }
+                } else if is_de {
+                    "Gleis"
+                } else {
+                    "Track"
+                }
+                .into()
+            });
         let kind = entry.map(|e| e.kind.clone()).unwrap_or_else(|| "unknown".into());
         let (unit_m, spec) = sample_piece
             .get(cid)
-            .map(|p| piece_length_and_spec(p, entry, is_road_item))
+            .map(|p| piece_length_and_spec(p, entry, is_road_item, is_de))
             .unwrap_or((0.0, String::new()));
         let len_m = ((unit_m * cnt as f64) * 100.0).round() / 100.0;
         total_pieces += cnt;
@@ -205,22 +220,25 @@ pub fn get_piece_list_summary(
         for (cid, cnt) in counts {
             let entry = find_entry(catalogs, cid);
             let name = entry
-                .map(|e| {
-                    if is_de {
-                        e.name.as_str()
-                    } else {
-                        e.name_en.as_deref().unwrap_or(&e.name)
-                    }
-                })
+                .map(|e| crate::catalog::localized_entry_name(e, is_de))
                 .unwrap_or(cid)
                 .to_string();
             let category = entry
-                .map(|e| e.category.clone())
-                .unwrap_or_else(|| if is_road_list { "Road" } else { "Track" }.into());
+                .map(|e| crate::catalog::translate_catalog_category(&e.category, is_de))
+                .unwrap_or_else(|| {
+                    if is_road_list {
+                        if is_de { "Strasse" } else { "Road" }
+                    } else if is_de {
+                        "Gleis"
+                    } else {
+                        "Track"
+                    }
+                    .into()
+                });
             let kind = entry.map(|e| e.kind.clone()).unwrap_or_else(|| "unknown".into());
             let (unit_m, spec) = sample_piece
                 .get(cid)
-                .map(|p| piece_length_and_spec(p, entry, is_road_list))
+                .map(|p| piece_length_and_spec(p, entry, is_road_list, is_de))
                 .unwrap_or((0.0, String::new()));
             let len_m = ((unit_m * cnt as f64) * 100.0).round() / 100.0;
             total_pieces += cnt;
@@ -259,7 +277,7 @@ pub fn get_piece_list_summary(
                 .and_modify(|it| it.count += 1)
                 .or_insert_with(|| ModelSummaryItem {
                     name: m.name.clone(),
-                    category: m.category.clone(),
+                    category: crate::catalog::localized_model_category(&m.category, is_de),
                     model_type: m.model_type.clone(),
                     dimensions: format!("{:.0} x {:.0} x {:.0} mm", m.width, m.depth, m.height),
                     count: 1,

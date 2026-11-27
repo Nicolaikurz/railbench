@@ -1,5 +1,37 @@
 use super::*;
 
+fn expand_3d_group_ids(
+    layout: &Layout,
+    catalogs: &[Catalog],
+    hit_id: &str,
+    alt_held: bool,
+    layer_protection: bool,
+    selection_scope: crate::SelectionScope,
+) -> Vec<String> {
+    if alt_held {
+        return vec![hit_id.to_string()];
+    }
+    let Some(gid) = layout
+        .pieces
+        .iter()
+        .find(|p| p.id == hit_id)
+        .and_then(|p| p.group_id.clone())
+    else {
+        return vec![hit_id.to_string()];
+    };
+    let layers = layer_info_map(layout);
+    layout
+        .pieces
+        .iter()
+        .filter(|p| {
+            p.group_id.as_deref() == Some(gid.as_str())
+                && selection_scope.allows_piece(catalogs, p)
+                && is_obj_editable(layout, &layers, p.layer_id.as_deref(), layer_protection)
+        })
+        .map(|p| p.id.clone())
+        .collect()
+}
+
 /// Processes 3D selection, XZ dragging with snap, Alt+Drag vertical elevation, catalog drops,
 /// and keyboard shortcuts when `Edit 3D` is enabled.
 /// Returns `(consumed_primary_pointer, Edit3DOutput)`.
@@ -18,11 +50,11 @@ pub fn handle_3d_edit_interaction(
     snapping_enabled: bool,
     layer_protection: bool,
     rotation_step: f64,
-    env_mode: Viewer3DEnv,
-    terrain_only_selection: bool,
+    _env_mode: Viewer3DEnv,
+    selection_scope: crate::SelectionScope,
 ) -> (bool, Edit3DOutput) {
     let mut out = Edit3DOutput::default();
-    let can_build = edit.enabled || env_mode == Viewer3DEnv::Minimal;
+    let can_build = edit.enabled;
     if !can_build {
         edit.dragging_selection = false;
         edit.dragging_vertical = false;
@@ -41,12 +73,19 @@ pub fn handle_3d_edit_interaction(
             None
         }
     });
-    let layers = layer_info_map(layout);
     let active_lid = layout.active_layer_id.as_deref().unwrap_or("layer-1").to_string();
-    let active_lh = layers.get(active_lid.as_str()).map(|v| v.0).unwrap_or(0.0);
+    let active_lh = {
+        let layers = layer_info_map(layout);
+        layers.get(active_lid.as_str()).map(|v| v.0).unwrap_or(0.0)
+    };
 
     // 1. Handle Catalog Entry Drag-and-Drop directly onto the 3D plane with magnetic snap preview!
     if let Some(entry) = dragging_catalog {
+        edit.dragging_selection = false;
+        edit.dragging_vertical = false;
+        edit.dragging_rotation = false;
+        edit.undo_pushed_for_drag = false;
+        edit.drag_last_xz = None;
         if let Some(hp) = hover_pos {
             if rect.contains(hp) {
                 let (ray_o, ray_d) = camera.screen_to_ray(rect, hp);
@@ -85,6 +124,11 @@ pub fn handle_3d_edit_interaction(
 
     // 1b. Handle 3D Model Drag-and-Drop directly onto the 3D plane
     if let Some(model) = dragging_model {
+        edit.dragging_selection = false;
+        edit.dragging_vertical = false;
+        edit.dragging_rotation = false;
+        edit.undo_pushed_for_drag = false;
+        edit.drag_last_xz = None;
         if let Some(hp) = hover_pos {
             if rect.contains(hp) {
                 let (ray_o, ray_d) = camera.screen_to_ray(rect, hp);
@@ -110,7 +154,10 @@ pub fn handle_3d_edit_interaction(
     }
     edit.snap_preview_world = None;
 
-    if terrain_only_selection {
+    if matches!(
+        selection_scope,
+        crate::SelectionScope::Terrain | crate::SelectionScope::Boards
+    ) {
         edit.dragging_selection = false;
         edit.dragging_vertical = false;
         edit.dragging_rotation = false;
@@ -125,7 +172,7 @@ pub fn handle_3d_edit_interaction(
             .filter(|hp| rect.contains(*hp))
             .and_then(|hp| {
                 let (ro, rd) = camera.screen_to_ray(rect, hp);
-                pick_3d_object(ro, rd, layout, catalogs, layer_protection)
+                pick_3d_object_scoped(ro, rd, layout, catalogs, layer_protection, selection_scope)
             })
     } else {
         None
@@ -161,12 +208,20 @@ pub fn handle_3d_edit_interaction(
     let shift_held = ui.input(|i| i.modifiers.shift);
     let alt_held = ui.input(|i| i.modifiers.alt);
     let rot_handle_proj = if !selected.is_empty() {
-        compute_3d_rotation_handle_world(layout, selected, layer_protection, camera.distance, edit)
-            .and_then(|(p3, h3, base_ang, single_rot)| {
-                camera
-                    .world_to_screen(rect, h3)
-                    .map(|hs| (p3, hs, base_ang, single_rot))
-            })
+        compute_3d_rotation_handle_world(
+            layout,
+            catalogs,
+            selected,
+            layer_protection,
+            camera.distance,
+            edit,
+            selection_scope,
+        )
+        .and_then(|(p3, h3, base_ang, single_rot)| {
+            camera
+                .world_to_screen(rect, h3)
+                .map(|hs| (p3, hs, base_ang, single_rot))
+        })
     } else {
         None
     };
@@ -181,25 +236,50 @@ pub fn handle_3d_edit_interaction(
             }
             let plus_badges = collect_3d_plus_connectors(
                 layout,
+                catalogs,
                 selected,
                 edit.hovered_id.as_deref(),
                 rect,
                 camera,
                 can_build,
+                selection_scope,
             );
             if let Some((pid, ci, _)) = plus_badges.into_iter().find(|(_, _, sp)| hp.distance(*sp) <= 13.0) {
                 out.quick_add_at = Some((pid, ci));
                 return (true, out);
             }
             let (ro, rd) = camera.screen_to_ray(rect, hp);
-            if let Some(hit_id) = pick_3d_object(ro, rd, layout, catalogs, layer_protection) {
+            if let Some(hit_id) = pick_3d_object_scoped(
+                ro,
+                rd,
+                layout,
+                catalogs,
+                layer_protection,
+                selection_scope,
+            ) {
+                let expand_ids = expand_3d_group_ids(
+                    layout,
+                    catalogs,
+                    &hit_id,
+                    alt_held,
+                    layer_protection,
+                    selection_scope,
+                );
                 if shift_held {
-                    if !selected.insert(hit_id.clone()) {
-                        selected.remove(&hit_id);
+                    if selected.contains(&hit_id) {
+                        for id in &expand_ids {
+                            selected.remove(id);
+                        }
+                    } else {
+                        for id in expand_ids {
+                            selected.insert(id);
+                        }
                     }
                 } else {
                     selected.clear();
-                    selected.insert(hit_id);
+                    for id in expand_ids {
+                        selected.insert(id);
+                    }
                 }
             } else if !shift_held {
                 selected.clear();
@@ -211,7 +291,11 @@ pub fn handle_3d_edit_interaction(
     // 5. Primary Drag of Selected 3D Rotation Handle OR 3D Object(s) (or empty-space camera Orbit)
     let mut consumed_drag = false;
     if response.drag_started_by(egui::PointerButton::Primary) {
-        if let Some(hp) = hover_pos {
+        let press_sp = ui
+            .input(|i| i.pointer.press_origin())
+            .filter(|p| rect.contains(*p))
+            .or(hover_pos);
+        if let Some(hp) = press_sp {
             let (ro, rd) = camera.screen_to_ray(rect, hp);
             if let Some((p3, _hs, base_ang, single_rot)) =
                 rot_handle_proj.filter(|(_, hs, _, _)| hp.distance(*hs) <= 14.5) {
@@ -229,13 +313,30 @@ pub fn handle_3d_edit_interaction(
                     edit.rot_initial_piece_deg = single_rot;
                 }
             } else {
-                let picked = pick_3d_object(ro, rd, layout, catalogs, layer_protection);
+                let picked = pick_3d_object_scoped(
+                    ro,
+                    rd,
+                    layout,
+                    catalogs,
+                    layer_protection,
+                    selection_scope,
+                );
                 if let Some(hit_id) = picked {
                     if !selected.contains(&hit_id) {
                         if !shift_held {
                             selected.clear();
                         }
-                        selected.insert(hit_id);
+                        let expand_ids = expand_3d_group_ids(
+                            layout,
+                            catalogs,
+                            &hit_id,
+                            alt_held,
+                            layer_protection,
+                            selection_scope,
+                        );
+                        for id in expand_ids {
+                            selected.insert(id);
+                        }
                     }
                     let pivot = active_selection_pivot_world(layout, selected);
                     edit.dragging_selection = true;
@@ -327,7 +428,16 @@ pub fn handle_3d_edit_interaction(
 
     if edit.dragging_selection && !response.dragged_by(egui::PointerButton::Primary) {
         if edit.undo_pushed_for_drag && !edit.dragging_vertical && snapping_enabled {
-            let _ = crate::canvas2d::snap_selected_pieces(layout, catalogs, selected, 22.0);
+            let mut snapped = crate::canvas2d::snap_selected_pieces(layout, catalogs, selected, 22.0);
+            if !snapped {
+                snapped = crate::building_snap::snap_selected_pieces_to_buildings(
+                    layout,
+                    catalogs,
+                    selected,
+                    22.0,
+                );
+            }
+            let _ = snapped | crate::building_snap::snap_selected_models(layout, catalogs, selected);
         }
         update_layout_connections(layout, 4.0, 35.0, 1.0);
         disconnect_cross_type_connections(layout, catalogs);
@@ -448,9 +558,10 @@ pub fn draw_3d_edit_overlays(
     selected: &HashSet<String>,
     dragging_catalog: Option<&CatalogEntry>,
     dragging_model: Option<&Model3D>,
-    env_mode: Viewer3DEnv,
+    _env_mode: Viewer3DEnv,
+    selection_scope: crate::SelectionScope,
 ) {
-    let can_build = edit.enabled || env_mode == Viewer3DEnv::Minimal;
+    let can_build = edit.enabled;
     if !can_build {
         return;
     }
@@ -611,11 +722,13 @@ pub fn draw_3d_edit_overlays(
         let hover_pos = ui.ctx().pointer_hover_pos();
         let badges = collect_3d_plus_connectors(
             layout,
+            catalogs,
             selected,
             edit.hovered_id.as_deref(),
             rect,
             camera,
             can_build,
+            selection_scope,
         );
         for (_pid, _ci, sp) in badges {
             let is_hov = hover_pos.is_some_and(|hp| hp.distance(sp) <= 12.0);
@@ -666,9 +779,15 @@ pub fn draw_3d_edit_overlays(
         }
 
         // 3B. Interactive 3D Track/Selection Rotation Handle Point
-        if let Some((rot_piv3, rot_hdl3, _, _)) =
-            compute_3d_rotation_handle_world(layout, selected, false, camera.distance, edit)
-        {
+        if let Some((rot_piv3, rot_hdl3, _, _)) = compute_3d_rotation_handle_world(
+            layout,
+            catalogs,
+            selected,
+            false,
+            camera.distance,
+            edit,
+            selection_scope,
+        ) {
             if let (Some(ps), Some(hs)) = (
                 camera.world_to_screen(rect, rot_piv3),
                 camera.world_to_screen(rect, rot_hdl3),

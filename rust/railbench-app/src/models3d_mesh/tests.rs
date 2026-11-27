@@ -286,3 +286,49 @@ fn town_house_beams_do_not_cross_windows() {
         }
     }
 }
+
+#[test]
+fn engine_shed_and_roundhouse_emit_transparent_roofs_in_3d() {
+    for (id, w, d, h) in [
+        ("engine-shed", 240.0, 72.0, 105.0),
+        ("turntable-trainhall", 320.0, 310.0, 115.0),
+    ] {
+        let m = mk_model(Some(id), w, d, h);
+        let mut verts = Vec::new();
+        let mut idxs = Vec::new();
+        let mut glass_idxs = Vec::new();
+        push_builtin_model_3d_with_glass(&mut verts, &mut idxs, Some(&mut glass_idxs), &m, 0.0);
+
+        assert!(!glass_idxs.is_empty(), "{id} should emit transparent roof glass indices");
+        assert_eq!(glass_idxs.len() % 3, 0, "{id} glass_idxs must be triangle list");
+        for &gi in &glass_idxs {
+            let v = &verts[gi as usize];
+            assert!(
+                v.color[3] < 128,
+                "{id} roof glass vertex alpha should be translucent (<128), got {}",
+                v.color[3]
+            );
+            assert!(
+                v.pos[1] >= 95.0,
+                "{id} glass vertex should sit at roof height, got y={}",
+                v.pos[1]
+            );
+        }
+
+        if id == "engine-shed" {
+            // Confirm no wide opaque roof triangles seal the interior track bay
+            for tri in idxs.chunks_exact(3) {
+                let p = [verts[tri[0] as usize].pos, verts[tri[1] as usize].pos, verts[tri[2] as usize].pos];
+                let min_y = p.iter().map(|v| v[1]).fold(f32::INFINITY, f32::min);
+                let span_x = p.iter().map(|v| v[0]).fold(f32::NEG_INFINITY, f32::max)
+                    - p.iter().map(|v| v[0]).fold(f32::INFINITY, f32::min);
+                let span_z = p.iter().map(|v| v[2]).fold(f32::NEG_INFINITY, f32::max)
+                    - p.iter().map(|v| v[2]).fold(f32::INFINITY, f32::min);
+                assert!(
+                    !(min_y >= 96.5 && span_x > 25.0 && span_z > 12.0),
+                    "engine-shed opaque triangle spans roof above tracks: y>={min_y:.1}, dx={span_x:.1}, dz={span_z:.1}"
+                );
+            }
+        }
+    }
+}

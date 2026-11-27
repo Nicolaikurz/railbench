@@ -142,6 +142,7 @@ fn rot_euler_xyz(p: [f32; 3], rx: f32, ry: f32, rz: f32) -> [f32; 3] {
 pub(crate) struct ModelBuilder<'a> {
     verts: &'a mut Vec<Vertex3D>,
     idxs: &'a mut Vec<u32>,
+    glass_idxs: Option<&'a mut Vec<u32>>,
     origin: [f32; 3],
     rot_rad: f32,
     pitch_rad: f32,
@@ -158,12 +159,25 @@ impl<'a> ModelBuilder<'a> {
         target_size: [f32; 3],
         nominal_size: [f32; 3],
     ) -> Self {
+        Self::new_with_glass(verts, idxs, None, origin, rot_rad, target_size, nominal_size)
+    }
+
+    pub(crate) fn new_with_glass(
+        verts: &'a mut Vec<Vertex3D>,
+        idxs: &'a mut Vec<u32>,
+        glass_idxs: Option<&'a mut Vec<u32>>,
+        origin: [f32; 3],
+        rot_rad: f32,
+        target_size: [f32; 3],
+        nominal_size: [f32; 3],
+    ) -> Self {
         let sx = (target_size[0] / nominal_size[0].max(1.0)).max(0.05);
         let sy = (target_size[1] / nominal_size[1].max(1.0)).max(0.05);
         let sz = (target_size[2] / nominal_size[2].max(1.0)).max(0.05);
         Self {
             verts,
             idxs,
+            glass_idxs,
             origin,
             rot_rad,
             pitch_rad: 0.0,
@@ -241,6 +255,82 @@ impl<'a> ModelBuilder<'a> {
             n = [-n[0], -n[1], -n[2]];
         }
         self.push_raw_quad(p0, p1, p2, p3, normalize3(n), m);
+    }
+
+    #[inline]
+    pub(crate) fn push_raw_quad_glass(
+        &mut self,
+        p0: [f32; 3],
+        p1: [f32; 3],
+        p2: [f32; 3],
+        p3: [f32; 3],
+        n: [f32; 3],
+        m: Mat,
+        alpha: f32,
+    ) {
+        if self.glass_idxs.is_some() {
+            let wn = self.xform_norm(n);
+            let wp0 = self.xform_pos(p0);
+            let wp1 = self.xform_pos(p1);
+            let wp2 = self.xform_pos(p2);
+            let wp3 = self.xform_pos(p3);
+            let mp = m.pack();
+            let base = self.verts.len() as u32;
+            self.verts.push(Vertex3D::new_alpha(wp0, wn, m.col, alpha, mp));
+            self.verts.push(Vertex3D::new_alpha(wp1, wn, m.col, alpha, mp));
+            self.verts.push(Vertex3D::new_alpha(wp2, wn, m.col, alpha, mp));
+            self.verts.push(Vertex3D::new_alpha(wp3, wn, m.col, alpha, mp));
+            if let Some(ref mut gidx) = self.glass_idxs {
+                gidx.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
+            }
+        } else {
+            self.push_raw_quad(p0, p1, p2, p3, n, m);
+        }
+    }
+
+    pub(crate) fn quad_oriented_glass(
+        &mut self,
+        p0: [f32; 3],
+        p1: [f32; 3],
+        p2: [f32; 3],
+        p3: [f32; 3],
+        outward: [f32; 3],
+        m: Mat,
+        alpha: f32,
+    ) {
+        let mut n = cross3(sub3(p1, p0), sub3(p2, p0));
+        if dot3(n, n) < 1e-8 {
+            n = outward;
+        }
+        if dot3(n, outward) < 0.0 {
+            n = [-n[0], -n[1], -n[2]];
+        }
+        self.push_raw_quad_glass(p0, p1, p2, p3, normalize3(n), m, alpha);
+    }
+
+    /// Emits a rotated box whose top and side panes are rendered through `glass_idxs`.
+    pub(crate) fn obox_glass(&mut self, center: [f32; 3], size: [f32; 3], euler: [f32; 3], m: Mat, alpha: f32) {
+        let hx = size[0] * 0.5;
+        let hy = size[1] * 0.5;
+        let hz = size[2] * 0.5;
+        let [rx, ry, rz] = euler;
+        let pt = |x: f32, y: f32, z: f32| -> [f32; 3] {
+            let r = rot_euler_xyz([x, y, z], rx, ry, rz);
+            [center[0] + r[0], center[1] + r[1], center[2] + r[2]]
+        };
+        let nm = |nx: f32, ny: f32, nz: f32| -> [f32; 3] {
+            normalize3(rot_euler_xyz([nx, ny, nz], rx, ry, rz))
+        };
+        self.push_raw_quad_glass(pt(-hx, hy, -hz), pt(hx, hy, -hz), pt(hx, hy, hz), pt(-hx, hy, hz), nm(0.0, 1.0, 0.0), m, alpha);
+        self.push_raw_quad_glass(pt(-hx, -hy, hz), pt(hx, -hy, hz), pt(hx, hy, hz), pt(-hx, hy, hz), nm(0.0, 0.0, 1.0), m, alpha);
+        self.push_raw_quad_glass(pt(hx, -hy, -hz), pt(-hx, -hy, -hz), pt(-hx, hy, -hz), pt(hx, hy, -hz), nm(0.0, 0.0, -1.0), m, alpha);
+        self.push_raw_quad_glass(pt(hx, -hy, hz), pt(hx, -hy, -hz), pt(hx, hy, -hz), pt(hx, hy, hz), nm(1.0, 0.0, 0.0), m, alpha);
+        self.push_raw_quad_glass(pt(-hx, -hy, -hz), pt(-hx, -hy, hz), pt(-hx, hy, hz), pt(-hx, hy, -hz), nm(-1.0, 0.0, 0.0), m, alpha);
+    }
+
+    /// Emits an axis-aligned glass box (`rbox_glass`) whose walls/roof are rendered through `glass_idxs`.
+    pub(crate) fn rbox_glass(&mut self, center: [f32; 3], size: [f32; 3], m: Mat, alpha: f32) {
+        self.obox_glass(center, size, [0.0, 0.0, 0.0], m, alpha);
     }
 
     pub(crate) fn tri_oriented(&mut self, p0: [f32; 3], p1: [f32; 3], p2: [f32; 3], outward: [f32; 3], m: Mat) {
@@ -750,6 +840,87 @@ impl<'a> ModelBuilder<'a> {
         self.rbox([cx, by + ridge_h + 0.6, cz], [len_x + overhang * 2.0 + 1.0, 2.0, 3.0], ridge_m);
     }
 
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn gable_roof_x_transparent(
+        &mut self,
+        base_center: [f32; 3],
+        len_x: f32,
+        span_z: f32,
+        ridge_h: f32,
+        overhang: f32,
+        thick: f32,
+        roof_m: Mat,
+        gable_m: Mat,
+        ridge_m: Mat,
+        rafter_m: Mat,
+        alpha: f32,
+        rafter_xs: &[f32],
+    ) {
+        let [cx, by, cz] = base_center;
+        let hx = len_x * 0.5 + overhang;
+        let hz = span_z * 0.5 + overhang;
+        let wx = len_x * 0.5;
+        let wz = span_z * 0.5;
+
+        // Single-surface translucent roof slopes (+Z and -Z) rendered double-sided in the glass pipeline
+        self.quad_oriented_glass(
+            [cx - hx, by, cz + hz],
+            [cx + hx, by, cz + hz],
+            [cx + hx, by + ridge_h, cz],
+            [cx - hx, by + ridge_h, cz],
+            [0.0, 1.0, 0.6],
+            roof_m,
+            alpha,
+        );
+        self.quad_oriented_glass(
+            [cx + hx, by, cz - hz],
+            [cx - hx, by, cz - hz],
+            [cx - hx, by + ridge_h, cz],
+            [cx + hx, by + ridge_h, cz],
+            [0.0, 1.0, -0.6],
+            roof_m,
+            alpha,
+        );
+
+        // Opaque eaves fascia strips along ±Z
+        self.quad_oriented(
+            [cx - hx, by - thick, cz + hz],
+            [cx + hx, by - thick, cz + hz],
+            [cx + hx, by, cz + hz],
+            [cx - hx, by, cz + hz],
+            [0.0, 0.0, 1.0],
+            ridge_m,
+        );
+        self.quad_oriented(
+            [cx + hx, by - thick, cz - hz],
+            [cx - hx, by - thick, cz - hz],
+            [cx - hx, by, cz - hz],
+            [cx + hx, by, cz - hz],
+            [0.0, 0.0, -1.0],
+            ridge_m,
+        );
+
+        // End bargeboards at ±hx
+        for sx in [-1.0_f32, 1.0] {
+            let ex = cx + sx * hx;
+            self.quad_oriented([ex, by - thick, cz + hz], [ex, by, cz + hz], [ex, by + ridge_h, cz], [ex, by + ridge_h - thick, cz], [sx, 0.0, 0.0], ridge_m);
+            self.quad_oriented([ex, by, cz - hz], [ex, by - thick, cz - hz], [ex, by + ridge_h - thick, cz], [ex, by + ridge_h, cz], [sx, 0.0, 0.0], ridge_m);
+        }
+
+        // Steel rafters along roof slopes for structural framing without obstructing interior tracks
+        for &rx in rafter_xs {
+            self.strut_between([cx + rx, by, cz + hz], [cx + rx, by + ridge_h, cz], 2.0, 2.2, rafter_m);
+            self.strut_between([cx + rx, by, cz - hz], [cx + rx, by + ridge_h, cz], 2.0, 2.2, rafter_m);
+        }
+
+        // Brick gable wall triangles recessed cleanly inside roof ends
+        self.tri_oriented([cx - wx, by, cz - wz], [cx - wx, by, cz + wz], [cx - wx, by + ridge_h - 0.5, cz], [-1.0, 0.0, 0.0], gable_m);
+        self.tri_oriented([cx + wx, by, cz + wz], [cx + wx, by, cz - wz], [cx + wx, by + ridge_h - 0.5, cz], [1.0, 0.0, 0.0], gable_m);
+
+        // Ridge cap along X
+        self.rbox([cx, by + ridge_h + 0.6, cz], [len_x + overhang * 2.0 + 1.0, 2.0, 3.0], ridge_m);
+    }
+
     pub(crate) fn hip_roof(
         &mut self,
         base_center: [f32; 3],
@@ -894,6 +1065,16 @@ pub(crate) fn push_env_pine_3d(verts: &mut Vec<Vertex3D>, idxs: &mut Vec<u32>, x
 }
 
 pub(crate) fn push_builtin_model_3d(verts: &mut Vec<Vertex3D>, idxs: &mut Vec<u32>, m: &Model3D, y0: f32) {
+    push_builtin_model_3d_with_glass(verts, idxs, None, m, y0);
+}
+
+pub(crate) fn push_builtin_model_3d_with_glass(
+    verts: &mut Vec<Vertex3D>,
+    idxs: &mut Vec<u32>,
+    glass_idxs: Option<&mut Vec<u32>>,
+    m: &Model3D,
+    y0: f32,
+) {
     let scale = m.scale.unwrap_or(1.0) as f32;
     let w = m.width as f32 * scale;
     let d = m.depth as f32 * scale;
@@ -904,8 +1085,8 @@ pub(crate) fn push_builtin_model_3d(verts: &mut Vec<Vertex3D>, idxs: &mut Vec<u3
     match m.builtin_id.as_deref() {
         Some("station") => build_station(verts, idxs, origin, rot_rad, [w, h, d]),
         Some("signal-box") => build_signal_box(verts, idxs, origin, rot_rad, [w, h, d]),
-        Some("engine-shed") => build_engine_shed(verts, idxs, origin, rot_rad, [w, h, d]),
-        Some("turntable-trainhall") => build_turntable_trainhall(verts, idxs, origin, rot_rad, [w, h, d]),
+        Some("engine-shed") => build_engine_shed(verts, idxs, glass_idxs, origin, rot_rad, [w, h, d]),
+        Some("turntable-trainhall") => build_turntable_trainhall(verts, idxs, glass_idxs, origin, rot_rad, [w, h, d]),
         Some("town-house") => build_town_house(verts, idxs, origin, rot_rad, [w, h, d]),
         Some("water-tower") => build_water_tower(verts, idxs, origin, rot_rad, [w, h, d]),
         Some("coaling-station") => build_coaling_station(verts, idxs, origin, rot_rad, [w, h, d]),

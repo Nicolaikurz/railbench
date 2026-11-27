@@ -6,6 +6,7 @@ use super::super::{cross3, dot3, normalize3, Camera3D};
 
 const CHAMFER_A: f32 = 0.64;
 const CHAMFER_B: f32 = 0.87;
+const PERSPECTIVE_CAM_DIST: f32 = 4.6 / 0.40;
 
 pub(super) type EdgeKey = ((i32, i32, i32), (i32, i32, i32));
 
@@ -19,6 +20,7 @@ pub(super) struct CubeFacet {
 pub(super) struct VisibleFacet {
     pub(super) depth: f32,
     pub(super) nz: f32,
+    pub(super) screen_area: f32,
     pub(super) world_verts: Vec<[f32; 3]>,
     pub(super) screen_poly: Vec<Pos2>,
     pub(super) normal: [f32; 3],
@@ -235,7 +237,7 @@ pub(super) fn collect_visible_facets(
         let x_cam = dot3(pt, right);
         let y_cam = dot3(pt, up);
         let z_cam = dot3(pt, view_z);
-        let scale = 30.5 * (4.6 / (4.6 - z_cam * 0.40));
+        let scale = 30.5 * (PERSPECTIVE_CAM_DIST / (PERSPECTIVE_CAM_DIST - z_cam));
         (Pos2::new(center.x + x_cam * scale, center.y - y_cam * scale), z_cam)
     };
 
@@ -243,7 +245,9 @@ pub(super) fn collect_visible_facets(
         .into_iter()
         .filter_map(|f| {
             let nz = dot3(f.normal, view_z);
-            if nz <= 0.01 {
+            let plane_d = dot3(f.verts[0], f.normal);
+            // Exact perspective half-space test against camera eye at `PERSPECTIVE_CAM_DIST * view_z`.
+            if PERSPECTIVE_CAM_DIST * nz - plane_d <= 1e-4 {
                 return None;
             }
             let mut spts = Vec::with_capacity(f.verts.len());
@@ -253,13 +257,15 @@ pub(super) fn collect_visible_facets(
                 spts.push(sp);
                 z_sum += zv;
             }
-            if screen_front_area_2d(&spts) <= 1.0 {
+            let screen_area = screen_front_area_2d(&spts);
+            if screen_area <= 0.0 {
                 return None;
             }
             let depth = z_sum / f.verts.len() as f32;
             Some(VisibleFacet {
                 depth,
                 nz,
+                screen_area,
                 world_verts: f.verts,
                 screen_poly: spts,
                 normal: f.normal,
@@ -388,7 +394,7 @@ mod tests {
         assert!(!visible.is_empty());
         for f in &visible {
             assert!(
-                screen_front_area_2d(&f.screen_poly) > 1.0,
+                screen_front_area_2d(&f.screen_poly) > 0.0,
                 "every kept facet must have positive front-facing screen area"
             );
         }
@@ -400,6 +406,84 @@ mod tests {
         assert_eq!(over_shared, 0, "chamfered cube is manifold: no edge shared >2 times");
         assert!(silhouette_count > 0, "expected non-empty outer silhouette edges");
         assert!(crease_count > 0, "expected non-empty internal crease edges");
+    }
+
+    #[test]
+    fn viewcube_silhouette_is_watertight_across_all_rotations() {
+        let center = Pos2::new(100.0, 100.0);
+        let base_facets = build_chamfered_cube_facets(false);
+        let mut angles = Vec::new();
+        for yi in 0..60 {
+            let yaw = (yi as f32 * 6.0).to_radians();
+            for pi in -14..=14 {
+                let pitch = (pi as f32 * 6.0).to_radians();
+                angles.push((yaw, pitch));
+            }
+        }
+        // Include exact cardinal & grazing bevel angles near perspective horizon
+        let horizon = (1.0_f32 / PERSPECTIVE_CAM_DIST).asin();
+        for y_deg in [0.0_f32, 45.0, 90.0, 135.0, 180.0] {
+            for p_rad in [0.0, horizon, -horizon, horizon + 0.002, horizon - 0.002, 1.48, -1.48] {
+                angles.push((y_deg.to_radians(), p_rad));
+            }
+        }
+
+        for (yaw, pitch) in angles {
+            let mut cam = Camera3D::default();
+            cam.yaw = yaw;
+            cam.pitch = pitch;
+            let visible = collect_visible_facets(base_facets.clone(), center, &cam);
+            assert!(!visible.is_empty());
+
+            let mut edge_counts: HashMap<EdgeKey, u8> = HashMap::with_capacity(96);
+            for f in &visible {
+                assert!(f.screen_area > 0.0, "backfacing facet leaked at yaw={yaw} pitch={pitch}");
+                let n = f.world_verts.len();
+                for i in 0..n {
+                    let k0 = quantize_vert_key(f.world_verts[i]);
+                    let k1 = quantize_vert_key(f.world_verts[(i + 1) % n]);
+                    let key = if k0 <= k1 { (k0, k1) } else { (k1, k0) };
+                    let c = edge_counts.entry(key).or_insert(0);
+                    *c = c.saturating_add(1);
+                }
+            }
+
+            let mut adj: HashMap<(i32, i32, i32), Vec<(i32, i32, i32)>> = HashMap::new();
+            for ((k0, k1), cnt) in edge_counts {
+                assert!(cnt <= 2, "edge shared {cnt} times at yaw={yaw} pitch={pitch}");
+                if cnt == 1 {
+                    adj.entry(k0).or_default().push(k1);
+                    adj.entry(k1).or_default().push(k0);
+                }
+            }
+            assert!(!adj.is_empty(), "empty silhouette at yaw={yaw} pitch={pitch}");
+            for (vk, nbrs) in &adj {
+                assert_eq!(
+                    nbrs.len(),
+                    2,
+                    "broken silhouette vertex {vk:?} (deg={}) at yaw={yaw} pitch={pitch}",
+                    nbrs.len()
+                );
+            }
+            // Verify single connected silhouette loop
+            let start = *adj.keys().next().unwrap();
+            let mut visited = std::collections::HashSet::with_capacity(adj.len());
+            let mut stack = vec![start];
+            while let Some(cur) = stack.pop() {
+                if visited.insert(cur) {
+                    for &nxt in &adj[&cur] {
+                        if !visited.contains(&nxt) {
+                            stack.push(nxt);
+                        }
+                    }
+                }
+            }
+            assert_eq!(
+                visited.len(),
+                adj.len(),
+                "disconnected silhouette components at yaw={yaw} pitch={pitch}"
+            );
+        }
     }
 
     #[test]

@@ -11,81 +11,99 @@
     {
       "id": "44510",
       "name": "Anschlussgleis / Aufgleiser 9\"",
+      "nameEn": "Feeder / Rerailer Track 9\"",
       "kind": "straight",
       "category": "Geraden",
       "description": "Gerades Anschlussgleis mit Aufgleis-Rillen, Länge 228.6 mm (9\")",
+      "descriptionEn": "Straight feeder track with rerailer grooves, Length 228.6 mm (9\")",
       "length": 228.6,
       "gauge": 16.5
     },
     {
       "id": "44511",
       "name": "Gerades Gleis 9\"",
+      "nameEn": "Straight Track 9\"",
       "kind": "straight",
       "category": "Geraden",
       "description": "Standard-Gerade, Länge 228.6 mm (9\")",
+      "descriptionEn": "Standard straight, Length 228.6 mm (9\")",
       "length": 228.6,
       "gauge": 16.5
     },
     {
       "id": "44512",
       "name": "Gerades Gleis 3\"",
+      "nameEn": "Straight Track 3\"",
       "kind": "straight",
       "category": "Geraden",
       "description": "Kurze Ausgleichs-Gerade, Länge 76.2 mm (3\")",
+      "descriptionEn": "Kurze Ausgleichs-Straight, Length 76.2 mm (3\")",
       "length": 76.2,
       "gauge": 16.5
     },
     {
       "id": "44513",
       "name": "Gerades Gleis 2.25\"",
+      "nameEn": "Straight Track 2.25\"",
       "kind": "straight",
       "category": "Geraden",
       "description": "Ausgleichs-Gerade für Weichenverbindungen, Länge 57.15 mm (2.25\")",
+      "descriptionEn": "Compensation straight for turnout connections, Length 57.15 mm (2.25\")",
       "length": 57.15,
       "gauge": 16.5
     },
     {
       "id": "44514",
       "name": "Gerades Gleis 4.5\"",
+      "nameEn": "Straight Track 4.5\"",
       "kind": "straight",
       "category": "Geraden",
       "description": "Halbe Standard-Gerade, Länge 114.3 mm (4.5\")",
+      "descriptionEn": "Half Standard Straight, Length 114.3 mm (4.5\")",
       "length": 114.3,
       "gauge": 16.5
     },
     {
       "id": "44519",
       "name": "Prellbockgleis 9\"",
+      "nameEn": "Buffer Stop Track 9\"",
       "kind": "buffer-stop",
       "category": "Zubehör",
       "description": "Gerades Gleis mit beleuchtetem Prellbock, Länge 228.6 mm (9\")",
+      "descriptionEn": "Straight Track with illuminated buffer stop, Length 228.6 mm (9\")",
       "length": 228.6,
       "gauge": 16.5
     },
     {
       "id": "44528",
       "name": "Aufgleiser 9\"",
+      "nameEn": "Rerailer Track 9\"",
       "kind": "straight",
       "category": "Zubehör",
       "description": "Gerade mit integrierter Aufgleishilfe und Überweg, Länge 228.6 mm (9\")",
+      "descriptionEn": "Straight with integrierter built-in rerailer and crossing, Length 228.6 mm (9\")",
       "length": 228.6,
       "gauge": 16.5
     },
     {
       "id": "44591",
       "name": "Prellbock Bumper",
+      "nameEn": "Clip-On Buffer Stop",
       "kind": "buffer-stop",
       "category": "Zubehör",
       "description": "Aufsteckbarer Prellbock-Gleisabschluss, Länge 44.5 mm",
+      "descriptionEn": "Aufsteckbarer clip-on buffer stop, Length 44.5 mm",
       "length": 44.5,
       "gauge": 16.5
     },
     {
       "id": "44501",
       "name": "Gebogenes Gleis 18\" R 30°",
+      "nameEn": "Curved Track 18\" R 30°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Standardbogen Radius 457.2 mm (18\"), 30° (12 Stk./Kreis)",
+      "descriptionEn": "Standard curve Radius 457.2 mm (18\"), 30° (12 pcs/circle)",
       "radius": 457.2,
       "angle": 30,
       "gauge": 16.5
@@ -93,9 +111,11 @@
     {
       "id": "44502",
       "name": "Anschluss-Bogen 18\" R 30°",
+      "nameEn": "Curved Feeder Track 18\" R 30°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Gebogenes Anschlussgleis Radius 457.2 mm (18\"), 30°",
+      "descriptionEn": "Curved Feeder Track Radius 457.2 mm (18\"), 30°",
       "radius": 457.2,
       "angle": 30,
       "gauge": 16.5
@@ -103,9 +123,11 @@
     {
       "id": "44503",
       "name": "Gebogenes Gleis 22\" R 22.5°",
+      "nameEn": "Curved Track 22\" R 22.5°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Bogen Radius 558.8 mm (22\"), 22.5° (16 Stk./Kreis)",
+      "descriptionEn": "Curve Radius 558.8 mm (22\"), 22.5° (16 pcs/circle)",
       "radius": 558.8,
       "angle": 22.5,
       "gauge": 16.5
@@ -113,9 +135,11 @@
     {
       "id": "44504",
       "name": "Gebogenes Gleis 33.25\" R 18°",
+      "nameEn": "Curved Track 33.25\" R 18°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Großkreisbogen Radius 844.55 mm (33.25\"), 18° (20 Stk./Kreis)",
+      "descriptionEn": "Large Radius Curve Radius 844.55 mm (33.25\"), 18° (20 pcs/circle)",
       "radius": 844.55,
       "angle": 18,
       "gauge": 16.5
@@ -123,9 +147,11 @@
     {
       "id": "44505",
       "name": "Gebogenes Gleis 15\" R 30°",
+      "nameEn": "Curved Track 15\" R 30°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Industriebogen Radius 381.0 mm (15\"), 30°",
+      "descriptionEn": "Industrial curve Radius 381.0 mm (15\"), 30°",
       "radius": 381.0,
       "angle": 30,
       "gauge": 16.5
@@ -133,9 +159,11 @@
     {
       "id": "44506",
       "name": "Gebogenes Gleis 28\" R 18°",
+      "nameEn": "Curved Track 28\" R 18°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Bogen Radius 711.2 mm (28\"), 18° (20 Stk./Kreis)",
+      "descriptionEn": "Curve Radius 711.2 mm (28\"), 18° (20 pcs/circle)",
       "radius": 711.2,
       "angle": 18,
       "gauge": 16.5
@@ -143,9 +171,11 @@
     {
       "id": "44507",
       "name": "Gebogenes Gleis 26\" R 18°",
+      "nameEn": "Curved Track 26\" R 18°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Bogen Radius 660.4 mm (26\"), 18° (20 Stk./Kreis)",
+      "descriptionEn": "Curve Radius 660.4 mm (26\"), 18° (20 pcs/circle)",
       "radius": 660.4,
       "angle": 18,
       "gauge": 16.5
@@ -153,9 +183,11 @@
     {
       "id": "44508",
       "name": "Gebogenes Gleis 35.5\" R 18°",
+      "nameEn": "Curved Track 35.5\" R 18°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Großkreisbogen Radius 901.7 mm (35.5\"), 18° (20 Stk./Kreis)",
+      "descriptionEn": "Large Radius Curve Radius 901.7 mm (35.5\"), 18° (20 pcs/circle)",
       "radius": 901.7,
       "angle": 18,
       "gauge": 16.5
@@ -163,9 +195,11 @@
     {
       "id": "44509",
       "name": "Gebogenes Gleis 35.5\" R 9°",
+      "nameEn": "Curved Track 35.5\" R 9°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Halber Bogen Radius 901.7 mm (35.5\"), 9°",
+      "descriptionEn": "Half curve Radius 901.7 mm (35.5\"), 9°",
       "radius": 901.7,
       "angle": 9,
       "gauge": 16.5
@@ -173,9 +207,11 @@
     {
       "id": "44540",
       "name": "Kreuzung 90°",
+      "nameEn": "Crossing 90°",
       "kind": "crossing",
       "category": "Kreuzungen",
       "description": "Rechtwinklige Kreuzung 90°, Länge 228.6 mm (9\")",
+      "descriptionEn": "90° Crossing 90°, Length 228.6 mm (9\")",
       "length": 228.6,
       "angle": 90,
       "gauge": 16.5
@@ -183,9 +219,11 @@
     {
       "id": "44541",
       "name": "Kreuzung 45°",
+      "nameEn": "Crossing 45°",
       "kind": "crossing",
       "category": "Kreuzungen",
       "description": "Kreuzung 45°, Länge 228.6 mm (9\")",
+      "descriptionEn": "Crossing 45°, Length 228.6 mm (9\")",
       "length": 228.6,
       "angle": 45,
       "gauge": 16.5
@@ -193,9 +231,11 @@
     {
       "id": "44542",
       "name": "Kreuzung 30°",
+      "nameEn": "Crossing 30°",
       "kind": "crossing",
       "category": "Kreuzungen",
       "description": "Kreuzung 30°, Länge 228.6 mm (9\")",
+      "descriptionEn": "Crossing 30°, Length 228.6 mm (9\")",
       "length": 228.6,
       "angle": 30,
       "gauge": 16.5
@@ -203,9 +243,11 @@
     {
       "id": "44543",
       "name": "Kreuzung 60°",
+      "nameEn": "Crossing 60°",
       "kind": "crossing",
       "category": "Kreuzungen",
       "description": "Kreuzung 60°, Länge 228.6 mm (9\")",
+      "descriptionEn": "Crossing 60°, Length 228.6 mm (9\")",
       "length": 228.6,
       "angle": 60,
       "gauge": 16.5
@@ -213,9 +255,11 @@
     {
       "id": "44557",
       "name": "Weiche #4 links",
+      "nameEn": "No. 4 Left Turnout",
       "kind": "turnout-left",
       "category": "Weichen",
       "description": "Weiche #4 links, Länge 228.6 mm, Abzweig 14.25°",
+      "descriptionEn": "No. 4 Left Turnout, Length 228.6 mm, branch 14.25°",
       "length": 228.6,
       "branchRadius": 558.8,
       "branchAngle": 14.25,
@@ -224,9 +268,11 @@
     {
       "id": "44558",
       "name": "Weiche #4 rechts",
+      "nameEn": "No. 4 Right Turnout",
       "kind": "turnout-right",
       "category": "Weichen",
       "description": "Weiche #4 rechts, Länge 228.6 mm, Abzweig 14.25°",
+      "descriptionEn": "No. 4 Right Turnout, Length 228.6 mm, branch 14.25°",
       "length": 228.6,
       "branchRadius": 558.8,
       "branchAngle": 14.25,
@@ -235,9 +281,11 @@
     {
       "id": "44559",
       "name": "Weiche #5 links",
+      "nameEn": "No. 5 Left Turnout",
       "kind": "turnout-left",
       "category": "Weichen",
       "description": "Weiche #5 links, Länge 254.0 mm (10\"), Abzweig 12°",
+      "descriptionEn": "No. 5 Left Turnout, Length 254.0 mm (10\"), branch 12°",
       "length": 254.0,
       "branchRadius": 711.2,
       "branchAngle": 12,
@@ -246,9 +294,11 @@
     {
       "id": "44560",
       "name": "Weiche #5 rechts",
+      "nameEn": "No. 5 Right Turnout",
       "kind": "turnout-right",
       "category": "Weichen",
       "description": "Weiche #5 rechts, Länge 254.0 mm (10\"), Abzweig 12°",
+      "descriptionEn": "No. 5 Right Turnout, Length 254.0 mm (10\"), branch 12°",
       "length": 254.0,
       "branchRadius": 711.2,
       "branchAngle": 12,
@@ -257,9 +307,11 @@
     {
       "id": "44561",
       "name": "Standardweiche 18\" R links",
+      "nameEn": "Standard Turnout 18\" R left",
       "kind": "turnout-left",
       "category": "Weichen",
       "description": "Standardweiche links, Länge 228.6 mm, Abzweig R457.2 mm / 30°",
+      "descriptionEn": "Standard Left Turnout, Length 228.6 mm, branch R457.2 mm / 30°",
       "length": 228.6,
       "branchRadius": 457.2,
       "branchAngle": 30,
@@ -268,9 +320,11 @@
     {
       "id": "44562",
       "name": "Standardweiche 18\" R rechts",
+      "nameEn": "Standard Turnout 18\" R right",
       "kind": "turnout-right",
       "category": "Weichen",
       "description": "Standardweiche rechts, Länge 228.6 mm, Abzweig R457.2 mm / 30°",
+      "descriptionEn": "Standard Right Turnout, Length 228.6 mm, branch R457.2 mm / 30°",
       "length": 228.6,
       "branchRadius": 457.2,
       "branchAngle": 30,
@@ -279,9 +333,11 @@
     {
       "id": "44565",
       "name": "Weiche #6 links",
+      "nameEn": "No. 6 Left Turnout",
       "kind": "turnout-left",
       "category": "Weichen",
       "description": "Schlanke Weiche #6 links, Länge 304.8 mm (12\"), Abzweig 9.5°",
+      "descriptionEn": "Slender Turnout #6 left, Length 304.8 mm (12\"), branch 9.5°",
       "length": 304.8,
       "branchRadius": 901.7,
       "branchAngle": 9.5,
@@ -290,9 +346,11 @@
     {
       "id": "44566",
       "name": "Weiche #6 rechts",
+      "nameEn": "No. 6 Right Turnout",
       "kind": "turnout-right",
       "category": "Weichen",
       "description": "Schlanke Weiche #6 rechts, Länge 304.8 mm (12\"), Abzweig 9.5°",
+      "descriptionEn": "Slender Turnout #6 right, Length 304.8 mm (12\"), branch 9.5°",
       "length": 304.8,
       "branchRadius": 901.7,
       "branchAngle": 9.5,
@@ -301,9 +359,11 @@
     {
       "id": "44569",
       "name": "Gleiswechsel #6 links Single Crossover",
+      "nameEn": "No. 6 Left-Hand Single Crossover",
       "kind": "turnout-left",
       "category": "Weichen",
       "description": "Gleiswechselverbindung #6 links, Länge 304.8 mm, Abzweig 9.5°",
+      "descriptionEn": "Trackwechselverbindung #6 left, Length 304.8 mm, branch 9.5°",
       "length": 304.8,
       "branchRadius": 901.7,
       "branchAngle": 9.5,
@@ -312,9 +372,11 @@
     {
       "id": "44570",
       "name": "Gleiswechsel #6 rechts Single Crossover",
+      "nameEn": "No. 6 Right-Hand Single Crossover",
       "kind": "turnout-right",
       "category": "Weichen",
       "description": "Gleiswechselverbindung #6 rechts, Länge 304.8 mm, Abzweig 9.5°",
+      "descriptionEn": "Trackwechselverbindung #6 right, Length 304.8 mm, branch 9.5°",
       "length": 304.8,
       "branchRadius": 901.7,
       "branchAngle": 9.5,
@@ -323,9 +385,11 @@
     {
       "id": "44575",
       "name": "Y-Weiche #6 Wye",
+      "nameEn": "No. 6 Wye Turnout",
       "kind": "turnout-left",
       "category": "Weichen",
       "description": "Symmetrische Y-Weiche #6, Länge 228.6 mm, Abzweig je 4.75°",
+      "descriptionEn": "Symmetrical wye turnout #6, Length 228.6 mm, diverging angle each 4.75°",
       "length": 228.6,
       "radius": 901.7,
       "angle": 4.75,

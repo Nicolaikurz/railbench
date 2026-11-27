@@ -1,8 +1,6 @@
 mod geometry;
 
-use eframe::egui::{
-    self, Color32, CornerRadius, FontId, Pos2, Rect, RichText, Sense, Stroke,
-};
+use eframe::egui::{self, Color32, FontId, Pos2, Rect, Sense, Stroke};
 use railbench_core::types::Layout;
 
 use super::{dot3, normalize3, Camera3D, CameraViewPreset};
@@ -92,51 +90,6 @@ fn paint_home_badge(
     painter.rect_stroke(body, 0.8, Stroke::new(1.3_f32, icon_col), egui::StrokeKind::Inside);
 }
 
-fn paint_mini_cube_btn(
-    painter: &egui::Painter,
-    center: Pos2,
-    top_fill: Color32,
-    left_fill: Color32,
-    right_fill: Color32,
-    edge_stroke: Stroke,
-) {
-    let r_mc = 8.4_f32;
-    let dx = r_mc * 0.866;
-    let dy = r_mc * 0.5;
-    let top = Pos2::new(center.x, center.y - r_mc);
-    let tr = Pos2::new(center.x + dx, center.y - dy);
-    let br = Pos2::new(center.x + dx, center.y + dy);
-    let bot = Pos2::new(center.x, center.y + r_mc);
-    let bl = Pos2::new(center.x - dx, center.y + dy);
-    let tl = Pos2::new(center.x - dx, center.y - dy);
-
-    // Pass 1: shaded faces with thin self-colored stroke to seal subpixel seams
-    painter.add(egui::Shape::convex_polygon(
-        vec![top, tr, center, tl],
-        top_fill,
-        Stroke::new(0.6_f32, top_fill),
-    ));
-    painter.add(egui::Shape::convex_polygon(
-        vec![tl, center, bot, bl],
-        left_fill,
-        Stroke::new(0.6_f32, left_fill),
-    ));
-    painter.add(egui::Shape::convex_polygon(
-        vec![center, tr, br, bot],
-        right_fill,
-        Stroke::new(0.6_f32, right_fill),
-    ));
-
-    // Pass 2: clean deduplicated internal Y-edges and single closed outer hexagon perimeter
-    painter.line_segment([center, tl], edge_stroke);
-    painter.line_segment([center, tr], edge_stroke);
-    painter.line_segment([center, bot], edge_stroke);
-    painter.add(egui::Shape::closed_line(
-        vec![top, tr, br, bot, bl, tl],
-        edge_stroke,
-    ));
-}
-
 pub(super) fn draw_viewcube_widget(
     ui: &mut egui::Ui,
     viewport_rect: Rect,
@@ -149,11 +102,8 @@ pub(super) fn draw_viewcube_widget(
     let p = crate::theme::palette(dark_mode);
     const STAGE_SIZE: f32 = 152.0;
 
-    let menu_id = egui::Id::new("hud_3d_viewcube_preset_menu_open");
-    let mut menu_open = ui.ctx().data(|d| d.get_temp::<bool>(menu_id)).unwrap_or(false);
-
     let area_pos = Pos2::new(viewport_rect.min.x + 12.0, top_y);
-    let area_resp = egui::Area::new(egui::Id::new("hud_3d_viewcube"))
+    egui::Area::new(egui::Id::new("hud_3d_viewcube"))
         .fixed_pos(area_pos)
         .show(ui.ctx(), |ui| {
             let (stage_rect, stage_resp) =
@@ -184,10 +134,6 @@ pub(super) fn draw_viewcube_widget(
                 hover_fill,
                 hover_border,
                 text_idle,
-                mc_top_idle,
-                mc_left_idle,
-                mc_right_idle,
-                triad_backing,
             ) = if dark_mode {
                 (
                     [28.0_f32, 39.0, 58.0],
@@ -202,10 +148,6 @@ pub(super) fn draw_viewcube_widget(
                     p.primary_hover,
                     Stroke::new(1.4_f32, p.primary),
                     Color32::from_rgb(226, 232, 240),
-                    Color32::from_rgb(56, 74, 102),
-                    Color32::from_rgb(38, 52, 74),
-                    Color32::from_rgb(26, 37, 55),
-                    Color32::from_rgba_unmultiplied(8, 13, 24, 185),
                 )
             } else {
                 (
@@ -221,14 +163,9 @@ pub(super) fn draw_viewcube_widget(
                     p.primary,
                     Stroke::new(1.4_f32, p.primary_hover),
                     Color32::from_rgb(52, 46, 38),
-                    Color32::from_rgb(252, 249, 242),
-                    Color32::from_rgb(236, 229, 214),
-                    Color32::from_rgb(218, 208, 192),
-                    Color32::from_rgba_unmultiplied(255, 252, 246, 185),
                 )
             };
 
-            let (right, up, view_z) = camera_basis(camera);
             let mut any_interactive_hov = false;
             let mut hovered_tip: Option<&str> = None;
 
@@ -361,35 +298,7 @@ pub(super) fn draw_viewcube_widget(
                 if home_hov { Color32::WHITE } else { ctrl_icon },
             );
 
-            // 4. Bottom-Right Mini Isometric Cube Preset Menu Button
-            let mini_center = Pos2::new(stage_rect.max.x - 18.0, stage_rect.max.y - 18.0);
-            let mini_hov = hover_pos.is_some_and(|hp| hp.distance(mini_center) <= 12.0);
-            any_interactive_hov |= mini_hov;
-            if mini_hov {
-                hovered_tip = Some(if is_de { "Ansicht-Presets" } else { "Camera View Presets" });
-                if stage_resp.clicked() {
-                    menu_open = !menu_open;
-                }
-            }
-            let mc_active = mini_hov || menu_open;
-            let (mc_t, mc_l, mc_r, mc_stroke) = if mc_active {
-                let hover_dim = lerp_rgb_opaque(
-                    [hover_fill.r() as f32, hover_fill.g() as f32, hover_fill.b() as f32],
-                    [10.0, 25.0, 48.0],
-                    0.22,
-                );
-                let hover_dark = lerp_rgb_opaque(
-                    [hover_fill.r() as f32, hover_fill.g() as f32, hover_fill.b() as f32],
-                    [10.0, 25.0, 48.0],
-                    0.38,
-                );
-                (hover_fill, hover_dim, hover_dark, hover_border)
-            } else {
-                (mc_top_idle, mc_left_idle, mc_right_idle, ctrl_border)
-            };
-            paint_mini_cube_btn(&painter, mini_center, mc_t, mc_l, mc_r, mc_stroke);
-
-            // 5. Project, Cull & 2-Pass Render the 26-Facet Chamfered Cube
+            // 4. Project, Cull & 2-Pass Mesh Render the 26-Facet Chamfered Cube
             let visible_facets = collect_visible_facets(
                 build_chamfered_cube_facets(is_de),
                 center,
@@ -401,7 +310,7 @@ pub(super) fn draw_viewcube_widget(
                         .iter()
                         .enumerate()
                         .rev()
-                        .find(|(_, f)| point_in_polygon_2d(hp, &f.screen_poly))
+                        .find(|(_, f)| f.screen_area >= 12.0 && point_in_polygon_2d(hp, &f.screen_poly))
                         .map(|(idx, _)| idx)
                 })
             } else {
@@ -410,9 +319,13 @@ pub(super) fn draw_viewcube_widget(
             any_interactive_hov |= hovered_facet_idx.is_some();
 
             let light_dir = normalize3([0.38, 0.84, 0.38]);
-            // Pass 1: Opaque facet fills with thin self-colored stroke to eliminate AA cracks
+            // Pass 1: Watertight triangle-fan Mesh fill (zero AA seams & zero acute miter spikes)
             let mut clicked_normal: Option<[f32; 3]> = None;
+            let mut cube_mesh = egui::Mesh::default();
             for (idx, f) in visible_facets.iter().enumerate() {
+                if f.screen_poly.len() < 3 {
+                    continue;
+                }
                 let is_hov = hovered_facet_idx == Some(idx);
                 let fill = if is_hov {
                     hover_fill
@@ -424,15 +337,18 @@ pub(super) fn draw_viewcube_widget(
                         lerp_rgb_opaque(bevel_shadow, bevel_lit, ldot)
                     }
                 };
-                painter.add(egui::Shape::convex_polygon(
-                    f.screen_poly.clone(),
-                    fill,
-                    Stroke::new(0.75_f32, fill),
-                ));
+                let base = cube_mesh.vertices.len() as u32;
+                for &pt in &f.screen_poly {
+                    cube_mesh.colored_vertex(pt, fill);
+                }
+                for i in 1..(f.screen_poly.len() as u32 - 1) {
+                    cube_mesh.add_triangle(base, base + i, base + i + 1);
+                }
                 if is_hov && stage_resp.clicked() {
                     clicked_normal = Some(f.normal);
                 }
             }
+            painter.add(egui::Shape::mesh(cube_mesh));
 
             // Pass 2: Deduplicated internal creases (count >= 2) and crisp outer silhouette (count == 1)
             let dedup_edges = dedup_visible_facet_edges(&visible_facets);
@@ -450,7 +366,13 @@ pub(super) fn draw_viewcube_widget(
             }
             if let Some(h_idx) = hovered_facet_idx {
                 if let Some(hf) = visible_facets.get(h_idx) {
-                    painter.add(egui::Shape::closed_line(hf.screen_poly.clone(), hover_border));
+                    let n = hf.screen_poly.len();
+                    for i in 0..n {
+                        painter.line_segment(
+                            [hf.screen_poly[i], hf.screen_poly[(i + 1) % n]],
+                            hover_border,
+                        );
+                    }
                 }
             }
 
@@ -500,49 +422,6 @@ pub(super) fn draw_viewcube_widget(
                 );
             }
 
-            // 6. Bottom-Left Live 3D XYZ RGB Coordinate Triad (padded well inside stage_rect)
-            let triad_origin = Pos2::new(stage_rect.min.x + 24.0, stage_rect.max.y - 24.0);
-            let axis_len = 16.5_f32;
-            let label_bounds = stage_rect.shrink(6.0);
-            let mut triad_axes: [(f32, [f32; 3], Color32, &str); 3] = [
-                (dot3([1.0, 0.0, 0.0], view_z), [1.0, 0.0, 0.0], Color32::from_rgb(239, 68, 68), "X"),
-                (dot3([0.0, 1.0, 0.0], view_z), [0.0, 1.0, 0.0], Color32::from_rgb(34, 197, 94), "Y"),
-                (dot3([0.0, 0.0, 1.0], view_z), [0.0, 0.0, 1.0], Color32::from_rgb(59, 130, 246), "Z"),
-            ];
-            triad_axes.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
-            for (_, ax, col, axis_lbl) in triad_axes {
-                let dx = dot3(ax, right) * axis_len;
-                let dy = -dot3(ax, up) * axis_len;
-                let end = Pos2::new(triad_origin.x + dx, triad_origin.y + dy);
-                painter.line_segment([triad_origin, end], Stroke::new(2.6_f32, triad_backing));
-                painter.line_segment([triad_origin, end], Stroke::new(1.8_f32, col));
-                painter.circle_filled(end, 1.9, col);
-                let len2 = dx.hypot(dy);
-                if len2 > 7.0 {
-                    let raw_lbl_pos = Pos2::new(
-                        end.x + (dx / len2) * 5.5,
-                        end.y + (dy / len2) * 5.5,
-                    );
-                    let lbl_pos = label_bounds.clamp(raw_lbl_pos);
-                    painter.text(
-                        lbl_pos,
-                        egui::Align2::CENTER_CENTER,
-                        axis_lbl,
-                        FontId::proportional(8.5),
-                        col,
-                    );
-                }
-            }
-            painter.circle_filled(
-                triad_origin,
-                2.0,
-                if dark_mode {
-                    Color32::from_rgb(226, 232, 240)
-                } else {
-                    Color32::from_rgb(76, 68, 58)
-                },
-            );
-
             if any_interactive_hov && !stage_resp.dragged() {
                 ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
             }
@@ -562,64 +441,5 @@ pub(super) fn draw_viewcube_widget(
                 apply_facet_normal_to_camera(camera, n);
             }
         });
-
-    // Floating preset menu triggered by the bottom-right mini-cube icon
-    if menu_open {
-        let menu_pos = Pos2::new(
-            area_resp.response.rect.max.x - 18.0,
-            area_resp.response.rect.max.y + 4.0,
-        );
-        let pop = egui::Area::new(egui::Id::new("hud_3d_viewcube_preset_menu"))
-            .order(egui::Order::Foreground)
-            .fixed_pos(menu_pos)
-            .constrain_to(viewport_rect.shrink(6.0))
-            .show(ui.ctx(), |ui| {
-                super::viewport::hud_3d_panel_frame(dark_mode, None).show(ui, |ui| {
-                    ui.set_min_width(116.0);
-                    ui.spacing_mut().item_spacing.y = 3.0;
-                    let presets: [(&str, Option<CameraViewPreset>); 8] = [
-                        (if is_de { "Standard (ISO)" } else { "Home (ISO)" }, Some(CameraViewPreset::Home)),
-                        (if is_de { "Alles einpassen" } else { "Fit View" }, None),
-                        (if is_de { "Oben" } else { "Top" }, Some(CameraViewPreset::Top)),
-                        (if is_de { "Vorne" } else { "Front" }, Some(CameraViewPreset::Front)),
-                        (if is_de { "Rechts" } else { "Right" }, Some(CameraViewPreset::Right)),
-                        (if is_de { "Links" } else { "Left" }, Some(CameraViewPreset::Left)),
-                        (if is_de { "Hinten" } else { "Back" }, Some(CameraViewPreset::Back)),
-                        (if is_de { "Unten" } else { "Bottom" }, Some(CameraViewPreset::Bottom)),
-                    ];
-                    for (lbl, preset) in presets {
-                        if ui
-                            .add_sized(
-                                [ui.available_width(), 22.0],
-                                egui::Button::new(RichText::new(lbl).size(11.0).color(p.text_main))
-                                    .fill(p.bg_input)
-                                    .stroke(Stroke::new(1.0_f32, p.border_main))
-                                    .corner_radius(CornerRadius::same(5)),
-                            )
-                            .clicked()
-                        {
-                            match preset {
-                                Some(pr) => camera.apply_preset(pr, layout),
-                                None => camera.fit_layout(layout),
-                            }
-                            menu_open = false;
-                        }
-                    }
-                });
-            });
-
-        if ui.input(|i| i.pointer.primary_pressed()) {
-            if let Some(pos) = ui.input(|i| i.pointer.interact_pos()) {
-                if !pop.response.rect.contains(pos) && !area_resp.response.rect.contains(pos) {
-                    menu_open = false;
-                }
-            }
-        }
-        if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
-            menu_open = false;
-        }
-    }
-
-    ui.ctx().data_mut(|d| d.insert_temp(menu_id, menu_open));
 }
 

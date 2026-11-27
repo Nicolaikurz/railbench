@@ -11,45 +11,55 @@
     {
       "id": "85100",
       "name": "Flexgleis Holzschwellen 890 mm",
+      "nameEn": "Flex Track Wooden Ties 890 mm",
       "kind": "flex",
       "category": "Geraden",
       "description": "Flexgleis mit Holzschwellenimitat, Länge 890 mm",
+      "descriptionEn": "Flex Track with wooden-tie texture, Length 890 mm",
       "length": 890,
       "gauge": 16.5
     },
     {
       "id": "85101",
       "name": "Flexgleis Betonschwellen 890 mm",
+      "nameEn": "Flex Track Concrete Ties 890 mm",
       "kind": "flex",
       "category": "Geraden",
       "description": "Flexgleis mit Betonschwellenimitat, Länge 890 mm",
+      "descriptionEn": "Flex Track with concrete-tie texture, Length 890 mm",
       "length": 890,
       "gauge": 16.5
     },
     {
       "id": "85102",
       "name": "Flexgleis Stahlschwellen 890 mm",
+      "nameEn": "Flex Track Steel Ties 890 mm",
       "kind": "flex",
       "category": "Geraden",
       "description": "Flexgleis mit Stahlschwellenimitat, Länge 890 mm",
+      "descriptionEn": "Flex Track with steel-tie texture, Length 890 mm",
       "length": 890,
       "gauge": 16.5
     },
     {
       "id": "85104",
       "name": "Schwellenband Holz 890 mm",
+      "nameEn": "Wooden Tie Strip 890 mm",
       "kind": "straight",
       "category": "Geraden",
       "description": "Schwellenband ohne Schienenprofile, Länge 890 mm",
+      "descriptionEn": "Tie strip without rail profiles, Length 890 mm",
       "length": 890,
       "gauge": 16.5
     },
     {
       "id": "85111",
       "name": "Gebogenes Gleis R12 / 15°",
+      "nameEn": "Curved Track R12 / 15°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Radius R11 = 366 mm, Bogen 15°",
+      "descriptionEn": "Radius R11 = 366 mm, Curve 15°",
       "radius": 366,
       "angle": 15,
       "gauge": 16.5
@@ -57,9 +67,11 @@
     {
       "id": "85112",
       "name": "Gebogenes Gleis R22 / 15°",
+      "nameEn": "Curved Track R22 / 15°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Radius R21 = 425 mm, Bogen 15°",
+      "descriptionEn": "Radius R21 = 425 mm, Curve 15°",
       "radius": 425,
       "angle": 15,
       "gauge": 16.5
@@ -67,9 +79,11 @@
     {
       "id": "85113",
       "name": "Gebogenes Gleis R32 / 15°",
+      "nameEn": "Curved Track R32 / 15°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Radius R31 = 484 mm, Bogen 15°",
+      "descriptionEn": "Radius R31 = 484 mm, Curve 15°",
       "radius": 484,
       "angle": 15,
       "gauge": 16.5
@@ -77,9 +91,11 @@
     {
       "id": "85114",
       "name": "Gebogenes Gleis R42 / 15°",
+      "nameEn": "Curved Track R42 / 15°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Radius R41 = 543 mm, Bogen 15°",
+      "descriptionEn": "Radius R41 = 543 mm, Curve 15°",
       "radius": 543,
       "angle": 15,
       "gauge": 16.5
@@ -87,9 +103,11 @@
     {
       "id": "85115",
       "name": "Gebogenes Gleis R01 / 15°",
+      "nameEn": "Curved Track R01 / 15°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Gegenbogen zur EW3/IBW, Radius R01 = 966 mm, Bogen 15°",
+      "descriptionEn": "Counter-curve for EW3/IBW, Radius R01 = 966 mm, Curve 15°",
       "radius": 966,
       "angle": 15,
       "gauge": 16.5
@@ -97,9 +115,11 @@
     {
       "id": "85116",
       "name": "Gebogenes Gleis R02 / 12°",
+      "nameEn": "Curved Track R02 / 12°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Gegenbogen zur EW3, Radius R01 = 966 mm, Bogen 12°",
+      "descriptionEn": "Counter-curve for EW3, Radius R01 = 966 mm, Curve 12°",
       "radius": 966,
       "angle": 12,
       "gauge": 16.5
@@ -107,9 +127,11 @@
     {
       "id": "85121",
       "name": "Gebogenes Gleis R11 / 30°",
+      "nameEn": "Curved Track R11 / 30°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Radius R11 = 366 mm, Bogen 30°",
+      "descriptionEn": "Radius R11 = 366 mm, Curve 30°",
       "radius": 366,
       "angle": 30,
       "gauge": 16.5
@@ -117,9 +139,11 @@
     {
       "id": "85122",
       "name": "Gebogenes Gleis R21 / 30°",
+      "nameEn": "Curved Track R21 / 30°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Radius R21 = 425 mm, Bogen 30°",
+      "descriptionEn": "Radius R21 = 425 mm, Curve 30°",
       "radius": 425,
       "angle": 30,
       "gauge": 16.5
@@ -127,9 +151,11 @@
     {
       "id": "85123",
       "name": "Gebogenes Gleis R31 / 30°",
+      "nameEn": "Curved Track R31 / 30°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Radius R31 = 484 mm, Bogen 30°",
+      "descriptionEn": "Radius R31 = 484 mm, Curve 30°",
       "radius": 484,
       "angle": 30,
       "gauge": 16.5
@@ -137,9 +163,11 @@
     {
       "id": "85124",
       "name": "Gebogenes Gleis R41 / 30°",
+      "nameEn": "Curved Track R41 / 30°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Radius R41 = 543 mm, Bogen 30°",
+      "descriptionEn": "Radius R41 = 543 mm, Curve 30°",
       "radius": 543,
       "angle": 30,
       "gauge": 16.5
@@ -147,81 +175,99 @@
     {
       "id": "85125",
       "name": "Gerades Gleis G1 (228 mm)",
+      "nameEn": "Straight Track G1 (228 mm)",
       "kind": "straight",
       "category": "Geraden",
       "description": "Standard-Gerade G1, Länge 228 mm",
+      "descriptionEn": "Standard straight G1, Length 228 mm",
       "length": 228,
       "gauge": 16.5
     },
     {
       "id": "85126",
       "name": "Gerades Gleis G2 (114 mm)",
+      "nameEn": "Straight Track G2 (114 mm)",
       "kind": "straight",
       "category": "Geraden",
       "description": "Halbes Standardgleis G2, Länge 114 mm",
+      "descriptionEn": "Half Standard Track G2, Length 114 mm",
       "length": 114,
       "gauge": 16.5
     },
     {
       "id": "85127",
       "name": "Gerades Gleis G3 (57 mm)",
+      "nameEn": "Straight Track G3 (57 mm)",
       "kind": "straight",
       "category": "Geraden",
       "description": "Viertelgleis G3, Länge 57 mm",
+      "descriptionEn": "Quarter Track G3, Length 57 mm",
       "length": 57,
       "gauge": 16.5
     },
     {
       "id": "85128",
       "name": "Gerades Gleis G4 (53 mm)",
+      "nameEn": "Straight Track G4 (53 mm)",
       "kind": "straight",
       "category": "Geraden",
       "description": "Ausgleichsgleis G4, Länge 53 mm",
+      "descriptionEn": "Compensation Track G4, Length 53 mm",
       "length": 53,
       "gauge": 16.5
     },
     {
       "id": "85129",
       "name": "Gerades Gleis G5 (26,5 mm)",
+      "nameEn": "Straight Track G5 (26.5 mm)",
       "kind": "straight",
       "category": "Geraden",
       "description": "Ausgleichsstück G5, Länge 26,5 mm",
+      "descriptionEn": "Compensation piece G5, Length 26.5 mm",
       "length": 26.5,
       "gauge": 16.5
     },
     {
       "id": "85130",
       "name": "Gerades Gleis G6 (41,5 mm)",
+      "nameEn": "Straight Track G6 (41.5 mm)",
       "kind": "straight",
       "category": "Geraden",
       "description": "Ausgleichsstück G6 für Parallelgleisabstand 59 mm, Länge 41,5 mm",
+      "descriptionEn": "Compensation piece G6 for parallel track spacing 59 mm, Length 41.5 mm",
       "length": 41.5,
       "gauge": 16.5
     },
     {
       "id": "85135",
       "name": "Übergangsgleis Tillig Elite auf Standardgleis (114 mm)",
+      "nameEn": "Transition Track Elite Code 83 to Code 100 (114 mm)",
       "kind": "straight",
       "category": "Zubehör",
       "description": "Übergang von Code 83 (2,1 mm) auf Code 100 (2,5 mm), Länge 114 mm",
+      "descriptionEn": "Transition from Code 83 (2.1 mm) to Code 100 (2.5 mm), Length 114 mm",
       "length": 114,
       "gauge": 16.5
     },
     {
       "id": "85141",
       "name": "Elektrisches Entkupplungsgleis (114 mm)",
+      "nameEn": "Electric Uncoupler Track (114 mm)",
       "kind": "straight",
       "category": "Zubehör",
       "description": "Entkupplungsgleis auf G2-Basis, Länge 114 mm",
+      "descriptionEn": "Uncoupler Track based on G2, Length 114 mm",
       "length": 114,
       "gauge": 16.5
     },
     {
       "id": "85310",
       "name": "Kreuzung K1 (15°)",
+      "nameEn": "Crossing K1 (15°)",
       "kind": "crossing",
       "category": "Kreuzungen",
       "description": "Länge 166 mm, Kreuzungswinkel 15°",
+      "descriptionEn": "Length 166 mm, crossing angle 15°",
       "length": 166,
       "angle": 15,
       "gauge": 16.5
@@ -229,9 +275,11 @@
     {
       "id": "85311",
       "name": "Kreuzung K2 (30°)",
+      "nameEn": "Crossing K2 (30°)",
       "kind": "crossing",
       "category": "Kreuzungen",
       "description": "Länge 114 mm, Kreuzungswinkel 30°",
+      "descriptionEn": "Length 114 mm, crossing angle 30°",
       "length": 114,
       "angle": 30,
       "gauge": 16.5
@@ -239,9 +287,11 @@
     {
       "id": "85312",
       "name": "Kreuzung K3 (8,5°)",
+      "nameEn": "Crossing K3 (8.5°)",
       "kind": "crossing",
       "category": "Kreuzungen",
       "description": "Schlanke Kreuzung für Hosenträger/Gleisharfen, Länge 308 mm, Kreuzungswinkel 8,5°",
+      "descriptionEn": "Slender Crossing for double crossovers / yard ladders, Length 308 mm, crossing angle 8.5°",
       "length": 308,
       "angle": 8.5,
       "gauge": 16.5
@@ -249,233 +299,431 @@
     {
       "id": "85321",
       "name": "Einfache Weiche EW2 rechts 15° (alt)",
+      "nameEn": "Turnout EW2 right 15° (old)",
       "kind": "turnout-right",
       "category": "Weichen",
       "description": "Länge 178 mm, Abzweig R484 / 15° mit Geradenstück (Gleisabstand 59 mm)",
+      "descriptionEn": "Length 178 mm, branch R484 / 15° with straight section (track spacing 59 mm)",
       "length": 178,
       "branchRadius": 484,
       "branchAngle": 15,
       "gauge": 16.5,
       "localConnectors": [
-        { "x": 0, "y": 0, "angle": 180 },
-        { "x": 178, "y": 0, "angle": 0 },
-        { "x": 173.82, "y": 29.5, "angle": 15 }
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 178,
+          "y": 0,
+          "angle": 0
+        },
+        {
+          "x": 173.82,
+          "y": 29.5,
+          "angle": 15
+        }
       ]
     },
     {
       "id": "85322",
       "name": "Einfache Weiche EW2 links 15° (alt)",
+      "nameEn": "Turnout EW2 left 15° (old)",
       "kind": "turnout-left",
       "category": "Weichen",
       "description": "Länge 178 mm, Abzweig R484 / 15° mit Geradenstück (Gleisabstand 59 mm)",
+      "descriptionEn": "Length 178 mm, branch R484 / 15° with straight section (track spacing 59 mm)",
       "length": 178,
       "branchRadius": 484,
       "branchAngle": 15,
       "gauge": 16.5,
       "localConnectors": [
-        { "x": 0, "y": 0, "angle": 180 },
-        { "x": 178, "y": 0, "angle": 0 },
-        { "x": 173.82, "y": -29.5, "angle": 345 }
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 178,
+          "y": 0,
+          "angle": 0
+        },
+        {
+          "x": 173.82,
+          "y": -29.5,
+          "angle": 345
+        }
       ]
     },
     {
       "id": "85323",
       "name": "Einfache Weiche EW2 rechts 15°",
+      "nameEn": "Turnout EW2 right 15°",
       "kind": "turnout-right",
       "category": "Weichen",
       "description": "Länge 178 mm, Abzweig R484 / 15° mit Geradenstück und Metallherzstück (Gleisabstand 59 mm)",
+      "descriptionEn": "Length 178 mm, branch R484 / 15° with straight section and metal frog (track spacing 59 mm)",
       "length": 178,
       "branchRadius": 484,
       "branchAngle": 15,
       "gauge": 16.5,
       "localConnectors": [
-        { "x": 0, "y": 0, "angle": 180 },
-        { "x": 178, "y": 0, "angle": 0 },
-        { "x": 173.82, "y": 29.5, "angle": 15 }
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 178,
+          "y": 0,
+          "angle": 0
+        },
+        {
+          "x": 173.82,
+          "y": 29.5,
+          "angle": 15
+        }
       ]
     },
     {
       "id": "85324",
       "name": "Einfache Weiche EW2 links 15°",
+      "nameEn": "Turnout EW2 left 15°",
       "kind": "turnout-left",
       "category": "Weichen",
       "description": "Länge 178 mm, Abzweig R484 / 15° mit Geradenstück und Metallherzstück (Gleisabstand 59 mm)",
+      "descriptionEn": "Length 178 mm, branch R484 / 15° with straight section and metal frog (track spacing 59 mm)",
       "length": 178,
       "branchRadius": 484,
       "branchAngle": 15,
       "gauge": 16.5,
       "localConnectors": [
-        { "x": 0, "y": 0, "angle": 180 },
-        { "x": 178, "y": 0, "angle": 0 },
-        { "x": 173.82, "y": -29.5, "angle": 345 }
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 178,
+          "y": 0,
+          "angle": 0
+        },
+        {
+          "x": 173.82,
+          "y": -29.5,
+          "angle": 345
+        }
       ]
     },
     {
       "id": "85341",
       "name": "Einfache Weiche EW1 rechts 15° (alt)",
+      "nameEn": "Turnout EW1 right 15° (old)",
       "kind": "turnout-right",
       "category": "Weichen",
       "description": "Federzungenweiche, Länge 228 mm, Abzweig R866 / 15° (Gleisabstand 59 mm)",
+      "descriptionEn": "Spring-switch-blade turnout, Length 228 mm, branch R866 / 15° (track spacing 59 mm)",
       "length": 228,
       "branchRadius": 866,
       "branchAngle": 15,
       "gauge": 16.5,
       "localConnectors": [
-        { "x": 0, "y": 0, "angle": 180 },
-        { "x": 228, "y": 0, "angle": 0 },
-        { "x": 224.14, "y": 29.5, "angle": 15 }
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 228,
+          "y": 0,
+          "angle": 0
+        },
+        {
+          "x": 224.14,
+          "y": 29.5,
+          "angle": 15
+        }
       ]
     },
     {
       "id": "85342",
       "name": "Einfache Weiche EW1 links 15° (alt)",
+      "nameEn": "Turnout EW1 left 15° (old)",
       "kind": "turnout-left",
       "category": "Weichen",
       "description": "Federzungenweiche, Länge 228 mm, Abzweig R866 / 15° (Gleisabstand 59 mm)",
+      "descriptionEn": "Spring-switch-blade turnout, Length 228 mm, branch R866 / 15° (track spacing 59 mm)",
       "length": 228,
       "branchRadius": 866,
       "branchAngle": 15,
       "gauge": 16.5,
       "localConnectors": [
-        { "x": 0, "y": 0, "angle": 180 },
-        { "x": 228, "y": 0, "angle": 0 },
-        { "x": 224.14, "y": -29.5, "angle": 345 }
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 228,
+          "y": 0,
+          "angle": 0
+        },
+        {
+          "x": 224.14,
+          "y": -29.5,
+          "angle": 345
+        }
       ]
     },
     {
       "id": "85343",
       "name": "Einfache Weiche EW1 rechts 15°",
+      "nameEn": "Turnout EW1 right 15°",
       "kind": "turnout-right",
       "category": "Weichen",
       "description": "Federzungenweiche mit Metallherzstück, Länge 228 mm, Abzweig R866 / 15° (Gleisabstand 59 mm)",
+      "descriptionEn": "Spring-switch-blade turnout with metal frog, Length 228 mm, branch R866 / 15° (track spacing 59 mm)",
       "length": 228,
       "branchRadius": 866,
       "branchAngle": 15,
       "gauge": 16.5,
       "localConnectors": [
-        { "x": 0, "y": 0, "angle": 180 },
-        { "x": 228, "y": 0, "angle": 0 },
-        { "x": 224.14, "y": 29.5, "angle": 15 }
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 228,
+          "y": 0,
+          "angle": 0
+        },
+        {
+          "x": 224.14,
+          "y": 29.5,
+          "angle": 15
+        }
       ]
     },
     {
       "id": "85344",
       "name": "Einfache Weiche EW1 links 15°",
+      "nameEn": "Turnout EW1 left 15°",
       "kind": "turnout-left",
       "category": "Weichen",
       "description": "Federzungenweiche mit Metallherzstück, Länge 228 mm, Abzweig R866 / 15° (Gleisabstand 59 mm)",
+      "descriptionEn": "Spring-switch-blade turnout with metal frog, Length 228 mm, branch R866 / 15° (track spacing 59 mm)",
       "length": 228,
       "branchRadius": 866,
       "branchAngle": 15,
       "gauge": 16.5,
       "localConnectors": [
-        { "x": 0, "y": 0, "angle": 180 },
-        { "x": 228, "y": 0, "angle": 0 },
-        { "x": 224.14, "y": -29.5, "angle": 345 }
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 228,
+          "y": 0,
+          "angle": 0
+        },
+        {
+          "x": 224.14,
+          "y": -29.5,
+          "angle": 345
+        }
       ]
     },
     {
       "id": "85346",
       "name": "Einfache Weiche EW6 rechts 6,34°",
+      "nameEn": "Turnout EW6 right 6.34°",
       "kind": "turnout-right",
       "category": "Weichen",
       "description": "Vorbildgetreue Weiche 1:9, Länge 388 mm, Abzweig R2200 / 6,34° mit Geradenstück (Gleisabstand 59 mm)",
+      "descriptionEn": "Prototypical turnout 1:9, Length 388 mm, branch R2200 / 6.34° with straight section (track spacing 59 mm)",
       "length": 388,
       "branchRadius": 2200,
       "branchAngle": 6.34,
       "gauge": 16.5,
       "localConnectors": [
-        { "x": 0, "y": 0, "angle": 180 },
-        { "x": 388, "y": 0, "angle": 0 },
-        { "x": 387.35, "y": 29.5, "angle": 6.34 }
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 388,
+          "y": 0,
+          "angle": 0
+        },
+        {
+          "x": 387.35,
+          "y": 29.5,
+          "angle": 6.34
+        }
       ]
     },
     {
       "id": "85347",
       "name": "Einfache Weiche EW6 links 6,34°",
+      "nameEn": "Turnout EW6 left 6.34°",
       "kind": "turnout-left",
       "category": "Weichen",
       "description": "Vorbildgetreue Weiche 1:9, Länge 388 mm, Abzweig R2200 / 6,34° mit Geradenstück (Gleisabstand 59 mm)",
+      "descriptionEn": "Prototypical turnout 1:9, Length 388 mm, branch R2200 / 6.34° with straight section (track spacing 59 mm)",
       "length": 388,
       "branchRadius": 2200,
       "branchAngle": 6.34,
       "gauge": 16.5,
       "localConnectors": [
-        { "x": 0, "y": 0, "angle": 180 },
-        { "x": 388, "y": 0, "angle": 0 },
-        { "x": 387.35, "y": -29.5, "angle": 353.66 }
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 388,
+          "y": 0,
+          "angle": 0
+        },
+        {
+          "x": 387.35,
+          "y": -29.5,
+          "angle": 353.66
+        }
       ]
     },
     {
       "id": "85351",
       "name": "Einfache Weiche EW3 rechts 12° (alt)",
+      "nameEn": "Turnout EW3 right 12° (old)",
       "kind": "turnout-right",
       "category": "Weichen",
       "description": "Schlanke Modellweiche, Länge 284 mm, Abzweig R1350 / 12° (Gleisabstand 59 mm)",
+      "descriptionEn": "Slender model turnout, Length 284 mm, branch R1350 / 12° (track spacing 59 mm)",
       "length": 284,
       "branchRadius": 1350,
       "branchAngle": 12,
       "gauge": 16.5,
       "localConnectors": [
-        { "x": 0, "y": 0, "angle": 180 },
-        { "x": 284, "y": 0, "angle": 0 },
-        { "x": 280.68, "y": 29.5, "angle": 12 }
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 284,
+          "y": 0,
+          "angle": 0
+        },
+        {
+          "x": 280.68,
+          "y": 29.5,
+          "angle": 12
+        }
       ]
     },
     {
       "id": "85352",
       "name": "Einfache Weiche EW3 links 12° (alt)",
+      "nameEn": "Turnout EW3 left 12° (old)",
       "kind": "turnout-left",
       "category": "Weichen",
       "description": "Schlanke Modellweiche, Länge 284 mm, Abzweig R1350 / 12° (Gleisabstand 59 mm)",
+      "descriptionEn": "Slender model turnout, Length 284 mm, branch R1350 / 12° (track spacing 59 mm)",
       "length": 284,
       "branchRadius": 1350,
       "branchAngle": 12,
       "gauge": 16.5,
       "localConnectors": [
-        { "x": 0, "y": 0, "angle": 180 },
-        { "x": 284, "y": 0, "angle": 0 },
-        { "x": 280.68, "y": -29.5, "angle": 348 }
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 284,
+          "y": 0,
+          "angle": 0
+        },
+        {
+          "x": 280.68,
+          "y": -29.5,
+          "angle": 348
+        }
       ]
     },
     {
       "id": "85353",
       "name": "Einfache Weiche EW3 rechts 12°",
+      "nameEn": "Turnout EW3 right 12°",
       "kind": "turnout-right",
       "category": "Weichen",
       "description": "Schlanke Modellweiche mit Metallherzstück, Länge 284 mm, Abzweig R1350 / 12° (Gleisabstand 59 mm)",
+      "descriptionEn": "Slender model turnout with metal frog, Length 284 mm, branch R1350 / 12° (track spacing 59 mm)",
       "length": 284,
       "branchRadius": 1350,
       "branchAngle": 12,
       "gauge": 16.5,
       "localConnectors": [
-        { "x": 0, "y": 0, "angle": 180 },
-        { "x": 284, "y": 0, "angle": 0 },
-        { "x": 280.68, "y": 29.5, "angle": 12 }
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 284,
+          "y": 0,
+          "angle": 0
+        },
+        {
+          "x": 280.68,
+          "y": 29.5,
+          "angle": 12
+        }
       ]
     },
     {
       "id": "85354",
       "name": "Einfache Weiche EW3 links 12°",
+      "nameEn": "Turnout EW3 left 12°",
       "kind": "turnout-left",
       "category": "Weichen",
       "description": "Schlanke Modellweiche mit Metallherzstück, Länge 284 mm, Abzweig R1350 / 12° (Gleisabstand 59 mm)",
+      "descriptionEn": "Slender model turnout with metal frog, Length 284 mm, branch R1350 / 12° (track spacing 59 mm)",
       "length": 284,
       "branchRadius": 1350,
       "branchAngle": 12,
       "gauge": 16.5,
       "localConnectors": [
-        { "x": 0, "y": 0, "angle": 180 },
-        { "x": 284, "y": 0, "angle": 0 },
-        { "x": 280.68, "y": -29.5, "angle": 348 }
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 284,
+          "y": 0,
+          "angle": 0
+        },
+        {
+          "x": 280.68,
+          "y": -29.5,
+          "angle": 348
+        }
       ]
     },
     {
       "id": "85361",
       "name": "Innenbogenweiche IBW links (R1/R2)",
+      "nameEn": "Inner Curved Turnout IBW Left (R1/R2)",
       "kind": "curved-turnout-left",
       "category": "Weichen",
       "description": "Innenbogenweiche, Stammgleis R2 = 425 mm / 30°, Abzweig R1 = 366 mm / 30°",
+      "descriptionEn": "Inner curved turnout, Main route R2 = 425 mm / 30°, branch R1 = 366 mm / 30°",
       "radius": 425,
       "angle": 30,
       "branchRadius": 366,
@@ -485,9 +733,11 @@
     {
       "id": "85362",
       "name": "Innenbogenweiche IBW rechts (R1/R2)",
+      "nameEn": "Inner Curved Turnout IBW Right (R1/R2)",
       "kind": "curved-turnout-right",
       "category": "Weichen",
       "description": "Innenbogenweiche, Stammgleis R2 = 425 mm / 30°, Abzweig R1 = 366 mm / 30°",
+      "descriptionEn": "Inner curved turnout, Main route R2 = 425 mm / 30°, branch R1 = 366 mm / 30°",
       "radius": 425,
       "angle": 30,
       "branchRadius": 366,
@@ -497,9 +747,11 @@
     {
       "id": "85371",
       "name": "Innenbogenweiche IBW links (R3/R4)",
+      "nameEn": "Inner Curved Turnout IBW Left (R3/R4)",
       "kind": "curved-turnout-left",
       "category": "Weichen",
       "description": "Innenbogenweiche, Stammgleis R4 = 543 mm / 30°, Abzweig R3 = 484 mm / 30°",
+      "descriptionEn": "Inner curved turnout, Main route R4 = 543 mm / 30°, branch R3 = 484 mm / 30°",
       "radius": 543,
       "angle": 30,
       "branchRadius": 484,
@@ -509,9 +761,11 @@
     {
       "id": "85372",
       "name": "Innenbogenweiche IBW rechts (R3/R4)",
+      "nameEn": "Inner Curved Turnout IBW Right (R3/R4)",
       "kind": "curved-turnout-right",
       "category": "Weichen",
       "description": "Innenbogenweiche, Stammgleis R4 = 543 mm / 30°, Abzweig R3 = 484 mm / 30°",
+      "descriptionEn": "Inner curved turnout, Main route R4 = 543 mm / 30°, branch R3 = 484 mm / 30°",
       "radius": 543,
       "angle": 30,
       "branchRadius": 484,
@@ -521,9 +775,11 @@
     {
       "id": "85390",
       "name": "Doppelkreuzungsweiche Baeseler DKW II (15°)",
+      "nameEn": "Baeseler Double Slip Switch DKW II (15°)",
       "kind": "double-slip",
       "category": "Kreuzungen",
       "description": "Länge 228 mm, Kreuzungswinkel 15°, Zungen außenliegend",
+      "descriptionEn": "Length 228 mm, crossing angle 15°, external switch blades",
       "length": 228,
       "angle": 15,
       "branchRadius": 1050,
@@ -533,9 +789,11 @@
     {
       "id": "85395",
       "name": "Doppelkreuzungsweiche eng DKW I (15°)",
+      "nameEn": "Compact Double Slip Switch DKW I (15°)",
       "kind": "double-slip",
       "category": "Kreuzungen",
       "description": "Länge 166 mm, Kreuzungswinkel 15°, Zungen innenliegend",
+      "descriptionEn": "Length 166 mm, crossing angle 15°, internal switch blades",
       "length": 166,
       "angle": 15,
       "branchRadius": 484,
@@ -545,9 +803,11 @@
     {
       "id": "85918",
       "name": "Prellbockgleis 57 mm",
+      "nameEn": "Buffer Stop Track 57 mm",
       "kind": "straight",
       "category": "Zubehör",
       "description": "Gleis G3 mit vormontiertem Prellbock",
+      "descriptionEn": "Track G3 with vormontiertem Buffer Stop",
       "length": 57,
       "gauge": 16.5
     }

@@ -3,6 +3,12 @@ use crate::*;
 impl RailbenchApp {
     pub fn place_catalog_entry(&mut self, entry: &CatalogEntry) {
         self.push_undo();
+        self.dragging_active = false;
+        self.drag_last_world = None;
+        self.marquee_start = None;
+        self.dragging_flex_handle = None;
+        self.dragging_model_rot = None;
+        self.dragging_track_rot = None;
         let id = format!("piece-{}", self.next_piece_seq);
         self.next_piece_seq += 1;
 
@@ -135,6 +141,12 @@ impl RailbenchApp {
 
     pub fn place_catalog_entry_at(&mut self, entry: &CatalogEntry, world_pos: Vec2, snap_radius: f64) {
         self.push_undo();
+        self.dragging_active = false;
+        self.drag_last_world = None;
+        self.marquee_start = None;
+        self.dragging_flex_handle = None;
+        self.dragging_model_rot = None;
+        self.dragging_track_rot = None;
         let id = format!("piece-{}", self.next_piece_seq);
         self.next_piece_seq += 1;
 
@@ -332,11 +344,19 @@ impl RailbenchApp {
         }
         self.selected.retain(|id| !editable_pieces.contains(id) && !editable_models.contains(id));
         update_layout_connections(&mut self.layout, 4.0, 35.0, 1.0);
+        crate::catalog::disconnect_cross_type_connections(&mut self.layout, &self.catalogs);
+        self.vehicle_sim.sanitize_for_layout(&self.layout, &self.catalogs);
         self.mark_layout_dirty();
     }
 
     pub fn place_model_instance(&mut self, mut model: Model3D) {
         self.push_undo();
+        self.dragging_active = false;
+        self.drag_last_world = None;
+        self.marquee_start = None;
+        self.dragging_flex_handle = None;
+        self.dragging_model_rot = None;
+        self.dragging_track_rot = None;
         let id = format!("model-{}", self.next_piece_seq);
         self.next_piece_seq += 1;
         model.id = id.clone();
@@ -519,6 +539,20 @@ impl RailbenchApp {
         };
 
         self.push_undo();
+        let mut group_counts: HashMap<String, usize> = HashMap::new();
+        for p in &cb.pieces {
+            if let Some(ref gid) = p.group_id {
+                *group_counts.entry(gid.clone()).or_insert(0) += 1;
+            }
+        }
+        let mut group_remap: HashMap<String, String> = HashMap::new();
+        for (old_gid, count) in group_counts {
+            if count >= 2 {
+                let new_gid = format!("group-{}", self.next_piece_seq);
+                self.next_piece_seq += 1;
+                group_remap.insert(old_gid, new_gid);
+            }
+        }
         let mut new_ids = Vec::new();
         let mut last_cat_id = None;
 
@@ -526,6 +560,7 @@ impl RailbenchApp {
             let new_id = format!("piece-{}", self.next_piece_seq);
             self.next_piece_seq += 1;
             piece.id = new_id.clone();
+            piece.group_id = piece.group_id.as_ref().and_then(|gid| group_remap.get(gid).cloned());
             piece.transform.x += offset.x;
             piece.transform.y += offset.y;
             for c in &mut piece.connectors {
@@ -579,19 +614,15 @@ impl RailbenchApp {
 
     pub fn select_all(&mut self) {
         self.selected.clear();
-        let terrain_only = self.sidebar_tab == crate::SidebarTab::Terrain;
-        if !terrain_only {
-            for p in &self.layout.pieces {
-                if self.is_layer_editable(p.layer_id.as_deref()) {
-                    self.selected.insert(p.id.clone());
-                }
+        let scope = SelectionScope::from_sidebar_tab(self.sidebar_tab);
+        for p in &self.layout.pieces {
+            if scope.allows_piece(&self.catalogs, p) && self.is_layer_editable(p.layer_id.as_deref()) {
+                self.selected.insert(p.id.clone());
             }
         }
         if let Some(models) = &self.layout.models {
             for m in models {
-                if self.is_layer_editable(m.layer_id.as_deref())
-                    && (!terrain_only || crate::terrain_tools::is_terrain_model(m))
-                {
+                if scope.allows_model(m) && self.is_layer_editable(m.layer_id.as_deref()) {
                     self.selected.insert(m.id.clone());
                 }
             }
@@ -605,8 +636,23 @@ impl RailbenchApp {
     }
 
     pub fn select_connected_tracks(&mut self) {
+        let scope = SelectionScope::from_sidebar_tab(self.sidebar_tab);
+        if !scope.allows_any_piece() {
+            return;
+        }
         let mut visited = HashSet::new();
-        let mut queue: VecDeque<String> = self.selected.iter().cloned().collect();
+        let mut queue: VecDeque<String> = self
+            .selected
+            .iter()
+            .filter(|id| {
+                self.layout
+                    .pieces
+                    .iter()
+                    .find(|p| &p.id == *id)
+                    .is_some_and(|p| scope.allows_piece(&self.catalogs, p))
+            })
+            .cloned()
+            .collect();
         while let Some(cur_id) = queue.pop_front() {
             if !visited.insert(cur_id.clone()) {
                 continue;
@@ -614,7 +660,14 @@ impl RailbenchApp {
             if let Some(piece) = self.layout.pieces.iter().find(|p| p.id == cur_id) {
                 for conn in &piece.connectors {
                     if let Some(ref cto) = conn.connected_to {
-                        if !visited.contains(&cto.piece_id) {
+                        if !visited.contains(&cto.piece_id)
+                            && self
+                                .layout
+                                .pieces
+                                .iter()
+                                .find(|p| p.id == cto.piece_id)
+                                .is_some_and(|p| scope.allows_piece(&self.catalogs, p))
+                        {
                             queue.push_back(cto.piece_id.clone());
                         }
                     }
@@ -631,20 +684,41 @@ impl RailbenchApp {
     }
 
     pub fn select_layer_tracks(&mut self) {
+        let scope = SelectionScope::from_sidebar_tab(self.sidebar_tab);
         let target_lid = self
             .layout
             .pieces
             .iter()
-            .find(|p| self.selected.contains(&p.id))
+            .find(|p| self.selected.contains(&p.id) && scope.allows_piece(&self.catalogs, p))
             .and_then(|p| p.layer_id.clone())
+            .or_else(|| {
+                self.layout.models.as_ref().and_then(|ms| {
+                    ms.iter()
+                        .find(|m| self.selected.contains(&m.id) && scope.allows_model(m))
+                        .and_then(|m| m.layer_id.clone())
+                })
+            })
             .or_else(|| self.layout.active_layer_id.clone())
             .unwrap_or_else(|| "layer-1".into());
         self.selected.clear();
         for p in &self.layout.pieces {
-            if p.layer_id.as_deref().unwrap_or("layer-1") == target_lid
+            if scope.allows_piece(&self.catalogs, p)
+                && p.layer_id.as_deref().unwrap_or("layer-1") == target_lid
                 && self.is_layer_editable(p.layer_id.as_deref())
             {
                 self.selected.insert(p.id.clone());
+            }
+        }
+        if !scope.allows_any_piece() {
+            if let Some(models) = &self.layout.models {
+                for m in models {
+                    if scope.allows_model(m)
+                        && m.layer_id.as_deref().unwrap_or("layer-1") == target_lid
+                        && self.is_layer_editable(m.layer_id.as_deref())
+                    {
+                        self.selected.insert(m.id.clone());
+                    }
+                }
             }
         }
         let n = self.selected.len();

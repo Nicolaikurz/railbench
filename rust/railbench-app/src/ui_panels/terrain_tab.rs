@@ -444,13 +444,14 @@ pub(super) fn draw_terrain_tab(ui: &mut egui::Ui, app: &mut RailbenchApp) {
         );
         let _ = (style_label, ground_label);
         ui.add_space(4.0);
-        for (gtype, name, w, d, h) in [
-            ("hill", "Wiese / Rolling Meadow", 560.0, 420.0, 22.0),
-            ("water", "See / Alpine Lake", 480.0, 360.0, 6.0),
-            ("water", "Fluss / River", 680.0, 180.0, 6.0),
-            ("sand", "Sand / Beach", 460.0, 320.0, 12.0),
-            ("dirt", "Erde / Dirt Mound", 460.0, 320.0, 14.0),
+        for (gtype, name_de, name_en, w, d, h) in [
+            ("hill", "Wiese", "Rolling Meadow", 560.0, 420.0, 22.0),
+            ("water", "See", "Alpine Lake", 480.0, 360.0, 6.0),
+            ("water", "Fluss", "River", 680.0, 180.0, 6.0),
+            ("sand", "Sandstrand", "Sand Beach", 460.0, 320.0, 12.0),
+            ("dirt", "Erde / Huegel", "Dirt Mound", 460.0, 320.0, 14.0),
         ] {
+            let name = if is_de { name_de } else { name_en };
             let resp = Frame::new()
                 .fill(p.bg_card)
                 .corner_radius(CornerRadius::same(7))

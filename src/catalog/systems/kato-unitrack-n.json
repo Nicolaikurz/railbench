@@ -11,135 +11,165 @@
     {
       "id": "20-000",
       "name": "Gerades Gleis S248",
+      "nameEn": "Straight Track S248",
       "kind": "straight",
       "category": "Geraden",
       "description": "Standard-Gerade, Länge 248 mm",
+      "descriptionEn": "Standard straight, Length 248 mm",
       "length": 248,
       "gauge": 9
     },
     {
       "id": "20-010",
       "name": "Gerades Gleis S186",
+      "nameEn": "Straight Track S186",
       "kind": "straight",
       "category": "Geraden",
       "description": "Gerades Gleis, Länge 186 mm",
+      "descriptionEn": "Straight Track, Length 186 mm",
       "length": 186,
       "gauge": 9
     },
     {
       "id": "20-020",
       "name": "Gerades Gleis S124",
+      "nameEn": "Straight Track S124",
       "kind": "straight",
       "category": "Geraden",
       "description": "Halbes Standardgleis, Länge 124 mm",
+      "descriptionEn": "Half Standard Track, Length 124 mm",
       "length": 124,
       "gauge": 9
     },
     {
       "id": "20-021",
       "name": "Aufgleis- und Bahnübergangsgleis S124",
+      "nameEn": "Rerailer & Grade Crossing Track S124",
       "kind": "straight",
       "category": "Zubehör",
       "description": "Gerade 124 mm mit Aufgleisbereich",
+      "descriptionEn": "Straight 124 mm with rerailer section",
       "length": 124,
       "gauge": 9
     },
     {
       "id": "20-030",
       "name": "Gerades Gleis S64",
+      "nameEn": "Straight Track S64",
       "kind": "straight",
       "category": "Geraden",
       "description": "Gerades Gleis, Länge 64 mm",
+      "descriptionEn": "Straight Track, Length 64 mm",
       "length": 64,
       "gauge": 9
     },
     {
       "id": "20-040",
       "name": "Gerades Gleis S62",
+      "nameEn": "Straight Track S62",
       "kind": "straight",
       "category": "Geraden",
       "description": "Gerades Gleis, Länge 62 mm",
+      "descriptionEn": "Straight Track, Length 62 mm",
       "length": 62,
       "gauge": 9
     },
     {
       "id": "20-041",
       "name": "Vario-Gleis (ausziehbar)",
+      "nameEn": "Adjustable Track (Extendable)",
       "kind": "straight",
       "category": "Geraden",
       "description": "Teleskopgleis, variabel 78 mm bis 108 mm",
+      "descriptionEn": "Telescopic track, variable 78 mm to 108 mm",
       "length": 78,
       "gauge": 9
     },
     {
       "id": "20-042",
       "name": "Prellbockgleis 62 mm",
+      "nameEn": "Buffer Stop Track 62 mm",
       "kind": "buffer-stop",
       "category": "Zubehör",
       "description": "Gleis S62 mit integriertem Prellbock",
+      "descriptionEn": "Track S62 with integrated buffer stop",
       "length": 62,
       "gauge": 9
     },
     {
       "id": "20-043",
       "name": "Prellbock beleuchtet 62 mm",
+      "nameEn": "Buffer Stop beleuchtet 62 mm",
       "kind": "buffer-stop",
       "category": "Zubehör",
       "description": "Gleis S62 mit rot beleuchtetem Prellbock",
+      "descriptionEn": "Track S62 with red illuminated Buffer Stop",
       "length": 62,
       "gauge": 9
     },
     {
       "id": "20-045",
       "name": "Anschlussgleis S62",
+      "nameEn": "Feeder Track S62",
       "kind": "feeder",
       "category": "Anschluss",
       "description": "Gerade 62 mm mit integriertem Zuleitungskabel",
+      "descriptionEn": "Straight 62 mm with integrated feeder cable",
       "length": 62,
       "gauge": 9
     },
     {
       "id": "20-050",
       "name": "Ausgleichsgleis S29",
+      "nameEn": "Compensation Track S29",
       "kind": "straight",
       "category": "Geraden",
       "description": "Kurzes Ausgleichsgleis S29 (29 mm)",
+      "descriptionEn": "Kurzes Compensation Track S29 (29 mm)",
       "length": 29,
       "gauge": 9
     },
     {
       "id": "20-051",
       "name": "Ausgleichsgleis S45.5",
+      "nameEn": "Compensation Track S45.5",
       "kind": "straight",
       "category": "Geraden",
       "description": "Ausgleichsgleis S45.5 (45,5 mm)",
+      "descriptionEn": "Compensation Track S45.5 (45.5 mm)",
       "length": 45.5,
       "gauge": 9
     },
     {
       "id": "20-060",
       "name": "Prellbockgleis A (62 mm)",
+      "nameEn": "Buffer Stop Track A (62 mm)",
       "kind": "buffer-stop",
       "category": "Zubehör",
       "description": "Gleisstück 62 mm mit Prellbock Bauart A",
+      "descriptionEn": "Track section 62 mm with Buffer Stop Type A",
       "length": 62,
       "gauge": 9
     },
     {
       "id": "20-063",
       "name": "Prellbockgleis B (62 mm)",
+      "nameEn": "Buffer Stop Track B (62 mm)",
       "kind": "buffer-stop",
       "category": "Zubehör",
       "description": "Gleisstück 62 mm mit Prellbock Bauart B",
+      "descriptionEn": "Track section 62 mm with Buffer Stop Type B",
       "length": 62,
       "gauge": 9
     },
     {
       "id": "20-100",
       "name": "Gebogenes Gleis R249-45°",
+      "nameEn": "Curved Track R249-45°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Radius R249 = 249 mm, Bogen 45°",
+      "descriptionEn": "Radius R249 = 249 mm, Curve 45°",
       "radius": 249,
       "angle": 45,
       "gauge": 9
@@ -147,9 +177,11 @@
     {
       "id": "20-110",
       "name": "Gebogenes Gleis R282-45°",
+      "nameEn": "Curved Track R282-45°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Radius R282 = 282 mm, Bogen 45°",
+      "descriptionEn": "Radius R282 = 282 mm, Curve 45°",
       "radius": 282,
       "angle": 45,
       "gauge": 9
@@ -157,9 +189,11 @@
     {
       "id": "20-120",
       "name": "Gebogenes Gleis R315-45°",
+      "nameEn": "Curved Track R315-45°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Radius R315 = 315 mm, Bogen 45°",
+      "descriptionEn": "Radius R315 = 315 mm, Curve 45°",
       "radius": 315,
       "angle": 45,
       "gauge": 9
@@ -167,9 +201,11 @@
     {
       "id": "20-130",
       "name": "Gebogenes Gleis R348-45°",
+      "nameEn": "Curved Track R348-45°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Radius R348 = 348 mm, Bogen 45°",
+      "descriptionEn": "Radius R348 = 348 mm, Curve 45°",
       "radius": 348,
       "angle": 45,
       "gauge": 9
@@ -177,9 +213,11 @@
     {
       "id": "20-140",
       "name": "Gebogenes Gleis R381-30°",
+      "nameEn": "Curved Track R381-30°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Radius R381 = 381 mm, Bogen 30°",
+      "descriptionEn": "Radius R381 = 381 mm, Curve 30°",
       "radius": 381,
       "angle": 30,
       "gauge": 9
@@ -187,9 +225,11 @@
     {
       "id": "20-150",
       "name": "Gebogenes Gleis R718-15°",
+      "nameEn": "Curved Track R718-15°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Gegenbogen für Weiche #4, R718 = 718 mm, Bogen 15°",
+      "descriptionEn": "Counter-curve for No. 4 turnout, R718 = 718 mm, Curve 15°",
       "radius": 718,
       "angle": 15,
       "gauge": 9
@@ -197,9 +237,11 @@
     {
       "id": "20-160",
       "name": "Gebogenes Gleis R481-15°",
+      "nameEn": "Curved Track R481-15°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Gegenbogen für Weiche #6, R481 = 481 mm, Bogen 15°",
+      "descriptionEn": "Counter-curve for No. 6 turnout, R481 = 481 mm, Curve 15°",
       "radius": 481,
       "angle": 15,
       "gauge": 9
@@ -207,9 +249,11 @@
     {
       "id": "20-170",
       "name": "Gebogenes Gleis Compact R216-45°",
+      "nameEn": "Curved Track Compact R216-45°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Radius R216 = 216 mm, Bogen 45°",
+      "descriptionEn": "Radius R216 = 216 mm, Curve 45°",
       "radius": 216,
       "angle": 45,
       "gauge": 9
@@ -217,9 +261,11 @@
     {
       "id": "20-171",
       "name": "Gebogenes Gleis Compact R216-15°",
+      "nameEn": "Curved Track Compact R216-15°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Radius R216 = 216 mm, Bogen 15°",
+      "descriptionEn": "Radius R216 = 216 mm, Curve 15°",
       "radius": 216,
       "angle": 15,
       "gauge": 9
@@ -227,9 +273,11 @@
     {
       "id": "20-172",
       "name": "Gebogenes Gleis Compact R183-45°",
+      "nameEn": "Curved Track Compact R183-45°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Radius R183 = 183 mm, Bogen 45° (Kompaktkreis)",
+      "descriptionEn": "Radius R183 = 183 mm, Curve 45° (compact circle)",
       "radius": 183,
       "angle": 45,
       "gauge": 9
@@ -237,9 +285,11 @@
     {
       "id": "20-174",
       "name": "Gebogenes Gleis Compact R150-45°",
+      "nameEn": "Curved Track Compact R150-45°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Radius R150 = 150 mm, Bogen 45° (Super-Kompaktkreis)",
+      "descriptionEn": "Radius R150 = 150 mm, Curve 45° (Super-compact circle)",
       "radius": 150,
       "angle": 45,
       "gauge": 9
@@ -247,9 +297,11 @@
     {
       "id": "20-202",
       "name": "Elektroweiche #6 links (15°)",
+      "nameEn": "Electric No. 6 Left Turnout (15°)",
       "kind": "turnout-left",
       "category": "Weichen",
       "description": "Länge 126 mm, Abzweig R718 / 15°",
+      "descriptionEn": "Length 126 mm, branch R718 / 15°",
       "length": 126,
       "branchRadius": 718,
       "branchAngle": 15,
@@ -258,9 +310,11 @@
     {
       "id": "20-203",
       "name": "Elektroweiche #6 rechts (15°)",
+      "nameEn": "Electric No. 6 Right Turnout (15°)",
       "kind": "turnout-right",
       "category": "Weichen",
       "description": "Länge 126 mm, Abzweig R718 / 15°",
+      "descriptionEn": "Length 126 mm, branch R718 / 15°",
       "length": 126,
       "branchRadius": 718,
       "branchAngle": 15,
@@ -269,9 +323,11 @@
     {
       "id": "20-210",
       "name": "Elektro-Doppelkreuzungsweiche WX310",
+      "nameEn": "Electric Double Slip Switch WX310",
       "kind": "double-slip",
       "category": "Kreuzungen",
       "description": "Länge 174 mm, Kreuzungswinkel 15°",
+      "descriptionEn": "Length 174 mm, crossing angle 15°",
       "length": 174,
       "angle": 15,
       "branchRadius": 541,
@@ -281,9 +337,11 @@
     {
       "id": "20-220",
       "name": "Elektroweiche #4 links (15°)",
+      "nameEn": "Electric No. 4 Left Turnout (15°)",
       "kind": "turnout-left",
       "category": "Weichen",
       "description": "Länge 126 mm, Abzweig R481 / 15°",
+      "descriptionEn": "Length 126 mm, branch R481 / 15°",
       "length": 126,
       "branchRadius": 481,
       "branchAngle": 15,
@@ -292,9 +350,11 @@
     {
       "id": "20-221",
       "name": "Elektroweiche #4 rechts (15°)",
+      "nameEn": "Electric No. 4 Right Turnout (15°)",
       "kind": "turnout-right",
       "category": "Weichen",
       "description": "Länge 126 mm, Abzweig R481 / 15°",
+      "descriptionEn": "Length 126 mm, branch R481 / 15°",
       "length": 126,
       "branchRadius": 481,
       "branchAngle": 15,
@@ -303,9 +363,11 @@
     {
       "id": "20-240",
       "name": "Doppelkreuzungsweiche / Hosenträger",
+      "nameEn": "Double Crossover Track",
       "kind": "double-slip",
       "category": "Kreuzungen",
       "description": "Hosenträger-Verbindung (Double Crossover), Länge 310 mm, Gleisabstand 33 mm",
+      "descriptionEn": "Double Crossover, Length 310 mm, track spacing 33 mm",
       "length": 310,
       "angle": 15,
       "branchRadius": 481,
@@ -315,9 +377,11 @@
     {
       "id": "20-300",
       "name": "Kreuzung X15L (15° links)",
+      "nameEn": "Crossing X15L (15° left)",
       "kind": "crossing",
       "category": "Kreuzungen",
       "description": "Länge 124 mm, Kreuzungswinkel 15°",
+      "descriptionEn": "Length 124 mm, crossing angle 15°",
       "length": 124,
       "angle": 15,
       "gauge": 9
@@ -325,9 +389,11 @@
     {
       "id": "20-310",
       "name": "Kreuzung X15R (15° rechts)",
+      "nameEn": "Crossing X15R (15° right)",
       "kind": "crossing",
       "category": "Kreuzungen",
       "description": "Länge 124 mm, Kreuzungswinkel 15°",
+      "descriptionEn": "Length 124 mm, crossing angle 15°",
       "length": 124,
       "angle": 15,
       "gauge": 9
@@ -335,9 +401,11 @@
     {
       "id": "20-320",
       "name": "Kreuzung X90 (90°)",
+      "nameEn": "Crossing X90 (90°)",
       "kind": "crossing",
       "category": "Kreuzungen",
       "description": "Länge 124 mm, Kreuzungswinkel 90°",
+      "descriptionEn": "Length 124 mm, crossing angle 90°",
       "length": 124,
       "angle": 90,
       "gauge": 9

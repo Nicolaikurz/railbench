@@ -50,7 +50,7 @@ pub struct Edit3DParams<'a> {
     pub snapping_enabled: bool,
     pub layer_protection: bool,
     pub rotation_step: f64,
-    pub terrain_only_selection: bool,
+    pub selection_scope: crate::SelectionScope,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -173,13 +173,15 @@ pub fn compute_3d_catalog_drop_preview(
 
 pub(super) fn collect_3d_plus_connectors(
     layout: &Layout,
+    catalogs: &[Catalog],
     selected: &HashSet<String>,
     hovered_id: Option<&str>,
     rect: Rect,
     camera: &Camera3D,
     can_build: bool,
+    selection_scope: crate::SelectionScope,
 ) -> Vec<(String, usize, eframe::egui::Pos2)> {
-    if !can_build || layout.pieces.is_empty() {
+    if !can_build || !selection_scope.allows_any_piece() || layout.pieces.is_empty() {
         return Vec::new();
     }
     let layers = layer_info_map(layout);
@@ -191,14 +193,20 @@ pub(super) fn collect_3d_plus_connectors(
         focus_ids.insert(hid);
     }
     if focus_ids.is_empty() {
-        for p in layout.pieces.iter().rev().take(2) {
+        for p in layout
+            .pieces
+            .iter()
+            .filter(|p| selection_scope.allows_piece(catalogs, p))
+            .rev()
+            .take(2)
+        {
             focus_ids.insert(p.id.as_str());
         }
     }
 
     let mut out = Vec::new();
     for p in &layout.pieces {
-        if !focus_ids.contains(p.id.as_str()) {
+        if !selection_scope.allows_piece(catalogs, p) || !focus_ids.contains(p.id.as_str()) {
             continue;
         }
         let lid = p.layer_id.as_deref().unwrap_or("layer-1");
@@ -325,6 +333,7 @@ pub(super) fn is_obj_editable(
 }
 
 /// Ray-picks the closest editable track piece or 3D building/model along `origin + t*dir`.
+#[allow(dead_code)]
 pub fn pick_3d_object(
     origin: [f32; 3],
     dir: [f32; 3],
@@ -332,63 +341,90 @@ pub fn pick_3d_object(
     catalogs: &[Catalog],
     layer_protection: bool,
 ) -> Option<String> {
+    pick_3d_object_scoped(
+        origin,
+        dir,
+        layout,
+        catalogs,
+        layer_protection,
+        crate::SelectionScope::All,
+    )
+}
+
+/// Scope-filtered 3D ray picking along `origin + t*dir`.
+pub fn pick_3d_object_scoped(
+    origin: [f32; 3],
+    dir: [f32; 3],
+    layout: &Layout,
+    catalogs: &[Catalog],
+    layer_protection: bool,
+    scope: crate::SelectionScope,
+) -> Option<String> {
     let layers = layer_info_map(layout);
     let mut best: Option<(f32, String)> = None;
 
-    for p in &layout.pieces {
-        if !is_obj_editable(layout, &layers, p.layer_id.as_deref(), layer_protection) {
-            continue;
-        }
-        let lid = p.layer_id.as_deref().unwrap_or("layer-1");
-        let lh = layers.get(lid).map(|v| v.0).unwrap_or(0.0) as f32;
-        let e0 = lh + p.elevation.map(|e| e.start).unwrap_or(0.0) as f32 + 5.5;
-        let e1 = lh + p.elevation.map(|e| e.end).unwrap_or((e0 - lh - 5.5) as f64) as f32 + 5.5;
-        let entry = find_entry(catalogs, &p.catalog_id);
-        let gauge = entry.and_then(|e| e.gauge).unwrap_or(16.5) as f32;
-        let is_road = is_road_id(catalogs, &p.catalog_id);
-        let hit_r = if is_road {
-            entry.and_then(|e| e.road_width).unwrap_or(60.0) as f32 * 0.58
-        } else {
-            (gauge * 1.45).max(24.0)
-        };
-
-        for br in sample_track_branches_world(p, entry) {
-            if br.len() < 2 {
+    if scope.allows_any_piece() {
+        for p in &layout.pieces {
+            if !scope.allows_piece(catalogs, p)
+                || !is_obj_editable(layout, &layers, p.layer_id.as_deref(), layer_protection)
+            {
                 continue;
             }
-            let n = (br.len() - 1).max(1) as f32;
-            for (k, w) in br.windows(2).enumerate() {
-                let t0 = k as f32 / n;
-                let t1 = (k + 1) as f32 / n;
-                let a = [w[0].x as f32, e0 + (e1 - e0) * t0, w[0].y as f32];
-                let b = [w[1].x as f32, e0 + (e1 - e0) * t1, w[1].y as f32];
-                let (dist, ray_t) = ray_segment_distance_3d(origin, dir, a, b);
-                if dist <= hit_r && best.as_ref().map_or(true, |(bt, _)| ray_t < *bt) {
-                    best = Some((ray_t, p.id.clone()));
+            let lid = p.layer_id.as_deref().unwrap_or("layer-1");
+            let lh = layers.get(lid).map(|v| v.0).unwrap_or(0.0) as f32;
+            let e0 = lh + p.elevation.map(|e| e.start).unwrap_or(0.0) as f32 + 5.5;
+            let e1 = lh + p.elevation.map(|e| e.end).unwrap_or((e0 - lh - 5.5) as f64) as f32 + 5.5;
+            let entry = find_entry(catalogs, &p.catalog_id);
+            let gauge = entry.and_then(|e| e.gauge).unwrap_or(16.5) as f32;
+            let is_road = is_road_id(catalogs, &p.catalog_id);
+            let hit_r = if is_road {
+                entry.and_then(|e| e.road_width).unwrap_or(60.0) as f32 * 0.58
+            } else {
+                (gauge * 1.45).max(24.0)
+            };
+
+            for br in sample_track_branches_world(p, entry) {
+                if br.len() < 2 {
+                    continue;
+                }
+                let n = (br.len() - 1).max(1) as f32;
+                for (k, w) in br.windows(2).enumerate() {
+                    let t0 = k as f32 / n;
+                    let t1 = (k + 1) as f32 / n;
+                    let a = [w[0].x as f32, e0 + (e1 - e0) * t0, w[0].y as f32];
+                    let b = [w[1].x as f32, e0 + (e1 - e0) * t1, w[1].y as f32];
+                    let (dist, ray_t) = ray_segment_distance_3d(origin, dir, a, b);
+                    if dist <= hit_r && best.as_ref().map_or(true, |(bt, _)| ray_t < *bt) {
+                        best = Some((ray_t, p.id.clone()));
+                    }
                 }
             }
         }
     }
 
-    if let Some(models) = &layout.models {
-        for m in models {
-            if !is_obj_editable(layout, &layers, m.layer_id.as_deref(), layer_protection) {
-                continue;
-            }
-            if matches!(m.builtin_id.as_deref(), Some("ground-terrain") | Some("mountain")) {
-                continue;
-            }
-            let lid = m.layer_id.as_deref().unwrap_or("layer-1");
-            let lh = layers.get(lid).map(|v| v.0).unwrap_or(0.0) as f32;
-            let s = m.scale.unwrap_or(1.0) as f32;
-            let my = lh + m.elevation.unwrap_or(0.0) as f32;
-            let mh = (m.height as f32 * s).max(16.0);
-            let rad = ((m.width as f32).hypot(m.depth as f32) * 0.5 * s).max(22.0);
-            let a = [m.transform.x as f32, my, m.transform.y as f32];
-            let b = [m.transform.x as f32, my + mh, m.transform.y as f32];
-            let (dist, ray_t) = ray_segment_distance_3d(origin, dir, a, b);
-            if dist <= rad && best.as_ref().map_or(true, |(bt, _)| ray_t < *bt) {
-                best = Some((ray_t, m.id.clone()));
+    if scope.allows_buildings() {
+        if let Some(models) = &layout.models {
+            for m in models {
+                if !scope.allows_model(m)
+                    || !is_obj_editable(layout, &layers, m.layer_id.as_deref(), layer_protection)
+                {
+                    continue;
+                }
+                if matches!(m.builtin_id.as_deref(), Some("ground-terrain") | Some("mountain")) {
+                    continue;
+                }
+                let lid = m.layer_id.as_deref().unwrap_or("layer-1");
+                let lh = layers.get(lid).map(|v| v.0).unwrap_or(0.0) as f32;
+                let s = m.scale.unwrap_or(1.0) as f32;
+                let my = lh + m.elevation.unwrap_or(0.0) as f32;
+                let mh = (m.height as f32 * s).max(16.0);
+                let rad = ((m.width as f32).hypot(m.depth as f32) * 0.5 * s).max(22.0);
+                let a = [m.transform.x as f32, my, m.transform.y as f32];
+                let b = [m.transform.x as f32, my + mh, m.transform.y as f32];
+                let (dist, ray_t) = ray_segment_distance_3d(origin, dir, a, b);
+                if dist <= rad && best.as_ref().map_or(true, |(bt, _)| ray_t < *bt) {
+                    best = Some((ray_t, m.id.clone()));
+                }
             }
         }
     }
@@ -449,10 +485,12 @@ pub(super) fn active_selection_pivot_world(layout: &Layout, selected: &HashSet<S
 /// 3D rotation handle point protruding in the XZ plane from the active selection pivot.
 pub fn compute_3d_rotation_handle_world(
     layout: &Layout,
+    catalogs: &[Catalog],
     selected: &HashSet<String>,
     layer_protection: bool,
     camera_dist: f32,
     edit: &Edit3DState,
+    selection_scope: crate::SelectionScope,
 ) -> Option<([f32; 3], [f32; 3], f64, Option<f64>)> {
     if selected.is_empty() {
         return None;
@@ -461,7 +499,11 @@ pub fn compute_3d_rotation_handle_world(
     let editable_pieces: Vec<&TrackPiece> = layout
         .pieces
         .iter()
-        .filter(|p| selected.contains(&p.id) && is_obj_editable(layout, &layers, p.layer_id.as_deref(), layer_protection))
+        .filter(|p| {
+            selected.contains(&p.id)
+                && selection_scope.allows_piece(catalogs, p)
+                && is_obj_editable(layout, &layers, p.layer_id.as_deref(), layer_protection)
+        })
         .collect();
     let editable_models: Vec<&Model3D> = layout
         .models
@@ -470,6 +512,7 @@ pub fn compute_3d_rotation_handle_world(
             ms.iter()
                 .filter(|m| {
                     selected.contains(&m.id)
+                        && selection_scope.allows_model(m)
                         && is_obj_editable(layout, &layers, m.layer_id.as_deref(), layer_protection)
                         && !matches!(m.builtin_id.as_deref(), Some("mountain") | Some("ground-terrain"))
                 })

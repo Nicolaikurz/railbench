@@ -434,11 +434,18 @@ pub fn has_three_rail_catalog(catalogs: &[Catalog], catalog_id: &str) -> bool {
 
 pub fn is_road_id(catalogs: &[Catalog], catalog_id: &str) -> bool {
     if let Some(e) = find_entry(catalogs, catalog_id) {
-        if e.is_road == Some(true) {
+        if e.is_road == Some(true) || e.road_width.is_some() {
             return true;
         }
     }
-    catalog_id.starts_with("ST-") || catalog_id.starts_with("street-") || catalog_id.starts_with("road-")
+    if catalogs
+        .iter()
+        .any(|c| c.is_road == Some(true) && c.entries.iter().any(|e| e.id == catalog_id))
+    {
+        return true;
+    }
+    let lower = catalog_id.to_ascii_lowercase();
+    lower.starts_with("st-") || lower.starts_with("street-") || lower.starts_with("road-")
 }
 
 pub fn is_flex_id(catalogs: &[Catalog], catalog_id: &str) -> bool {
@@ -603,6 +610,146 @@ pub fn compare_catalog_entries_by_number(a: &CatalogEntry, b: &CatalogEntry) -> 
     ca.len().cmp(&cb.len())
 }
 
+
+/// Translates a catalog category name while preserving custom user categories.
+pub fn translate_catalog_category(category: &str, is_de: bool) -> String {
+    let trimmed = category.trim();
+    match trimmed.to_ascii_lowercase().as_str() {
+        "geraden" => {
+            if is_de { "Geraden" } else { "Straights" }.into()
+        }
+        "bögen" | "boegen" | "bogen" | "kurven" => {
+            if is_de { "Bögen" } else { "Curves" }.into()
+        }
+        "weichen" => {
+            if is_de { "Weichen" } else { "Turnouts" }.into()
+        }
+        "kreuzungen" => {
+            if is_de { "Kreuzungen" } else { "Crossings" }.into()
+        }
+        "anschluss" => {
+            if is_de { "Anschluss" } else { "Power & Feeders" }.into()
+        }
+        "funktionsgleise" => {
+            if is_de { "Funktionsgleise" } else { "Functional Tracks" }.into()
+        }
+        "zubehör" | "zubehoer" => {
+            if is_de { "Zubehör" } else { "Accessories" }.into()
+        }
+        _ => trimmed.to_string(),
+    }
+}
+
+fn translate_catalog_title_str(raw: &str, is_de: bool) -> String {
+    let mut s = raw.trim().to_string();
+    if s.contains("Straßensystem / Streets") {
+        if is_de {
+            s = s.replace("Straßensystem / Streets", "Straßensystem");
+        } else {
+            s = s.replace("Straßensystem / Streets", "Streets").replace("1:22,5", "1:22.5");
+        }
+    } else if s.contains("Straßen / Roads") {
+        s = s.replace("Straßen / Roads", if is_de { "Straßen" } else { "Roads" });
+    }
+    if !is_de {
+        for (src, dst) in [
+            ("Gleissystem", "Track System"),
+            ("TT-Bettungsgleis", "TT Roadbed Track"),
+            ("Bettungsgleis", "Roadbed Track"),
+            ("Modellgleis", "Model Track"),
+            ("Messinggleis", "Brass Track"),
+            ("Elite-Gleis", "Elite Track"),
+            ("C-Gleis", "C-Track"),
+            ("K-Gleis", "K-Track"),
+            ("M-Gleis", "M-Track"),
+            ("A-Gleis", "A-Track"),
+            ("Kühn-Gleis", "Kühn Track"),
+            ("Spur ", "Scale "),
+        ] {
+            if s.contains(src) {
+                s = s.replace(src, dst);
+            }
+        }
+    }
+    s
+}
+
+/// Returns the localized display name for a track or road catalog while keeping user-defined names intact.
+pub fn localized_catalog_name(cat: &Catalog, is_de: bool) -> String {
+    translate_catalog_title_str(&cat.name, is_de)
+}
+
+/// Returns the localized system name for a track or road catalog, falling back to `localized_catalog_name`.
+pub fn localized_catalog_system(cat: &Catalog, is_de: bool) -> String {
+    if let Some(sys) = cat.system.as_deref().filter(|s| !s.trim().is_empty()) {
+        translate_catalog_title_str(sys, is_de)
+    } else {
+        localized_catalog_name(cat, is_de)
+    }
+}
+
+/// Returns the localized name for a catalog entry.
+pub fn localized_entry_name<'a>(entry: &'a CatalogEntry, is_de: bool) -> &'a str {
+    if is_de {
+        entry.name.as_str()
+    } else {
+        entry
+            .name_en
+            .as_deref()
+            .filter(|s| !s.trim().is_empty())
+            .unwrap_or(&entry.name)
+    }
+}
+
+/// Returns the localized description for a catalog entry.
+pub fn localized_entry_description<'a>(entry: &'a CatalogEntry, is_de: bool) -> &'a str {
+    if is_de {
+        entry.description.as_str()
+    } else {
+        entry
+            .description_en
+            .as_deref()
+            .filter(|s| !s.trim().is_empty())
+            .unwrap_or(&entry.description)
+    }
+}
+
+/// Returns a human-readable localized label for a track `kind`.
+pub fn localized_track_kind(kind: &str, is_de: bool) -> &'static str {
+    match kind.trim().to_ascii_lowercase().as_str() {
+        "straight" => if is_de { "Gerade" } else { "Straight" },
+        "curve" => if is_de { "Bogen" } else { "Curve" },
+        "flex" => if is_de { "Flexgleis" } else { "Flex Track" },
+        "turnout-left" => if is_de { "Weiche links" } else { "Left Turnout" },
+        "turnout-right" => if is_de { "Weiche rechts" } else { "Right Turnout" },
+        "curved-turnout-left" => if is_de { "Bogenweiche links" } else { "Curved Left Turnout" },
+        "curved-turnout-right" => if is_de { "Bogenweiche rechts" } else { "Curved Right Turnout" },
+        "three-way" => if is_de { "Dreiwegweiche" } else { "Three-Way Turnout" },
+        "double-slip" => if is_de { "Doppelkreuzungsweiche (DKW)" } else { "Double Slip Switch (DKW)" },
+        "crossing" => if is_de { "Kreuzung" } else { "Crossing" },
+        "buffer" | "buffer-stop" => if is_de { "Prellbock" } else { "Buffer Stop" },
+        "feeder" => if is_de { "Anschlussgleis" } else { "Feeder Track" },
+        "uncoupler" => if is_de { "Entkupplungsgleis" } else { "Uncoupler Track" },
+        "isolating" | "isolator" => if is_de { "Trenngleis" } else { "Isolating Track" },
+        "turntable" => if is_de { "Drehscheibe" } else { "Turntable" },
+        "transfer-table" => if is_de { "Schiebebühne" } else { "Transfer Table" },
+        "accessory" => if is_de { "Zubehör" } else { "Accessory" },
+        _ => "-",
+    }
+}
+
+/// Returns a localized display label for a 3D model category while preserving custom category strings.
+pub fn localized_model_category(category: &str, is_de: bool) -> String {
+    let trimmed = category.trim();
+    match trimmed.to_ascii_lowercase().as_str() {
+        "buildings" => if is_de { "Gebäude" } else { "Buildings" }.into(),
+        "railway" => if is_de { "Bahn" } else { "Railway" }.into(),
+        "nature" => if is_de { "Natur" } else { "Nature" }.into(),
+        "custom" => if is_de { "Eigene" } else { "Custom" }.into(),
+        "terrain" => if is_de { "Gelände" } else { "Terrain" }.into(),
+        _ => trimmed.to_string(),
+    }
+}
 
 /// Disconnects any `connected_to` links between tracks and roads so they never snap/join together.
 pub fn disconnect_cross_type_connections(layout: &mut railbench_core::types::Layout, catalogs: &[Catalog]) {
@@ -773,6 +920,127 @@ mod tests {
         reset_flex_track_to_original(&mut flex, &cats);
         assert!(flex.custom_radius.is_none());
         assert!(flex.custom_angle.is_none());
+    }
+
+    #[test]
+    fn all_builtin_catalog_entries_have_clean_english_translations() {
+        let cats = builtin_catalogs();
+        assert!(!cats.is_empty());
+
+        let forbidden_words = [
+            "Gleis",
+            "Weiche",
+            "Bogen",
+            "Kreuzung",
+            "Prellbock",
+            "Anschluss",
+            "Gerade",
+            "Straße",
+            "Strasse",
+            "Schwellen",
+            "Bettung",
+            "Spur ",
+        ];
+        let forbidden_cats = [
+            "Geraden",
+            "Bögen",
+            "Weichen",
+            "Kreuzungen",
+            "Anschluss",
+            "Funktionsgleise",
+            "Zubehör",
+        ];
+
+        let mut total_entries = 0usize;
+        for cat in &cats {
+            let cat_name_en = localized_catalog_name(cat, false);
+            let cat_sys_en = localized_catalog_system(cat, false);
+            for pat in [
+                "Straßensystem",
+                "Gleissystem",
+                "Spur ",
+                "Messinggleis",
+                "Bettungsgleis",
+                "Modellgleis",
+                "-Gleis",
+            ] {
+                assert!(
+                    !cat_name_en.contains(pat),
+                    "catalog {} name_en still has {pat}: {cat_name_en}",
+                    cat.id
+                );
+                assert!(
+                    !cat_sys_en.contains(pat),
+                    "catalog {} sys_en still has {pat}: {cat_sys_en}",
+                    cat.id
+                );
+            }
+
+            for entry in &cat.entries {
+                total_entries += 1;
+                let ne = entry
+                    .name_en
+                    .as_deref()
+                    .unwrap_or_else(|| panic!("missing name_en for {}/{}", cat.id, entry.id));
+                assert!(
+                    !ne.trim().is_empty(),
+                    "empty name_en for {}/{}",
+                    cat.id,
+                    entry.id
+                );
+                let de = entry
+                    .description_en
+                    .as_deref()
+                    .unwrap_or_else(|| panic!("missing description_en for {}/{}", cat.id, entry.id));
+                assert!(
+                    !de.trim().is_empty(),
+                    "empty description_en for {}/{}",
+                    cat.id,
+                    entry.id
+                );
+
+                for (field, val) in [("name_en", ne), ("description_en", de)] {
+                    assert!(
+                        !val.chars().any(|c| "äöüÄÖÜß".contains(c)),
+                        "German umlaut/eszett in {field} for {}/{}: {val}",
+                        cat.id,
+                        entry.id
+                    );
+                    for fw in forbidden_words {
+                        assert!(
+                            !val.contains(fw),
+                            "German word {fw} in {field} for {}/{}: {val}",
+                            cat.id,
+                            entry.id
+                        );
+                    }
+                }
+
+                let tr_cat = translate_catalog_category(&entry.category, false);
+                for fc in forbidden_cats {
+                    assert_ne!(
+                        tr_cat, fc,
+                        "untranslated category for {}/{}: {tr_cat}",
+                        cat.id, entry.id
+                    );
+                }
+            }
+        }
+        assert!(total_entries >= 800, "unexpected catalog count {total_entries}");
+    }
+
+    #[test]
+    fn all_builtin_models_and_key_actions_have_english_labels() {
+        for m in crate::model_tools::BUILTIN_MODELS {
+            assert!(!m.name_en.trim().is_empty(), "empty name_en for model {}", m.id);
+            assert!(!m.desc_en.trim().is_empty(), "empty desc_en for model {}", m.id);
+            let cat_en = localized_model_category(m.category, false);
+            assert!(!cat_en.trim().is_empty());
+        }
+        for k in crate::settings::KEY_ACTION_DEFS {
+            assert!(!k.label_en.trim().is_empty(), "empty label_en for key {}", k.id);
+            assert!(!k.desc_en.trim().is_empty(), "empty desc_en for key {}", k.id);
+        }
     }
 }
 

@@ -11,72 +11,88 @@
     {
       "id": "83700",
       "name": "Gerades Gleis BG1 (166 mm)",
+      "nameEn": "Straight Track BG1 (166 mm)",
       "kind": "straight",
       "category": "Geraden",
       "description": "Standard-Gerade mit Bettung, Länge 166 mm",
+      "descriptionEn": "Standard straight with roadbed, Length 166 mm",
       "length": 166,
       "gauge": 12
     },
     {
       "id": "83701",
       "name": "Gerades Gleis BG2 (83 mm)",
+      "nameEn": "Straight Track BG2 (83 mm)",
       "kind": "straight",
       "category": "Geraden",
       "description": "Halbes Gleis mit Bettung, Länge 83 mm",
+      "descriptionEn": "Half Track with Roadbed, Length 83 mm",
       "length": 83,
       "gauge": 12
     },
     {
       "id": "83702",
       "name": "Gerades Gleis BG3 (43 mm)",
+      "nameEn": "Straight Track BG3 (43 mm)",
       "kind": "straight",
       "category": "Geraden",
       "description": "Ausgleichsgerade mit Bettung, Länge 43 mm (Weichen-Gegenstück)",
+      "descriptionEn": "Compensation straight with roadbed, Length 43 mm (turnout counterpart)",
       "length": 43,
       "gauge": 12
     },
     {
       "id": "83704",
       "name": "Gerades Gleis BG5 (36,5 mm)",
+      "nameEn": "Straight Track BG5 (36.5 mm)",
       "kind": "straight",
       "category": "Geraden",
       "description": "Ausgleichsstück mit Bettung, Länge 36,5 mm",
+      "descriptionEn": "Compensation piece with roadbed, Length 36.5 mm",
       "length": 36.5,
       "gauge": 12
     },
     {
       "id": "83705",
       "name": "Gerades Gleis BG4 (41,5 mm)",
+      "nameEn": "Straight Track BG4 (41.5 mm)",
       "kind": "straight",
       "category": "Geraden",
       "description": "Viertelgleis mit Bettung, Länge 41,5 mm",
+      "descriptionEn": "Quarter Track with Roadbed, Length 41.5 mm",
       "length": 41.5,
       "gauge": 12
     },
     {
       "id": "83706",
       "name": "Anschlussgleis BG2a (83 mm)",
+      "nameEn": "Feeder Track BG2a (83 mm)",
       "kind": "straight",
       "category": "Geraden",
       "description": "Gerades Gleis 83 mm mit Anschlussklemmen",
+      "descriptionEn": "Straight Track 83 mm with power terminal clips",
       "length": 83,
       "gauge": 12
     },
     {
       "id": "83707",
       "name": "Trenngleis BG-T (41,5 mm)",
+      "nameEn": "Isolating Track BG-T (41.5 mm)",
       "kind": "straight",
       "category": "Geraden",
       "description": "Unterbrechergleis 41,5 mm mit einseitiger Schienentrennung",
+      "descriptionEn": "Interrupting Track 41.5 mm with single-side rail gap",
       "length": 41.5,
       "gauge": 12
     },
     {
       "id": "83709",
       "name": "Gebogenes Gleis BR11 / 30°",
+      "nameEn": "Curved Track BR11 / 30°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Radius R11 = 310 mm, Bogen 30°",
+      "descriptionEn": "Radius R11 = 310 mm, Curve 30°",
       "radius": 310,
       "angle": 30,
       "gauge": 12
@@ -84,9 +100,11 @@
     {
       "id": "83710",
       "name": "Gebogenes Gleis BR12 / 15°",
+      "nameEn": "Curved Track BR12 / 15°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Radius R11 = 310 mm, Bogen 15°",
+      "descriptionEn": "Radius R11 = 310 mm, Curve 15°",
       "radius": 310,
       "angle": 15,
       "gauge": 12
@@ -94,9 +112,11 @@
     {
       "id": "83711",
       "name": "Gebogenes Gleis BR21 / 30°",
+      "nameEn": "Curved Track BR21 / 30°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Radius R21 = 353 mm, Bogen 30°",
+      "descriptionEn": "Radius R21 = 353 mm, Curve 30°",
       "radius": 353,
       "angle": 30,
       "gauge": 12
@@ -104,9 +124,11 @@
     {
       "id": "83712",
       "name": "Gebogenes Gleis BR22 / 15°",
+      "nameEn": "Curved Track BR22 / 15°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Radius R21 = 353 mm, Bogen 15°",
+      "descriptionEn": "Radius R21 = 353 mm, Curve 15°",
       "radius": 353,
       "angle": 15,
       "gauge": 12
@@ -114,9 +136,11 @@
     {
       "id": "83713",
       "name": "Gebogenes Gleis BR31 / 30°",
+      "nameEn": "Curved Track BR31 / 30°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Radius R31 = 396 mm, Bogen 30°",
+      "descriptionEn": "Radius R31 = 396 mm, Curve 30°",
       "radius": 396,
       "angle": 30,
       "gauge": 12
@@ -124,9 +148,11 @@
     {
       "id": "83714",
       "name": "Gebogenes Gleis BR32 / 15°",
+      "nameEn": "Curved Track BR32 / 15°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Radius R31 = 396 mm, Bogen 15°",
+      "descriptionEn": "Radius R31 = 396 mm, Curve 15°",
       "radius": 396,
       "angle": 15,
       "gauge": 12
@@ -134,9 +160,11 @@
     {
       "id": "83715",
       "name": "Gebogenes Gleis BR41 / 30°",
+      "nameEn": "Curved Track BR41 / 30°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Radius R41 = 439 mm, Bogen 30°",
+      "descriptionEn": "Radius R41 = 439 mm, Curve 30°",
       "radius": 439,
       "angle": 30,
       "gauge": 12
@@ -144,9 +172,11 @@
     {
       "id": "83716",
       "name": "Gebogenes Gleis BR42 / 15°",
+      "nameEn": "Curved Track BR42 / 15°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Radius R41 = 439 mm, Bogen 15°",
+      "descriptionEn": "Radius R41 = 439 mm, Curve 15°",
       "radius": 439,
       "angle": 15,
       "gauge": 12
@@ -154,18 +184,22 @@
     {
       "id": "83721",
       "name": "Entkupplungsgleis elektrisch",
+      "nameEn": "Electric Uncoupler Track",
       "kind": "uncoupler",
       "category": "Zubehör",
       "description": "Länge 83 mm mit integriertem elektrischem Entkuppler",
+      "descriptionEn": "Length 83 mm with integrated electric uncoupler",
       "length": 83,
       "gauge": 12
     },
     {
       "id": "83722",
       "name": "Bogen-Anschlussgleis BR11a / 30°",
+      "nameEn": "Curved Feeder Track BR11a / 30°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Radius R11 = 310 mm, 30° mit elektrischem Anschluss",
+      "descriptionEn": "Radius R11 = 310 mm, 30° with electrical power leads",
       "radius": 310,
       "angle": 30,
       "gauge": 12
@@ -173,18 +207,22 @@
     {
       "id": "83723",
       "name": "Aufgleis- und Bahnübergangsgleis BG6 (166 mm)",
+      "nameEn": "Rerailer & Grade Crossing Track BG6 (166 mm)",
       "kind": "straight",
       "category": "Zubehör",
       "description": "Gerades Gleis 166 mm mit Aufgleishilfe / Rillenbelag",
+      "descriptionEn": "Straight Track 166 mm with rerailer ramp / grooved decking",
       "length": 166,
       "gauge": 12
     },
     {
       "id": "83724",
       "name": "Bogen-Trenngleis BR12-T / 15°",
+      "nameEn": "Curved Isolating Track BR12-T / 15°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Radius R11 = 310 mm, 15° mit einpoliger Gleistrennung",
+      "descriptionEn": "Radius R11 = 310 mm, 15° with single-pole rail gap",
       "radius": 310,
       "angle": 15,
       "gauge": 12
@@ -192,9 +230,11 @@
     {
       "id": "83725",
       "name": "Gegenbogen Weiche BR12-W / 15°",
+      "nameEn": "Counter-Curve for Turnout BR12-W / 15°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Radius R11 = 310 mm, 15° mit verkürztem Bettungskörper für EW-B1 Parallelgleisabstand 43 mm",
+      "descriptionEn": "Radius R11 = 310 mm, 15° with shortened roadbed for EW-B1 parallel track spacing 43 mm",
       "radius": 310,
       "angle": 15,
       "gauge": 12
@@ -202,59 +242,93 @@
     {
       "id": "83740",
       "name": "Übergangsgleis Bettung/Modellgleis (166 mm)",
+      "nameEn": "Transition Track Roadbed to Model Track (166 mm)",
       "kind": "straight",
       "category": "Geraden",
       "description": "Länge 166 mm zum Übergang auf Modellgleis ohne Bettung",
+      "descriptionEn": "Length 166 mm for transition to model track without roadbed",
       "length": 166,
       "gauge": 12
     },
     {
       "id": "83750",
       "name": "Bettungsgleis mit Prellbock",
+      "nameEn": "Roadbed Track with Buffer Stop",
       "kind": "buffer-stop",
       "category": "Zubehör",
       "description": "Gleis BG3 (43 mm) mit fest montiertem Prellbock",
+      "descriptionEn": "Track BG3 (43 mm) with permanently mounted buffer stop",
       "length": 43,
       "gauge": 12
     },
     {
       "id": "83816",
       "name": "Handweiche EW-B1 rechts (15°)",
+      "nameEn": "Manual Turnout EW-B1 right (15°)",
       "kind": "turnout-right",
       "category": "Weichen",
       "description": "Länge 129,5 mm, Abzweig R353 / 15° mit Geradenstück und Schotterbett (Gleisabstand 43 mm)",
+      "descriptionEn": "Length 129.5 mm, branch R353 / 15° with straight section and ballast roadbed (track spacing 43 mm)",
       "length": 129.5,
       "branchRadius": 353,
       "branchAngle": 15,
       "gauge": 12,
       "localConnectors": [
-        { "x": 0, "y": 0, "angle": 180 },
-        { "x": 129.5, "y": 0, "angle": 0 },
-        { "x": 126.71, "y": 21.5, "angle": 15 }
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 129.5,
+          "y": 0,
+          "angle": 0
+        },
+        {
+          "x": 126.71,
+          "y": 21.5,
+          "angle": 15
+        }
       ]
     },
     {
       "id": "83817",
       "name": "Handweiche EW-B1 links (15°)",
+      "nameEn": "Manual Turnout EW-B1 left (15°)",
       "kind": "turnout-left",
       "category": "Weichen",
       "description": "Länge 129,5 mm, Abzweig R353 / 15° mit Geradenstück und Schotterbett (Gleisabstand 43 mm)",
+      "descriptionEn": "Length 129.5 mm, branch R353 / 15° with straight section and ballast roadbed (track spacing 43 mm)",
       "length": 129.5,
       "branchRadius": 353,
       "branchAngle": 15,
       "gauge": 12,
       "localConnectors": [
-        { "x": 0, "y": 0, "angle": 180 },
-        { "x": 129.5, "y": 0, "angle": 0 },
-        { "x": 126.71, "y": -21.5, "angle": 345 }
+        {
+          "x": 0,
+          "y": 0,
+          "angle": 180
+        },
+        {
+          "x": 129.5,
+          "y": 0,
+          "angle": 0
+        },
+        {
+          "x": 126.71,
+          "y": -21.5,
+          "angle": 345
+        }
       ]
     },
     {
       "id": "83818",
       "name": "Bogenweiche links BW-B links (R1/R2)",
+      "nameEn": "Curveweiche left BW-B left (R1/R2)",
       "kind": "curved-turnout-left",
       "category": "Weichen",
       "description": "Innenradius 310 mm, Außenradius 353 mm, je 30°",
+      "descriptionEn": "Inner radius 310 mm, Outer radius 353 mm, each 30°",
       "radius": 310,
       "angle": 30,
       "branchRadius": 353,
@@ -264,9 +338,11 @@
     {
       "id": "83819",
       "name": "Bogenweiche rechts BW-B rechts (R1/R2)",
+      "nameEn": "Curveweiche right BW-B right (R1/R2)",
       "kind": "curved-turnout-right",
       "category": "Weichen",
       "description": "Innenradius 310 mm, Außenradius 353 mm, je 30°",
+      "descriptionEn": "Inner radius 310 mm, Outer radius 353 mm, each 30°",
       "radius": 310,
       "angle": 30,
       "branchRadius": 353,
@@ -276,9 +352,11 @@
     {
       "id": "83861",
       "name": "Kreuzung K1 (30°)",
+      "nameEn": "Crossing K1 (30°)",
       "kind": "crossing",
       "category": "Weichen",
       "description": "Länge 166 mm, Kreuzungswinkel 30°",
+      "descriptionEn": "Length 166 mm, crossing angle 30°",
       "length": 166,
       "angle": 30,
       "gauge": 12
@@ -286,9 +364,11 @@
     {
       "id": "83862",
       "name": "Kreuzung K2 (15°)",
+      "nameEn": "Crossing K2 (15°)",
       "kind": "crossing",
       "category": "Weichen",
       "description": "Länge 166 mm, Kreuzungswinkel 15°",
+      "descriptionEn": "Length 166 mm, crossing angle 15°",
       "length": 166,
       "angle": 15,
       "gauge": 12
@@ -296,9 +376,11 @@
     {
       "id": "83881",
       "name": "Doppelte Kreuzungsweiche DKW 1 (15°)",
+      "nameEn": "Double Slip Switch DKW 1 (15°)",
       "kind": "double-slip",
       "category": "Weichen",
       "description": "Länge 166 mm, Kreuzungswinkel 15°, Abzweigradius 310 mm",
+      "descriptionEn": "Length 166 mm, crossing angle 15°, branch radius 310 mm",
       "length": 166,
       "angle": 15,
       "branchRadius": 310,

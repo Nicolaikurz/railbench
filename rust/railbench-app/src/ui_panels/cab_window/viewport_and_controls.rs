@@ -1,5 +1,112 @@
 use super::*;
 
+/// Frame-rate-independent suspension damper for 3D Cab / Roof / Chase camera motion.
+/// Filters discrete polyline chord steps and grade kinks without lagging mouse-look drags.
+#[derive(Debug, Clone)]
+pub struct CabCameraSmoother {
+    initialized: bool,
+    vehicle_id: String,
+    mode: CabCameraMode,
+    driving_back: bool,
+    eye: [f32; 3],
+    yaw_rad: f32,
+    pitch_rad: f32,
+    last_update: Option<std::time::Instant>,
+}
+
+impl Default for CabCameraSmoother {
+    fn default() -> Self {
+        Self {
+            initialized: false,
+            vehicle_id: String::new(),
+            mode: CabCameraMode::Cab,
+            driving_back: false,
+            eye: [0.0; 3],
+            yaw_rad: 0.0,
+            pitch_rad: 0.0,
+            last_update: None,
+        }
+    }
+}
+
+impl CabCameraSmoother {
+    /// Updates the damped camera pose and returns `(eye, base_yaw_rad, base_pitch_rad)`.
+    /// Snaps immediately on vehicle/camera-mode/direction switches or large teleports.
+    #[allow(clippy::too_many_arguments)]
+    pub fn update(
+        &mut self,
+        vehicle_id: &str,
+        mode: CabCameraMode,
+        driving_back: bool,
+        raw_eye: [f32; 3],
+        raw_yaw: f32,
+        raw_pitch: f32,
+        dt_override: Option<f32>,
+    ) -> ([f32; 3], f32, f32) {
+        let now = std::time::Instant::now();
+        let valid = raw_eye.iter().all(|c| c.is_finite()) && raw_yaw.is_finite() && raw_pitch.is_finite();
+        if !valid {
+            return (self.eye, self.yaw_rad, self.pitch_rad);
+        }
+
+        let jump_dist_sq = if self.initialized {
+            let dx = raw_eye[0] - self.eye[0];
+            let dy = raw_eye[1] - self.eye[1];
+            let dz = raw_eye[2] - self.eye[2];
+            dx * dx + dy * dy + dz * dz
+        } else {
+            f32::INFINITY
+        };
+
+        let should_snap = !self.initialized
+            || self.vehicle_id != vehicle_id
+            || self.mode != mode
+            || self.driving_back != driving_back
+            || jump_dist_sq > 150.0 * 150.0;
+
+        if should_snap {
+            self.initialized = true;
+            self.vehicle_id.clear();
+            self.vehicle_id.push_str(vehicle_id);
+            self.mode = mode;
+            self.driving_back = driving_back;
+            self.eye = raw_eye;
+            self.yaw_rad = raw_yaw;
+            self.pitch_rad = raw_pitch;
+            self.last_update = Some(now);
+            return (self.eye, self.yaw_rad, self.pitch_rad);
+        }
+
+        let dt = dt_override
+            .unwrap_or_else(|| {
+                self.last_update
+                    .map(|prev| (now - prev).as_secs_f32())
+                    .unwrap_or(0.016)
+            })
+            .clamp(0.001, 0.05);
+        self.last_update = Some(now);
+
+        let (k_pos, k_ang) = match mode {
+            CabCameraMode::Cab => (26.0_f32, 16.0_f32),
+            CabCameraMode::Roof => (22.0_f32, 14.0_f32),
+            CabCameraMode::Chase => (14.0_f32, 10.0_f32),
+        };
+        let alpha_pos = 1.0 - (-dt * k_pos).exp();
+        let alpha_ang = 1.0 - (-dt * k_ang).exp();
+
+        for i in 0..3 {
+            self.eye[i] += (raw_eye[i] - self.eye[i]) * alpha_pos;
+        }
+        let yaw_delta = (raw_yaw - self.yaw_rad + std::f32::consts::PI)
+            .rem_euclid(std::f32::consts::TAU)
+            - std::f32::consts::PI;
+        self.yaw_rad = (self.yaw_rad + yaw_delta * alpha_ang).rem_euclid(std::f32::consts::TAU);
+        self.pitch_rad += (raw_pitch - self.pitch_rad) * alpha_ang;
+
+        (self.eye, self.yaw_rad, self.pitch_rad)
+    }
+}
+
 /// Returns `(fwd_frac, height_frac, side_frac, default_pitch_rad)` for `CabCameraMode::Cab`
 /// so each locomotive looks over its authentic hood/boiler without clipping into cab walls.
 pub(crate) fn cab_camera_offsets(kind: VehicleKind, driving_back: bool) -> (f32, f32, f32, f32) {
@@ -26,7 +133,7 @@ pub(crate) fn cab_camera_offsets(kind: VehicleKind, driving_back: bool) -> (f32,
 pub(super) fn draw_active_cab_viewport(
     ui: &mut egui::Ui,
     app: &mut RailbenchApp,
-    vehicles_mesh: Option<std::sync::Arc<SceneMesh3D>>,
+    vehicles_mesh: Option<(u64, std::sync::Arc<SceneMesh3D>)>,
     idx: usize,
     is_de: bool,
 ) {
@@ -65,7 +172,7 @@ pub(super) fn draw_active_cab_viewport(
     let rz = yaw_rad.cos() * fwd_sign;
 
     let base = [v.world_x as f32, v.world_z as f32 + y_off, v.world_y as f32];
-    let (eye, look_dist, fov_deg, default_pitch) = match app.cab_camera_mode {
+    let (raw_eye, look_dist, fov_deg, default_pitch) = match app.cab_camera_mode {
         CabCameraMode::Cab => {
             let (fwd_frac, height_frac, side_frac, cab_pitch) =
                 cab_camera_offsets(v.kind, driving_back);
@@ -102,8 +209,20 @@ pub(super) fn draw_active_cab_viewport(
         ),
     };
 
-    let look_yaw = yaw_rad + if driving_back { std::f32::consts::PI } else { 0.0 } + app.cab_look_yaw;
-    let look_pitch = (pitch_rad * fwd_sign + default_pitch + app.cab_look_pitch).clamp(-1.1, 1.1);
+    let base_yaw = yaw_rad + if driving_back { std::f32::consts::PI } else { 0.0 };
+    let base_pitch = pitch_rad * fwd_sign + default_pitch;
+    let (eye, smooth_yaw, smooth_pitch) = app.cab_cam_smooth.update(
+        &v.id,
+        app.cab_camera_mode,
+        driving_back,
+        raw_eye,
+        base_yaw,
+        base_pitch,
+        None,
+    );
+
+    let look_yaw = smooth_yaw + app.cab_look_yaw;
+    let look_pitch = (smooth_pitch + app.cab_look_pitch).clamp(-1.1, 1.1);
     let lcp = look_pitch.cos();
     let target = [
         eye[0] + look_yaw.cos() * lcp * look_dist,
@@ -138,6 +257,7 @@ pub(super) fn draw_active_cab_viewport(
         fov_deg,
         app.viewer3d_env,
         app.time_of_day,
+        app.day_night_active,
         app.dark_mode,
         app.low_gpu_mode,
         app.cab_camera_mode == CabCameraMode::Cab,

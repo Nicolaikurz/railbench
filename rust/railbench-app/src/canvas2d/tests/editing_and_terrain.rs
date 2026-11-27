@@ -464,9 +464,14 @@ fn direct_feeder_and_isolator_canvas_button_hit_and_toggle() {
 }
 
 #[test]
-fn terrain_only_selection_ignores_tracks_and_buildings_and_picks_only_terrain() {
+fn selection_scope_filters_tracks_roads_buildings_and_terrain_in_2d() {
     let cats = builtin_catalogs();
     let e24188 = find_entry(&cats, "24188").expect("24188");
+    let road_entry = cats
+        .iter()
+        .flat_map(|c| c.entries.iter())
+        .find(|e| e.is_road == Some(true))
+        .expect("builtin road entry");
     let t1 = create_piece(
         "t1".into(),
         e24188,
@@ -477,7 +482,32 @@ fn terrain_only_selection_ignores_tracks_and_buildings_and_picks_only_terrain() 
         },
         None,
     );
-    let mut layout = make_layout_with_pieces(vec![t1]);
+    let t_under = create_piece(
+        "t-under".into(),
+        e24188,
+        Transform {
+            x: 310.0,
+            y: 0.0,
+            rotation: 0.0,
+        },
+        None,
+    );
+    let r1 = create_piece(
+        "r1".into(),
+        road_entry,
+        Transform {
+            x: 0.0,
+            y: 250.0,
+            rotation: 0.0,
+        },
+        None,
+    );
+    let road_pt = r1
+        .connectors
+        .first()
+        .map(|c| Vec2 { x: c.x, y: c.y })
+        .unwrap_or(Vec2 { x: 0.0, y: 250.0 });
+    let mut layout = make_layout_with_pieces(vec![t1, t_under, r1]);
     layout.models = Some(vec![
         railbench_core::types::Model3D {
             id: "b1".into(),
@@ -530,25 +560,222 @@ fn terrain_only_selection_ignores_tracks_and_buildings_and_picks_only_terrain() 
     let mut cache = Canvas2DCache::default();
     cache.ensure_fresh(&layout, &cats, 1);
 
-    // Normal mode (terrain_only_selection == false): picks track, building, and terrain
+    // Bom / All scope picks tracks, roads, buildings, and terrain
     assert_eq!(
-        snapping::find_canvas_object_at(&layout, &cache, Vec2 { x: 90.0, y: 0.0 }, 24.0, false, false).as_deref(),
+        snapping::find_canvas_object_at(
+            &layout,
+            &cache,
+            &cats,
+            Vec2 { x: 90.0, y: 0.0 },
+            24.0,
+            false,
+            crate::SelectionScope::All,
+        )
+        .as_deref(),
         Some("t1")
     );
     assert_eq!(
-        snapping::find_canvas_object_at(&layout, &cache, Vec2 { x: 400.0, y: 0.0 }, 24.0, false, false).as_deref(),
+        snapping::find_canvas_object_at(
+            &layout,
+            &cache,
+            &cats,
+            road_pt,
+            24.0,
+            false,
+            crate::SelectionScope::All,
+        )
+        .as_deref(),
+        Some("r1")
+    );
+    assert_eq!(
+        snapping::find_canvas_object_at(
+            &layout,
+            &cache,
+            &cats,
+            Vec2 { x: 400.0, y: 0.0 },
+            24.0,
+            false,
+            crate::SelectionScope::All,
+        )
+        .as_deref(),
         Some("b1")
     );
     assert_eq!(
-        snapping::find_canvas_object_at(&layout, &cache, Vec2 { x: 800.0, y: 0.0 }, 24.0, false, false).as_deref(),
+        snapping::find_canvas_object_at(
+            &layout,
+            &cache,
+            &cats,
+            Vec2 { x: 800.0, y: 0.0 },
+            24.0,
+            false,
+            crate::SelectionScope::All,
+        )
+        .as_deref(),
         Some("m1")
     );
 
-    // Terrain tab mode (terrain_only_selection == true): ignores track and building, picks only terrain
-    assert!(snapping::find_canvas_object_at(&layout, &cache, Vec2 { x: 90.0, y: 0.0 }, 24.0, false, true).is_none());
-    assert!(snapping::find_canvas_object_at(&layout, &cache, Vec2 { x: 400.0, y: 0.0 }, 24.0, false, true).is_none());
+    // Tracks scope picks rail tracks (including underneath buildings) and ignores roads/buildings/terrain
     assert_eq!(
-        snapping::find_canvas_object_at(&layout, &cache, Vec2 { x: 800.0, y: 0.0 }, 24.0, false, true).as_deref(),
+        snapping::find_canvas_object_at(
+            &layout,
+            &cache,
+            &cats,
+            Vec2 { x: 90.0, y: 0.0 },
+            24.0,
+            false,
+            crate::SelectionScope::Tracks,
+        )
+        .as_deref(),
+        Some("t1")
+    );
+    assert_eq!(
+        snapping::find_canvas_object_at(
+            &layout,
+            &cache,
+            &cats,
+            Vec2 { x: 400.0, y: 0.0 },
+            24.0,
+            false,
+            crate::SelectionScope::Tracks,
+        )
+        .as_deref(),
+        Some("t-under")
+    );
+    assert!(snapping::find_canvas_object_at(
+        &layout,
+        &cache,
+        &cats,
+        road_pt,
+        24.0,
+        false,
+        crate::SelectionScope::Tracks,
+    )
+    .is_none());
+    assert!(snapping::find_canvas_object_at(
+        &layout,
+        &cache,
+        &cats,
+        Vec2 { x: 800.0, y: 0.0 },
+        24.0,
+        false,
+        crate::SelectionScope::Tracks,
+    )
+    .is_none());
+
+    // Roads scope picks roads only
+    assert_eq!(
+        snapping::find_canvas_object_at(
+            &layout,
+            &cache,
+            &cats,
+            road_pt,
+            24.0,
+            false,
+            crate::SelectionScope::Roads,
+        )
+        .as_deref(),
+        Some("r1")
+    );
+    assert!(snapping::find_canvas_object_at(
+        &layout,
+        &cache,
+        &cats,
+        Vec2 { x: 90.0, y: 0.0 },
+        24.0,
+        false,
+        crate::SelectionScope::Roads,
+    )
+    .is_none());
+    assert!(snapping::find_canvas_object_at(
+        &layout,
+        &cache,
+        &cats,
+        Vec2 { x: 400.0, y: 0.0 },
+        24.0,
+        false,
+        crate::SelectionScope::Roads,
+    )
+    .is_none());
+
+    // Buildings scope picks non-terrain buildings only
+    assert_eq!(
+        snapping::find_canvas_object_at(
+            &layout,
+            &cache,
+            &cats,
+            Vec2 { x: 400.0, y: 0.0 },
+            24.0,
+            false,
+            crate::SelectionScope::Buildings,
+        )
+        .as_deref(),
+        Some("b1")
+    );
+    assert!(snapping::find_canvas_object_at(
+        &layout,
+        &cache,
+        &cats,
+        Vec2 { x: 90.0, y: 0.0 },
+        24.0,
+        false,
+        crate::SelectionScope::Buildings,
+    )
+    .is_none());
+    assert!(snapping::find_canvas_object_at(
+        &layout,
+        &cache,
+        &cats,
+        Vec2 { x: 800.0, y: 0.0 },
+        24.0,
+        false,
+        crate::SelectionScope::Buildings,
+    )
+    .is_none());
+
+    // Terrain scope picks terrain only
+    assert!(snapping::find_canvas_object_at(
+        &layout,
+        &cache,
+        &cats,
+        Vec2 { x: 90.0, y: 0.0 },
+        24.0,
+        false,
+        crate::SelectionScope::Terrain,
+    )
+    .is_none());
+    assert!(snapping::find_canvas_object_at(
+        &layout,
+        &cache,
+        &cats,
+        Vec2 { x: 400.0, y: 0.0 },
+        24.0,
+        false,
+        crate::SelectionScope::Terrain,
+    )
+    .is_none());
+    assert_eq!(
+        snapping::find_canvas_object_at(
+            &layout,
+            &cache,
+            &cats,
+            Vec2 { x: 800.0, y: 0.0 },
+            24.0,
+            false,
+            crate::SelectionScope::Terrain,
+        )
+        .as_deref(),
         Some("m1")
     );
+
+    // Boards scope ignores tracks/roads/buildings/terrain
+    assert!(snapping::find_canvas_object_at(
+        &layout,
+        &cache,
+        &cats,
+        Vec2 { x: 90.0, y: 0.0 },
+        24.0,
+        false,
+        crate::SelectionScope::Boards,
+    )
+    .is_none());
 }

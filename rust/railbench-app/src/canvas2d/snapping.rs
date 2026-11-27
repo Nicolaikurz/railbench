@@ -35,31 +35,45 @@ pub(super) fn find_terrain_at(layout: &Layout, wp: Vec2, layer_protection: bool)
 pub(super) fn find_canvas_object_at(
     layout: &Layout,
     cache: &Canvas2DCache,
+    catalogs: &[Catalog],
     wp: Vec2,
     piece_tol: f64,
     layer_protection: bool,
-    terrain_only_selection: bool,
+    scope: crate::SelectionScope,
 ) -> Option<String> {
-    if terrain_only_selection {
-        return find_terrain_at(layout, wp, layer_protection);
+    match scope {
+        crate::SelectionScope::Tracks | crate::SelectionScope::Roads => {
+            find_piece_at_scoped(layout, cache, catalogs, wp, piece_tol, layer_protection, scope)
+        }
+        crate::SelectionScope::Buildings => find_building_at(layout, wp, layer_protection),
+        crate::SelectionScope::Terrain => find_terrain_at(layout, wp, layer_protection),
+        crate::SelectionScope::Boards => None,
+        crate::SelectionScope::All => find_building_at(layout, wp, layer_protection)
+            .or_else(|| find_piece_at(layout, cache, wp, piece_tol, layer_protection))
+            .or_else(|| find_terrain_at(layout, wp, layer_protection)),
     }
-    find_building_at(layout, wp, layer_protection)
-        .or_else(|| find_piece_at(layout, cache, wp, piece_tol, layer_protection))
-        .or_else(|| find_terrain_at(layout, wp, layer_protection))
 }
 
-pub(super) fn find_piece_at(
+pub(super) fn find_piece_at_scoped(
     layout: &Layout,
     cache: &Canvas2DCache,
+    catalogs: &[Catalog],
     wp: Vec2,
     tolerance: f64,
     layer_protection: bool,
+    scope: crate::SelectionScope,
 ) -> Option<String> {
+    if !scope.allows_any_piece() {
+        return None;
+    }
     let tol_sq = tolerance * tolerance;
     let mut best_idx: Option<usize> = None;
     let mut best_d_sq = f64::INFINITY;
     let active_lid = layout.active_layer_id.as_deref().unwrap_or("layer-1");
     for (idx, p) in layout.pieces.iter().enumerate() {
+        if scope != crate::SelectionScope::All && !scope.allows_piece(catalogs, p) {
+            continue;
+        }
         let lid = p.layer_id.as_deref().unwrap_or("layer-1");
         if layer_protection && lid != active_lid {
             continue;
@@ -118,6 +132,24 @@ pub(super) fn find_piece_at(
         }
     }
     best_idx.map(|i| layout.pieces[i].id.clone())
+}
+
+pub(super) fn find_piece_at(
+    layout: &Layout,
+    cache: &Canvas2DCache,
+    wp: Vec2,
+    tolerance: f64,
+    layer_protection: bool,
+) -> Option<String> {
+    find_piece_at_scoped(
+        layout,
+        cache,
+        &[],
+        wp,
+        tolerance,
+        layer_protection,
+        crate::SelectionScope::All,
+    )
 }
 
 #[inline]

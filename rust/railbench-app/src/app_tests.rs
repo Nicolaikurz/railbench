@@ -44,6 +44,7 @@ fn move_selected_to_layer_and_reassign_orphans() {
     app.place_catalog_entry(&entry);
     app.place_builtin_model("station", "Bahnhof", 320.0, 140.0, 130.0);
 
+    app.sidebar_tab = SidebarTab::Bom;
     app.select_all();
     assert_eq!(app.selected.len(), 2);
     app.move_selected_to_layer("layer-1");
@@ -406,7 +407,11 @@ fn track_system_picker_formatting_and_manufacturer_order_match_electron() {
         .expect("generic-streets-h0 catalog");
     assert_eq!(
         crate::ui_panels::format_catalog_trigger_title(road_h0, true, false, true),
-        road_h0.name
+        "Straßensystem (H0 1:87)"
+    );
+    assert_eq!(
+        crate::ui_panels::format_catalog_trigger_title(road_h0, true, false, false),
+        "Streets (H0 1:87)"
     );
     assert_eq!(
         crate::ui_panels::format_catalog_trigger_subtitle(road_h0, true, false, 0, true),
@@ -520,16 +525,31 @@ fn undo_redo_toolbar_tooltips_and_toolbar_fade_color() {
 }
 
 #[test]
-fn select_all_in_terrain_tab_selects_only_terrain_models() {
-    let mut app = RailbenchApp::default();
-    app.layout = make_empty_layout();
+fn select_all_respects_active_sidebar_tab() {
+    let mut app = make_bare_app();
     let e24188 = crate::catalog::find_entry(&app.catalogs, "24188").expect("24188");
+    let road_entry = app
+        .catalogs
+        .iter()
+        .flat_map(|c| c.entries.iter())
+        .find(|e| e.is_road == Some(true))
+        .expect("builtin road entry");
     app.layout.pieces.push(crate::catalog::create_piece(
         "track-1".into(),
         e24188,
         railbench_core::types::Transform {
             x: 0.0,
             y: 0.0,
+            rotation: 0.0,
+        },
+        None,
+    ));
+    app.layout.pieces.push(crate::catalog::create_piece(
+        "road-1".into(),
+        road_entry,
+        railbench_core::types::Transform {
+            x: 0.0,
+            y: 200.0,
             rotation: 0.0,
         },
         None,
@@ -583,14 +603,69 @@ fn select_all_in_terrain_tab_selects_only_terrain_models() {
         },
     ]);
 
+    app.sidebar_tab = SidebarTab::Tracks;
+    app.select_all();
+    assert_eq!(app.selected.len(), 1);
+    assert!(app.selected.contains("track-1"));
+
+    app.sidebar_tab = SidebarTab::Roads;
+    app.select_all();
+    assert_eq!(app.selected.len(), 1);
+    assert!(app.selected.contains("road-1"));
+
+    app.sidebar_tab = SidebarTab::Models;
+    app.select_all();
+    assert_eq!(app.selected.len(), 1);
+    assert!(app.selected.contains("bld-1"));
+
     app.sidebar_tab = SidebarTab::Terrain;
     app.select_all();
     assert_eq!(app.selected.len(), 1);
     assert!(app.selected.contains("ter-1"));
-    assert!(!app.selected.contains("track-1"));
-    assert!(!app.selected.contains("bld-1"));
 
-    app.sidebar_tab = SidebarTab::Tracks;
+    app.sidebar_tab = SidebarTab::Board;
     app.select_all();
-    assert_eq!(app.selected.len(), 3);
+    assert!(app.selected.is_empty());
+
+    app.sidebar_tab = SidebarTab::Bom;
+    app.select_all();
+    assert_eq!(app.selected.len(), 4);
+}
+
+#[test]
+fn paste_and_duplicate_do_not_bind_to_original_group_id() {
+    let mut app = make_bare_app();
+    let e24188 = crate::catalog::find_entry(&app.catalogs, "24188").expect("24188").clone();
+    app.place_catalog_entry(&e24188);
+    app.place_catalog_entry(&e24188);
+    let orig_ids: Vec<String> = app.layout.pieces.iter().map(|p| p.id.clone()).collect();
+    for id in &orig_ids {
+        app.selected.insert(id.clone());
+    }
+    assert!(app.toggle_group_selected());
+    let orig_gid = app.layout.pieces[0].group_id.clone().expect("group_id set");
+    assert_eq!(app.layout.pieces[1].group_id.as_deref(), Some(orig_gid.as_str()));
+
+    // Duplicating a single grouped piece must NOT inherit the original group_id
+    app.selected.clear();
+    app.selected.insert(orig_ids[0].clone());
+    assert!(app.duplicate_selected());
+    assert_eq!(app.layout.pieces.len(), 3);
+    assert!(
+        app.layout.pieces[2].group_id.is_none(),
+        "single pasted/duplicated piece must not bind to original group"
+    );
+
+    // Duplicating a multi-piece group assigns a fresh group_id separate from original
+    app.selected.clear();
+    app.selected.insert(orig_ids[0].clone());
+    app.selected.insert(orig_ids[1].clone());
+    assert!(app.duplicate_selected());
+    assert_eq!(app.layout.pieces.len(), 5);
+    let new_gid = app.layout.pieces[3]
+        .group_id
+        .clone()
+        .expect("multi-piece copy preserves internal group");
+    assert_ne!(new_gid, orig_gid);
+    assert_eq!(app.layout.pieces[4].group_id.as_deref(), Some(new_gid.as_str()));
 }

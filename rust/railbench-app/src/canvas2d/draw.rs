@@ -37,7 +37,7 @@ pub fn draw_canvas_2d(
     board_snap_guides: &mut Vec<BaseboardSnapGuide>,
     show_wood_plates: bool,
     board_edit_enabled: bool,
-    terrain_only_selection: bool,
+    selection_scope: crate::SelectionScope,
     sketcher: &mut BoardSketcherState,
     dragging_model_rot: &mut Option<String>,
     dragging_track_rot: &mut Option<TrackRotationDrag>,
@@ -367,13 +367,22 @@ pub fn draw_canvas_2d(
     let hover_pos = ui.input(|i| i.pointer.hover_pos());
 
     let mut hovered_open_conn: Option<(String, usize)> = None;
-    if show_connectors && !terrain_brush.active && !terrain_only_selection && !measure_mode && dragging_catalog.is_none() {
+    if show_connectors
+        && !terrain_brush.active
+        && selection_scope.allows_any_piece()
+        && !measure_mode
+        && dragging_catalog.is_none()
+        && dragging_model_template.is_none()
+    {
         if let Some(hp) = hover_pos {
             let hit_r = (16.0 * camera.zoom.sqrt()).clamp(15.0, 24.0);
             let hp_world = camera.screen_to_world(rect, hp);
             let pad_world = (hit_r as f64 / camera.zoom.max(0.04) as f64) + 32.0;
             let mut best_d = f32::INFINITY;
             for (pidx, piece) in layout.pieces.iter().enumerate() {
+                if !selection_scope.allows_piece(catalogs, piece) {
+                    continue;
+                }
                 let editable = is_layer_editable_with_protection(
                     layout,
                     piece.layer_id.as_deref(),
@@ -454,10 +463,12 @@ pub fn draw_canvas_2d(
             for (cidx, conn) in piece.connectors.iter().enumerate() {
                 let sp = camera.world_to_screen(rect, conn.x, conn.y);
                 let in_conn = conn_clip.contains(sp);
+                let piece_in_scope = selection_scope.allows_piece(catalogs, piece);
                 let is_hovered_conn = hovered_open_conn
                     .as_ref()
                     .map_or(false, |(pid, ci)| pid == &piece.id && *ci == cidx);
-                let may_draw_plus = editable
+                let may_draw_plus = piece_in_scope
+                    && editable
                     && conn.connected_to.is_none()
                     && (is_hovered_conn || (is_sel && piece.connectors.len() < 6));
                 if !in_conn && (!may_draw_plus || !conn_clip_plus.contains(sp)) {
@@ -578,16 +589,19 @@ pub fn draw_canvas_2d(
     }
 
     // 4.5. Interactive Flex Bend & Shorten Handles (3 cyan interior bend points + 2 amber endpoint handles c[1], c[0])
-    let selected_flex_handles: Option<(String, [Pos2; 5])> = if !terrain_only_selection && selected.len() == 1 {
-        selected.iter().next().and_then(|sid| {
-            let p = cache
-                .piece_id_to_idx
-                .get(sid.as_str())
-                .and_then(|&idx| layout.pieces.get(idx))
-                .or_else(|| layout.pieces.iter().find(|pc| &pc.id == sid))?;
-            if !is_layer_editable_with_protection(layout, p.layer_id.as_deref(), layer_protection) {
-                return None;
-            }
+    let selected_flex_handles: Option<(String, [Pos2; 5])> =
+        if selection_scope.allows_any_piece() && selected.len() == 1 {
+            selected.iter().next().and_then(|sid| {
+                let p = cache
+                    .piece_id_to_idx
+                    .get(sid.as_str())
+                    .and_then(|&idx| layout.pieces.get(idx))
+                    .or_else(|| layout.pieces.iter().find(|pc| &pc.id == sid))?;
+                if !selection_scope.allows_piece(catalogs, p)
+                    || !is_layer_editable_with_protection(layout, p.layer_id.as_deref(), layer_protection)
+                {
+                    return None;
+                }
             if crate::catalog::is_flex_id(catalogs, &p.catalog_id) {
                 let wh = crate::catalog::flex_bend_handles_world(p)?;
                 let mut sh = [Pos2::ZERO; 5];
@@ -618,7 +632,7 @@ pub fn draw_canvas_2d(
 
     // 4.6. Selected 3D Model rotation handle (top edge stem matching TS getModelRotationHandleWorld)
     let selected_model_rot_handle: Option<(String, Pos2)> =
-        if !sketcher.active && !terrain_brush.active && !terrain_only_selection && !measure_mode && selected.len() == 1 {
+        if !sketcher.active && !terrain_brush.active && selection_scope.allows_buildings() && !measure_mode && selected.len() == 1 {
             selected.iter().next().and_then(|sid| {
                 let m = layout.models.as_ref()?.iter().find(|m| &m.id == sid)?;
                 if !is_layer_editable_with_protection(layout, m.layer_id.as_deref(), layer_protection) {
@@ -644,7 +658,7 @@ pub fn draw_canvas_2d(
 
     // 4.7. Selected Track (single or multi-piece) rotation handle point
     let selected_track_rot_handle: Option<(Vec2, Pos2, f64, Option<String>, f64)> =
-        if !sketcher.active && !terrain_brush.active && !terrain_only_selection && !measure_mode && !selected.is_empty() {
+        if !sketcher.active && !terrain_brush.active && selection_scope.allows_any_piece() && !measure_mode && !selected.is_empty() {
             compute_track_selection_rotation_handle(
                 layout,
                 selected,
@@ -752,7 +766,13 @@ pub fn draw_canvas_2d(
         }
     }
 
-    if !sketcher.active && !measure_mode && !terrain_brush.active {
+    if !sketcher.active
+        && !measure_mode
+        && !terrain_brush.active
+        && selection_scope.allows_rail_accessories()
+        && dragging_catalog.is_none()
+        && dragging_model_template.is_none()
+    {
         if let Some(hp) = hover_pos.filter(|sp| rect.contains(*sp)) {
             if let Some(btn) = hit_test_accessory_button(&accessory_buttons, hp) {
                 painter.circle_stroke(
@@ -839,6 +859,7 @@ pub fn draw_canvas_2d(
         }
     }
 
+    let sidebar_drag_active = dragging_catalog.is_some() || dragging_model_template.is_some();
     interaction::handle_canvas_interaction(
         ui,
         rect,
@@ -859,7 +880,8 @@ pub fn draw_canvas_2d(
         snapping_enabled,
         layer_protection,
         board_edit_enabled,
-        terrain_only_selection,
+        selection_scope,
+        sidebar_drag_active,
         measure_mode,
         terrain_brush,
         is_de,

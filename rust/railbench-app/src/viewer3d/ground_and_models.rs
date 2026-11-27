@@ -370,6 +370,7 @@ pub(super) fn push_ground_terrain_3d(
 pub(super) fn push_model_3d(
     verts: &mut Vec<Vertex3D>,
     idxs: &mut Vec<u32>,
+    glass_idxs: &mut Vec<u32>,
     textured_out: &mut Vec<TexturedSubmesh3D>,
     m: &Model3D,
     y0: f32,
@@ -449,7 +450,7 @@ pub(super) fn push_model_3d(
         }
     }
 
-    crate::models3d_mesh::push_builtin_model_3d(verts, idxs, m, y0);
+    crate::models3d_mesh::push_builtin_model_3d_with_glass(verts, idxs, Some(glass_idxs), m, y0);
 }
 
 // ============================================================================

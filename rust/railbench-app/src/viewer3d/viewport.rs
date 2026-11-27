@@ -54,13 +54,12 @@ pub fn draw_viewport_3d(
     ui: &mut egui::Ui,
     camera: &mut Camera3D,
     cached_bundle: &Option<Scene3DBundle>,
-    vehicles_mesh: Option<Arc<SceneMesh3D>>,
+    vehicles_mesh: Option<(u64, Arc<SceneMesh3D>)>,
     edit: Edit3DParams<'_>,
     env_mode: &mut Viewer3DEnv,
     day_night_active: &mut bool,
     time_of_day: &mut f32,
     day_night_speed: &mut f32,
-    show_wood_plates: &mut bool,
     first_short_circuit: Option<Vec2>,
     dark_mode: bool,
     low_gpu_mode: bool,
@@ -101,7 +100,7 @@ pub fn draw_viewport_3d(
             edit.layer_protection,
             edit.rotation_step,
             *env_mode,
-            edit.terrain_only_selection,
+            edit.selection_scope,
         );
         (cd, false, eo)
     };
@@ -180,7 +179,7 @@ pub fn draw_viewport_3d(
     let is_de = lang == Lang::De;
     let p = crate::theme::palette(dark_mode);
 
-    // Top-left 3D Controls Bar (Hall & Landscape | Minimal CAD, Wood Plates, Edit 3D, Day/Night)
+    // Top-left 3D Controls Bar (Hall & Landscape | Minimal CAD, Edit 3D, Day/Night)
     let top_bar_resp = egui::Area::new(egui::Id::new("hud_3d_top_bar"))
         .fixed_pos(rect.min + egui::vec2(14.0, 12.0))
         .show(ui.ctx(), |ui| {
@@ -305,25 +304,12 @@ pub fn draw_viewport_3d(
                         });
 
                     ui.separator();
-                    let wood_lbl = if is_de { "Holzplatten" } else { "Wood Plates" };
-                    if hud_3d_stable_toggle(
-                        ui,
-                        dark_mode,
-                        *show_wood_plates,
-                        wood_lbl,
-                        "Holzplatten",
-                        "Wood Plates",
-                    )
-                    .clicked()
-                    {
-                        *show_wood_plates = !*show_wood_plates;
-                    }
 
                     let edit_lbl = if is_de { "3D Bearbeiten" } else { "Edit 3D" };
                     if hud_3d_stable_toggle(
                         ui,
                         dark_mode,
-                        edit.state.enabled || *env_mode == Viewer3DEnv::Minimal,
+                        edit.state.enabled,
                         edit_lbl,
                         "3D Bearbeiten",
                         "Edit 3D",
@@ -407,7 +393,7 @@ pub fn draw_viewport_3d(
                         } else {
                             "Drag: Sculpt • Shift: Smooth • Alt: Invert • Shift/Ctrl+Wheel: R/Strength • RMB: Orbit"
                         }
-                    } else if edit.state.enabled || *env_mode == Viewer3DEnv::Minimal {
+                    } else if edit.state.enabled {
                         if is_de {
                             "Ziehen/Klick '+' : Gleis bauen • Klick: Auswaehlen • Alt+Ziehen: Hoehe • Leer: Orbit"
                         } else {
@@ -448,6 +434,7 @@ pub fn draw_viewport_3d(
             edit.dragging_catalog,
             edit.dragging_model,
             *env_mode,
+            edit.selection_scope,
         );
     }
 

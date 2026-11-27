@@ -1,13 +1,11 @@
 use railbench_core::types::{Catalog, CatalogEntry, Layout};
 
-use crate::catalog::find_entry;
 use crate::model_tools::scale_factor_from_h0;
 
 use super::track_graph::{
-    branch_endpoint_connectors, check_special_entry, find_connected_next,
-    find_special_exit_connector, norm_deg_360, polyline_length, recompute_vehicle_poses,
-    resolve_piece_entry, sample_active_piece_branches, shortest_angle_diff_deg,
-    track_scale_and_gauge, turntable_slot_angles, walk_track_graph,
+    branch_endpoint_connectors, find_special_exit_connector, norm_deg_360, recompute_vehicle_poses,
+    shortest_angle_diff_deg, turntable_slot_angles, walk_track_graph_cached,
+    recompute_vehicle_poses_cached, TrackWalkCache,
 };
 use super::{VehicleInstance, VehicleRenderPose, VehicleSimState};
 
@@ -219,8 +217,27 @@ impl VehicleSimState {
         if !self.running || self.vehicles.is_empty() {
             return;
         }
+        let needs_sanitize = self.vehicles.iter().any(|v| {
+            layout
+                .pieces
+                .iter()
+                .find(|p| p.id == v.piece_id)
+                .is_none_or(|p| !Self::piece_matches_domain(catalogs, p, v.domain))
+        });
+        if needs_sanitize {
+            self.sanitize_for_layout(layout, catalogs);
+            if !self.running || self.vehicles.is_empty() {
+                return;
+            }
+        }
         let dt = dt_secs.clamp(0.0, 0.1);
         let sf = scale_factor_from_h0(&layout.scale).max(0.1);
+        let mut walk_cache = TrackWalkCache::new(
+            layout,
+            catalogs,
+            &self.turntable_angles_deg,
+            &self.transfer_offsets_mm,
+        );
 
         let mut all_obbs: Vec<Obb2D> = Vec::with_capacity(self.vehicles.len() * 3);
         for (idx, veh) in self.vehicles.iter().enumerate() {
@@ -231,9 +248,7 @@ impl VehicleSimState {
 
         let n_veh = self.vehicles.len();
         for vi in 0..n_veh {
-            let (veh_sf, _) = track_scale_and_gauge(
-                layout,
-                catalogs,
+            let (veh_sf, _) = walk_cache.track_scale_and_gauge(
                 &self.vehicles[vi].piece_id,
                 self.vehicles[vi].domain,
             );
@@ -244,14 +259,7 @@ impl VehicleSimState {
                 v.velocity_mm_s = 0.0;
                 v.current_speed_mm_s = 0.0;
                 v.blocked_ahead = false;
-                recompute_vehicle_poses(
-                    v,
-                    layout,
-                    catalogs,
-                    &self.turnout_states,
-                    &self.turntable_angles_deg,
-                    &self.transfer_offsets_mm,
-                );
+                recompute_vehicle_poses_cached(v, &mut walk_cache, &self.turnout_states);
                 all_obbs.retain(|o| o.owner_idx != vi);
                 for p in &v.cached_poses {
                     all_obbs.push(Obb2D::from_pose(p, vi, 0.0, 0.0));
@@ -277,12 +285,9 @@ impl VehicleSimState {
                 let mut hit = false;
                 for &frac in &[0.22_f64, 0.58, 1.0] {
                     let probe_delta = lead_bumper_offset + travel_sign * (look_dist * frac);
-                    let (px, py, pz, tang) = walk_track_graph(
-                        layout,
-                        catalogs,
+                    let (px, py, pz, tang) = walk_track_graph_cached(
+                        &mut walk_cache,
                         &self.turnout_states,
-                        &self.turntable_angles_deg,
-                        &self.transfer_offsets_mm,
                         &v.path_history,
                         &v.piece_id,
                         v.branch_idx,
@@ -415,39 +420,41 @@ impl VehicleSimState {
             let mut hops = 0usize;
 
             while remain > 1e-6 && hops < 8 {
-                let Some(piece) = layout.pieces.iter().find(|p| p.id == v.piece_id) else {
+                let Some(cur_idx) = walk_cache.piece_idx(&v.piece_id) else {
                     break;
                 };
-                let entry = find_entry(catalogs, &piece.catalog_id);
-                let is_special = entry
-                    .is_some_and(|e| matches!(e.kind.as_str(), "turntable" | "transfer-table"));
-                let branches = sample_active_piece_branches(
-                    piece,
-                    entry,
-                    &self.turntable_angles_deg,
-                    &self.transfer_offsets_mm,
-                );
-                if branches.is_empty() {
-                    break;
-                }
-                let br_idx = v.branch_idx.min(branches.len() - 1);
-                let br = &branches[br_idx];
-                let seg_len = polyline_length(br).max(1.0);
+                let piece = walk_cache.piece(cur_idx);
+                let (is_special, entry, br_idx, seg_len, first_pt, last_pt) = {
+                    let cached = walk_cache.get_or_sample(cur_idx);
+                    if cached.branches.is_empty() {
+                        break;
+                    }
+                    let bi = v.branch_idx.min(cached.branches.len() - 1);
+                    let sl = cached.lengths[bi].max(1.0);
+                    (
+                        cached.is_special,
+                        cached.entry,
+                        bi,
+                        sl,
+                        cached.branches[bi].first().copied(),
+                        cached.branches[bi].last().copied(),
+                    )
+                };
                 let move_pos_dist = v.forward ^ backing_up;
 
                 let exit_conn_opt = if move_pos_dist {
                     if is_special {
-                        br.last().copied().and_then(|pt| find_special_exit_connector(piece, pt))
+                        last_pt.and_then(|pt| find_special_exit_connector(piece, pt))
                     } else {
                         Some(branch_endpoint_connectors(piece, entry, br_idx).1)
                     }
                 } else if is_special {
-                    br.first().copied().and_then(|pt| find_special_exit_connector(piece, pt))
+                    first_pt.and_then(|pt| find_special_exit_connector(piece, pt))
                 } else {
                     Some(branch_endpoint_connectors(piece, entry, br_idx).0)
                 };
                 let exit_link = exit_conn_opt
-                    .and_then(|ec| find_connected_next(layout, catalogs, piece, ec, v.domain));
+                    .and_then(|ec| walk_cache.find_connected_next(cur_idx, ec, v.domain));
 
                 if is_special && exit_link.is_none() {
                     let mid = seg_len * 0.5;
@@ -485,84 +492,68 @@ impl VehicleSimState {
                 };
                 let boundary_dist = if move_pos_dist { seg_len } else { 0.0 };
 
-                if let Some((next_pid, entry_conn)) = exit_link {
-                    let next_piece = layout.pieces.iter().find(|p| p.id == next_pid);
-                    let next_entry = next_piece.and_then(|np| find_entry(catalogs, &np.catalog_id));
-                    let next_special = next_entry
-                        .is_some_and(|e| matches!(e.kind.as_str(), "turntable" | "transfer-table"));
-                    if next_special {
-                        if let Some(np) = next_piece {
-                            if let Some((at_start, blen)) = check_special_entry(
-                                np,
-                                next_entry,
-                                entry_conn,
-                                &self.turntable_angles_deg,
-                                &self.transfer_offsets_mm,
-                            ) {
-                                v.piece_id = next_pid;
-                                v.branch_idx = 0;
-                                v.forward = at_start ^ backing_up;
-                                v.dist_mm = if at_start { 0.0 } else { blen };
-                                v.path_history.push((v.piece_id.clone(), 0));
-                                if v.path_history.len() > 24 {
-                                    v.path_history.remove(0);
-                                }
-                                hops += 1;
-                                continue;
-                            }
-                        }
+                if let Some((next_idx, entry_conn)) = exit_link {
+                    let want_road = v.domain == super::VehicleDomain::Road;
+                    let (next_is_road, next_is_special, next_pid) = {
+                        let pid = walk_cache.piece(next_idx).id.clone();
+                        let c = walk_cache.get_or_sample(next_idx);
+                        (c.is_road, c.is_special, pid)
+                    };
+                    if next_is_road != want_road || (want_road && next_is_special) {
                         v.dist_mm = boundary_dist;
                         v.velocity_mm_s = 0.0;
                         v.current_speed_mm_s = 0.0;
+                        v.reverse = !v.reverse;
                         break;
                     }
-                    let next_branches = next_piece
-                        .map(|np| {
-                            sample_active_piece_branches(
-                                np,
-                                next_entry,
-                                &self.turntable_angles_deg,
-                                &self.transfer_offsets_mm,
-                            )
-                        })
-                        .unwrap_or_default();
-                    let sw = self.turnout_states.get(&next_pid).copied().unwrap_or(0);
-                    let (br, at_start, auto_st) = next_piece
-                        .map(|np| {
-                            resolve_piece_entry(
-                                np,
-                                next_entry,
-                                entry_conn,
-                                sw,
-                                next_branches.len(),
-                                None,
-                            )
-                        })
-                        .unwrap_or((0, entry_conn == 0, None));
-                    v.piece_id = next_pid.clone();
-                    v.branch_idx = br;
-                    if let Some(new_st) = auto_st {
-                        let prev = self.turnout_states.get(&next_pid).copied().unwrap_or(0);
-                        if prev != new_st {
-                            self.turnout_states.insert(next_pid, new_st);
-                            self.turnout_version = self.turnout_version.wrapping_add(1);
+                    match walk_cache.resolve_transition(
+                        &self.turnout_states,
+                        &v.path_history,
+                        next_idx,
+                        entry_conn,
+                        false,
+                    ) {
+                        Ok((_, br, _raw_dist, at_start, auto_st)) => {
+                            let is_next_special = walk_cache.get_or_sample(next_idx).is_special;
+                            v.piece_id = next_pid.clone();
+                            v.branch_idx = br;
+                            if is_next_special {
+                                v.forward = at_start ^ backing_up;
+                                v.dist_mm = _raw_dist;
+                            } else {
+                                if let Some(new_st) = auto_st {
+                                    let prev = self.turnout_states.get(&next_pid).copied().unwrap_or(0);
+                                    if prev != new_st {
+                                        self.turnout_states.insert(next_pid, new_st);
+                                        self.turnout_version = self.turnout_version.wrapping_add(1);
+                                    }
+                                }
+                                if at_start {
+                                    v.forward = !backing_up;
+                                    v.dist_mm = 0.0;
+                                } else {
+                                    v.forward = backing_up;
+                                    v.dist_mm = walk_cache
+                                        .get_or_sample(next_idx)
+                                        .lengths
+                                        .get(br)
+                                        .copied()
+                                        .unwrap_or(0.0);
+                                }
+                            }
+                            v.path_history.push((v.piece_id.clone(), v.branch_idx));
+                            if v.path_history.len() > 24 {
+                                v.path_history.remove(0);
+                            }
+                            hops += 1;
+                        }
+                        Err(()) => {
+                            v.dist_mm = boundary_dist;
+                            v.velocity_mm_s = 0.0;
+                            v.current_speed_mm_s = 0.0;
+                            break;
                         }
                     }
-                    if at_start {
-                        v.forward = !backing_up;
-                        v.dist_mm = 0.0;
-                    } else {
-                        v.forward = backing_up;
-                        v.dist_mm = next_branches
-                            .get(br)
-                            .map(|b| polyline_length(b))
-                            .unwrap_or(0.0);
-                    }
-                    v.path_history.push((v.piece_id.clone(), v.branch_idx));
-                    if v.path_history.len() > 24 {
-                        v.path_history.remove(0);
-                    }
-                    hops += 1;
                 } else {
                     v.dist_mm = boundary_dist;
                     v.velocity_mm_s = 0.0;
@@ -580,14 +571,7 @@ impl VehicleSimState {
             }
 
             // 3. Recompute bogie kinematics & 4. Hard anti-penetration OBB guard
-            recompute_vehicle_poses(
-                v,
-                layout,
-                catalogs,
-                &self.turnout_states,
-                &self.turntable_angles_deg,
-                &self.transfer_offsets_mm,
-            );
+            recompute_vehicle_poses_cached(v, &mut walk_cache, &self.turnout_states);
             if ds.abs() > 1e-6 {
                 let collided = v.cached_poses.iter().any(|p| {
                     let my_obb = Obb2D::from_pose(p, vi, 3.0 * veh_sf, -1.0 * veh_sf);
@@ -605,14 +589,7 @@ impl VehicleSimState {
                     v.velocity_mm_s = 0.0;
                     v.current_speed_mm_s = 0.0;
                     v.blocked_ahead = true;
-                    recompute_vehicle_poses(
-                        v,
-                        layout,
-                        catalogs,
-                        &self.turnout_states,
-                        &self.turntable_angles_deg,
-                        &self.transfer_offsets_mm,
-                    );
+                    recompute_vehicle_poses_cached(v, &mut walk_cache, &self.turnout_states);
                 }
             }
 

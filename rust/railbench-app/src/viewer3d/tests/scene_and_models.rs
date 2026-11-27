@@ -666,3 +666,51 @@ fn ground_terrain_brushed_water_and_sand_generate_surface_and_clip() {
     }));
 }
 
+#[test]
+fn engine_shed_and_roundhouse_transparent_roofs_reach_scene_cache_single_and_parallel() {
+    let catalogs = crate::catalog::builtin_catalogs();
+    let mk = |id: &str, bid: &str, x: f64, y: f64, w: f64, d: f64, h: f64| Model3D {
+        id: id.into(),
+        name: bid.into(),
+        category: "railway".into(),
+        transform: Transform { x, y, rotation: 0.0 },
+        elevation: Some(0.0),
+        scale: Some(1.0),
+        layer_id: None,
+        width: w,
+        depth: d,
+        height: h,
+        model_type: "builtin".into(),
+        builtin_id: Some(bid.into()),
+        mountain_style: None,
+        mountain_path: None,
+        ground_terrain_type: None,
+        file_data: None,
+        file_name: None,
+    };
+
+    // 1. Single engine-shed (single-threaded model path)
+    let mut layout1 = crate::make_empty_layout();
+    layout1.models = Some(vec![mk("shed-1", "engine-shed", 0.0, 0.0, 240.0, 72.0, 105.0)]);
+    let mut cache1 = Scene3DCache::default();
+    let bundle1 = update_scene_3d_cache(&layout1, &catalogs, &Scene3DOptions::default(), &mut cache1);
+    let tracks1 = bundle1.tracks.expect("tracks bundle").1;
+    assert!(!tracks1.glass_indices.is_empty(), "single engine-shed should populate tracks.glass_indices");
+    assert!(tracks1.glass_indices.iter().all(|&gi| tracks1.vertices[gi as usize].color[3] < 128));
+
+    // 2. Multiple models (parallel model chunk path)
+    let mut layout2 = crate::make_empty_layout();
+    layout2.models = Some(vec![
+        mk("shed-1", "engine-shed", -200.0, 0.0, 240.0, 72.0, 105.0),
+        mk("hall-1", "turntable-trainhall", 300.0, 0.0, 320.0, 310.0, 115.0),
+    ]);
+    let mut cache2 = Scene3DCache::default();
+    let bundle2 = update_scene_3d_cache(&layout2, &catalogs, &Scene3DOptions::default(), &mut cache2);
+    let tracks2 = bundle2.tracks.expect("tracks bundle").1;
+    assert!(
+        tracks2.glass_indices.len() > tracks1.glass_indices.len(),
+        "parallel model chunks must merge glass_indices from all sheds"
+    );
+    assert!(tracks2.glass_indices.iter().all(|&gi| tracks2.vertices[gi as usize].color[3] < 128));
+}
+

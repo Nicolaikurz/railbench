@@ -11,72 +11,88 @@
     {
       "id": "55200",
       "name": "Gerades Gleis G239 (239,1 mm)",
+      "nameEn": "Straight Track G239 (239.1 mm)",
       "kind": "straight",
       "category": "Geraden",
       "description": "Standard-Gerade G239, Länge 239,07 mm",
+      "descriptionEn": "Standard straight G239, Length 239.07 mm",
       "length": 239.07,
       "gauge": 16.5
     },
     {
       "id": "55201",
       "name": "Gerades Gleis G231 (230,9 mm)",
+      "nameEn": "Straight Track G231 (230.9 mm)",
       "kind": "straight",
       "category": "Geraden",
       "description": "Gerades Gleis G231, Länge 230,93 mm",
+      "descriptionEn": "Straight Track G231, Length 230.93 mm",
       "length": 230.93,
       "gauge": 16.5
     },
     {
       "id": "55202",
       "name": "Gerades Gleis G119 (119,5 mm)",
+      "nameEn": "Straight Track G119 (119.5 mm)",
       "kind": "straight",
       "category": "Geraden",
       "description": "Halbes Standardgleis G119, Länge 119,54 mm",
+      "descriptionEn": "Half Standard Track G119, Length 119.54 mm",
       "length": 119.54,
       "gauge": 16.5
     },
     {
       "id": "55203",
       "name": "Gerades Gleis G107 (107,3 mm)",
+      "nameEn": "Straight Track G107 (107.3 mm)",
       "kind": "straight",
       "category": "Geraden",
       "description": "Ausgleichsgleis G107, Länge 107,32 mm",
+      "descriptionEn": "Compensation Track G107, Length 107.32 mm",
       "length": 107.32,
       "gauge": 16.5
     },
     {
       "id": "55204",
       "name": "Gerades Gleis G62 (61,9 mm)",
+      "nameEn": "Straight Track G62 (61.9 mm)",
       "kind": "straight",
       "category": "Geraden",
       "description": "Viertelgleis G62, Länge 61,88 mm",
+      "descriptionEn": "Quarter Track G62, Length 61.88 mm",
       "length": 61.88,
       "gauge": 16.5
     },
     {
       "id": "55205",
       "name": "Gerades Gleis G940 (Flexgleis)",
+      "nameEn": "Flex Track G940 (940 mm)",
       "kind": "flex",
       "category": "Geraden",
       "description": "Flexgleis G940, Länge 940 mm",
+      "descriptionEn": "Flex Track G940, Length 940 mm",
       "length": 940,
       "gauge": 16.5
     },
     {
       "id": "55206",
       "name": "Gerades Gleis G940 Holzschwellenband",
+      "nameEn": "Wooden Tie Strip G940 (940 mm)",
       "kind": "straight",
       "category": "Geraden",
       "description": "Schwellenband für Flexgleis, Länge 940 mm",
+      "descriptionEn": "Wooden tie strip for flex track, Length 940 mm",
       "length": 940,
       "gauge": 16.5
     },
     {
       "id": "55211",
       "name": "Gebogenes Gleis R1 / 30°",
+      "nameEn": "Curved Track R1 / 30°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Radius R1 = 360 mm, Bogen 30°",
+      "descriptionEn": "Radius R1 = 360 mm, Curve 30°",
       "radius": 360,
       "angle": 30,
       "gauge": 16.5
@@ -84,9 +100,11 @@
     {
       "id": "55212",
       "name": "Gebogenes Gleis R2 / 30°",
+      "nameEn": "Curved Track R2 / 30°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Radius R2 = 421,88 mm, Bogen 30° (Standard-Parallelkreis)",
+      "descriptionEn": "Radius R2 = 421.88 mm, Curve 30° (Standard parallel circle)",
       "radius": 421.88,
       "angle": 30,
       "gauge": 16.5
@@ -94,9 +112,11 @@
     {
       "id": "55213",
       "name": "Gebogenes Gleis R3 / 30°",
+      "nameEn": "Curved Track R3 / 30°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Radius R3 = 483,75 mm, Bogen 30°",
+      "descriptionEn": "Radius R3 = 483.75 mm, Curve 30°",
       "radius": 483.75,
       "angle": 30,
       "gauge": 16.5
@@ -104,9 +124,11 @@
     {
       "id": "55214",
       "name": "Gebogenes Gleis R4 / 30°",
+      "nameEn": "Curved Track R4 / 30°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Radius R4 = 545,63 mm, Bogen 30°",
+      "descriptionEn": "Radius R4 = 545.63 mm, Curve 30°",
       "radius": 545.63,
       "angle": 30,
       "gauge": 16.5
@@ -114,9 +136,11 @@
     {
       "id": "55219",
       "name": "Gebogenes Gleis R9 / 15°",
+      "nameEn": "Curved Track R9 / 15°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Großer Gegenbogen R9 = 907,97 mm, Bogen 15° für Weichen",
+      "descriptionEn": "Large counter-curve R9 = 907.97 mm, Curve 15° for turnouts",
       "radius": 907.97,
       "angle": 15,
       "gauge": 16.5
@@ -124,9 +148,11 @@
     {
       "id": "55220",
       "name": "Weiche WL links 15°",
+      "nameEn": "Turnout WL left 15°",
       "kind": "turnout-left",
       "category": "Weichen",
       "description": "Länge 239,07 mm, Abzweig R9 = 907,97 mm / 15°",
+      "descriptionEn": "Length 239.07 mm, branch R9 = 907.97 mm / 15°",
       "length": 239.07,
       "branchRadius": 907.97,
       "branchAngle": 15,
@@ -135,9 +161,11 @@
     {
       "id": "55221",
       "name": "Weiche WR rechts 15°",
+      "nameEn": "Turnout WR right 15°",
       "kind": "turnout-right",
       "category": "Weichen",
       "description": "Länge 239,07 mm, Abzweig R9 = 907,97 mm / 15°",
+      "descriptionEn": "Length 239.07 mm, branch R9 = 907.97 mm / 15°",
       "length": 239.07,
       "branchRadius": 907.97,
       "branchAngle": 15,
@@ -146,9 +174,11 @@
     {
       "id": "55222",
       "name": "Bogenweiche BWL links (R2/R3)",
+      "nameEn": "Curveweiche BWL left (R2/R3)",
       "kind": "curved-turnout-left",
       "category": "Weichen",
       "description": "Stammbogen R2 = 421,88 mm / 30°, Abzweig R3 = 483,75 mm / 30°",
+      "descriptionEn": "Main curve R2 = 421.88 mm / 30°, branch R3 = 483.75 mm / 30°",
       "radius": 421.88,
       "angle": 30,
       "branchRadius": 483.75,
@@ -158,9 +188,11 @@
     {
       "id": "55223",
       "name": "Bogenweiche BWR rechts (R2/R3)",
+      "nameEn": "Curveweiche BWR right (R2/R3)",
       "kind": "curved-turnout-right",
       "category": "Weichen",
       "description": "Stammbogen R2 = 421,88 mm / 30°, Abzweig R3 = 483,75 mm / 30°",
+      "descriptionEn": "Main curve R2 = 421.88 mm / 30°, branch R3 = 483.75 mm / 30°",
       "radius": 421.88,
       "angle": 30,
       "branchRadius": 483.75,
@@ -170,9 +202,11 @@
     {
       "id": "55224",
       "name": "Doppelkreuzungsweiche DKW 15°",
+      "nameEn": "Double Slip Switch DKW 15°",
       "kind": "double-slip",
       "category": "Kreuzungen",
       "description": "Länge 239,07 mm, Kreuzung 15°, 2x Abzweig R = 907,97 mm / 15°",
+      "descriptionEn": "Length 239.07 mm, Crossing 15°, 2x branch R = 907.97 mm / 15°",
       "length": 239.07,
       "angle": 15,
       "branchRadius": 907.97,
@@ -182,9 +216,11 @@
     {
       "id": "55225",
       "name": "Dreiwegweiche W3 (15°)",
+      "nameEn": "Three-Way Turnout W3 (15°)",
       "kind": "three-way",
       "category": "Weichen",
       "description": "Länge 239,07 mm, 2x symmetrischer Abzweig 15° / R9 = 907,97 mm",
+      "descriptionEn": "Length 239.07 mm, 2x symmetrical branch 15° / R9 = 907.97 mm",
       "length": 239.07,
       "branchRadius": 907.97,
       "branchAngle": 15,
@@ -193,9 +229,11 @@
     {
       "id": "55227",
       "name": "Einfache Weiche WL links (kurz / 30°)",
+      "nameEn": "Turnout WL left (Short / 30°)",
       "kind": "turnout-left",
       "category": "Weichen",
       "description": "Kurze Weiche Länge G231 (230,93 mm), Abzweig R2 = 421,88 mm / 30°",
+      "descriptionEn": "Short turnout Length G231 (230.93 mm), branch R2 = 421.88 mm / 30°",
       "length": 230.93,
       "branchRadius": 421.88,
       "branchAngle": 30,
@@ -204,9 +242,11 @@
     {
       "id": "55228",
       "name": "Einfache Weiche WR rechts (kurz / 30°)",
+      "nameEn": "Turnout WR right (Short / 30°)",
       "kind": "turnout-right",
       "category": "Weichen",
       "description": "Kurze Weiche Länge G231 (230,93 mm), Abzweig R2 = 421,88 mm / 30°",
+      "descriptionEn": "Short turnout Length G231 (230.93 mm), branch R2 = 421.88 mm / 30°",
       "length": 230.93,
       "branchRadius": 421.88,
       "branchAngle": 30,
@@ -215,9 +255,11 @@
     {
       "id": "55240",
       "name": "Kreuzung K15 (15°)",
+      "nameEn": "Crossing K15 (15°)",
       "kind": "crossing",
       "category": "Kreuzungen",
       "description": "Länge 239,07 mm, Kreuzungswinkel 15°",
+      "descriptionEn": "Length 239.07 mm, crossing angle 15°",
       "length": 239.07,
       "angle": 15,
       "gauge": 16.5
@@ -225,9 +267,11 @@
     {
       "id": "55241",
       "name": "Kreuzung K30 (30°)",
+      "nameEn": "Crossing K30 (30°)",
       "kind": "crossing",
       "category": "Kreuzungen",
       "description": "Länge 119,54 mm, Kreuzungswinkel 30°",
+      "descriptionEn": "Length 119.54 mm, crossing angle 30°",
       "length": 119.54,
       "angle": 30,
       "gauge": 16.5
@@ -235,9 +279,11 @@
     {
       "id": "55251",
       "name": "Gebogenes Gleis R1 / 7,5°",
+      "nameEn": "Curved Track R1 / 7.5°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Ausgleichsbogen Radius R1 = 360 mm, Bogen 7,5°",
+      "descriptionEn": "Compensation Curve Radius R1 = 360 mm, Curve 7.5°",
       "radius": 360,
       "angle": 7.5,
       "gauge": 16.5
@@ -245,9 +291,11 @@
     {
       "id": "55252",
       "name": "Gebogenes Gleis R2 / 7,5°",
+      "nameEn": "Curved Track R2 / 7.5°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Ausgleichsbogen Radius R2 = 421,88 mm, Bogen 7,5°",
+      "descriptionEn": "Compensation Curve Radius R2 = 421.88 mm, Curve 7.5°",
       "radius": 421.88,
       "angle": 7.5,
       "gauge": 16.5
@@ -255,9 +303,11 @@
     {
       "id": "55253",
       "name": "Gebogenes Gleis R3 / 7,5°",
+      "nameEn": "Curved Track R3 / 7.5°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Ausgleichsbogen Radius R3 = 483,75 mm, Bogen 7,5°",
+      "descriptionEn": "Compensation Curve Radius R3 = 483.75 mm, Curve 7.5°",
       "radius": 483.75,
       "angle": 7.5,
       "gauge": 16.5
@@ -265,9 +315,11 @@
     {
       "id": "55254",
       "name": "Gebogenes Gleis R4 / 7,5°",
+      "nameEn": "Curved Track R4 / 7.5°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Ausgleichsbogen Radius R4 = 545,63 mm, Bogen 7,5°",
+      "descriptionEn": "Compensation Curve Radius R4 = 545.63 mm, Curve 7.5°",
       "radius": 545.63,
       "angle": 7.5,
       "gauge": 16.5
@@ -275,63 +327,77 @@
     {
       "id": "55270",
       "name": "Anschluss-Clip analog",
+      "nameEn": "Analog Track Power Clip",
       "kind": "straight",
       "category": "Zubehör",
       "description": "Schienenanschluss analog",
+      "descriptionEn": "Track power clip analog",
       "length": 0,
       "gauge": 16.5
     },
     {
       "id": "55274",
       "name": "Entkupplungsgleis elektrisch G119",
+      "nameEn": "Electric Uncoupler Track G119",
       "kind": "straight",
       "category": "Zubehör",
       "description": "Elektrisches Entkupplungsgleis, Länge 119,54 mm",
+      "descriptionEn": "Electric Uncoupler Track, Length 119.54 mm",
       "length": 119.54,
       "gauge": 16.5
     },
     {
       "id": "55275",
       "name": "Anschlussgleis G239 analog",
+      "nameEn": "Feeder Track G239 analog",
       "kind": "straight",
       "category": "Zubehör",
       "description": "Gerade G239 (239,07 mm) mit integriertem analogen Anschluss-Clip",
+      "descriptionEn": "Straight G239 (239.07 mm) with integrated analog power clip",
       "length": 239.07,
       "gauge": 16.5
     },
     {
       "id": "55276",
       "name": "Anschlussgleis G239 digital",
+      "nameEn": "Feeder Track G239 digital",
       "kind": "straight",
       "category": "Zubehör",
       "description": "Gerade G239 (239,07 mm) mit integriertem digitalen Anschluss-Clip",
+      "descriptionEn": "Straight G239 (239.07 mm) with integrated digital power clip",
       "length": 239.07,
       "gauge": 16.5
     },
     {
       "id": "55280",
       "name": "Prellbock-Bausatz mit Gleis",
+      "nameEn": "Buffer Stop Kit with Track",
       "kind": "straight",
       "category": "Zubehör",
       "description": "Gleis G62 (61,9 mm) mit Prellbock",
+      "descriptionEn": "Track G62 (61.9 mm) with buffer stop",
       "length": 61.88,
       "gauge": 16.5
     },
     {
       "id": "55281",
       "name": "Prellbock auf Schwellenträger",
+      "nameEn": "Tie-Mounted Buffer Stop",
       "kind": "straight",
       "category": "Zubehör",
       "description": "Prellbock zum Aufstecken auf Schienenprofile",
+      "descriptionEn": "Buffer Stop clip-on for rail profiles",
       "length": 0,
       "gauge": 16.5
     },
     {
       "id": "55289",
       "name": "Aufgleisvorrichtung",
+      "nameEn": "Rerailer Track",
       "kind": "straight",
       "category": "Zubehör",
       "description": "Aufgleiser / Eingleisvorrichtung Länge G119 (119,54 mm)",
+      "descriptionEn": "Rerailer Track / rerailer Length G119 (119.54 mm)",
       "length": 119.54,
       "gauge": 16.5
     }

@@ -11,63 +11,77 @@
     {
       "id": "72110",
       "name": "Gerades Gleis G128",
+      "nameEn": "Straight Track G128",
       "kind": "straight",
       "category": "Geraden",
       "description": "Grundgerade, Länge 128 mm",
+      "descriptionEn": "Base straight, Length 128 mm",
       "length": 128,
       "gauge": 12
     },
     {
       "id": "72120",
       "name": "Gerades Gleis G121",
+      "nameEn": "Straight Track G121",
       "kind": "straight",
       "category": "Geraden",
       "description": "Gerades Gleis (Weichenlänge), Länge 121 mm",
+      "descriptionEn": "Straight Track (turnout length), Length 121 mm",
       "length": 121,
       "gauge": 12
     },
     {
       "id": "72130",
       "name": "Gerades Gleis G64",
+      "nameEn": "Straight Track G64",
       "kind": "straight",
       "category": "Geraden",
       "description": "Halbes Gleis, Länge 64 mm",
+      "descriptionEn": "Half Track, Length 64 mm",
       "length": 64,
       "gauge": 12
     },
     {
       "id": "72140",
       "name": "Gerades Gleis G60",
+      "nameEn": "Straight Track G60",
       "kind": "straight",
       "category": "Geraden",
       "description": "Ausgleichsgerade, Länge 60,5 mm",
+      "descriptionEn": "Compensation Straight, Length 60.5 mm",
       "length": 60.5,
       "gauge": 12
     },
     {
       "id": "72150",
       "name": "Gerades Gleis G44",
+      "nameEn": "Straight Track G44",
       "kind": "straight",
       "category": "Geraden",
       "description": "Kurzes Ausgleichsstück, Länge 44 mm",
+      "descriptionEn": "Short compensation piece, Length 44 mm",
       "length": 44,
       "gauge": 12
     },
     {
       "id": "72190",
       "name": "Flexgleis 640 mm",
+      "nameEn": "Flex Track 640 mm",
       "kind": "flex",
       "category": "Geraden",
       "description": "Flexgleis, Länge 640 mm",
+      "descriptionEn": "Flex Track, Length 640 mm",
       "length": 640,
       "gauge": 12
     },
     {
       "id": "72210",
       "name": "Gebogenes Gleis R1 / 30°",
+      "nameEn": "Curved Track R1 / 30°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Radius R1 = 321 mm, Bogen 30°",
+      "descriptionEn": "Radius R1 = 321 mm, Curve 30°",
       "radius": 321,
       "angle": 30,
       "gauge": 12
@@ -75,9 +89,11 @@
     {
       "id": "72211",
       "name": "Gebogenes Gleis R1 / 10°",
+      "nameEn": "Curved Track R1 / 10°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Ausgleichsbogen R1 = 321 mm, Bogen 10°",
+      "descriptionEn": "Compensation Curve R1 = 321 mm, Curve 10°",
       "radius": 321,
       "angle": 10,
       "gauge": 12
@@ -85,9 +101,11 @@
     {
       "id": "72220",
       "name": "Gebogenes Gleis R2 / 30°",
+      "nameEn": "Curved Track R2 / 30°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Radius R2 = 365 mm, Bogen 30°",
+      "descriptionEn": "Radius R2 = 365 mm, Curve 30°",
       "radius": 365,
       "angle": 30,
       "gauge": 12
@@ -95,9 +113,11 @@
     {
       "id": "72221",
       "name": "Gebogenes Gleis R2 / 10°",
+      "nameEn": "Curved Track R2 / 10°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Ausgleichsbogen R2 = 365 mm, Bogen 10°",
+      "descriptionEn": "Compensation Curve R2 = 365 mm, Curve 10°",
       "radius": 365,
       "angle": 10,
       "gauge": 12
@@ -105,9 +125,11 @@
     {
       "id": "72610",
       "name": "Weiche WL10 links (10°)",
+      "nameEn": "Turnout WL10 left (10°)",
       "kind": "turnout-left",
       "category": "Weichen",
       "description": "Länge 128 mm, Abzweig R700 / 10°",
+      "descriptionEn": "Length 128 mm, branch R700 / 10°",
       "length": 128,
       "branchRadius": 700,
       "branchAngle": 10,
@@ -116,9 +138,11 @@
     {
       "id": "72620",
       "name": "Weiche WR10 rechts (10°)",
+      "nameEn": "Turnout WR10 right (10°)",
       "kind": "turnout-right",
       "category": "Weichen",
       "description": "Länge 128 mm, Abzweig R700 / 10°",
+      "descriptionEn": "Length 128 mm, branch R700 / 10°",
       "length": 128,
       "branchRadius": 700,
       "branchAngle": 10,
@@ -127,9 +151,11 @@
     {
       "id": "72630",
       "name": "Weiche WL20 links (14,04°)",
+      "nameEn": "Turnout WL20 left (14.04°)",
       "kind": "turnout-left",
       "category": "Weichen",
       "description": "Länge 121 mm, Abzweig R365 / 14,04°",
+      "descriptionEn": "Length 121 mm, branch R365 / 14.04°",
       "length": 121,
       "branchRadius": 365,
       "branchAngle": 14.04,
@@ -138,9 +164,11 @@
     {
       "id": "72640",
       "name": "Weiche WR20 rechts (14,04°)",
+      "nameEn": "Turnout WR20 right (14.04°)",
       "kind": "turnout-right",
       "category": "Weichen",
       "description": "Länge 121 mm, Abzweig R365 / 14,04°",
+      "descriptionEn": "Length 121 mm, branch R365 / 14.04°",
       "length": 121,
       "branchRadius": 365,
       "branchAngle": 14.04,
@@ -149,9 +177,11 @@
     {
       "id": "72650",
       "name": "Bogenweiche BWL links (R1/R2)",
+      "nameEn": "Curveweiche BWL left (R1/R2)",
       "kind": "curved-turnout-left",
       "category": "Weichen",
       "description": "Stammbogen R2 / 30°, Abzweig R1 / 30°",
+      "descriptionEn": "Main curve R2 / 30°, branch R1 / 30°",
       "radius": 365,
       "angle": 30,
       "branchRadius": 321,
@@ -161,9 +191,11 @@
     {
       "id": "72660",
       "name": "Bogenweiche BWR rechts (R1/R2)",
+      "nameEn": "Curveweiche BWR right (R1/R2)",
       "kind": "curved-turnout-right",
       "category": "Weichen",
       "description": "Stammbogen R2 / 30°, Abzweig R1 / 30°",
+      "descriptionEn": "Main curve R2 / 30°, branch R1 / 30°",
       "radius": 365,
       "angle": 30,
       "branchRadius": 321,
@@ -173,9 +205,11 @@
     {
       "id": "72710",
       "name": "Kreuzung K20 (20°)",
+      "nameEn": "Crossing K20 (20°)",
       "kind": "crossing",
       "category": "Kreuzungen",
       "description": "Länge 128 mm, Kreuzungswinkel 20°",
+      "descriptionEn": "Length 128 mm, crossing angle 20°",
       "length": 128,
       "angle": 20,
       "gauge": 12
@@ -183,18 +217,22 @@
     {
       "id": "72750",
       "name": "Prellbock Bausatz",
+      "nameEn": "Buffer Stop Kit",
       "kind": "buffer-stop",
       "category": "Zubehör",
       "description": "Prellbock mit Holzbohle zum Aufstecken (Bausatz)",
+      "descriptionEn": "Clip-on buffer stop with wooden beam (kit)",
       "length": 20,
       "gauge": 12
     },
     {
       "id": "72810",
       "name": "Prellbockgleis G64",
+      "nameEn": "Buffer Stop Track G64",
       "kind": "buffer-stop",
       "category": "Zubehör",
       "description": "Gleis G64 (64 mm) mit montiertem Prellbock",
+      "descriptionEn": "Track G64 (64 mm) with mounted buffer stop",
       "length": 64,
       "gauge": 12
     }

@@ -464,6 +464,11 @@ impl RailbenchApp {
         self.mark_layout_dirty();
     }
 
+    pub const LAYER_COLOR_PALETTE: [&str; 10] = [
+        "#38bdf8", "#34d399", "#fbbf24", "#f472b6", "#a78bfa",
+        "#f97316", "#2dd4bf", "#ef4444", "#60a5fa", "#94a3b8",
+    ];
+
     pub fn add_layer(&mut self) {
         self.add_layer_immediate();
     }
@@ -475,7 +480,6 @@ impl RailbenchApp {
             .filter_map(|l| l.height_mm)
             .fold(f64::NEG_INFINITY, f64::max);
         let next_idx = layers.len() + 1;
-        let palette_hex = ["#38bdf8", "#34d399", "#fbbf24", "#f472b6", "#a78bfa", "#f97316", "#2dd4bf", "#ef4444"];
         self.layer_dialog_edit_id = None;
         self.layer_dialog_name = if self.lang == Lang::De {
             format!("Ebene {}", next_idx.saturating_sub(1))
@@ -487,9 +491,12 @@ impl RailbenchApp {
         } else {
             max_h + 80.0
         };
-        self.layer_dialog_color = palette_hex[(next_idx.saturating_sub(1)) % palette_hex.len()].into();
+        self.layer_dialog_color =
+            Self::LAYER_COLOR_PALETTE[(next_idx.saturating_sub(1)) % Self::LAYER_COLOR_PALETTE.len()].into();
         self.layer_dialog_wood_mode = "none".into();
         self.layer_dialog_wood_thickness = 10.0;
+        self.layer_dialog_focus_name = true;
+        self.layer_dialog_custom_color_open = false;
         self.show_layer_dialog = true;
     }
 
@@ -509,16 +516,31 @@ impl RailbenchApp {
         self.layer_dialog_color = layer.color.unwrap_or_else(|| "#38bdf8".into());
         self.layer_dialog_wood_mode = layer.wood_plate_mode.unwrap_or_else(|| "none".into());
         self.layer_dialog_wood_thickness = layer.wood_plate_thickness_mm.unwrap_or(10.0);
+        self.layer_dialog_focus_name = true;
+        self.layer_dialog_custom_color_open = false;
         self.show_layer_dialog = true;
     }
 
     pub fn apply_layer_dialog(&mut self) {
         self.push_undo();
-        let name = self.layer_dialog_name.trim().to_string();
-        let final_name = if name.is_empty() {
-            "Layer".to_string()
+        let trimmed = self.layer_dialog_name.trim().to_string();
+        let next_num = self.layout.layers.as_ref().map(|l| l.len() + 1).unwrap_or(1);
+        let fallback_name = if let Some(ref edit_id) = self.layer_dialog_edit_id {
+            self.layout
+                .layers
+                .as_ref()
+                .and_then(|ls| ls.iter().find(|l| &l.id == edit_id))
+                .map(|l| l.name.clone())
+                .unwrap_or_else(|| format!("Layer {next_num}"))
+        } else if self.lang == Lang::De {
+            format!("Ebene {}", next_num.saturating_sub(1))
         } else {
-            name
+            format!("Layer {next_num}")
+        };
+        let final_name = if trimmed.is_empty() {
+            fallback_name
+        } else {
+            trimmed
         };
         let height_mm = (self.layer_dialog_height_mm * 10.0).round() / 10.0;
         let color = self.layer_dialog_color.clone();
@@ -557,6 +579,8 @@ impl RailbenchApp {
         update_layout_connections(&mut self.layout, 4.0, 35.0, 1.0);
         crate::catalog::disconnect_cross_type_connections(&mut self.layout, &self.catalogs);
         self.mark_layout_dirty();
+        self.layer_dialog_focus_name = false;
+        self.layer_dialog_custom_color_open = false;
         self.show_layer_dialog = false;
     }
 
@@ -566,9 +590,14 @@ impl RailbenchApp {
         let idx = layers.len();
         let id = format!("layer-{}", idx + 1);
         let palette_hex = ["#38bdf8", "#f59e0b", "#10b981", "#a855f7", "#ef4444", "#ec4899"];
+        let default_name = if self.lang == Lang::De {
+            format!("Ebene {idx}")
+        } else {
+            format!("Layer {idx}")
+        };
         layers.push(Layer {
             id: id.clone(),
-            name: format!("Ebene {idx}"),
+            name: default_name,
             color: Some(palette_hex[idx % palette_hex.len()].into()),
             visible: true,
             locked: false,

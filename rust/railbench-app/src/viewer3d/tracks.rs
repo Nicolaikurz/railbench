@@ -199,12 +199,13 @@ pub(super) fn push_track_piece_3d(
         push_box_polyline_mat_3d(verts, idxs, &right_head_pts, rail_w, head_h, rail_col, MAT_METAL_RAIL);
 
         if piece.has_catenary == Some(true) && !(kind_str == "double-slip" && br_idx >= 2) {
+            let sf = (gauge / 16.5).max(0.25);
             let contact_h = 72.0_f32;
             let messenger_h = 85.0_f32;
             let mast_off = if piece.has_bridge == Some(true) {
-                ballast_bot_w * 0.5 + 9.5 * (gauge / 16.5)
+                ballast_bot_w * 0.5 + 9.5 * sf
             } else {
-                (ballast_bot_w * 0.60).max(24.0)
+                (ballast_bot_w * 0.64).max(26.8 * sf)
             };
             let wire_copper = [0.85, 0.47, 0.04];
             let wire_msg = [0.58, 0.64, 0.72];
@@ -234,12 +235,10 @@ pub(super) fn push_track_piece_3d(
             let (nx_start, nz_start, _) = polyline_miter_normal(pts, 0);
             let (nx_end, nz_end, _) = polyline_miter_normal(pts, n_pts - 1);
 
-            // Place exterior masts at open-air ends (tunneled pieces use overhead ceiling brackets inside the bore)
+            // Register exterior mast/portal anchors at open-air ends (tunneled pieces use overhead ceiling brackets)
             if piece.has_tunnel != Some(true) {
                 if br_idx == 0 || (matches!(kind_str, "crossing" | "double-slip") && br_idx == 1) {
-                    cat_ctx.try_place_mast(
-                        verts,
-                        idxs,
+                    cat_ctx.register_anchor(
                         p_start,
                         nx_start,
                         nz_start,
@@ -247,14 +246,11 @@ pub(super) fn push_track_piece_3d(
                         mast_off,
                         contact_h,
                         messenger_h,
-                        &piece.id,
-                        layout,
+                        sf,
                     );
                 }
                 if !is_buffer_piece {
-                    cat_ctx.try_place_mast(
-                        verts,
-                        idxs,
+                    cat_ctx.register_anchor(
                         p_end,
                         nx_end,
                         nz_end,
@@ -262,8 +258,7 @@ pub(super) fn push_track_piece_3d(
                         mast_off,
                         contact_h,
                         messenger_h,
-                        &piece.id,
-                        layout,
+                        sf,
                     );
                 }
             }

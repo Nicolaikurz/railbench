@@ -318,7 +318,7 @@ impl BoardSketcherState {
                         .unwrap_or_else(|| "wood".into());
                     plates.push(LayerPlate {
                         id: id.clone(),
-                        name: Some(format!("Platte {idx}")),
+                        name: Some(format!("Plate {idx}")),
                         baseboard_id: target_board.as_ref().and_then(|b| b.id.clone()),
                         shape: Some("rect".into()),
                         custom_polygon: None,

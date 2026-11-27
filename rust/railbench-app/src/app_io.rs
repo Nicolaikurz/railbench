@@ -146,6 +146,9 @@ impl RailbenchApp {
         } else {
             Lang::De
         };
+        if app.lang == Lang::En {
+            app.layout = make_empty_layout_for_lang(false);
+        }
         app.snapping_enabled = s.snapping_enabled;
         app.layer_protection = s.layer_protection;
         app.color_mode = match s.color_mode.as_str() {
@@ -222,7 +225,7 @@ impl RailbenchApp {
                 }
             }
             StartupAction::New => {
-                app.layout = make_empty_layout();
+                app.layout = make_empty_layout_for_lang(app.lang == Lang::De);
                 app.current_file_path = None;
                 app.saved_layout_version = app.layout_version;
                 app.selected.clear();
@@ -602,6 +605,7 @@ impl RailbenchApp {
             }
             self.layout = prev;
             self.selected.clear();
+            self.vehicle_sim.sanitize_for_layout(&self.layout, &self.catalogs);
             self.mark_layout_dirty();
         }
     }
@@ -612,6 +616,7 @@ impl RailbenchApp {
             self.trim_undo_stack();
             self.layout = next;
             self.selected.clear();
+            self.vehicle_sim.sanitize_for_layout(&self.layout, &self.catalogs);
             self.mark_layout_dirty();
         }
     }
@@ -622,7 +627,8 @@ impl RailbenchApp {
         if !self.is_3d_mode {
             self.release_3d_cpu_memory();
         }
-        self.layout = make_empty_layout();
+        self.layout = make_empty_layout_for_lang(self.lang == Lang::De);
+        self.vehicle_sim.clear_all();
         self.current_file_path = None;
         self.selected.clear();
         self.pending_fit_view = true;
@@ -849,8 +855,10 @@ impl RailbenchApp {
                     self.release_3d_cpu_memory();
                 }
                 update_layout_connections(&mut loaded, 4.0, 35.0, 1.0);
+                crate::catalog::disconnect_cross_type_connections(&mut loaded, &self.catalogs);
                 self.push_undo();
                 self.layout = loaded;
+                self.vehicle_sim.clear_all();
                 self.selected.clear();
                 self.pending_fit_view = true;
                 self.current_file_path = if std::path::Path::new(source_label).exists() {
@@ -875,7 +883,10 @@ impl RailbenchApp {
             Ok(json) => match std::fs::write(path, json) {
                 Ok(_) => {
                     if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
-                        if self.layout.name == "Neue Anlage" || self.layout.name.trim().is_empty() {
+                        if self.layout.name == "Neue Anlage"
+                            || self.layout.name == "New Layout"
+                            || self.layout.name.trim().is_empty()
+                        {
                             self.layout.name = stem.to_string();
                         }
                     }

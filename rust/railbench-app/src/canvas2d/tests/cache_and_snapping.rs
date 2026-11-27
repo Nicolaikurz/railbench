@@ -171,6 +171,7 @@ fn track_snapping_requires_same_level_and_marks_level_mismatch_yellow() {
         kind: "straight".to_string(),
         category: "Track".to_string(),
         description: String::new(),
+        description_en: None,
         length: Some(180.0),
         radius: None,
         angle: None,

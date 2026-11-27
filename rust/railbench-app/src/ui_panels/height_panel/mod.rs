@@ -348,7 +348,13 @@ pub fn draw_height_ramp_dialog(ctx: &egui::Context, app: &mut RailbenchApp) {
                 .map(|l| (l.id.clone(), l.name.clone(), l.height_mm.unwrap_or(0.0)))
                 .collect()
         })
-        .unwrap_or_else(|| vec![("layer-1".into(), "Ebene 0".into(), 0.0)]);
+        .unwrap_or_else(|| {
+            vec![(
+                "layer-1".into(),
+                if is_de { "Ebene 0" } else { "Layer 0" }.into(),
+                0.0,
+            )]
+        });
 
     // One-shot initialization when opening the Height & Ramp panel
     if !app.height_dialog_was_open {

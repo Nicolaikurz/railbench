@@ -112,6 +112,7 @@ impl RailbenchApp {
         }
         update_layout_connections(&mut self.layout, 4.0, 35.0, 1.0);
         crate::catalog::disconnect_cross_type_connections(&mut self.layout, &self.catalogs);
+        self.vehicle_sim.sanitize_for_layout(&self.layout, &self.catalogs);
         self.mark_layout_dirty();
         let layer_name = self
             .layout
@@ -199,6 +200,7 @@ impl RailbenchApp {
         }
         update_layout_connections(&mut self.layout, 4.0, 35.0, 1.0);
         crate::catalog::disconnect_cross_type_connections(&mut self.layout, &self.catalogs);
+        self.vehicle_sim.sanitize_for_layout(&self.layout, &self.catalogs);
         self.mark_layout_dirty();
         self.status_message = Some(if self.lang == Lang::De {
             format!("{count} verwaiste(s) Element(e) neu zugewiesen")
@@ -330,6 +332,7 @@ impl RailbenchApp {
         }
         update_layout_connections(&mut self.layout, 4.0, 35.0, 1.0);
         crate::catalog::disconnect_cross_type_connections(&mut self.layout, &self.catalogs);
+        self.vehicle_sim.sanitize_for_layout(&self.layout, &self.catalogs);
         self.mark_layout_dirty();
         let msg = if self.lang == Lang::De {
             "Gleise gespiegelt / gewendet".to_string()
@@ -532,6 +535,7 @@ impl RailbenchApp {
         self.layout.pieces[idx] = replacement;
         update_layout_connections(&mut self.layout, 4.0, 35.0, 1.0);
         crate::catalog::disconnect_cross_type_connections(&mut self.layout, &self.catalogs);
+        self.vehicle_sim.sanitize_for_layout(&self.layout, &self.catalogs);
         self.mark_layout_dirty();
         self.status_message = Some(if self.lang == Lang::De {
             format!("Gleis durch #{new_catalog_id} ersetzt")

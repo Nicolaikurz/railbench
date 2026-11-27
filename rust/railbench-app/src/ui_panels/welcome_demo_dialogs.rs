@@ -231,12 +231,8 @@ pub(super) fn draw_welcome_dialog(ctx: &egui::Context, app: &mut RailbenchApp) {
                                 ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                             }
                             if guide_resp.clicked() {
-                                app.help_tab = 0;
+                                app.help_tab = 1;
                                 app.show_help_dialog = true;
-                                ctx.move_to_top(egui::LayerId::new(
-                                    egui::Order::Middle,
-                                    egui::Id::new("railbench_help_dialog"),
-                                ));
                             }
                         });
                     });
@@ -416,7 +412,7 @@ pub(super) fn draw_demo_dialog(ctx: &egui::Context, app: &mut RailbenchApp) {
             "Shunting Yard 0",
             "demotracks/shunting-0.railbench",
             "Rangierbahnhof im Massstab 1:45 (Lenz Spur 0)",
-            "Industrial switching yard in 1:45 (Spur 0)",
+            "Industrial switching yard in 1:45 (Scale 0)",
         ),
         (
             "N",

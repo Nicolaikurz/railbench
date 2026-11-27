@@ -321,7 +321,15 @@ pub(super) fn draw_export_dialog(ctx: &egui::Context, app: &mut RailbenchApp) {
                     })
                     .collect()
             })
-            .unwrap_or_else(|| vec![("layer-1".into(), "Ebene 1".into(), 0.0, None, app.layout.pieces.len())]);
+            .unwrap_or_else(|| {
+                vec![(
+                    "layer-1".into(),
+                    if is_de { "Ebene 1" } else { "Layer 1" }.into(),
+                    0.0,
+                    None,
+                    app.layout.pieces.len(),
+                )]
+            });
 
         let active_layer_pages: Vec<_> = if app.export_opts.include_layer_pages {
             let mut v: Vec<_> = all_layers

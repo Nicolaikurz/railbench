@@ -563,3 +563,57 @@ fn uncoupler_24997_generates_3d_ramp_that_lifts_when_active() {
         "raised uncoupler ramp {max_y_active} must sit higher than idle {max_y_idle}"
     );
 }
+
+#[test]
+fn shadow_map_throttle_handles_static_vs_vehicle_updates() {
+    use super::super::gpu::{should_render_shadow_map, VEHICLE_SHADOW_MIN_INTERVAL_MS};
+    use std::time::Duration;
+
+    let base = (Some(10), Some(20), Some(30), Some(1), 720, 0);
+    // 1. Initial render always required
+    assert!(should_render_shadow_map(None, base, false, None));
+    // 2. Identical key never re-renders
+    assert!(!should_render_shadow_map(Some(base), base, false, Some(Duration::from_secs(5))));
+    // 3. Static geometry change renders immediately regardless of elapsed time
+    let static_moved = (Some(10), Some(20), Some(31), Some(1), 720, 0);
+    assert!(should_render_shadow_map(
+        Some(base),
+        static_moved,
+        false,
+        Some(Duration::from_millis(5))
+    ));
+    // 4. Vehicle-only change throttles within VEHICLE_SHADOW_MIN_INTERVAL_MS and fires after
+    let veh_moved = (Some(10), Some(20), Some(30), Some(2), 720, 0);
+    assert!(!should_render_shadow_map(
+        Some(base),
+        veh_moved,
+        false,
+        Some(Duration::from_millis(VEHICLE_SHADOW_MIN_INTERVAL_MS.saturating_sub(20)))
+    ));
+    assert!(should_render_shadow_map(
+        Some(base),
+        veh_moved,
+        false,
+        Some(Duration::from_millis(VEHICLE_SHADOW_MIN_INTERVAL_MS))
+    ));
+    // 5. Day/night continuous sun playback throttles to 500 ms
+    let sun_moved = (Some(10), Some(20), Some(30), Some(1), 725, 0);
+    assert!(should_render_shadow_map(
+        Some(base),
+        sun_moved,
+        false,
+        Some(Duration::from_millis(20))
+    ));
+    assert!(!should_render_shadow_map(
+        Some(base),
+        sun_moved,
+        true,
+        Some(Duration::from_millis(200))
+    ));
+    assert!(should_render_shadow_map(
+        Some(base),
+        sun_moved,
+        true,
+        Some(Duration::from_millis(500))
+    ));
+}

@@ -383,6 +383,8 @@ pub struct CatalogEntry {
     pub category: String,
     #[serde(default)]
     pub description: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description_en: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub length: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -420,7 +422,7 @@ pub struct Catalog {
     pub system: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gauge: Option<f64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, alias = "isRoadSystem", skip_serializing_if = "Option::is_none")]
     pub is_road: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub has_roadbed: Option<bool>,

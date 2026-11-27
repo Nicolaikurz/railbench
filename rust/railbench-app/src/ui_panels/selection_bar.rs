@@ -37,12 +37,18 @@ pub fn draw_floating_selection_bar(ctx: &egui::Context, app: &mut RailbenchApp) 
     }
 
     let sel_count = app.selected.len();
+    let is_de = app.lang == Lang::De;
     let layers_list: Vec<(String, String)> = app
         .layout
         .layers
         .as_ref()
         .map(|ls| ls.iter().map(|l| (l.id.clone(), l.name.clone())).collect())
-        .unwrap_or_else(|| vec![("layer-1".into(), "Ebene 0".into())]);
+        .unwrap_or_else(|| {
+            vec![(
+                "layer-1".into(),
+                if is_de { "Ebene 0" } else { "Layer 0" }.into(),
+            )]
+        });
 
     let first_sel = app
         .layout
@@ -687,7 +693,14 @@ pub fn draw_floating_selection_bar(ctx: &egui::Context, app: &mut RailbenchApp) 
                                             "both" => "L+R",
                                             _ => "R",
                                         };
-                                        if toggle_pill_tri(ui, side_lbl, true, true, Color32::from_rgb(15, 118, 110), "Cycle Signal Side") {
+                                        if toggle_pill_tri(
+                                            ui,
+                                            side_lbl,
+                                            true,
+                                            true,
+                                            Color32::from_rgb(15, 118, 110),
+                                            if is_de { "Signalseite wechseln" } else { "Cycle Signal Side" },
+                                        ) {
                                             app.cycle_selected_signal_side();
                                         }
                                         let dir_lbl = match sig_dir {
@@ -695,7 +708,14 @@ pub fn draw_floating_selection_bar(ctx: &egui::Context, app: &mut RailbenchApp) 
                                             "both" => "<->",
                                             _ => "->",
                                         };
-                                        if toggle_pill_tri(ui, dir_lbl, true, true, Color32::from_rgb(15, 118, 110), "Cycle Signal Direction") {
+                                        if toggle_pill_tri(
+                                            ui,
+                                            dir_lbl,
+                                            true,
+                                            true,
+                                            Color32::from_rgb(15, 118, 110),
+                                            if is_de { "Signalrichtung wechseln" } else { "Cycle Signal Direction" },
+                                        ) {
                                             app.cycle_selected_signal_direction();
                                         }
                                     });
@@ -703,21 +723,47 @@ pub fn draw_floating_selection_bar(ctx: &egui::Context, app: &mut RailbenchApp) 
                                 if any_turnout {
                                     ui.separator();
                                     let lantern_lbl = if is_de { "Weichenlaterne (W)" } else { "Turnout Lantern (W)" };
-                                    if toggle_pill_tri(ui, lantern_lbl, has_lantern_all, has_lantern_any, Color32::from_rgb(202, 138, 4), "Turnout Lantern (W)") {
+                                    if toggle_pill_tri(
+                                        ui,
+                                        lantern_lbl,
+                                        has_lantern_all,
+                                        has_lantern_any,
+                                        Color32::from_rgb(202, 138, 4),
+                                        lantern_lbl,
+                                    ) {
                                         app.toggle_selected_lantern();
                                     }
                                     let dec_lbl = if is_de { "Weichendecoder (DEC)" } else { "Turnout Decoder (DEC)" };
-                                    if toggle_pill_tri(ui, dec_lbl, has_decoder_all, has_decoder_any, Color32::from_rgb(2, 132, 199), "Turnout Decoder (Shift+W / Shift+D)") {
+                                    let dec_tip = if is_de {
+                                        "Weichendecoder (Shift+W / Shift+D)"
+                                    } else {
+                                        "Turnout Decoder (Shift+W / Shift+D)"
+                                    };
+                                    if toggle_pill_tri(ui, dec_lbl, has_decoder_all, has_decoder_any, Color32::from_rgb(2, 132, 199), dec_tip) {
                                         app.toggle_selected_decoder();
                                     }
                                 }
                             },
                         );
 
-                        if toggle_pill_tri(ui, t.bridge, has_bridge_all, has_bridge_any, p.primary_hover, "Bridge (B)") {
+                        if toggle_pill_tri(
+                            ui,
+                            t.bridge,
+                            has_bridge_all,
+                            has_bridge_any,
+                            p.primary_hover,
+                            if is_de { "Brücke (B)" } else { "Bridge (B)" },
+                        ) {
                             app.toggle_selected_bridge();
                         }
-                        if toggle_pill_tri(ui, t.tunnel, has_tunnel_all, has_tunnel_any, p.primary_hover, "Tunnel (T)") {
+                        if toggle_pill_tri(
+                            ui,
+                            t.tunnel,
+                            has_tunnel_all,
+                            has_tunnel_any,
+                            p.primary_hover,
+                            if is_de { "Tunnel (T)" } else { "Tunnel (T)" },
+                        ) {
                             app.toggle_selected_tunnel();
                         }
 

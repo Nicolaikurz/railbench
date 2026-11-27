@@ -385,6 +385,7 @@ pub fn update_scene_3d_cache(
             let est_verts = layout.models.as_ref().map_or(0, |ms| ms.len() * 220) + 1024;
             let mut verts = Vec::with_capacity(est_verts);
             let mut idxs = Vec::with_capacity(est_verts * 2);
+            let mut glass_idxs = Vec::with_capacity(256);
 
             let visible_models: Vec<(&Model3D, f32)> = layout
                 .models
@@ -529,11 +530,12 @@ pub fn update_scene_3d_cache(
                             s_trk.spawn(move || {
                                 let mut mv = Vec::with_capacity(chunk.len() * 320);
                                 let mut mi = Vec::with_capacity(chunk.len() * 640);
+                                let mut mglass = Vec::new();
                                 let mut mtex = Vec::new();
                                 for &(m, y0) in chunk {
-                                    push_model_3d(&mut mv, &mut mi, &mut mtex, m, y0);
+                                    push_model_3d(&mut mv, &mut mi, &mut mglass, &mut mtex, m, y0);
                                 }
-                                SceneMesh3D { vertices: mv, indices: mi, glass_indices: Vec::new(), instanced_tracks: Vec::new(), textured_meshes: mtex }
+                                SceneMesh3D { vertices: mv, indices: mi, glass_indices: mglass, instanced_tracks: Vec::new(), textured_meshes: mtex }
                             })
                         })
                         .collect();
@@ -600,6 +602,7 @@ pub fn update_scene_3d_cache(
                                 let base = verts.len() as u32;
                                 verts.extend_from_slice(&sm.vertices);
                                 idxs.extend(sm.indices.into_iter().map(|i| base + i));
+                                glass_idxs.extend(sm.glass_indices.into_iter().map(|i| base + i));
                             }
                             for tm in sm.textured_meshes {
                                 merge_textured_submesh(&mut textured_meshes, tm);
@@ -608,7 +611,7 @@ pub fn update_scene_3d_cache(
                     }
                 } else {
                     for &(m, y0) in &visible_models {
-                        push_model_3d(&mut verts, &mut idxs, &mut textured_meshes, m, y0);
+                        push_model_3d(&mut verts, &mut idxs, &mut glass_idxs, &mut textured_meshes, m, y0);
                     }
                 }
 
@@ -659,40 +662,43 @@ pub fn update_scene_3d_cache(
                     }
                 }
 
-                // Catenary pieces share CatenaryMast3DContext so masts at shared joints are deduplicated
-                let mut cat_ctx = CatenaryMast3DContext::default();
-                for (piece, entry, is_road, e0, e1, layer_col, active_branch) in cat_pieces {
-                    push_track_piece_3d(
-                        &mut verts,
-                        &mut idxs,
-                        piece,
-                        entry,
-                        layout,
-                        is_road,
-                        e0,
-                        e1,
-                        opts.color_mode,
-                        layer_col,
-                        active_branch,
-                        opts.turntable_angles_deg.get(&piece.id).copied().unwrap_or(0.0),
-                        opts.transfer_offsets_mm.get(&piece.id).copied(),
-                        opts.active_uncouplers.contains(&piece.id),
-                        &mut cat_ctx,
-                    );
-                    if piece.has_tunnel == Some(true) && piece.connectors.len() < 6 {
-                        crate::tunnels_3d::push_piece_tunnel_3d(
+                // Catenary pieces share CatenaryMast3DContext across all tracks for collision avoidance & Doppelhalter portals
+                if !cat_pieces.is_empty() {
+                    let mut cat_ctx = CatenaryMast3DContext::from_layout(layout, catalogs, layer_info_ref);
+                    for (piece, entry, is_road, e0, e1, layer_col, active_branch) in cat_pieces {
+                        push_track_piece_3d(
                             &mut verts,
                             &mut idxs,
                             piece,
                             entry,
+                            layout,
                             is_road,
                             e0,
                             e1,
-                            layout,
-                            layer_info_ref,
-                            piece_map_ref,
+                            opts.color_mode,
+                            layer_col,
+                            active_branch,
+                            opts.turntable_angles_deg.get(&piece.id).copied().unwrap_or(0.0),
+                            opts.transfer_offsets_mm.get(&piece.id).copied(),
+                            opts.active_uncouplers.contains(&piece.id),
+                            &mut cat_ctx,
                         );
+                        if piece.has_tunnel == Some(true) && piece.connectors.len() < 6 {
+                            crate::tunnels_3d::push_piece_tunnel_3d(
+                                &mut verts,
+                                &mut idxs,
+                                piece,
+                                entry,
+                                is_road,
+                                e0,
+                                e1,
+                                layout,
+                                layer_info_ref,
+                                piece_map_ref,
+                            );
+                        }
                     }
+                    cat_ctx.finalize_masts(&mut verts, &mut idxs);
                 }
             });
 
@@ -705,7 +711,7 @@ pub fn update_scene_3d_cache(
             Some(SceneMesh3D {
                 vertices: verts,
                 indices: idxs,
-                glass_indices: Vec::new(),
+                glass_indices: glass_idxs,
                 instanced_tracks,
                 textured_meshes,
             })

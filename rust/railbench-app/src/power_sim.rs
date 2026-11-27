@@ -348,7 +348,7 @@ pub fn simulate_layout_power(layout: &Layout, catalogs: &[Catalog]) -> PowerSimR
             disconnected_count: 0,
             min_voltage: feed_voltage,
             max_drop_pct: 0.0,
-            recommendation: "Keine Gleise im Plan vorhanden / No tracks in layout.".into(),
+            recommendation: "No tracks in layout.".into(),
             turnout_lantern_count: 0,
             turnout_decoder_count: 0,
             turnout_current_a: 0.0,

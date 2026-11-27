@@ -688,6 +688,7 @@ pub(super) fn draw_quick_toolbar(ctx: &egui::Context, app: &mut RailbenchApp) {
                     power_anchor_resp = Some(dd_resp);
                 });
                 if let Some(anchor) = power_anchor_resp {
+                    let is_de = app.lang == Lang::De;
                     egui::popup_below_widget(
                         ui,
                         power_popup_id,
@@ -695,17 +696,17 @@ pub(super) fn draw_quick_toolbar(ctx: &egui::Context, app: &mut RailbenchApp) {
                         egui::PopupCloseBehavior::CloseOnClickOutside,
                         |ui| {
                             style_toolbar_ui(ui, p);
-                            for (lbl, v, ma) in [
-                                ("10V Spur Z (100 mA)", 10.0, 100.0),
-                                ("12V Spur N (100 mA)", 12.0, 100.0),
-                                ("14V Spur TT (300 mA)", 14.0, 300.0),
-                                ("14V H0 DCC (450 mA)", 14.0, 450.0),
-                                ("16V H0 Standard (450 mA)", 16.0, 450.0),
-                                ("16V Spur 0 (600 mA)", 16.0, 600.0),
-                                ("18V Spur 1 (800 mA)", 18.0, 800.0),
-                                ("24V Spur G / LGB (1000 mA)", 24.0, 1000.0),
+                            for (lbl_de, lbl_en, v, ma) in [
+                                ("10V Spur Z (100 mA)", "10V Scale Z (100 mA)", 10.0, 100.0),
+                                ("12V Spur N (100 mA)", "12V Scale N (100 mA)", 12.0, 100.0),
+                                ("14V Spur TT (300 mA)", "14V Scale TT (300 mA)", 14.0, 300.0),
+                                ("14V H0 DCC (450 mA)", "14V H0 DCC (450 mA)", 14.0, 450.0),
+                                ("16V H0 Standard (450 mA)", "16V H0 Standard (450 mA)", 16.0, 450.0),
+                                ("16V Spur 0 (600 mA)", "16V Scale 0 (600 mA)", 16.0, 600.0),
+                                ("18V Spur 1 (800 mA)", "18V Scale 1 (800 mA)", 18.0, 800.0),
+                                ("24V Spur G / LGB (1000 mA)", "24V Scale G / LGB (1000 mA)", 24.0, 1000.0),
                             ] {
-                                if ui.button(lbl).clicked() {
+                                if ui.button(if is_de { lbl_de } else { lbl_en }).clicked() {
                                     app.layout.feed_voltage = Some(v);
                                     app.layout.loco_current_ma = Some(ma);
                                     app.power_sim_enabled = true;

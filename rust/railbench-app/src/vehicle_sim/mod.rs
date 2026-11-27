@@ -309,6 +309,22 @@ impl VehicleInstance {
     }
 }
 
+#[derive(Clone)]
+struct CachedVehicleMesh3D {
+    fingerprint: u64,
+    version: u64,
+    mesh: std::sync::Arc<crate::viewer3d::SceneMesh3D>,
+}
+
+impl std::fmt::Debug for CachedVehicleMesh3D {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CachedVehicleMesh3D")
+            .field("fingerprint", &self.fingerprint)
+            .field("version", &self.version)
+            .finish()
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct VehicleSimState {
     pub running: bool,
@@ -326,9 +342,66 @@ pub struct VehicleSimState {
     /// Uncoupler tracks latched in continuous Auto-Uncouple mode.
     pub armed_uncouplers: HashSet<String>,
     next_seq: u64,
+    mesh_3d_version: u64,
+    cached_mesh_3d: Option<CachedVehicleMesh3D>,
 }
 
 impl VehicleSimState {
+    /// Returns true if `piece` belongs strictly to `domain` (`Rail` on rail tracks, `Road` on streets).
+    pub fn piece_matches_domain(
+        catalogs: &[Catalog],
+        piece: &railbench_core::types::TrackPiece,
+        domain: VehicleDomain,
+    ) -> bool {
+        let is_road = is_road_id(catalogs, &piece.catalog_id);
+        if is_road != (domain == VehicleDomain::Road) {
+            return false;
+        }
+        if domain == VehicleDomain::Road {
+            if let Some(e) = find_entry(catalogs, &piece.catalog_id) {
+                if matches!(e.kind.as_str(), "turntable" | "transfer-table") {
+                    return false;
+                }
+            }
+        }
+        true
+    }
+
+    /// Removes any vehicle whose current piece no longer exists or belongs to the wrong domain,
+    /// and prunes stale `path_history` entries.
+    pub fn sanitize_for_layout(&mut self, layout: &Layout, catalogs: &[Catalog]) {
+        let before = self.vehicles.len();
+        self.vehicles.retain_mut(|v| {
+            let Some(piece) = layout.pieces.iter().find(|p| p.id == v.piece_id) else {
+                return false;
+            };
+            if !Self::piece_matches_domain(catalogs, piece, v.domain) {
+                return false;
+            }
+            v.path_history.retain(|(pid, _)| {
+                layout
+                    .pieces
+                    .iter()
+                    .find(|p| p.id == *pid)
+                    .is_some_and(|p| Self::piece_matches_domain(catalogs, p, v.domain))
+            });
+            true
+        });
+        if self.vehicles.len() != before {
+            self.cached_mesh_3d = None;
+            if let Some(ref sel) = self.selected_vehicle_id {
+                if !self.vehicles.iter().any(|v| &v.id == sel) {
+                    self.selected_vehicle_id = self.vehicles.first().map(|v| v.id.clone());
+                }
+            } else {
+                self.selected_vehicle_id = self.vehicles.first().map(|v| v.id.clone());
+            }
+            if self.vehicles.is_empty() {
+                self.running = false;
+            }
+        }
+    }
+
     pub fn spawn_vehicle(
         &mut self,
         layout: &Layout,
@@ -338,14 +411,35 @@ impl VehicleSimState {
     ) -> Result<String, String> {
         let domain = kind.domain();
         let want_road = domain == VehicleDomain::Road;
+        let is_piece_visible = |piece: &railbench_core::types::TrackPiece| -> bool {
+            let lid = piece.layer_id.as_deref().unwrap_or("layer-1");
+            layout
+                .layers
+                .as_ref()
+                .and_then(|ls| ls.iter().find(|l| l.id == lid))
+                .is_none_or(|l| l.visible)
+        };
         let target_piece = preferred_piece_id
             .and_then(|pid| layout.pieces.iter().find(|p| p.id == pid))
-            .filter(|p| is_road_id(catalogs, &p.catalog_id) == want_road && p.connectors.len() >= 2)
+            .filter(|p| Self::piece_matches_domain(catalogs, p, domain) && p.connectors.len() >= 2)
             .or_else(|| {
                 layout
                     .pieces
                     .iter()
-                    .find(|p| is_road_id(catalogs, &p.catalog_id) == want_road && p.connectors.len() >= 2)
+                    .find(|p| {
+                        is_piece_visible(p)
+                            && Self::piece_matches_domain(catalogs, p, domain)
+                            && p.connectors.len() >= 2
+                    })
+                    .or_else(|| {
+                        layout
+                            .pieces
+                            .iter()
+                            .find(|p| {
+                                Self::piece_matches_domain(catalogs, p, domain)
+                                    && p.connectors.len() >= 2
+                            })
+                    })
             });
 
         let Some(piece) = target_piece else {
@@ -863,13 +957,94 @@ impl VehicleSimState {
         out
     }
 
+    fn visual_mesh_fingerprint(&self, scale: &str) -> u64 {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+
+        let mut h = DefaultHasher::new();
+        scale.hash(&mut h);
+        self.vehicles.len().hash(&mut h);
+        for v in &self.vehicles {
+            v.id.hash(&mut h);
+            (v.kind as u8).hash(&mut h);
+            v.headlights.hash(&mut h);
+            v.reverse.hash(&mut h);
+            (v.velocity_mm_s < -1.0).hash(&mut h);
+            v.pantograph_up.hash(&mut h);
+            v.steam_on.hash(&mut h);
+            v.wheel_angle.to_bits().hash(&mut h);
+            v.steam_time.to_bits().hash(&mut h);
+            v.mallet_articulation_rad.to_bits().hash(&mut h);
+            for c in v.livery_rgb {
+                c.to_bits().hash(&mut h);
+            }
+            v.cached_poses.len().hash(&mut h);
+            for p in &v.cached_poses {
+                (p.kind as u8).hash(&mut h);
+                p.x.to_bits().hash(&mut h);
+                p.y.to_bits().hash(&mut h);
+                p.z.to_bits().hash(&mut h);
+                p.heading_deg.to_bits().hash(&mut h);
+                p.pitch_rad.to_bits().hash(&mut h);
+                p.length_mm.to_bits().hash(&mut h);
+                p.width_mm.to_bits().hash(&mut h);
+                p.height_mm.to_bits().hash(&mut h);
+                p.gauge_mm.to_bits().hash(&mut h);
+                p.headlights.hash(&mut h);
+                p.driving_backward.hash(&mut h);
+                p.wheel_angle.to_bits().hash(&mut h);
+                p.pantograph_up.hash(&mut h);
+                p.steam_on.hash(&mut h);
+                p.steam_time.to_bits().hash(&mut h);
+                p.speed_norm.to_bits().hash(&mut h);
+                p.mallet_articulation_rad.to_bits().hash(&mut h);
+                for c in p.livery_rgb {
+                    c.to_bits().hash(&mut h);
+                }
+            }
+        }
+        h.finish()
+    }
+
+    /// Returns a cached `(version, Arc<SceneMesh3D>)` for all active vehicles, rebuilding only
+    /// when a vehicle pose, wheel rotation, light state, steam phase, or scale has changed.
+    pub fn get_or_build_vehicles_mesh_3d(
+        &mut self,
+        scale: &str,
+    ) -> Option<(u64, std::sync::Arc<crate::viewer3d::SceneMesh3D>)> {
+        if self.vehicles.is_empty() {
+            self.cached_mesh_3d = None;
+            return None;
+        }
+        let fp = self.visual_mesh_fingerprint(scale);
+        if let Some(ref cached) = self.cached_mesh_3d {
+            if cached.fingerprint == fp {
+                return Some((cached.version, std::sync::Arc::clone(&cached.mesh)));
+            }
+        }
+        let (verts, idxs) = self.build_vehicles_mesh_3d(scale);
+        if idxs.is_empty() {
+            self.cached_mesh_3d = None;
+            return None;
+        }
+        self.mesh_3d_version = self.mesh_3d_version.wrapping_add(1).max(1);
+        let ver = self.mesh_3d_version;
+        let mesh = std::sync::Arc::new(crate::viewer3d::SceneMesh3D::from_raw(verts, idxs));
+        self.cached_mesh_3d = Some(CachedVehicleMesh3D {
+            fingerprint: fp,
+            version: ver,
+            mesh: std::sync::Arc::clone(&mesh),
+        });
+        Some((ver, mesh))
+    }
+
     /// Generates combined 3D vertex/index mesh for all active vehicles & coupled wagons,
     /// including authentic ramp/helix 3D pitch, exact railhead height, and gauge-matched wheelsets.
-    pub fn build_vehicles_mesh_3d(&self, scale: &str) -> (Vec<Vertex3D>, Vec<u32>) {
-        let poses = self.all_render_poses(scale);
-        let mut verts = Vec::new();
-        let mut idxs = Vec::new();
-        for p in &poses {
+    pub fn build_vehicles_mesh_3d(&self, _scale: &str) -> (Vec<Vertex3D>, Vec<u32>) {
+        let pose_count: usize = self.vehicles.iter().map(|v| v.cached_poses.len()).sum();
+        let mut verts = Vec::with_capacity(pose_count * 2048);
+        let mut idxs = Vec::with_capacity(pose_count * 3600);
+        for p in self.vehicles.iter().flat_map(|v| v.cached_poses.iter()) {
             let y_off = if p.kind.domain() == VehicleDomain::Rail {
                 RAIL_TOP_Y_MM
             } else {

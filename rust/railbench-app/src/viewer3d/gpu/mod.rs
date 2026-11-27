@@ -53,15 +53,50 @@ pub(super) struct GpuTexturedDraw3D {
 pub(super) struct GpuMeshSlot {
     pub(super) sig: Option<u64>,
     pub(super) static_vb: Option<wgpu::Buffer>,
+    pub(super) static_vb_cap: u64,
     pub(super) static_ib: Option<wgpu::Buffer>,
+    pub(super) static_ib_cap: u64,
     pub(super) static_index_count: u32,
     pub(super) glass_ib: Option<wgpu::Buffer>,
+    pub(super) glass_ib_cap: u64,
     pub(super) glass_index_count: u32,
     pub(super) proto_vb: Option<wgpu::Buffer>,
     pub(super) proto_ib: Option<wgpu::Buffer>,
     pub(super) instance_buf: Option<wgpu::Buffer>,
     pub(super) instanced_draws: Vec<GpuInstancedDraw3D>,
     pub(super) textured_draws: Vec<GpuTexturedDraw3D>,
+}
+
+fn upload_reusable_buffer<T: bytemuck::Pod>(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    buf_slot: &mut Option<wgpu::Buffer>,
+    cap_slot: &mut u64,
+    data: &[T],
+    usage: wgpu::BufferUsages,
+    label: &str,
+) {
+    let needed = (std::mem::size_of_val(data)) as u64;
+    if needed == 0 {
+        return;
+    }
+    if buf_slot.is_none() || *cap_slot < needed {
+        if let Some(old) = buf_slot.take() {
+            old.destroy();
+        }
+        // Grow with 25% headroom (4-byte aligned) so dynamic slots reuse buffers across frames
+        let new_cap = ((needed.saturating_add(needed / 4)).max(4096) + 3) & !3;
+        *buf_slot = Some(device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some(label),
+            size: new_cap,
+            usage: usage | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        }));
+        *cap_slot = new_cap;
+    }
+    if let Some(buf) = buf_slot.as_ref() {
+        queue.write_buffer(buf, 0, bytemuck::cast_slice(data));
+    }
 }
 
 impl GpuMeshSlot {
@@ -88,10 +123,30 @@ impl GpuMeshSlot {
             td.vb.destroy();
             td.ib.destroy();
         }
+        self.static_vb_cap = 0;
+        self.static_ib_cap = 0;
+        self.glass_ib_cap = 0;
         self.static_index_count = 0;
         self.glass_index_count = 0;
         self.instanced_draws.clear();
         self.sig = None;
+    }
+
+    fn clear_submeshes(&mut self) {
+        if let Some(b) = self.proto_vb.take() {
+            b.destroy();
+        }
+        if let Some(b) = self.proto_ib.take() {
+            b.destroy();
+        }
+        if let Some(b) = self.instance_buf.take() {
+            b.destroy();
+        }
+        for td in self.textured_draws.drain(..) {
+            td.vb.destroy();
+            td.ib.destroy();
+        }
+        self.instanced_draws.clear();
     }
 
     pub(super) fn sync(
@@ -118,40 +173,45 @@ impl GpuMeshSlot {
         if self.sig == Some(*new_sig) {
             return;
         }
-        self.clear();
         self.sig = Some(*new_sig);
+        self.clear_submeshes();
+        self.static_index_count = 0;
+        self.glass_index_count = 0;
 
         if !mesh.vertices.is_empty() && (!mesh.indices.is_empty() || !mesh.glass_indices.is_empty()) {
-            let vb = device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some(label_prefix),
-                size: (mesh.vertices.len() * std::mem::size_of::<Vertex3D>()) as u64,
-                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            });
-            queue.write_buffer(&vb, 0, bytemuck::cast_slice(&mesh.vertices));
-            self.static_vb = Some(vb);
+            upload_reusable_buffer(
+                device,
+                queue,
+                &mut self.static_vb,
+                &mut self.static_vb_cap,
+                &mesh.vertices,
+                wgpu::BufferUsages::VERTEX,
+                label_prefix,
+            );
 
             if !mesh.indices.is_empty() {
-                let ib = device.create_buffer(&wgpu::BufferDescriptor {
-                    label: Some(label_prefix),
-                    size: (mesh.indices.len() * std::mem::size_of::<u32>()) as u64,
-                    usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
-                    mapped_at_creation: false,
-                });
-                queue.write_buffer(&ib, 0, bytemuck::cast_slice(&mesh.indices));
-                self.static_ib = Some(ib);
+                upload_reusable_buffer(
+                    device,
+                    queue,
+                    &mut self.static_ib,
+                    &mut self.static_ib_cap,
+                    &mesh.indices,
+                    wgpu::BufferUsages::INDEX,
+                    label_prefix,
+                );
                 self.static_index_count = mesh.indices.len() as u32;
             }
 
             if !mesh.glass_indices.is_empty() {
-                let gib = device.create_buffer(&wgpu::BufferDescriptor {
-                    label: Some(label_prefix),
-                    size: (mesh.glass_indices.len() * std::mem::size_of::<u32>()) as u64,
-                    usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
-                    mapped_at_creation: false,
-                });
-                queue.write_buffer(&gib, 0, bytemuck::cast_slice(&mesh.glass_indices));
-                self.glass_ib = Some(gib);
+                upload_reusable_buffer(
+                    device,
+                    queue,
+                    &mut self.glass_ib,
+                    &mut self.glass_ib_cap,
+                    &mesh.glass_indices,
+                    wgpu::BufferUsages::INDEX,
+                    label_prefix,
+                );
                 self.glass_index_count = mesh.glass_indices.len() as u32;
             }
         }
@@ -490,3 +550,5 @@ mod callback;
 use pipeline::*;
 pub use callback::{init_wgpu_3d_resources, release_wgpu_3d_resources};
 pub(super) use callback::Viewport3DCallback;
+#[cfg(test)]
+pub(super) use callback::{should_render_shadow_map, VEHICLE_SHADOW_MIN_INTERVAL_MS};

@@ -261,14 +261,21 @@ pub(super) fn build_signal_box(verts: &mut Vec<Vertex3D>, idxs: &mut Vec<u32>, o
 // ----------------------------------------------------------------------------
 // 3. ENGINE SHED (Lokschuppen — open -X portal for snapped track, arched lintel, open doors, pit, vents)
 // ----------------------------------------------------------------------------
-pub(super) fn build_engine_shed(verts: &mut Vec<Vertex3D>, idxs: &mut Vec<u32>, origin: [f32; 3], rot: f32, size: [f32; 3]) {
-    let mut b = ModelBuilder::new(verts, idxs, origin, rot, size, [240.0, 105.0, 72.0]);
+pub(super) fn build_engine_shed(
+    verts: &mut Vec<Vertex3D>,
+    idxs: &mut Vec<u32>,
+    glass_idxs: Option<&mut Vec<u32>>,
+    origin: [f32; 3],
+    rot: f32,
+    size: [f32; 3],
+) {
+    let mut b = ModelBuilder::new_with_glass(verts, idxs, glass_idxs, origin, rot, size, [240.0, 105.0, 72.0]);
     let brick = Mat::matte(0x852e16, 0.85);
     let trim = Mat::matte(0xc4b5a5, 0.80);
     let concrete = Mat::matte(0x52525b, 0.90);
     let pit = Mat::matte(0x18181b, 0.95);
     let rail = Mat::metal(0xb0bcc9, 0.24, 0.85);
-    let roof = Mat::matte(0x334155, 0.65);
+    let roof_glass = Mat::glass(0x64748b);
     let skylight = Mat::glass(0x93c5fd);
     let win = Mat::warm_window(0xfde68a, 0.65);
     let frame = Mat::metal(0x1e293b, 0.55, 0.35);
@@ -331,10 +338,23 @@ pub(super) fn build_engine_shed(verts: &mut Vec<Vertex3D>, idxs: &mut Vec<u32>, 
         }
     }
 
-    // 4. Pitched roof, split glazed skylight bays & 3 locomotive smoke jacks
-    b.gable_roof_x([0.0, 97.0, 0.0], 242.0, 72.0, 18.0, 2.5, 2.0, roof, brick, trim);
+    // 4. Translucent pitched roof with exposed steel rafters, split glazed skylight bays & 3 smoke jacks
+    b.gable_roof_x_transparent(
+        [0.0, 97.0, 0.0],
+        242.0,
+        72.0,
+        18.0,
+        2.5,
+        2.0,
+        roof_glass,
+        brick,
+        trim,
+        iron,
+        0.22,
+        &[-96.0, -48.0, 0.0, 48.0, 96.0],
+    );
     for sx in [-37.0_f32, 37.0] {
-        b.rbox([sx, 116.5, 0.0], [50.0, 4.5, 11.5], skylight);
+        b.rbox_glass([sx, 116.5, 0.0], [50.0, 4.5, 11.5], skylight, 0.26);
         b.rbox([sx, 119.0, 0.0], [52.0, 1.6, 2.0], iron);
     }
     for cx in [-75.0_f32, 0.0, 75.0] {
@@ -346,8 +366,15 @@ pub(super) fn build_engine_shed(verts: &mut Vec<Vertex3D>, idxs: &mut Vec<u32>, 
 // ----------------------------------------------------------------------------
 // 4. TURNTABLE TRAINHALL (Ringlokschuppen — true radial 3-stall fan around -Z turntable)
 // ----------------------------------------------------------------------------
-pub(super) fn build_turntable_trainhall(verts: &mut Vec<Vertex3D>, idxs: &mut Vec<u32>, origin: [f32; 3], rot: f32, size: [f32; 3]) {
-    let mut b = ModelBuilder::new(verts, idxs, origin, rot, size, [320.0, 115.0, 310.0]);
+pub(super) fn build_turntable_trainhall(
+    verts: &mut Vec<Vertex3D>,
+    idxs: &mut Vec<u32>,
+    glass_idxs: Option<&mut Vec<u32>>,
+    origin: [f32; 3],
+    rot: f32,
+    size: [f32; 3],
+) {
+    let mut b = ModelBuilder::new_with_glass(verts, idxs, glass_idxs, origin, rot, size, [320.0, 115.0, 310.0]);
     const TT_Z: f32 = -350.0;
     const R_FRONT: f32 = 195.0;
     const R_REAR: f32 = 505.0;
@@ -365,7 +392,7 @@ pub(super) fn build_turntable_trainhall(verts: &mut Vec<Vertex3D>, idxs: &mut Ve
     let ground_m = Mat::matte(0x475569, 0.90);
     let brick_m = Mat::matte(0x8b3a2b, 0.83);
     let trim_m = Mat::matte(0xd4b996, 0.76);
-    let roof_m = Mat::matte(0x1e293b, 0.68);
+    let roof_glass_m = Mat::glass(0x64748b);
     let glass_m = Mat::warm_window(0xfde68a, 0.55);
     let skylight_m = Mat::glass(0x38bdf8);
     let door_m = Mat::matte(0x1e3a5f, 0.80);
@@ -530,8 +557,19 @@ pub(super) fn build_turntable_trainhall(verts: &mut Vec<Vertex3D>, idxs: &mut Ve
         let rc = radial_pt(r_roof_r, a_c, y_ridge);
         let rr = radial_pt(r_roof_r, a_r, y_eave);
 
-        b.quad_oriented(fl, rl, rc, fc, [-a_c.cos(), 1.0, a_c.sin()], roof_m);
-        b.quad_oriented(fc, rc, rr, fr, [a_c.cos(), 1.0, -a_c.sin()], roof_m);
+        b.quad_oriented_glass(fl, rl, rc, fc, [-a_c.cos(), 1.0, a_c.sin()], roof_glass_m, 0.22);
+        b.quad_oriented_glass(fc, rc, rr, fr, [a_c.cos(), 1.0, -a_c.sin()], roof_glass_m, 0.22);
+
+        // Crisp steel framing along ridge, eaves/valleys & front/rear edges so tracks remain visible beneath glass
+        b.strut_between(fc, rc, 2.4, 2.2, steel_m);
+        b.strut_between(fl, rl, 2.2, 2.0, steel_m);
+        if s == 2 {
+            b.strut_between(fr, rr, 2.2, 2.0, steel_m);
+        }
+        b.strut_between(fl, fc, 1.8, 1.8, steel_m);
+        b.strut_between(fc, fr, 1.8, 1.8, steel_m);
+        b.strut_between(rl, rc, 1.8, 1.8, steel_m);
+        b.strut_between(rc, rr, 1.8, 1.8, steel_m);
 
         let flw = radial_pt(R_FRONT + 2.0, a_l, y_eave);
         let fcw = radial_pt(R_FRONT + 2.0, a_c, y_ridge);
@@ -543,9 +581,9 @@ pub(super) fn build_turntable_trainhall(verts: &mut Vec<Vertex3D>, idxs: &mut Ve
         let rrw = radial_pt(R_REAR - 2.0, a_r, y_eave);
         b.tri_oriented(rrw, rcw, rlw, [a_c.sin(), 0.0, a_c.cos()], brick_m);
 
-        // Split ridge skylights (front & rear bays leave locomotive chimney at R=335 clear)
+        // Split translucent ridge skylights (front & rear bays leave locomotive chimney at R=335 clear)
         for &(sky_mid_r, sky_len) in &[(266.0_f32, 92.0_f32), (419.0, 122.0)] {
-            b.obox(radial_pt(sky_mid_r, a_c, y_ridge + 2.4), [9.5, 4.8, sky_len], [0.0, a_c, 0.0], skylight_m);
+            b.obox_glass(radial_pt(sky_mid_r, a_c, y_ridge + 2.4), [9.5, 4.8, sky_len], [0.0, a_c, 0.0], skylight_m, 0.26);
             b.obox(radial_pt(sky_mid_r, a_c, y_ridge + 5.0), [10.8, 1.2, sky_len + 2.0], [0.0, a_c, 0.0], steel_m);
         }
 

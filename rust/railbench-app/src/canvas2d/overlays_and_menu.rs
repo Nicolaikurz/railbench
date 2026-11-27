@@ -489,6 +489,10 @@ pub(super) fn draw_overlays_and_context_menu(
             .and_then(|p| p.signal_direction.as_deref())
             .unwrap_or("forward")
             .to_string();
+        let is_de = ui.ctx().data(|d| {
+            d.get_temp::<bool>(egui::Id::new("railbench_is_de"))
+                .unwrap_or(true)
+        });
         let ctx_layers: Vec<(String, String, f64)> = layout
             .layers
             .as_ref()
@@ -497,11 +501,13 @@ pub(super) fn draw_overlays_and_context_menu(
                     .map(|l| (l.id.clone(), l.name.clone(), l.height_mm.unwrap_or(0.0)))
                     .collect()
             })
-            .unwrap_or_else(|| vec![("layer-1".into(), "Ebene 0".into(), 0.0)]);
-        let is_de = ui.ctx().data(|d| {
-            d.get_temp::<bool>(egui::Id::new("railbench_is_de"))
-                .unwrap_or(true)
-        });
+            .unwrap_or_else(|| {
+                vec![(
+                    "layer-1".into(),
+                    if is_de { "Ebene 0" } else { "Layer 0" }.into(),
+                    0.0,
+                )]
+            });
 
         response.context_menu(|ui| {
             ui.set_min_width(220.0);
@@ -545,7 +551,7 @@ pub(super) fn draw_overlays_and_context_menu(
                         .iter()
                         .find(|(id, _, _)| id == lid)
                         .map(|(_, n, h)| (n.as_str(), *h))
-                        .unwrap_or(("Ebene 0", 0.0));
+                        .unwrap_or((if is_de { "Ebene 0" } else { "Layer 0" }, 0.0));
                     let rel_z = fp.elevation.map_or(0.0, |e| e.start);
                     let meta = if is_de {
                         format!("{lname} ({:.0} mm) · {open_cnt}/{} offen", lh + rel_z, fp.connectors.len())

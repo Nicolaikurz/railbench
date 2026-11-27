@@ -267,7 +267,9 @@ impl RailbenchApp {
             if toggle_signal { self.toggle_selected_signal(); }
             if open_help { self.show_help_dialog = true; }
             if do_deselect {
-                if self.measure_mode {
+                if self.show_help_dialog {
+                    self.show_help_dialog = false;
+                } else if self.measure_mode {
                     if self.measure_points.is_some() {
                         self.measure_points = None;
                         self.measure_locked = false;
@@ -277,6 +279,10 @@ impl RailbenchApp {
                     }
                 } else if self.terrain_brush.active
                     || self.dragging_catalog_entry.is_some()
+                    || self.dragging_model_template.is_some()
+                    || self.dragging_active
+                    || self.marquee_start.is_some()
+                    || self.dragging_flex_handle.is_some()
                     || self.sketcher.active
                     || self.dragging_board.is_some()
                     || self.dragging_model_rot.is_some()
@@ -286,6 +292,11 @@ impl RailbenchApp {
                 {
                     self.terrain_brush.set_active(false, None, None);
                     self.dragging_catalog_entry = None;
+                    self.dragging_model_template = None;
+                    self.dragging_active = false;
+                    self.drag_last_world = None;
+                    self.marquee_start = None;
+                    self.dragging_flex_handle = None;
                     self.sketcher.stop();
                     self.dragging_board = None;
                     self.dragging_model_rot = None;

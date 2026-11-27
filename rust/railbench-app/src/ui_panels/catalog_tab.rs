@@ -15,7 +15,11 @@ pub(super) fn draw_catalog_tab(ui: &mut egui::Ui, app: &mut RailbenchApp, roads_
         .collect();
 
     if indices.is_empty() {
-        ui.label("No catalogs available.");
+        ui.label(if is_de {
+            "Keine Kataloge verfügbar."
+        } else {
+            "No catalogs available."
+        });
         return;
     }
 
@@ -291,18 +295,20 @@ pub(super) fn draw_catalog_tab(ui: &mut egui::Ui, app: &mut RailbenchApp, roads_
                                             }
                                             draw_popover_divider(ui, app.dark_mode);
 
+                                            let fallback_other = if is_de { "Sonstige" } else { "Other" };
                                             let active_mfr = app.catalogs[cur_sel_idx]
                                                 .manufacturer
                                                 .as_deref()
                                                 .filter(|s| !s.is_empty())
                                                 .unwrap_or("Other");
                                             for mfr in collect_track_manufacturers_in_order(&app.catalogs, &indices) {
+                                                let mfr_disp = if mfr == "Other" { fallback_other } else { mfr.as_str() };
                                                 let is_active = !show_favorites && mfr == active_mfr;
                                                 if draw_popover_row(
                                                     ui,
                                                     p,
                                                     app.dark_mode,
-                                                    &mfr,
+                                                    mfr_disp,
                                                     None,
                                                     Some("›"),
                                                     is_active,
@@ -360,11 +366,7 @@ pub(super) fn draw_catalog_tab(ui: &mut egui::Ui, app: &mut RailbenchApp, roads_
                                                 if mfr != active_mfg {
                                                     continue;
                                                 }
-                                                let sys_title = c
-                                                    .system
-                                                    .as_deref()
-                                                    .filter(|s| !s.is_empty())
-                                                    .unwrap_or(&c.name);
+                                                let sys_title = crate::catalog::localized_catalog_system(c, is_de);
                                                 let sub = format!(
                                                     "{} • {} mm",
                                                     c.scale,
@@ -375,7 +377,7 @@ pub(super) fn draw_catalog_tab(ui: &mut egui::Ui, app: &mut RailbenchApp, roads_
                                                     ui,
                                                     p,
                                                     app.dark_mode,
-                                                    sys_title,
+                                                    &sys_title,
                                                     Some(&sub),
                                                     if is_sel { Some("✔") } else { None },
                                                     is_sel,
@@ -448,11 +450,12 @@ pub(super) fn draw_catalog_tab(ui: &mut egui::Ui, app: &mut RailbenchApp, roads_
                                                 let c = &app.catalogs[idx];
                                                 let is_sel = idx == cur_sel_idx;
                                                 let desc = scale_description_for_road(&c.scale, is_de);
+                                                let cat_name = crate::catalog::localized_catalog_name(c, is_de);
                                                 if draw_popover_row(
                                                     ui,
                                                     p,
                                                     app.dark_mode,
-                                                    &c.name,
+                                                    &cat_name,
                                                     Some(desc),
                                                     if is_sel { Some("✔") } else { None },
                                                     is_sel,
@@ -635,7 +638,7 @@ pub(super) fn draw_catalog_tab(ui: &mut egui::Ui, app: &mut RailbenchApp, roads_
             }
             for e in &c.entries {
                 if app.is_favorite_track_entry(&c.id, &e.id) {
-                    items.push((c.id.clone(), c.name.clone(), e));
+                    items.push((c.id.clone(), crate::catalog::localized_catalog_name(c, is_de), e));
                 }
             }
         }
@@ -648,7 +651,11 @@ pub(super) fn draw_catalog_tab(ui: &mut egui::Ui, app: &mut RailbenchApp, roads_
                 .then_with(|| crate::catalog::compare_catalog_entries_by_number(a, b))
         });
         for e in cat_entries {
-            items.push((active_cat_id.clone(), e.category.clone(), e));
+            items.push((
+                active_cat_id.clone(),
+                crate::catalog::translate_catalog_category(&e.category, is_de),
+                e,
+            ));
         }
     }
 
@@ -685,17 +692,17 @@ pub(super) fn draw_catalog_tab(ui: &mut egui::Ui, app: &mut RailbenchApp, roads_
             if !kind_matches_pill {
                 continue;
             }
-            let display_name = if lang == Lang::En {
-                entry.name_en.as_deref().unwrap_or(&entry.name)
-            } else {
-                &entry.name
-            };
+            let display_name = crate::catalog::localized_entry_name(entry, lang == Lang::De);
+            let display_desc = crate::catalog::localized_entry_description(entry, lang == Lang::De);
+            let translated_cat = crate::catalog::translate_catalog_category(&entry.category, lang == Lang::De);
             if !filter.is_empty()
                 && !contains_ignore_case(&entry.id, &filter)
                 && !contains_ignore_case(&entry.name, &filter)
                 && !contains_ignore_case(entry.name_en.as_deref().unwrap_or(""), &filter)
                 && !contains_ignore_case(&entry.description, &filter)
+                && !contains_ignore_case(entry.description_en.as_deref().unwrap_or(""), &filter)
                 && !contains_ignore_case(&entry.category, &filter)
+                && !contains_ignore_case(&translated_cat, &filter)
             {
                 continue;
             }
@@ -779,7 +786,13 @@ pub(super) fn draw_catalog_tab(ui: &mut egui::Ui, app: &mut RailbenchApp, roads_
                                         ui.spacing_mut().item_spacing.x = 3.0;
                                         if ui
                                             .small_button(RichText::new("+").strong().size(11.0).color(p.primary))
-                                            .on_hover_text(if is_de { "Gleis platzieren" } else { "Place track" })
+                                            .on_hover_text(if roads_only {
+                                                if is_de { "Straße platzieren" } else { "Place road" }
+                                            } else if is_de {
+                                                "Gleis platzieren"
+                                            } else {
+                                                "Place track"
+                                            })
                                             .clicked()
                                         {
                                             plus_clicked = true;
@@ -872,6 +885,11 @@ pub(super) fn draw_catalog_tab(ui: &mut egui::Ui, app: &mut RailbenchApp, roads_
                 .response
                 .interact(egui::Sense::click_and_drag());
 
+            let card_resp = if !display_desc.is_empty() {
+                card_resp.on_hover_text(display_desc)
+            } else {
+                card_resp
+            };
             if card_resp.hovered() {
                 ui.painter().rect_stroke(
                     card_resp.rect,

@@ -21,7 +21,7 @@ pub(super) fn handle_primary_drag(
     snapping_enabled: bool,
     layer_protection: bool,
     board_edit_enabled: bool,
-    terrain_only_selection: bool,
+    selection_scope: crate::SelectionScope,
     measure_mode: bool,
     terrain_brush: &mut TerrainBrushState,
     is_de: bool,
@@ -42,16 +42,29 @@ pub(super) fn handle_primary_drag(
     interaction: &mut CanvasInteraction,
 ) {
     if response.drag_started_by(egui::PointerButton::Primary) {
-        if let Some(sp) = response.interact_pointer_pos() {
+        *dragging_active = false;
+        *drag_last_world = None;
+        *marquee_start = None;
+        *dragging_flex_handle = None;
+        *dragging_model_rot = None;
+        *dragging_track_rot = None;
+        *dragging_board = None;
+        board_snap_guides.clear();
+
+        let start_sp = ui
+            .input(|i| i.pointer.press_origin())
+            .filter(|p| rect.contains(*p))
+            .or_else(|| response.interact_pointer_pos());
+        if let Some(sp) = start_sp {
             let wp = camera.screen_to_world(rect, sp);
             let on_plus_btn = !terrain_brush.active
-                && !terrain_only_selection
+                && selection_scope.allows_any_piece()
                 && !measure_mode
                 && plus_buttons
                     .iter()
                     .any(|(_, _, ppos, _)| sp.distance(*ppos) <= 13.5);
             let on_accessory_btn = !terrain_brush.active
-                && !terrain_only_selection
+                && selection_scope.allows_rail_accessories()
                 && !measure_mode
                 && hit_test_accessory_button(accessory_buttons, sp).is_some();
             if terrain_brush.active {
@@ -69,7 +82,7 @@ pub(super) fn handle_primary_drag(
                     interaction.changed = true;
                 }
             } else if !on_plus_btn && !on_accessory_btn {
-                if !terrain_only_selection {
+                if selection_scope.allows_any_piece() || selection_scope.allows_buildings() {
                     if let Some((ref fid, handles)) = selected_flex_handles {
                         // Pick the closest handle within 15 px (preferring endpoint handles 3/4 on ties)
                         let mut best_hi: Option<(usize, f32)> = None;
@@ -124,10 +137,11 @@ pub(super) fn handle_primary_drag(
                     } else if let Some(hit) = find_canvas_object_at(
                         layout,
                         cache,
+                        catalogs,
                         wp,
                         22.0 / (camera.zoom as f64).max(0.25),
                         layer_protection,
-                        terrain_only_selection,
+                        selection_scope,
                     ) {
                         if !selected.contains(&hit) {
                             let alt = ui.input(|i| i.modifiers.alt);
@@ -144,6 +158,7 @@ pub(super) fn handle_primary_drag(
                                             .iter()
                                             .filter(|p| {
                                                 p.group_id.as_deref() == Some(gid.as_str())
+                                                    && selection_scope.allows_piece(catalogs, p)
                                                     && is_layer_editable_with_protection(
                                                         layout,
                                                         p.layer_id.as_deref(),
@@ -207,7 +222,7 @@ pub(super) fn handle_primary_drag(
                         *active_board_id = Some(bid.clone());
                         *dragging_board = Some((bid, wp, bounds.x, bounds.y));
                         interaction.push_undo = true;
-                    } else {
+                    } else if selection_scope != crate::SelectionScope::Boards {
                         *marquee_start = Some(sp);
                     }
                 }
@@ -463,9 +478,10 @@ pub(super) fn handle_primary_drag(
             let dy = cur_w.y - last_w.y;
             if dx.abs() > 1e-4 || dy.abs() > 1e-4 {
                 let active_lid = active_layer_id;
-                if !terrain_only_selection {
+                if selection_scope.allows_any_piece() {
                     for p in &mut layout.pieces {
                         if selected.contains(&p.id)
+                            && selection_scope.allows_piece(catalogs, p)
                             && (!layer_protection
                                 || p.layer_id.as_deref().unwrap_or("layer-1") == active_lid)
                         {
@@ -482,7 +498,7 @@ pub(super) fn handle_primary_drag(
                 if let Some(models) = &mut layout.models {
                     for m in models {
                         if selected.contains(&m.id)
-                            && (!terrain_only_selection || crate::terrain_tools::is_terrain_model(m))
+                            && selection_scope.allows_model(m)
                             && (!layer_protection
                                 || m.layer_id.as_deref().unwrap_or("layer-1") == active_lid)
                         {
@@ -557,15 +573,25 @@ pub(super) fn handle_primary_drag(
         }
     }
 
-    if response.drag_stopped_by(egui::PointerButton::Primary) {
-        if measure_mode {
+    let stopped_primary = response.drag_stopped_by(egui::PointerButton::Primary);
+    let lost_primary = !ui.input(|i| i.pointer.primary_down());
+    if stopped_primary
+        || (lost_primary
+            && (*dragging_active
+                || marquee_start.is_some()
+                || dragging_flex_handle.is_some()
+                || dragging_model_rot.is_some()
+                || dragging_track_rot.is_some()
+                || dragging_board.is_some()))
+    {
+        if stopped_primary && measure_mode {
             if let Some((a, b)) = *measure_points {
                 if (b.x - a.x).hypot(b.y - a.y) > 4.0 {
                     *measure_locked = true;
                 }
             }
         }
-        if terrain_brush.is_drawing {
+        if stopped_primary && terrain_brush.is_drawing {
             let was_erase_or_hf = terrain_brush.mode == TerrainBrushMode::Erase
                 || terrain_brush.is_heightfield_mode();
             let active_lid = active_layer_id.to_string();
@@ -584,37 +610,57 @@ pub(super) fn handle_primary_drag(
             crate::catalog::disconnect_cross_type_connections(layout, catalogs);
             interaction.changed = true;
         }
-        if let (Some(start), Some(end)) = (marquee_start.take(), response.interact_pointer_pos()) {
-            let mrect = Rect::from_two_pos(start, end);
-            let shift = ui.input(|i| i.modifiers.shift);
-            if !shift {
-                selected.clear();
-            }
-            if !terrain_only_selection {
-                for p in &layout.pieces {
-                    if !is_layer_editable_with_protection(layout, p.layer_id.as_deref(), layer_protection) {
-                        continue;
-                    }
-                    let any_in = p
-                        .connectors
-                        .iter()
-                        .any(|c| mrect.contains(camera.world_to_screen(rect, c.x, c.y)));
-                    if any_in {
-                        selected.insert(p.id.clone());
-                    }
-                }
-            }
-            if let Some(models) = &layout.models {
-                for m in models {
-                    if !is_layer_editable_with_protection(layout, m.layer_id.as_deref(), layer_protection) {
-                        continue;
-                    }
-                    if terrain_only_selection && !crate::terrain_tools::is_terrain_model(m) {
-                        continue;
-                    }
-                    let sp = camera.world_to_screen(rect, m.transform.x, m.transform.y);
-                    if mrect.contains(sp) {
-                        selected.insert(m.id.clone());
+        if let Some(start) = marquee_start.take() {
+            if stopped_primary && !*dragging_active {
+                if let Some(end) = response
+                    .interact_pointer_pos()
+                    .or_else(|| ui.input(|i| i.pointer.latest_pos()))
+                {
+                    let shift = ui.input(|i| i.modifiers.shift);
+                    if (end - start).length() >= 4.0 {
+                        let mrect = Rect::from_two_pos(start, end);
+                        if !shift {
+                            selected.clear();
+                        }
+                        if selection_scope.allows_any_piece() {
+                            for p in &layout.pieces {
+                                if !selection_scope.allows_piece(catalogs, p)
+                                    || !is_layer_editable_with_protection(
+                                        layout,
+                                        p.layer_id.as_deref(),
+                                        layer_protection,
+                                    )
+                                {
+                                    continue;
+                                }
+                                let any_in = p
+                                    .connectors
+                                    .iter()
+                                    .any(|c| mrect.contains(camera.world_to_screen(rect, c.x, c.y)));
+                                if any_in {
+                                    selected.insert(p.id.clone());
+                                }
+                            }
+                        }
+                        if let Some(models) = &layout.models {
+                            for m in models {
+                                if !selection_scope.allows_model(m)
+                                    || !is_layer_editable_with_protection(
+                                        layout,
+                                        m.layer_id.as_deref(),
+                                        layer_protection,
+                                    )
+                                {
+                                    continue;
+                                }
+                                let sp = camera.world_to_screen(rect, m.transform.x, m.transform.y);
+                                if mrect.contains(sp) {
+                                    selected.insert(m.id.clone());
+                                }
+                            }
+                        }
+                    } else if !shift {
+                        selected.clear();
                     }
                 }
             }

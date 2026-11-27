@@ -40,10 +40,10 @@ pub(super) fn draw_cab_control_desk(
                             for (i, v) in app.vehicle_sim.vehicles.iter().enumerate() {
                                 let is_cur = active_idx == Some(i);
                                 let kmh = v.scale_speed_kmh(scale_str);
-                                let lbl = if !v.kind.is_locomotive() {
+                                let lbl = if !v.kind.is_locomotive() && v.domain == VehicleDomain::Rail {
                                     format!("{} · {}", v.name, if is_de { "ABGEST." } else { "PARKED" })
                                 } else if v.blocked_ahead {
-                                    format!("{} · HALT", v.name)
+                                    format!("{} · {}", v.name, if is_de { "HALT" } else { "BLOCKED" })
                                 } else {
                                     format!("{} · {:.0} km/h", v.name, kmh)
                                 };
@@ -600,6 +600,20 @@ pub(super) fn draw_cab_control_desk(
                 }
 
                 // 3. Spawn Rail & Road Vehicles Card
+                let has_rail = app.layout.pieces.iter().any(|pc| {
+                    crate::vehicle_sim::VehicleSimState::piece_matches_domain(
+                        &app.catalogs,
+                        pc,
+                        VehicleDomain::Rail,
+                    ) && pc.connectors.len() >= 2
+                });
+                let has_road = app.layout.pieces.iter().any(|pc| {
+                    crate::vehicle_sim::VehicleSimState::piece_matches_domain(
+                        &app.catalogs,
+                        pc,
+                        VehicleDomain::Road,
+                    ) && pc.connectors.len() >= 2
+                });
                 draw_desk_card(ui, p, |ui| {
                     ui.label(
                         RichText::new(if is_de { "FAHRZEUG PLATZIEREN" } else { "SPAWN VEHICLE" })
@@ -617,18 +631,30 @@ pub(super) fn draw_cab_control_desk(
                         .iter()
                         .enumerate()
                         {
-                            if cols[ci]
-                                .add_sized(
-                                    [cols[ci].available_width(), 24.0],
-                                    egui::Button::new(RichText::new(lbl).strong().size(11.0).color(p.text_main))
+                            cols[ci].add_enabled_ui(has_rail, |ui| {
+                                if ui
+                                    .add_sized(
+                                        [ui.available_width(), 24.0],
+                                        egui::Button::new(
+                                            RichText::new(lbl)
+                                                .strong()
+                                                .size(11.0)
+                                                .color(if has_rail { p.text_main } else { p.text_muted }),
+                                        )
                                         .fill(p.bg_sidebar)
                                         .stroke(Stroke::new(1.0_f32, p.border_main))
                                         .corner_radius(CornerRadius::same(6)),
-                                )
-                                .clicked()
-                            {
-                                actions.spawn = Some(kind);
-                            }
+                                    )
+                                    .on_disabled_hover_text(if is_de {
+                                        "Zuerst mindestens ein Gleis auf der Anlage platzieren."
+                                    } else {
+                                        "Place at least one rail track piece first."
+                                    })
+                                    .clicked()
+                                {
+                                    actions.spawn = Some(kind);
+                                }
+                            });
                         }
                     });
                     ui.label(RichText::new(if is_de { "Strasse" } else { "Road" }).size(10.5).color(p.text_sub));
@@ -641,23 +667,30 @@ pub(super) fn draw_cab_control_desk(
                         .iter()
                         .enumerate()
                         {
-                            if cols[ci]
-                                .add_sized(
-                                    [cols[ci].available_width(), 24.0],
-                                    egui::Button::new(
-                                        RichText::new(if is_de { lbl_de } else { lbl_en })
-                                            .strong()
-                                            .size(11.0)
-                                            .color(p.text_main),
+                            cols[ci].add_enabled_ui(has_road, |ui| {
+                                if ui
+                                    .add_sized(
+                                        [ui.available_width(), 24.0],
+                                        egui::Button::new(
+                                            RichText::new(if is_de { lbl_de } else { lbl_en })
+                                                .strong()
+                                                .size(11.0)
+                                                .color(if has_road { p.text_main } else { p.text_muted }),
+                                        )
+                                        .fill(p.bg_sidebar)
+                                        .stroke(Stroke::new(1.0_f32, p.border_main))
+                                        .corner_radius(CornerRadius::same(6)),
                                     )
-                                    .fill(p.bg_sidebar)
-                                    .stroke(Stroke::new(1.0_f32, p.border_main))
-                                    .corner_radius(CornerRadius::same(6)),
-                                )
-                                .clicked()
-                            {
-                                actions.spawn = Some(kind);
-                            }
+                                    .on_disabled_hover_text(if is_de {
+                                        "Zuerst mindestens eine Strasse aus dem Katalog platzieren."
+                                    } else {
+                                        "Place at least one street piece from the catalog first."
+                                    })
+                                    .clicked()
+                                {
+                                    actions.spawn = Some(kind);
+                                }
+                            });
                         }
                     });
                 });

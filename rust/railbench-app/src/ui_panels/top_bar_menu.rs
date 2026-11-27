@@ -160,15 +160,14 @@ pub(super) fn draw_menu_bar(ctx: &egui::Context, app: &mut RailbenchApp) {
                         app.show_export_dialog = true;
                         ui.close_menu();
                     }
-                    if ui.button("Export PDF Blueprint...").clicked() {
-                        app.export_pdf_dialog();
-                        ui.close_menu();
-                    }
-                    if ui.button("Export SVG Blueprint...").clicked() {
-                        app.export_svg_dialog();
-                        ui.close_menu();
-                    }
-                    if ui.button("Export XML (.xml)...").clicked() {
+                    if ui
+                        .button(if app.lang == Lang::De {
+                            "XML exportieren (.xml)..."
+                        } else {
+                            "Export XML (.xml)..."
+                        })
+                        .clicked()
+                    {
                         app.export_xml_dialog();
                         ui.close_menu();
                     }
@@ -495,9 +494,9 @@ pub(super) fn draw_menu_bar(ctx: &egui::Context, app: &mut RailbenchApp) {
                     let is_de = app.lang == Lang::De;
                     if ui
                         .button(if is_de {
-                            "Hilfe & Handbuch..."
+                            "Anleitung & Funktionen... (F1)"
                         } else {
-                            "Help & User Guide..."
+                            "Help & Feature Guide... (F1)"
                         })
                         .clicked()
                     {
@@ -507,21 +506,21 @@ pub(super) fn draw_menu_bar(ctx: &egui::Context, app: &mut RailbenchApp) {
                     }
                     if ui
                         .button(if is_de {
-                            "Tastenkuerzel"
+                            "Bildanleitung: Menues & Oberflaeche"
                         } else {
-                            "Keyboard Shortcuts"
+                            "Visual Guide: Menus & UI"
                         })
                         .clicked()
                     {
-                        app.help_tab = 6;
+                        app.help_tab = 1;
                         app.show_help_dialog = true;
                         ui.close_menu();
                     }
                     if ui
                         .button(if is_de {
-                            "Eigenen Katalog (JSON-Schema)..."
+                            "Tastaturkuerzel (?)"
                         } else {
-                            "Catalog JSON Schema..."
+                            "Keyboard Shortcuts (?)"
                         })
                         .clicked()
                     {
@@ -529,31 +528,18 @@ pub(super) fn draw_menu_bar(ctx: &egui::Context, app: &mut RailbenchApp) {
                         app.show_help_dialog = true;
                         ui.close_menu();
                     }
-                    if ui
-                        .button(if is_de {
-                            "Bauplan-Druck & Export-Anleitung..."
-                        } else {
-                            "Blueprint Print & Export Guide..."
-                        })
-                        .clicked()
-                    {
-                        app.help_tab = 7;
-                        app.show_help_dialog = true;
-                        ui.close_menu();
-                    }
-                    if ui
-                        .button(if is_de {
-                            "Collab Server & CLI-Optionen..."
-                        } else {
-                            "Collab Server & CLI Flags..."
-                        })
-                        .clicked()
-                    {
-                        app.help_tab = 9;
-                        app.show_help_dialog = true;
-                        ui.close_menu();
-                    }
                     ui.separator();
+                    if ui
+                        .button(if is_de {
+                            "Willkommens-Bildschirm..."
+                        } else {
+                            "Welcome Screen..."
+                        })
+                        .clicked()
+                    {
+                        app.show_welcome_dialog = true;
+                        ui.close_menu();
+                    }
                     if ui
                         .button(if is_de {
                             "Demo-Anlagen..."
@@ -565,15 +551,78 @@ pub(super) fn draw_menu_bar(ctx: &egui::Context, app: &mut RailbenchApp) {
                         app.show_demo_dialog = true;
                         ui.close_menu();
                     }
+                    ui.separator();
                     if ui
                         .button(if is_de {
-                            "Willkommensbildschirm..."
+                            "Ebenen-Handbuch..."
                         } else {
-                            "Welcome Screen..."
+                            "Layers & Heights Guide..."
                         })
                         .clicked()
                     {
-                        app.show_welcome_dialog = true;
+                        app.help_tab = 2;
+                        app.show_help_dialog = true;
+                        ui.close_menu();
+                    }
+                    if ui
+                        .button(if is_de {
+                            "Spannungs-Handbuch..."
+                        } else {
+                            "Voltage Simulation Guide..."
+                        })
+                        .clicked()
+                    {
+                        app.help_tab = 4;
+                        app.show_help_dialog = true;
+                        ui.close_menu();
+                    }
+                    if ui
+                        .button(if is_de {
+                            "Druck-Handbuch..."
+                        } else {
+                            "Layer Printing Guide..."
+                        })
+                        .clicked()
+                    {
+                        app.help_tab = 3;
+                        app.show_help_dialog = true;
+                        ui.close_menu();
+                    }
+                    if ui
+                        .button(if is_de {
+                            "Gleiskatalog (JSON)..."
+                        } else {
+                            "Track Catalog (JSON)..."
+                        })
+                        .clicked()
+                    {
+                        app.help_tab = 9;
+                        app.show_help_dialog = true;
+                        ui.close_menu();
+                    }
+                    if ui
+                        .button(if is_de {
+                            "Mehrbenutzer & Server..."
+                        } else {
+                            "Multi-User & Server..."
+                        })
+                        .clicked()
+                    {
+                        app.help_tab = 7;
+                        app.show_help_dialog = true;
+                        ui.close_menu();
+                    }
+                    ui.separator();
+                    if ui
+                        .button(if is_de {
+                            "Ueber RAILbench..."
+                        } else {
+                            "About RAILbench..."
+                        })
+                        .clicked()
+                    {
+                        app.help_tab = 10;
+                        app.show_help_dialog = true;
                         ui.close_menu();
                     }
                 });

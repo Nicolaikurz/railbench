@@ -57,6 +57,8 @@ pub(super) fn resolve_active_vehicle_idx(sim: &crate::vehicle_sim::VehicleSimSta
 /// - Top: Frameless RAILbench header + unified mode/simulation/camera bar
 /// - Left/Center: Live 3D First-Person Cab View and/or SpDrS60 Signal Box
 /// - Right Panel: Driver's Control Desk (Telemetry, Throttle, Direction, Fleet, Spawn & Turnouts)
+pub use viewport_and_controls::CabCameraSmoother;
+
 pub fn draw_cab_view_window(ctx: &egui::Context, app: &mut RailbenchApp) {
     let is_de = app.lang == Lang::De;
     let title = if is_de {
@@ -73,16 +75,11 @@ pub fn draw_cab_view_window(ctx: &egui::Context, app: &mut RailbenchApp) {
         .with_decorations(false)
         .with_resizable(true);
 
-    // Ensure 3D scene & vehicle mesh stay synchronized even when the main window is in 2D mode
-    app.ensure_mesh_3d();
-    app.gpu_3d_resident = true;
-    let vehicles_mesh = if !app.vehicle_sim.vehicles.is_empty() {
-        let (verts, idxs) = app.vehicle_sim.build_vehicles_mesh_3d(&app.layout.scale);
-        if !idxs.is_empty() {
-            Some(std::sync::Arc::new(SceneMesh3D::from_raw(verts, idxs)))
-        } else {
-            None
-        }
+    // Build/sync 3D meshes only when a 3D cab pane is actually visible (skip in Stellwerk-only mode)
+    let vehicles_mesh = if app.cab_view_layout != 1 {
+        app.ensure_mesh_3d();
+        app.gpu_3d_resident = true;
+        app.vehicle_sim.get_or_build_vehicles_mesh_3d(&app.layout.scale)
     } else {
         None
     };
@@ -236,12 +233,17 @@ pub fn draw_cab_view_window(ctx: &egui::Context, app: &mut RailbenchApp) {
             actions.clear_all || actions.remove_id.is_some() || actions.spawn.is_some();
         apply_cab_actions(app, actions);
 
-        if needs_ui_refresh
-            || (app.vehicle_sim.running && !app.vehicle_sim.vehicles.is_empty())
+        if needs_ui_refresh {
+            vp_ctx.request_repaint();
+        } else if (app.vehicle_sim.running && !app.vehicle_sim.vehicles.is_empty())
             || app.vehicle_sim.has_moving_bridges()
             || app.vehicle_sim.has_active_uncoupler_timers()
         {
-            vp_ctx.request_repaint();
+            if app.low_gpu_mode {
+                vp_ctx.request_repaint_after(std::time::Duration::from_millis(33));
+            } else {
+                vp_ctx.request_repaint();
+            }
         }
         crate::handle_window_resize_borders(vp_ctx);
     });
@@ -736,5 +738,61 @@ mod tests {
         assert!(app.show_cab_window);
         assert_eq!(app.cab_look_yaw, 0.0);
         assert_eq!(app.cab_look_pitch, 0.0);
+    }
+
+    #[test]
+    fn cab_camera_smoother_damps_jitter_wraps_yaw_and_snaps_on_switch() {
+        let mut sm = CabCameraSmoother::default();
+        // First sample snaps immediately
+        let (e0, y0, p0) = sm.update(
+            "veh-1",
+            CabCameraMode::Cab,
+            false,
+            [10.0, 20.0, 30.0],
+            0.1,
+            -0.05,
+            Some(0.016),
+        );
+        assert_eq!(e0, [10.0, 20.0, 30.0]);
+        assert!((y0 - 0.1).abs() < 1e-5);
+        assert!((p0 - (-0.05)).abs() < 1e-5);
+
+        // Small step + wrap across 0 / 2pi moves smoothly via shortest arc (no 2pi flip)
+        let (e1, y1, _) = sm.update(
+            "veh-1",
+            CabCameraMode::Cab,
+            false,
+            [20.0, 20.0, 30.0],
+            std::f32::consts::TAU - 0.1,
+            -0.05,
+            Some(0.016),
+        );
+        assert!(e1[0] > 10.0 && e1[0] < 20.0, "eye X should damp between 10 and 20, got {}", e1[0]);
+        assert!(y1 > std::f32::consts::PI || y1 < 0.1, "yaw must cross 0 via shortest arc, got {y1}");
+
+        // Switching vehicle snaps immediately without lag
+        let (e2, y2, _) = sm.update(
+            "veh-2",
+            CabCameraMode::Cab,
+            false,
+            [500.0, 20.0, -40.0],
+            1.2,
+            0.0,
+            Some(0.016),
+        );
+        assert_eq!(e2, [500.0, 20.0, -40.0]);
+        assert!((y2 - 1.2).abs() < 1e-5);
+
+        // Switching camera mode snaps immediately too
+        let (e3, _, _) = sm.update(
+            "veh-2",
+            CabCameraMode::Chase,
+            false,
+            [420.0, 80.0, -40.0],
+            1.2,
+            -0.16,
+            Some(0.016),
+        );
+        assert_eq!(e3, [420.0, 80.0, -40.0]);
     }
 }

@@ -1,10 +1,52 @@
 use super::super::*;
 use super::*;
 
+pub(in crate::viewer3d) const VEHICLE_SHADOW_MIN_INTERVAL_MS: u64 = 120;
+
+pub(in crate::viewer3d) type ShadowKey = (
+    Option<u64>,
+    Option<u64>,
+    Option<u64>,
+    Option<u64>,
+    i32,
+    u8,
+);
+
+/// Decides whether the 2048x2048 directional shadow depth map needs re-rendering.
+/// Static layout/env changes update immediately, while vehicle-only motion is throttled
+/// (~8 Hz) and continuous day/night playback updates at ~2 Hz so cab/3D FPS stay high.
+pub(in crate::viewer3d) fn should_render_shadow_map(
+    prev_key: Option<ShadowKey>,
+    new_key: ShadowKey,
+    day_night_active: bool,
+    elapsed_since_last: Option<std::time::Duration>,
+) -> bool {
+    let Some(prev) = prev_key else {
+        return true;
+    };
+    let static_changed = (prev.0, prev.1, prev.2, prev.5) != (new_key.0, new_key.1, new_key.2, new_key.5);
+    if static_changed {
+        return true;
+    }
+    if prev.4 != new_key.4 {
+        if !day_night_active {
+            return true;
+        }
+        return elapsed_since_last
+            .is_none_or(|d| d >= std::time::Duration::from_millis(500));
+    }
+    if prev.3 != new_key.3 {
+        return elapsed_since_last.is_none_or(|d| {
+            d >= std::time::Duration::from_millis(VEHICLE_SHADOW_MIN_INTERVAL_MS)
+        });
+    }
+    false
+}
+
 pub(in crate::viewer3d) struct Viewport3DCallback {
     pub(in crate::viewer3d) uniforms: Uniforms3D,
     pub(in crate::viewer3d) bundle: Option<Scene3DBundle>,
-    pub(in crate::viewer3d) vehicles_mesh: Option<Arc<SceneMesh3D>>,
+    pub(in crate::viewer3d) vehicles_mesh: Option<(u64, Arc<SceneMesh3D>)>,
     pub(in crate::viewer3d) time_of_day: f32,
     pub(in crate::viewer3d) env_mode: Viewer3DEnv,
     pub(in crate::viewer3d) viewport_px: [u32; 2],
@@ -42,50 +84,32 @@ impl egui_wgpu::CallbackTrait for Viewport3DCallback {
                 Some((&state.tex_bgl, &state.tex_sampler, &mut state.texture_cache)),
             );
         }
-        if let Some(vmesh) = &self.vehicles_mesh {
-            static VEHICLE_MESH_SEQ: std::sync::atomic::AtomicU64 =
-                std::sync::atomic::AtomicU64::new(1);
-            let ver = VEHICLE_MESH_SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-            let slot_data = (ver, Arc::clone(vmesh));
-            state
-                .slot_vehicles
-                .sync(device, queue, Some(&slot_data), "railbench_3d_vehicles", None);
-        } else {
-            state
-                .slot_vehicles
-                .sync(device, queue, None, "railbench_3d_vehicles", None);
-        }
+        state.slot_vehicles.sync(
+            device,
+            queue,
+            self.vehicles_mesh.as_ref(),
+            "railbench_3d_vehicles",
+            None,
+        );
         state.celestial_slot.update(device, queue, self.time_of_day, self.env_mode);
 
-        // Render directional sun depth shadow map (2048x2048), throttled to ~2 Hz during continuous day/night playback
+        // Render directional sun depth shadow map (2048x2048), throttled for dynamic vehicles & day/night playback
         let sun_bucket = (self.time_of_day.rem_euclid(24.0) * 60.0).round() as i32;
         let geo_sigs = (
             self.bundle.as_ref().and_then(|b| b.boards.as_ref().map(|(s, _)| *s)),
             self.bundle.as_ref().and_then(|b| b.terrain.as_ref().map(|(s, _)| *s)),
             self.bundle.as_ref().and_then(|b| b.tracks.as_ref().map(|(s, _)| *s)),
-            self.vehicles_mesh.as_ref().map(|m| Arc::as_ptr(m) as usize as u64),
+            self.vehicles_mesh.as_ref().map(|(ver, _)| *ver),
         );
         let new_shadow_key = (geo_sigs.0, geo_sigs.1, geo_sigs.2, geo_sigs.3, sun_bucket, self.env_mode as u8);
         if self.shadows_enabled {
-            let need_shadow = match state.last_shadow_key {
-                None => true,
-                Some(prev) => {
-                    let geom_changed = (prev.0, prev.1, prev.2, prev.3) != geo_sigs;
-                    if geom_changed {
-                        true
-                    } else if prev.4 != sun_bucket || prev.5 != (self.env_mode as u8) {
-                        if !self.day_night_active {
-                            true
-                        } else {
-                            state
-                                .last_shadow_time
-                                .map_or(true, |t| t.elapsed() >= std::time::Duration::from_millis(500))
-                        }
-                    } else {
-                        false
-                    }
-                }
-            };
+            let elapsed = state.last_shadow_time.map(|t| t.elapsed());
+            let need_shadow = should_render_shadow_map(
+                state.last_shadow_key,
+                new_shadow_key,
+                self.day_night_active,
+                elapsed,
+            );
             if need_shadow {
                 let mut spass = egui_encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                     label: Some("railbench_3d_shadow_pass"),
@@ -169,10 +193,14 @@ impl egui_wgpu::CallbackTrait for Viewport3DCallback {
                 state.slot_tracks.draw_textured(&mut rpass, &state.texture_cache);
             }
 
-            if self.uniforms.cam_pos[1] >= -700.0 || self.env_mode == Viewer3DEnv::Minimal {
+            let draw_env_glass = self.uniforms.cam_pos[1] >= -700.0 || self.env_mode == Viewer3DEnv::Minimal;
+            if state.slot_tracks.glass_index_count > 0 || (draw_env_glass && state.slot_env.glass_index_count > 0) {
                 rpass.set_pipeline(&state.glass_pipeline);
                 rpass.set_bind_group(0, &state.scene_bg, &[]);
-                state.slot_env.draw_glass(&mut rpass, &state.identity_instance_buf);
+                state.slot_tracks.draw_glass(&mut rpass, &state.identity_instance_buf);
+                if draw_env_glass {
+                    state.slot_env.draw_glass(&mut rpass, &state.identity_instance_buf);
+                }
             }
         }
 

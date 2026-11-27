@@ -140,18 +140,14 @@ pub(crate) fn format_catalog_trigger_title(
         };
     }
     if roads_only {
-        return cat.name.clone();
+        return crate::catalog::localized_catalog_name(cat, is_de);
     }
     let mfr = cat
         .manufacturer
         .as_deref()
         .filter(|s| !s.is_empty())
-        .unwrap_or("Other");
-    let sys = cat
-        .system
-        .as_deref()
-        .filter(|s| !s.is_empty())
-        .unwrap_or(&cat.name);
+        .unwrap_or(if is_de { "Sonstige" } else { "Other" });
+    let sys = crate::catalog::localized_catalog_system(cat, is_de);
     format!("{mfr} — {sys}")
 }
 
@@ -333,7 +329,16 @@ pub(super) fn contains_ignore_case(haystack: &str, needle_lower: &str) -> bool {
 pub(super) fn draw_models_tab(ui: &mut egui::Ui, app: &mut RailbenchApp) {
     let p = palette(app.dark_mode);
     let is_de = app.lang == Lang::De;
-    ui.label(RichText::new("3D-MODELLE / CUSTOM & BUILTIN").strong().size(11.0).color(p.text_muted));
+    ui.label(
+        RichText::new(if is_de {
+            "3D-MODELLE / EIGENE & VORLAGEN"
+        } else {
+            "3D MODELS / CUSTOM & BUILT-IN"
+        })
+        .strong()
+        .size(11.0)
+        .color(p.text_muted),
+    );
     ui.add_space(4.0);
 
     // 1. Import .glb / .gltf card + scale selector
@@ -377,7 +382,7 @@ pub(super) fn draw_models_tab(ui: &mut egui::Ui, app: &mut RailbenchApp) {
                     .iter()
                     .find(|(c, _, _, _)| *c == app.model_scale.as_str())
                     .map(|(_, _, de, en)| if is_de { *de } else { *en })
-                    .unwrap_or("Spur H0 (1:87)");
+                    .unwrap_or(if is_de { "Spur H0 (1:87)" } else { "Scale H0 (1:87)" });
                 egui::ComboBox::from_id_salt("models_scale_combo")
                     .width(ui.available_width())
                     .selected_text(cur_label)
@@ -457,7 +462,7 @@ pub(super) fn draw_models_tab(ui: &mut egui::Ui, app: &mut RailbenchApp) {
                         ui.horizontal(|ui| {
                             ui.label(RichText::new(name).strong().size(12.0).color(p.text_main));
                             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                if ui.small_button("+ Add").clicked() {
+                                if ui.small_button(if is_de { "+ Hinzuf." } else { "+ Add" }).clicked() {
                                     add_clicked = true;
                                 }
                             });
@@ -507,10 +512,10 @@ pub(super) fn draw_models_tab(ui: &mut egui::Ui, app: &mut RailbenchApp) {
                             ui.label(RichText::new(&cm.name).strong().size(12.0).color(p.text_main));
                             ui.label(RichText::new(format!(".{}", cm.model_type)).size(10.0).color(Color32::from_rgb(129, 140, 248)));
                             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                if ui.small_button("Del").clicked() {
+                                if ui.small_button(if is_de { "Entf." } else { "Del" }).clicked() {
                                     del_clicked = true;
                                 }
-                                if ui.small_button("+ Add").clicked() {
+                                if ui.small_button(if is_de { "+ Hinzuf." } else { "+ Add" }).clicked() {
                                     add_clicked = true;
                                 }
                             });

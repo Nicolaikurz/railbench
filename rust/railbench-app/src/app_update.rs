@@ -191,7 +191,7 @@ impl eframe::App for RailbenchApp {
             let now = std::time::Instant::now();
             let dt = self
                 .last_vehicle_step
-                .map(|prev| (now - prev).as_secs_f64().clamp(0.0, 0.1))
+                .map(|prev| (now - prev).as_secs_f64().clamp(0.0, 0.05))
                 .unwrap_or(0.016);
             self.last_vehicle_step = Some(now);
             self.vehicle_sim.step_bridges(dt, &self.layout, &self.catalogs);
@@ -222,13 +222,18 @@ impl eframe::App for RailbenchApp {
         let central_resp = egui::CentralPanel::default()
             .frame(egui::Frame::NONE)
             .show(ctx, |ui| {
-                let terrain_only_selection = self.sidebar_tab == SidebarTab::Terrain;
-                if terrain_only_selection && !self.selected.is_empty() {
+                let selection_scope = SelectionScope::from_sidebar_tab(self.sidebar_tab);
+                if selection_scope != SelectionScope::All && !self.selected.is_empty() {
+                    let pieces = &self.layout.pieces;
                     let models = self.layout.models.as_deref().unwrap_or(&[]);
+                    let catalogs = &self.catalogs;
                     self.selected.retain(|id| {
-                        models
+                        pieces
                             .iter()
-                            .any(|m| &m.id == id && terrain_tools::is_terrain_model(m))
+                            .any(|p| &p.id == id && selection_scope.allows_piece(catalogs, p))
+                            || models
+                                .iter()
+                                .any(|m| &m.id == id && selection_scope.allows_model(m))
                     });
                 }
                 if self.is_3d_mode {
@@ -245,16 +250,9 @@ impl eframe::App for RailbenchApp {
                     self.ensure_mesh_3d();
                     self.gpu_3d_resident = true;
                     let sc_pts = self.current_short_circuit_points();
-                    let vehicles_mesh = if !self.vehicle_sim.vehicles.is_empty() {
-                        let (verts, idxs) = self.vehicle_sim.build_vehicles_mesh_3d(&self.layout.scale);
-                        if !idxs.is_empty() {
-                            Some(Arc::new(viewer3d::SceneMesh3D::from_raw(verts, idxs)))
-                        } else {
-                            None
-                        }
-                    } else {
-                        None
-                    };
+                    let vehicles_mesh = self
+                        .vehicle_sim
+                        .get_or_build_vehicles_mesh_3d(&self.layout.scale);
                     let edit_out = draw_viewport_3d(
                         ui,
                         &mut self.camera_3d,
@@ -271,13 +269,12 @@ impl eframe::App for RailbenchApp {
                             snapping_enabled: self.snapping_enabled,
                             layer_protection: self.layer_protection,
                             rotation_step: self.rotation_step,
-                            terrain_only_selection,
+                            selection_scope,
                         },
                         &mut self.viewer3d_env,
                         &mut self.day_night_active,
                         &mut self.time_of_day,
                         &mut self.day_night_speed,
-                        &mut self.show_wood_plates,
                         sc_pts.first().map(|p| Vec2 { x: p[0], y: p[2] }),
                         self.dark_mode,
                         self.low_gpu_mode,
@@ -405,7 +402,7 @@ impl eframe::App for RailbenchApp {
                         &mut self.board_snap_guides,
                         self.show_wood_plates,
                         self.sidebar_tab == SidebarTab::Board,
-                        terrain_only_selection,
+                        selection_scope,
                         &mut self.sketcher,
                         &mut self.dragging_model_rot,
                         &mut self.dragging_track_rot,
@@ -603,7 +600,7 @@ impl eframe::App for RailbenchApp {
                 ctx.set_cursor_icon(egui::CursorIcon::Grabbing);
             }
             // If released anywhere outside the canvas, cancel the drag cleanly
-            if ctx.input(|i| i.pointer.primary_released()) {
+            if ctx.input(|i| i.pointer.primary_released() || !i.pointer.primary_down()) {
                 self.dragging_catalog_entry = None;
             }
         }
@@ -631,7 +628,7 @@ impl eframe::App for RailbenchApp {
                 );
                 ctx.set_cursor_icon(egui::CursorIcon::Grabbing);
             }
-            if ctx.input(|i| i.pointer.primary_released()) {
+            if ctx.input(|i| i.pointer.primary_released() || !i.pointer.primary_down()) {
                 self.dragging_model_template = None;
             }
         }

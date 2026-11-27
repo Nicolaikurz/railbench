@@ -11,18 +11,22 @@
     {
       "id": "R001",
       "name": "Gerades Gleis 110 mm",
+      "nameEn": "Straight Track 110 mm",
       "kind": "straight",
       "category": "Geraden",
       "description": "Standard-Gerade, Länge 110 mm",
+      "descriptionEn": "Standard straight, Length 110 mm",
       "length": 110,
       "gauge": 6.5
     },
     {
       "id": "R002",
       "name": "Gebogenes Gleis R195-45°",
+      "nameEn": "Curved Track R195-45°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Radius R195 = 195 mm, Bogen 45°",
+      "descriptionEn": "Radius R195 = 195 mm, Curve 45°",
       "radius": 195,
       "angle": 45,
       "gauge": 6.5
@@ -30,9 +34,11 @@
     {
       "id": "R003",
       "name": "Gebogenes Gleis R220-45°",
+      "nameEn": "Curved Track R220-45°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Radius R220 = 220 mm, Bogen 45°",
+      "descriptionEn": "Radius R220 = 220 mm, Curve 45°",
       "radius": 220,
       "angle": 45,
       "gauge": 6.5
@@ -40,9 +46,11 @@
     {
       "id": "R004",
       "name": "Gebogenes Gleis R145-45°",
+      "nameEn": "Curved Track R145-45°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Industriekreis, Radius R145 = 145 mm, Bogen 45°",
+      "descriptionEn": "Industrial curve, Radius R145 = 145 mm, Curve 45°",
       "radius": 145,
       "angle": 45,
       "gauge": 6.5
@@ -50,9 +58,11 @@
     {
       "id": "R005",
       "name": "Gebogenes Gleis R170-45°",
+      "nameEn": "Curved Track R170-45°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Radius R170 = 170 mm, Bogen 45°",
+      "descriptionEn": "Radius R170 = 170 mm, Curve 45°",
       "radius": 170,
       "angle": 45,
       "gauge": 6.5
@@ -60,36 +70,44 @@
     {
       "id": "R006",
       "name": "Prellbock A auf Gleisstück 25 mm",
+      "nameEn": "Buffer Stop Type A on 25 mm Track",
       "kind": "straight",
       "category": "Zubehör",
       "description": "Gleis 25 mm mit Prellbock A",
+      "descriptionEn": "Track 25 mm with buffer stop A",
       "length": 25,
       "gauge": 6.5
     },
     {
       "id": "R008",
       "name": "Gerades Gleis 25 mm",
+      "nameEn": "Straight Track 25 mm",
       "kind": "straight",
       "category": "Geraden",
       "description": "Kurzes Ausgleichsstück, Länge 25 mm",
+      "descriptionEn": "Short compensation piece, Length 25 mm",
       "length": 25,
       "gauge": 6.5
     },
     {
       "id": "R009",
       "name": "Gerades Gleis 220 mm",
+      "nameEn": "Straight Track 220 mm",
       "kind": "straight",
       "category": "Geraden",
       "description": "Langes Geradengleis, Länge 220 mm",
+      "descriptionEn": "Long Straight Track, Length 220 mm",
       "length": 220,
       "gauge": 6.5
     },
     {
       "id": "R012",
       "name": "Gebogenes Gleis R490-13°",
+      "nameEn": "Curved Track R490-13°",
       "kind": "curve",
       "category": "Bögen",
       "description": "Weichengegenbogen, Radius R490 = 490 mm, Bogen 13°",
+      "descriptionEn": "Turnoutsgegenbogen, Radius R490 = 490 mm, Curve 13°",
       "radius": 490,
       "angle": 13,
       "gauge": 6.5
@@ -97,9 +115,11 @@
     {
       "id": "R022",
       "name": "Elektrische Weiche links 55 mm (13°)",
+      "nameEn": "Electric Left Turnout 55 mm (13°)",
       "kind": "turnout-left",
       "category": "Weichen",
       "description": "Kurze Weiche Länge 55 mm, Abzweig R490 / 13°",
+      "descriptionEn": "Short turnout Length 55 mm, branch R490 / 13°",
       "length": 55,
       "branchRadius": 490,
       "branchAngle": 13,
@@ -108,9 +128,11 @@
     {
       "id": "R023",
       "name": "Elektrische Weiche rechts 55 mm (13°)",
+      "nameEn": "Electric Right Turnout 55 mm (13°)",
       "kind": "turnout-right",
       "category": "Weichen",
       "description": "Kurze Weiche Länge 55 mm, Abzweig R490 / 13°",
+      "descriptionEn": "Short turnout Length 55 mm, branch R490 / 13°",
       "length": 55,
       "branchRadius": 490,
       "branchAngle": 13,
@@ -119,18 +141,22 @@
     {
       "id": "R024",
       "name": "Gerades Gleis 55 mm",
+      "nameEn": "Straight Track 55 mm",
       "kind": "straight",
       "category": "Geraden",
       "description": "Halbes Standardgleis, Länge 55 mm",
+      "descriptionEn": "Half Standard Track, Length 55 mm",
       "length": 55,
       "gauge": 6.5
     },
     {
       "id": "R028",
       "name": "Kreuzung 90°",
+      "nameEn": "Crossing 90°",
       "kind": "crossing",
       "category": "Kreuzungen",
       "description": "Länge 55 mm, Kreuzungswinkel 90°",
+      "descriptionEn": "Length 55 mm, crossing angle 90°",
       "length": 55,
       "gauge": 6.5,
       "angle": 90
@@ -138,45 +164,55 @@
     {
       "id": "R029",
       "name": "Aufgleisgleis 110 mm",
+      "nameEn": "Rerailer Track 110 mm",
       "kind": "straight",
       "category": "Zubehör",
       "description": "Gerade 110 mm mit Aufgleishilfe",
+      "descriptionEn": "Straight 110 mm with rerailer aid",
       "length": 110,
       "gauge": 6.5
     },
     {
       "id": "R034",
       "name": "Prellbockgleis beleuchtet",
+      "nameEn": "Illuminated Buffer Stop Track",
       "kind": "straight",
       "category": "Zubehör",
       "description": "Gleis 55 mm mit rot beleuchtetem Prellbock",
+      "descriptionEn": "Track 55 mm with red illuminated Buffer Stop",
       "length": 55,
       "gauge": 6.5
     },
     {
       "id": "R039",
       "name": "Ausgleichsgleis 115 mm",
+      "nameEn": "Compensation Track 115 mm",
       "kind": "straight",
       "category": "Geraden",
       "description": "Ausgleichsgerade für Weichengegenbögen, Länge 115 mm",
+      "descriptionEn": "Compensation straight for turnout counter-curves, Length 115 mm",
       "length": 115,
       "gauge": 6.5
     },
     {
       "id": "R040",
       "name": "Ausgleichsgleis 53,6 mm",
+      "nameEn": "Compensation Track 53.6 mm",
       "kind": "straight",
       "category": "Geraden",
       "description": "Ausgleichsstück, Länge 53,6 mm",
+      "descriptionEn": "Compensation piece, Length 53.6 mm",
       "length": 53.6,
       "gauge": 6.5
     },
     {
       "id": "R045",
       "name": "Elektrische Weiche links 110 mm (13°)",
+      "nameEn": "Electric Left Turnout 110 mm (13°)",
       "kind": "turnout-left",
       "category": "Weichen",
       "description": "Lange Weiche Länge 110 mm, Abzweig R490 / 13°",
+      "descriptionEn": "Long turnout Length 110 mm, branch R490 / 13°",
       "length": 110,
       "branchRadius": 490,
       "branchAngle": 13,
@@ -185,9 +221,11 @@
     {
       "id": "R046",
       "name": "Elektrische Weiche rechts 110 mm (13°)",
+      "nameEn": "Electric Right Turnout 110 mm (13°)",
       "kind": "turnout-right",
       "category": "Weichen",
       "description": "Lange Weiche Länge 110 mm, Abzweig R490 / 13°",
+      "descriptionEn": "Long turnout Length 110 mm, branch R490 / 13°",
       "length": 110,
       "branchRadius": 490,
       "branchAngle": 13,

@@ -457,6 +457,112 @@ mod tests {
     }
 
     #[test]
+    fn pick_3d_object_scoped_respects_tracks_roads_and_buildings() {
+        let catalogs = builtin_catalogs();
+        let e24188 = find_entry(&catalogs, "24188").unwrap();
+        let road_entry = catalogs
+            .iter()
+            .flat_map(|c| c.entries.iter())
+            .find(|e| e.is_road == Some(true))
+            .expect("builtin road entry");
+        let p0 = create_piece(
+            "track-pick".into(),
+            e24188,
+            Transform {
+                x: 0.0,
+                y: 0.0,
+                rotation: 0.0,
+            },
+            None,
+        );
+        let r0 = create_piece(
+            "road-pick".into(),
+            road_entry,
+            Transform {
+                x: 0.0,
+                y: 140.0,
+                rotation: 0.0,
+            },
+            None,
+        );
+        let road_cx = r0.connectors.first().map(|c| c.x as f32).unwrap_or(50.0);
+        let road_cz = r0.connectors.first().map(|c| c.y as f32).unwrap_or(140.0);
+        let layout = Layout {
+            name: "Scoped3DPick".into(),
+            scale: "H0".into(),
+            pieces: vec![p0, r0],
+            models: Some(vec![Model3D {
+                id: "m-station".into(),
+                name: "Station".into(),
+                category: "Buildings".into(),
+                transform: Transform {
+                    x: 94.0,
+                    y: -140.0,
+                    rotation: 0.0,
+                },
+                elevation: Some(0.0),
+                scale: Some(1.0),
+                layer_id: None,
+                width: 140.0,
+                depth: 80.0,
+                height: 65.0,
+                model_type: "builtin".into(),
+                builtin_id: Some("station".into()),
+                mountain_style: None,
+                mountain_path: None,
+                ground_terrain_type: None,
+                file_data: None,
+                file_name: None,
+            }]),
+            feed_voltage: None,
+            catenary_feed_voltage: None,
+            catenary_circuit_mode: None,
+            loco_current_ma: None,
+            loco_count: None,
+            train_current_amps: None,
+            turnout_lantern_current_ma: None,
+            turnout_decoder_current_ma: None,
+            layers: None,
+            active_layer_id: None,
+            baseboard: None,
+            baseboards: None,
+            terrain_field: None,
+        };
+
+        let cam = Camera3D {
+            target: [94.0, 10.0, 0.0],
+            yaw: 0.4,
+            pitch: 0.65,
+            distance: 550.0,
+        };
+        let rect = Rect::from_min_size(Pos2::ZERO, egui::vec2(1000.0, 700.0));
+        let (tro, trd) = cam.screen_to_ray(rect, cam.world_to_screen(rect, [94.0, 5.5, 0.0]).unwrap());
+        let (rro, rrd) = cam.screen_to_ray(rect, cam.world_to_screen(rect, [road_cx, 5.5, road_cz]).unwrap());
+        let (mro, mrd) = cam.screen_to_ray(rect, cam.world_to_screen(rect, [94.0, 25.0, -140.0]).unwrap());
+
+        assert_eq!(
+            pick_3d_object_scoped(tro, trd, &layout, &catalogs, true, crate::SelectionScope::Tracks).as_deref(),
+            Some("track-pick")
+        );
+        assert!(pick_3d_object_scoped(rro, rrd, &layout, &catalogs, true, crate::SelectionScope::Tracks).is_none());
+        assert!(pick_3d_object_scoped(mro, mrd, &layout, &catalogs, true, crate::SelectionScope::Tracks).is_none());
+
+        assert_eq!(
+            pick_3d_object_scoped(rro, rrd, &layout, &catalogs, true, crate::SelectionScope::Roads).as_deref(),
+            Some("road-pick")
+        );
+        assert!(pick_3d_object_scoped(tro, trd, &layout, &catalogs, true, crate::SelectionScope::Roads).is_none());
+        assert!(pick_3d_object_scoped(mro, mrd, &layout, &catalogs, true, crate::SelectionScope::Roads).is_none());
+
+        assert_eq!(
+            pick_3d_object_scoped(mro, mrd, &layout, &catalogs, true, crate::SelectionScope::Buildings).as_deref(),
+            Some("m-station")
+        );
+        assert!(pick_3d_object_scoped(tro, trd, &layout, &catalogs, true, crate::SelectionScope::Buildings).is_none());
+        assert!(pick_3d_object_scoped(rro, rrd, &layout, &catalogs, true, crate::SelectionScope::Buildings).is_none());
+    }
+
+    #[test]
     fn catalog_drop_preview_3d_snaps_to_open_connector() {
         let catalogs = builtin_catalogs();
         let e24188 = find_entry(&catalogs, "24188").unwrap();
@@ -562,14 +668,111 @@ mod tests {
         };
         let rect = Rect::from_min_size(Pos2::ZERO, egui::vec2(1000.0, 700.0));
         let edit = Edit3DState::default();
-        let (piv, hdl, base_ang, init_rot) =
-            compute_3d_rotation_handle_world(&layout, &selected, true, cam.distance, &edit)
-                .expect("selected track produces a 3D rotation handle point");
+        let (piv, hdl, base_ang, init_rot) = compute_3d_rotation_handle_world(
+            &layout,
+            &catalogs,
+            &selected,
+            true,
+            cam.distance,
+            &edit,
+            crate::SelectionScope::Tracks,
+        )
+        .expect("selected track produces a 3D rotation handle point");
         assert!(piv.iter().all(|v| v.is_finite()) && hdl.iter().all(|v| v.is_finite()));
         assert!((piv[0] - hdl[0]).hypot(piv[2] - hdl[2]) > 40.0);
         assert!((base_ang - 270.0).abs() < 1e-4);
         assert_eq!(init_rot, Some(0.0));
         assert!(cam.world_to_screen(rect, piv).is_some());
         assert!(cam.world_to_screen(rect, hdl).is_some());
+    }
+
+    #[test]
+    fn edit_3d_disabled_in_minimal_cad_blocks_edit_and_clears_hover_and_preview() {
+        let catalogs = builtin_catalogs();
+        let e24188 = find_entry(&catalogs, "24188").unwrap();
+        let p0 = create_piece(
+            "t-edit3d".into(),
+            e24188,
+            Transform {
+                x: 0.0,
+                y: 0.0,
+                rotation: 0.0,
+            },
+            None,
+        );
+        let mut layout = crate::make_empty_layout();
+        layout.pieces.push(p0);
+        let mut selected = HashSet::new();
+        let mut edit = Edit3DState {
+            enabled: false,
+            dragging_selection: true,
+            dragging_vertical: true,
+            hovered_id: Some("t-edit3d".into()),
+            preview_piece: Some(layout.pieces[0].clone()),
+            ..Default::default()
+        };
+        let cam = Camera3D::default();
+        let rect = Rect::from_min_size(Pos2::ZERO, egui::vec2(1000.0, 700.0));
+        let ctx = egui::Context::default();
+        let mut raw = egui::RawInput::default();
+        raw.screen_rect = Some(rect);
+        let _ = ctx.run(raw, |c| {
+            egui::CentralPanel::default().show(c, |ui| {
+                let (_, resp) = ui.allocate_exact_size(rect.size(), egui::Sense::click_and_drag());
+                let (consumed, out) = handle_3d_edit_interaction(
+                    ui,
+                    rect,
+                    &resp,
+                    &cam,
+                    &mut edit,
+                    &mut layout,
+                    &catalogs,
+                    &mut selected,
+                    Some(e24188),
+                    None,
+                    true,
+                    true,
+                    30.0,
+                    Viewer3DEnv::Minimal,
+                    crate::SelectionScope::Tracks,
+                );
+                assert!(!consumed);
+                assert!(!out.layout_changed);
+            });
+        });
+        assert!(!edit.dragging_selection);
+        assert!(!edit.dragging_vertical);
+        assert!(edit.hovered_id.is_none());
+        assert!(edit.preview_piece.is_none());
+
+        // When Edit 3D is toggled back ON in Minimal CAD, dragging a catalog entry computes drop preview
+        edit.enabled = true;
+        let mut raw2 = egui::RawInput::default();
+        raw2.screen_rect = Some(rect);
+        raw2.events.push(egui::Event::PointerMoved(Pos2::new(500.0, 350.0)));
+        let _ = ctx.run(raw2, |c| {
+            egui::CentralPanel::default().show(c, |ui| {
+                let (_, resp) = ui.allocate_exact_size(rect.size(), egui::Sense::click_and_drag());
+                let (consumed, _) = handle_3d_edit_interaction(
+                    ui,
+                    rect,
+                    &resp,
+                    &cam,
+                    &mut edit,
+                    &mut layout,
+                    &catalogs,
+                    &mut selected,
+                    Some(e24188),
+                    None,
+                    true,
+                    true,
+                    30.0,
+                    Viewer3DEnv::Minimal,
+                    crate::SelectionScope::Tracks,
+                );
+                assert!(consumed);
+            });
+        });
+        assert!(edit.preview_piece.is_some());
     }
 }

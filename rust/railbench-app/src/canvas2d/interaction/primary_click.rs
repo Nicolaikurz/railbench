@@ -16,7 +16,7 @@ pub(super) fn handle_ramp_and_primary_click(
     measure_locked: &mut bool,
     layer_protection: bool,
     board_edit_enabled: bool,
-    terrain_only_selection: bool,
+    selection_scope: crate::SelectionScope,
     measure_mode: bool,
     terrain_brush: &mut TerrainBrushState,
     is_de: bool,
@@ -374,7 +374,7 @@ pub(super) fn handle_ramp_and_primary_click(
         }
     } else if !terrain_brush.active && !measure_mode && !ramp_pick_active && response.clicked_by(egui::PointerButton::Primary) {
         if let Some(sp) = response.interact_pointer_pos() {
-            let on_rot_knob = !terrain_only_selection
+            let on_rot_knob = (selection_scope.allows_any_piece() || selection_scope.allows_buildings())
                 && (selected_track_rot_handle
                     .as_ref()
                     .is_some_and(|(_, hs, _, _, _)| sp.distance(*hs) <= 14.0)
@@ -383,7 +383,8 @@ pub(super) fn handle_ramp_and_primary_click(
                         .is_some_and(|(_, hs)| sp.distance(*hs) <= 14.0));
             if on_rot_knob {
                 // Keep selection intact when clicking directly on the rotation handle
-            } else if let Some(btn) = (!terrain_only_selection)
+            } else if let Some(btn) = selection_scope
+                .allows_rail_accessories()
                 .then(|| hit_test_accessory_button(accessory_buttons, sp))
                 .flatten()
             {
@@ -402,7 +403,8 @@ pub(super) fn handle_ramp_and_primary_click(
                         }
                     }
                 }
-            } else if let Some((pid, cidx, _, _)) = (!terrain_only_selection)
+            } else if let Some((pid, cidx, _, _)) = selection_scope
+                .allows_any_piece()
                 .then(|| {
                     plus_buttons
                         .iter()
@@ -416,10 +418,11 @@ pub(super) fn handle_ramp_and_primary_click(
                 let hit = find_canvas_object_at(
                     layout,
                     cache,
+                    catalogs,
                     wp,
                     22.0 / (camera.zoom as f64).max(0.25),
                     layer_protection,
-                    terrain_only_selection,
+                    selection_scope,
                 );
                 let shift = ui.input(|i| i.modifiers.shift);
                 let alt = ui.input(|i| i.modifiers.alt);
@@ -439,6 +442,7 @@ pub(super) fn handle_ramp_and_primary_click(
                                     .iter()
                                     .filter(|p| {
                                         p.group_id.as_deref() == Some(gid.as_str())
+                                            && selection_scope.allows_piece(catalogs, p)
                                             && is_layer_editable_with_protection(
                                                 layout,
                                                 p.layer_id.as_deref(),
@@ -461,7 +465,7 @@ pub(super) fn handle_ramp_and_primary_click(
                             selected.insert(gid);
                         }
                     }
-                } else if board_edit_enabled && !terrain_only_selection {
+                } else if board_edit_enabled && selection_scope == crate::SelectionScope::Boards {
                     if let Some((bid, _)) = find_board_drag_hit(
                         board_edit_enabled,
                         layout,

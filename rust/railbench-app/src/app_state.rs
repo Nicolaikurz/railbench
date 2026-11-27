@@ -79,9 +79,13 @@ pub(crate) fn handle_window_resize_borders(ctx: &egui::Context) {
 }
 
 pub(crate) fn make_empty_layout() -> Layout {
+    make_empty_layout_for_lang(true)
+}
+
+pub(crate) fn make_empty_layout_for_lang(is_de: bool) -> Layout {
     let default_board = BaseboardConfig {
         id: Some("board-1".into()),
-        name: Some("Tisch".into()),
+        name: Some(if is_de { "Tisch" } else { "Table" }.into()),
         enabled: true,
         shape: Some("rect".into()),
         custom_polygon: None,
@@ -104,8 +108,12 @@ pub(crate) fn make_empty_layout() -> Layout {
         corner_radius: Some(12.0),
         show_dimensions: Some(true),
     };
+    let mut layer = default_layer();
+    if !is_de {
+        layer.name = "Layer 0".into();
+    }
     Layout {
-        name: "Neue Anlage".into(),
+        name: if is_de { "Neue Anlage" } else { "New Layout" }.into(),
         scale: "H0".into(),
         pieces: Vec::new(),
         models: Some(Vec::new()),
@@ -117,7 +125,7 @@ pub(crate) fn make_empty_layout() -> Layout {
         train_current_amps: None,
         turnout_lantern_current_ma: Some(20.0),
         turnout_decoder_current_ma: Some(15.0),
-        layers: Some(vec![default_layer()]),
+        layers: Some(vec![layer]),
         active_layer_id: Some("layer-1".into()),
         baseboard: Some(default_board.clone()),
         baseboards: Some(vec![default_board]),

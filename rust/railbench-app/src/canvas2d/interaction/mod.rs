@@ -70,7 +70,8 @@ pub(super) fn handle_canvas_interaction(
     snapping_enabled: bool,
     layer_protection: bool,
     board_edit_enabled: bool,
-    terrain_only_selection: bool,
+    selection_scope: crate::SelectionScope,
+    sidebar_drag_active: bool,
     measure_mode: bool,
     terrain_brush: &mut TerrainBrushState,
     is_de: bool,
@@ -96,6 +97,18 @@ pub(super) fn handle_canvas_interaction(
         .filter(|sp| rect.contains(*sp))
         .map(|sp| camera.screen_to_world(rect, sp));
 
+    if sidebar_drag_active {
+        *dragging_active = false;
+        *drag_last_world = None;
+        *marquee_start = None;
+        *dragging_flex_handle = None;
+        *dragging_model_rot = None;
+        *dragging_track_rot = None;
+        *dragging_board = None;
+        board_snap_guides.clear();
+        return;
+    }
+
     // Tables/baseboards may only be selected or moved while the Board tab is open
     if !board_edit_enabled {
         if dragging_board.is_some() {
@@ -116,16 +129,20 @@ pub(super) fn handle_canvas_interaction(
         && !terrain_brush.active
     {
         if let (Some(hp), Some(hw)) = (hover_pos.filter(|sp| rect.contains(*sp)), interaction.hover_world) {
-            let hits_track_or_model = find_building_at(layout, hw, layer_protection).is_some()
-                || find_piece_at(
+            let hits_track_or_model = if selection_scope == crate::SelectionScope::Boards {
+                false
+            } else {
+                find_canvas_object_at(
                     layout,
                     cache,
+                    catalogs,
                     hw,
                     22.0 / (camera.zoom as f64).max(0.25),
                     layer_protection,
+                    selection_scope,
                 )
                 .is_some()
-                || find_terrain_at(layout, hw, layer_protection).is_some();
+            };
             if !hits_track_or_model
                 && find_board_drag_hit(
                     true,
@@ -426,7 +443,7 @@ pub(super) fn handle_canvas_interaction(
         measure_locked,
         layer_protection,
         board_edit_enabled,
-        terrain_only_selection,
+        selection_scope,
         measure_mode,
         terrain_brush,
         is_de,
@@ -462,7 +479,7 @@ pub(super) fn handle_canvas_interaction(
             snapping_enabled,
             layer_protection,
             board_edit_enabled,
-            terrain_only_selection,
+            selection_scope,
             measure_mode,
             terrain_brush,
             is_de,
